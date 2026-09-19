@@ -379,7 +379,7 @@ export default function HomePage() {
           <SectionIntro
             eyebrow="Seller plans and credits"
             title="Built-in plans for sellers who want better request visibility"
-            body="Plan cards are previews while pricing, limits, and credits are finalized. Seller billing stays focused on profile tools, offer activity, promoted placement, and request visibility."
+            body="Preview the planned Free, Pro and Elite seller plans below. Prices are in USD per month. Paid access is not available yet. HocaCredits and targeting fees are separate from subscriptions and weekly target limits."
           />
           <div className="pricing-grid compact-pricing">
             {pricingPlans.map((plan) => (

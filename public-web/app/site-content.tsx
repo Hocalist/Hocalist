@@ -202,39 +202,37 @@ export function MarketplaceSnapshot() {
 
 export const pricingPlans = [
   {
-    name: 'Starter',
-    price: 'Coming soon',
-    cadence: 'starter preview',
+    name: 'Free',
+    price: '$0',
+    cadence: 'USD / month',
     summary: 'For sellers preparing a profile before wider marketplace launch.',
-    features: ['Create a seller profile', 'Preview selected local requests', 'Send limited offers when access opens', 'Basic support'],
+    features: ['10 customer targets per week', 'Up to 3 Store listings', 'Create a seller profile', 'Targeting fees are separate'],
     action: 'Join as an early seller'
   },
   {
     name: 'Pro Seller',
-    price: 'Coming soon',
-    cadence: 'pro preview',
+    price: '$15',
+    cadence: 'USD / month',
     summary: 'For active local sellers who need more buyer-request visibility and offer tools.',
     features: [
-      'More buyer-request visibility when launched',
-      'More monthly offers when limits are finalized',
-      'Verified seller badge eligibility',
-      'Seller profile enhancements',
-      'Priority support path'
+      '50 customer targets per week',
+      'Up to 15 Store listings',
+      'Seller contacts and recommendations',
+      'Targeting fees are separate'
     ],
     action: 'Request early seller access',
     featured: true
   },
   {
-    name: 'Local Business',
-    price: 'Coming soon',
-    cadence: 'business preview',
-    summary: 'For shops and teams managing higher-volume local offer matching.',
+    name: 'Elite Seller',
+    price: '$30',
+    cadence: 'USD / month',
+    summary: 'For sellers who need higher targeting and Store listing limits.',
     features: [
-      'Higher buyer-request visibility when launched',
-      'Team/business profile planning',
-      'Advanced seller tools preview',
-      'Priority placement options planned',
-      'Business support path'
+      '100 customer targets per week',
+      'Up to 50 Store listings',
+      'Seller contacts and recommendations',
+      'Targeting fees are separate'
     ],
     action: 'Contact seller support'
   }
@@ -244,7 +242,7 @@ export const faqItems = [
   {
     question: 'What am I paying Hocalist for?',
     answer:
-      'Seller plans pay for seller tools, profile features, buyer-request visibility, credits, promoted placement, and related seller services. They do not pay for buyer-to-seller item purchases.'
+      'Subscriptions pay for seller tools and plan limits. HocaCredits are purchased separately for eligible targeting fees; a weekly target allowance does not include those fees. Item purchases are paid directly between buyers and sellers.'
   },
   {
     question: 'Does Hocalist process item payments?',
@@ -268,17 +266,19 @@ export const policyUpdated = 'Last updated: July 8, 2026';
 export function PolicyPage({
   title,
   lead,
-  sections
+  sections,
+  updated = policyUpdated
 }: {
   title: string;
   lead: string;
   sections: Array<{ title: string; body: string[] }>;
+  updated?: string;
 }) {
   return (
     <PageShell>
       <main className="policy-page">
         <section className="policy-hero reveal">
-          <p className="eyebrow">{policyUpdated}</p>
+          <p className="eyebrow">{updated}</p>
           <h1>{title}</h1>
           <p>{lead}</p>
         </section>

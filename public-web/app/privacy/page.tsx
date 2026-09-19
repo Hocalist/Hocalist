@@ -10,6 +10,7 @@ export default function PrivacyPage() {
   return (
     <PolicyPage
       title="Privacy Policy"
+      updated="Last updated: September 19, 2026"
       lead="This policy explains how Hocalist may collect, use, and protect information for buyer requests, seller offers, chat coordination, seller billing, support, and safety workflows."
       sections={[
         {
@@ -24,6 +25,14 @@ export default function PrivacyPage() {
           body: [
             'We may collect account information, profile details, contact information, buyer request details, seller offer information, support messages, safety reports, and usage information related to the app or website.',
             'For seller billing, a secure billing provider may collect the payment information needed for seller subscriptions, credits, or related seller service fees.'
+          ]
+        },
+        {
+          title: 'Google sign-in',
+          body: [
+            'When Google sign-in becomes available and you choose it, Hocalist will use your Google account identifier, email address and basic profile information, such as your name and profile image, to authenticate you and set up your Hocalist profile.',
+            'Google sign-in is intended for account access. It does not require access to your Gmail messages, Google Drive files or contacts. Your Google password is not shared with Hocalist.',
+            'Authentication information is handled by our authentication service provider to establish and protect your session. You can remove Hocalist access in your Google account settings; to request deletion of your Hocalist account and associated data, contact privacy@hocalist.com. Removing Google access alone does not delete your Hocalist account.'
           ]
         },
         {
