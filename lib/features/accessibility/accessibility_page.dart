@@ -978,15 +978,17 @@ class _AccessibilityReplicaMetrics {
     required double availableWidth,
     required TextScaler textScaler,
   }) {
-    final accessibilityReflow = textScaler.scale(1) > 1;
+    final sharedMetrics = ApprovedReplicaMetrics.resolve(
+      availableWidth: availableWidth,
+      textScaler: textScaler,
+    );
+    final accessibilityReflow = sharedMetrics.accessibilityReflow;
     final contentMaxWidth = math.min(
       availableWidth,
       accessibilityReflow ? reflowMaxWidth : referenceWidth,
     );
     return _AccessibilityReplicaMetrics(
-      geometryScale: accessibilityReflow
-          ? 1
-          : math.min(1, contentMaxWidth / referenceWidth),
+      geometryScale: math.min(1, availableWidth / referenceWidth),
       contentMaxWidth: contentMaxWidth,
       accessibilityReflow: accessibilityReflow,
     );

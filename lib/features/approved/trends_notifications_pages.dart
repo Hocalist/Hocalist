@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/accessibility_visuals.dart';
+import '../../theme/buyer_ui_foundation.dart';
+import '../../theme/control_foundation.dart';
 import 'approved_replica_metrics.dart';
+import 'onboarding_home_pages.dart';
 
-const _approvedPrimary = Color(0xff0b1047);
-const _approvedAction = Color(0xff3518ef);
-const _approvedMuted = Color(0xff596080);
+const _approvedPrimary = BuyerUiTokens.trendsText;
+const _approvedAction = BuyerUiTokens.trendsAction;
+const _approvedMuted = BuyerUiTokens.muted;
 const _approvedGreen = Color(0xff15952e);
-const _approvedGold = Color(0xffffad00);
-const _approvedBorder = Color(0xffe2e4ef);
+const _approvedGold = BuyerUiTokens.rewardGold;
+const _approvedBorder = BuyerUiTokens.border;
 const _approvedAssetRoot = 'assets/approved_trends_notifications';
 
 Color _pageText(BuildContext context) =>
@@ -26,6 +29,31 @@ ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
         availableWidth: MediaQuery.sizeOf(context).width,
         textScaler: MediaQuery.textScalerOf(context),
       );
+}
+
+double _pickedSellerFontSize(
+  ApprovedReplicaMetrics metrics,
+  double referencePixels,
+) {
+  final scaled = metrics.fontSize(referencePixels);
+  if (metrics.screenshotLocked) return scaled;
+  final readableFloor = switch (referencePixels) {
+    <= 11 => 10.0,
+    <= 13 => 10.5,
+    <= 14.5 => 11.5,
+    _ => 12.0,
+  };
+  return scaled < readableFloor ? readableFloor : scaled;
+}
+
+double _sellerDimension(
+  ApprovedReplicaMetrics metrics,
+  double referencePixels, {
+  required double floor,
+}) {
+  final scaled = metrics.geometry(referencePixels);
+  if (metrics.screenshotLocked) return scaled;
+  return scaled < floor ? floor : scaled;
 }
 
 class _ApprovedReplicaSurface extends StatelessWidget {
@@ -59,6 +87,17 @@ Widget _approvedAsset(
   BoxFit fit = BoxFit.contain,
   String? semanticLabel,
 }) {
+  if (name.startsWith('transparent/') &&
+      width != null &&
+      height != null &&
+      (width - height).abs() < .01 &&
+      fit == BoxFit.contain) {
+    return BuyerAssetIcon(
+      asset: '$_approvedAssetRoot/$name',
+      slotSize: width,
+      semanticLabel: semanticLabel,
+    );
+  }
   return Image.asset(
     '$_approvedAssetRoot/$name',
     width: width,
@@ -67,12 +106,82 @@ Widget _approvedAsset(
     filterQuality: FilterQuality.high,
     semanticLabel: semanticLabel,
     excludeFromSemantics: semanticLabel == null,
+    gaplessPlayback: true,
+    errorBuilder: (context, error, stackTrace) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: semanticLabel == null
+            ? null
+            : Semantics(
+                label: '$semanticLabel unavailable',
+                child: const SizedBox.shrink(),
+              ),
+      );
+    },
   );
 }
 
 /// Screenshot-approved Hocatrends body. The app shell continues to own its
 /// global header, scrolling, and buyer bottom navigation.
-class ApprovedHocatrendsPage extends StatelessWidget {
+class ApprovedPublicHocatrendsPage extends StatelessWidget {
+  const ApprovedPublicHocatrendsPage({
+    required this.accent,
+    required this.onSeeSellers,
+    required this.onHome,
+    required this.onHocatrends,
+    required this.onWinners,
+    required this.onSignup,
+    super.key,
+  });
+
+  final Color accent;
+  final VoidCallback onSeeSellers;
+  final VoidCallback onHome;
+  final VoidCallback onHocatrends;
+  final VoidCallback onWinners;
+  final VoidCallback onSignup;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaMetrics.resolve(
+      availableWidth: MediaQuery.sizeOf(context).width,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    return Material(
+      color: const Color(0xfffbfcff),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                key: const ValueKey('public-hocatrends-scroll'),
+                padding: metrics.geometryInsets(
+                  const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                ),
+                children: [
+                  ApprovedHocatrendsPage(
+                    accent: accent,
+                    onSeeSellers: onSeeSellers,
+                  ),
+                ],
+              ),
+            ),
+            ApprovedNoAccountBottomNavigation(
+              selectedIndex: 1,
+              onHome: onHome,
+              onHocatrends: onHocatrends,
+              onWinners: onWinners,
+              onSignup: onSignup,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ApprovedHocatrendsPage extends StatefulWidget {
   const ApprovedHocatrendsPage({
     required this.accent,
     required this.onSeeSellers,
@@ -83,6 +192,133 @@ class ApprovedHocatrendsPage extends StatelessWidget {
   final VoidCallback onSeeSellers;
 
   @override
+  State<ApprovedHocatrendsPage> createState() => _ApprovedHocatrendsPageState();
+}
+
+enum _TrendCompetitionFilter { all, veryHigh, medium }
+
+class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  _TrendCompetitionFilter _competition = _TrendCompetitionFilter.all;
+
+  List<_ApprovedTrendData> get _visibleCategories {
+    final query = _query.trim().toLowerCase();
+    return _trendCategories.where((item) {
+      final matchesQuery =
+          query.isEmpty ||
+          '${item.title} ${item.competition} ${item.sellerCopy}'
+              .toLowerCase()
+              .contains(query);
+      final matchesCompetition = switch (_competition) {
+        _TrendCompetitionFilter.all => true,
+        _TrendCompetitionFilter.veryHigh => item.competition == 'Very High',
+        _TrendCompetitionFilter.medium => item.competition == 'Medium',
+      };
+      return matchesQuery && matchesCompetition;
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openFilters() async {
+    var draft = _competition;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => BuyerModalSheet(
+          title: 'Filter opportunities',
+          subtitle: 'Choose which competition levels you want to see.',
+          icon: Icons.tune_rounded,
+          onClose: () => Navigator.of(sheetContext).pop(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final option in _TrendCompetitionFilter.values)
+                    HocalistFilterChip(
+                      role: HocalistControlRole.buyer,
+                      label: switch (option) {
+                        _TrendCompetitionFilter.all => 'All levels',
+                        _TrendCompetitionFilter.veryHigh => 'Very high',
+                        _TrendCompetitionFilter.medium => 'Medium',
+                      },
+                      selected: draft == option,
+                      onSelected: (_) => setSheetState(() => draft = option),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              BuyerPrimaryButton(
+                label: 'Apply filters',
+                onPressed: () {
+                  setState(() => _competition = draft);
+                  Navigator.of(sheetContext).pop();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSearch() {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => BuyerModalSheet(
+          title: 'Search Hocatrends',
+          subtitle: 'Find products, services, or competitive categories.',
+          icon: Icons.search_rounded,
+          onClose: () => Navigator.of(sheetContext).pop(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              HocalistSearchField(
+                key: const Key('approved-hocatrends-search-input'),
+                role: HocalistControlRole.buyer,
+                controller: _searchController,
+                hintText: 'Search products or services',
+                autofocus: true,
+                onChanged: (value) {
+                  setState(() => _query = value);
+                  setSheetState(() {});
+                },
+                onClear: () {
+                  _searchController.clear();
+                  setState(() => _query = '');
+                  setSheetState(() {});
+                },
+              ),
+              const SizedBox(height: 14),
+              BuyerPrimaryButton(
+                label: 'Show results',
+                onPressed: () => Navigator.of(sheetContext).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return _ApprovedReplicaSurface(
       builder: (context) {
@@ -90,23 +326,43 @@ class ApprovedHocatrendsPage extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ApprovedTrendsHero(accent: accent),
+            _ApprovedTrendsHero(accent: widget.accent),
             SizedBox(height: metrics.geometry(8)),
             const _ApprovedSavingsNotice(),
             SizedBox(height: metrics.geometry(10)),
-            _ApprovedSearchField(accent: accent),
+            _ApprovedSearchField(
+              query: _query,
+              onSearch: _openSearch,
+              onFilter: _openFilters,
+              filtersActive: _competition != _TrendCompetitionFilter.all,
+            ),
             SizedBox(height: metrics.geometry(6)),
-            _ApprovedCompetitiveHeader(accent: accent),
+            _ApprovedCompetitiveHeader(accent: widget.accent),
             SizedBox(height: metrics.geometry(6)),
-            for (var index = 0; index < _trendCategories.length; index++) ...[
-              _ApprovedTrendCard(
-                item: _trendCategories[index],
-                accent: accent,
-                onSeeSellers: onSeeSellers,
-              ),
-              if (index != _trendCategories.length - 1)
-                SizedBox(height: metrics.geometry(8)),
-            ],
+            if (_visibleCategories.isEmpty)
+              _ApprovedTrendsEmptyState(
+                onClear: () {
+                  _searchController.clear();
+                  setState(() {
+                    _query = '';
+                    _competition = _TrendCompetitionFilter.all;
+                  });
+                },
+              )
+            else
+              for (
+                var index = 0;
+                index < _visibleCategories.length;
+                index++
+              ) ...[
+                _ApprovedTrendCard(
+                  item: _visibleCategories[index],
+                  accent: widget.accent,
+                  onSeeSellers: widget.onSeeSellers,
+                ),
+                if (index != _visibleCategories.length - 1)
+                  SizedBox(height: metrics.geometry(8)),
+              ],
           ],
         );
       },
@@ -124,49 +380,67 @@ class _ApprovedTrendsHero extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = _replicaMetrics(context);
-        final stack = metrics.accessibilityReflow || constraints.maxWidth < 220;
+        final stack = constraints.maxWidth < 280 && metrics.textScale >= 1.6;
+        final title = Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              'Saving',
+              style: BuyerTypography.style(
+                context,
+                metrics,
+                BuyerTextRole.displayTitle,
+                color: _pageText(context),
+                height: metrics.lineHeight(
+                  referenceFontSize: 20,
+                  referenceLineHeight: 21,
+                ),
+              ),
+            ),
+            SizedBox(width: metrics.geometry(4)),
+            Text(
+              'Opportunities',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                color: _approvedAction,
+                fontSize: metrics.fontSize(20),
+                fontWeight: FontWeight.w800,
+                height: metrics.lineHeight(
+                  referenceFontSize: 20,
+                  referenceLineHeight: 21,
+                ),
+              ),
+            ),
+            SizedBox(width: metrics.geometry(4)),
+            _approvedAsset(
+              'transparent/trend-up.png',
+              width: metrics.geometry(19),
+              height: metrics.geometry(18),
+            ),
+          ],
+        );
         final copy = Column(
+          key: const ValueKey('approved-saving-opportunities-copy'),
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: metrics.geometry(4),
-              runSpacing: metrics.geometry(1),
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  'Saving',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color: _pageText(context),
-                    fontSize: metrics.fontSize(20),
-                    fontWeight: FontWeight.w800,
-                    height: metrics.lineHeight(
-                      referenceFontSize: 20,
-                      referenceLineHeight: 21,
-                    ),
-                  ),
-                ),
-                Text(
-                  'Opportunities',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color: accent,
-                    fontSize: metrics.fontSize(20),
-                    fontWeight: FontWeight.w800,
-                    height: metrics.lineHeight(
-                      referenceFontSize: 20,
-                      referenceLineHeight: 21,
-                    ),
-                  ),
-                ),
-                _approvedAsset(
-                  'trend-up.png',
-                  width: metrics.geometry(19),
-                  height: metrics.geometry(18),
-                ),
-              ],
-            ),
-            SizedBox(height: metrics.geometry(6)),
+            if (metrics.textScale <= 1.3)
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: title,
+              )
+            else
+              Wrap(
+                spacing: metrics.geometry(4),
+                runSpacing: metrics.geometry(2),
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: title.children,
+              ),
+            SizedBox(height: metrics.geometry(8)),
             Text(
               'Explore verified sellers offering\ndiscounts on products & services.',
+              key: const ValueKey('approved-saving-opportunities-description'),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _pageMuted(context),
                 fontSize: metrics.fontSize(12),
@@ -181,8 +455,8 @@ class _ApprovedTrendsHero extends StatelessWidget {
         );
         final art = _approvedAsset(
           'saving-gift.png',
-          width: metrics.geometry(stack ? 128 : 98),
-          height: metrics.geometry(stack ? 100 : 78),
+          width: metrics.geometry(stack ? 120 : 150),
+          height: metrics.geometry(stack ? 92 : 108),
           semanticLabel: 'Gift box and savings coin',
         );
 
@@ -192,18 +466,37 @@ class _ApprovedTrendsHero extends StatelessWidget {
             children: [
               copy,
               SizedBox(height: metrics.geometry(4)),
-              Align(alignment: Alignment.centerRight, child: art),
+              Align(
+                key: const ValueKey('approved-saving-opportunities-art'),
+                alignment: Alignment.centerRight,
+                child: art,
+              ),
             ],
           );
         }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(child: copy),
-            SizedBox(width: metrics.geometry(4)),
-            art,
-          ],
+        return SizedBox(
+          key: const ValueKey('approved-saving-opportunities-hero'),
+          height: metrics.geometry(104),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                top: metrics.geometry(18),
+                width: metrics.geometry(230),
+                child: copy,
+              ),
+              Positioned(
+                right: metrics.geometry(-4),
+                top: metrics.geometry(-2),
+                child: SizedBox(
+                  key: const ValueKey('approved-saving-opportunities-art'),
+                  child: art,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -262,7 +555,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _approvedAsset(
-                  'trend-shield.png',
+                  'transparent/trend-shield.png',
                   width: metrics.geometry(42),
                   height: metrics.geometry(42),
                 ),
@@ -275,7 +568,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _approvedAsset(
-                'trend-shield.png',
+                'transparent/trend-shield.png',
                 width: metrics.geometry(42),
                 height: metrics.geometry(42),
               ),
@@ -290,9 +583,17 @@ class _ApprovedSavingsNotice extends StatelessWidget {
 }
 
 class _ApprovedSearchField extends StatelessWidget {
-  const _ApprovedSearchField({required this.accent});
+  const _ApprovedSearchField({
+    required this.query,
+    required this.onSearch,
+    required this.onFilter,
+    required this.filtersActive,
+  });
 
-  final Color accent;
+  final String query;
+  final VoidCallback onSearch;
+  final VoidCallback onFilter;
+  final bool filtersActive;
 
   @override
   Widget build(BuildContext context) {
@@ -302,51 +603,73 @@ class _ApprovedSearchField extends StatelessWidget {
         return Semantics(
           textField: true,
           label: 'Search products or services',
-          child: Container(
-            constraints: BoxConstraints(minHeight: metrics.geometry(42)),
-            padding: metrics.geometryInsets(
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            ),
-            decoration: BoxDecoration(
-              color: _pageSurface(context),
-              borderRadius: BorderRadius.circular(metrics.geometry(9)),
-              border: Border.all(
-                color: const Color(0xffdedcef),
-                width: metrics.geometry(1),
+          child: InkWell(
+            key: const Key('approved-hocatrends-search'),
+            onTap: onSearch,
+            borderRadius: BorderRadius.circular(metrics.geometry(9)),
+            child: Container(
+              constraints: BoxConstraints(minHeight: metrics.geometry(42)),
+              padding: metrics.geometryInsets(
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0x0c0b1047),
-                  blurRadius: metrics.geometry(8),
-                  offset: Offset(0, metrics.geometry(3)),
+              decoration: BoxDecoration(
+                color: _pageSurface(context),
+                borderRadius: BorderRadius.circular(metrics.geometry(9)),
+                border: Border.all(
+                  color: const Color(0xffdedcef),
+                  width: metrics.geometry(1),
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                _approvedAsset(
-                  'trend-search.png',
-                  width: metrics.geometry(22),
-                  height: metrics.geometry(24),
-                ),
-                SizedBox(width: metrics.geometry(9)),
-                Expanded(
-                  child: Text(
-                    'Search products or services',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: _pageMuted(context),
-                      fontSize: metrics.fontSize(13),
-                      fontWeight: FontWeight.w500,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0x0c0b1047),
+                    blurRadius: metrics.geometry(8),
+                    offset: Offset(0, metrics.geometry(3)),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  _approvedAsset(
+                    'transparent/trend-search.png',
+                    width: metrics.geometry(22),
+                    height: metrics.geometry(24),
+                  ),
+                  SizedBox(width: metrics.geometry(9)),
+                  Expanded(
+                    child: Text(
+                      query.isEmpty ? 'Search products or services' : query,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: query.isEmpty
+                            ? _pageMuted(context)
+                            : _pageText(context),
+                        fontSize: metrics.fontSize(13),
+                        fontWeight: query.isEmpty
+                            ? FontWeight.w500
+                            : FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(width: metrics.geometry(8)),
-                _approvedAsset(
-                  'trend-filter.png',
-                  width: metrics.geometry(23),
-                  height: metrics.geometry(24),
-                ),
-              ],
+                  SizedBox(width: metrics.geometry(8)),
+                  Semantics(
+                    button: true,
+                    label: filtersActive
+                        ? 'Change active filters'
+                        : 'Filter opportunities',
+                    child: GestureDetector(
+                      key: const Key('approved-hocatrends-filter'),
+                      onTap: onFilter,
+                      behavior: HitTestBehavior.opaque,
+                      child: _approvedAsset(
+                        'transparent/trend-filter.png',
+                        width: metrics.geometry(23),
+                        height: metrics.geometry(24),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -355,10 +678,88 @@ class _ApprovedSearchField extends StatelessWidget {
   }
 }
 
+class _ApprovedTrendsEmptyState extends StatelessWidget {
+  const _ApprovedTrendsEmptyState({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _replicaMetrics(context);
+    return Container(
+      key: const Key('approved-hocatrends-empty'),
+      padding: EdgeInsets.all(metrics.spacing(18)),
+      decoration: BoxDecoration(
+        color: _pageSurface(context),
+        border: Border.all(color: _approvedBorder),
+        borderRadius: BorderRadius.circular(metrics.geometry(12)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: metrics.artSize(32),
+            color: _approvedAction,
+          ),
+          SizedBox(height: metrics.spacing(7)),
+          Text(
+            'No matching opportunities',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: _pageText(context),
+              fontSize: metrics.fontSize(14),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(4)),
+          TextButton(
+            onPressed: onClear,
+            child: const Text('Clear search and filters'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ApprovedCompetitiveHeader extends StatelessWidget {
   const _ApprovedCompetitiveHeader({required this.accent});
 
   final Color accent;
+
+  Future<void> _openHowItWorks(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) => BuyerModalSheet(
+        title: 'How Hocatrends works',
+        subtitle:
+            'Compare opportunities where sellers are competing for buyers.',
+        icon: Icons.trending_up_rounded,
+        onClose: () => Navigator.of(sheetContext).pop(),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ApprovedHowItWorksPoint(
+              icon: Icons.insights_outlined,
+              title: 'Competition level',
+              body:
+                  'Shows how actively sellers are competing in each category.',
+            ),
+            SizedBox(height: 10),
+            _ApprovedHowItWorksPoint(
+              icon: Icons.savings_outlined,
+              title: 'Savings opportunity',
+              body:
+                  'Open a category to compare current seller offers and savings.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -369,7 +770,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _approvedAsset(
-              'competitive-flame.png',
+              'transparent/competitive-flame.png',
               width: metrics.geometry(16),
               height: metrics.geometry(22),
             ),
@@ -386,14 +787,14 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
             ),
             SizedBox(width: metrics.geometry(4)),
             _approvedAsset(
-              'trend-info.png',
+              'transparent/trend-info.png',
               width: metrics.geometry(13),
               height: metrics.geometry(15),
             ),
           ],
         );
         final action = TextButton(
-          onPressed: () {},
+          onPressed: () => _openHowItWorks(context),
           style: TextButton.styleFrom(
             foregroundColor: accent,
             minimumSize: Size(metrics.geometry(44), metrics.geometry(36)),
@@ -401,7 +802,11 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 3),
             ),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            textStyle: TextStyle(fontSize: metrics.fontSize(11.5)),
+            textStyle: TextStyle(
+              fontFamily: Theme.of(context).textTheme.labelLarge?.fontFamily,
+              fontSize: metrics.fontSize(11.5),
+              fontWeight: FontWeight.w700,
+            ),
           ),
           child: const Text('How it works'),
         );
@@ -413,6 +818,50 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ApprovedHowItWorksPoint extends StatelessWidget {
+  const _ApprovedHowItWorksPoint({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _replicaMetrics(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: metrics.artSize(20), color: _approvedAction),
+        SizedBox(width: metrics.spacing(9)),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: _pageText(context),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                body,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: _pageMuted(context)),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -654,7 +1103,9 @@ class _ApprovedTrendDetails extends StatelessWidget {
             ),
             SizedBox(width: metrics.geometry(2)),
             _approvedAsset(
-              item.medium ? 'trend-medium.png' : 'trend-hot.png',
+              item.medium
+                  ? 'transparent/trend-medium.png'
+                  : 'transparent/trend-hot.png',
               width: metrics.geometry(item.medium ? 10 : 9),
               height: metrics.geometry(10),
             ),
@@ -694,7 +1145,7 @@ class _ApprovedTrendDetails extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _approvedAsset(
-              'trend-people.png',
+              'transparent/trend-people.png',
               width: metrics.geometry(10),
               height: metrics.geometry(11),
             ),
@@ -811,9 +1262,132 @@ class ApprovedHocatrendsPickedSellersPage extends StatefulWidget {
 
 class _ApprovedHocatrendsPickedSellersPageState
     extends State<ApprovedHocatrendsPickedSellersPage> {
-  bool filtersOn = false;
+  bool verifiedOnly = false;
+  bool withinFourMiles = false;
+  bool savesAtLeast160 = false;
   bool gridView = false;
   String sortLabel = 'Best deal';
+
+  bool get filtersOn => verifiedOnly || withinFourMiles || savesAtLeast160;
+
+  List<_ApprovedSellerData> get visibleSellers {
+    final sellers = _approvedSellers.where((seller) {
+      final distance = double.tryParse(seller.distance.split(' ').first) ?? 0;
+      final savings =
+          int.tryParse(seller.savings.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      return (!verifiedOnly || seller.badge.isNotEmpty) &&
+          (!withinFourMiles || distance <= 4) &&
+          (!savesAtLeast160 || savings >= 160);
+    }).toList();
+    switch (sortLabel) {
+      case 'Lowest price':
+        sellers.sort((a, b) => _sellerPrice(a).compareTo(_sellerPrice(b)));
+        break;
+      case 'Top rated':
+        sellers.sort((a, b) => _sellerRating(b).compareTo(_sellerRating(a)));
+        break;
+      case 'Nearest':
+        sellers.sort(
+          (a, b) => _sellerDistance(a).compareTo(_sellerDistance(b)),
+        );
+        break;
+      default:
+        sellers.sort((a, b) => _sellerSavings(b).compareTo(_sellerSavings(a)));
+        break;
+    }
+    return sellers;
+  }
+
+  int _sellerPrice(_ApprovedSellerData seller) =>
+      int.tryParse(seller.price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  int _sellerSavings(_ApprovedSellerData seller) =>
+      int.tryParse(seller.savings.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  double _sellerRating(_ApprovedSellerData seller) =>
+      double.tryParse(seller.rating.split(' ').first) ?? 0;
+  double _sellerDistance(_ApprovedSellerData seller) =>
+      double.tryParse(seller.distance.split(' ').first) ?? 0;
+
+  Future<void> _openSellerFilters() async {
+    var draftVerified = verifiedOnly;
+    var draftDistance = withinFourMiles;
+    var draftSavings = savesAtLeast160;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => BuyerModalSheet(
+          title: 'Filter sellers',
+          subtitle: 'Narrow these results without leaving Hocatrends.',
+          icon: Icons.tune_rounded,
+          onClose: () => Navigator.of(sheetContext).pop(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  HocalistFilterChip(
+                    role: HocalistControlRole.buyer,
+                    label: 'Verified sellers',
+                    selected: draftVerified,
+                    onSelected: (value) =>
+                        setSheetState(() => draftVerified = value),
+                  ),
+                  HocalistFilterChip(
+                    role: HocalistControlRole.buyer,
+                    label: 'Within 4 mi',
+                    selected: draftDistance,
+                    onSelected: (value) =>
+                        setSheetState(() => draftDistance = value),
+                  ),
+                  HocalistFilterChip(
+                    role: HocalistControlRole.buyer,
+                    label: 'Saves \$160+',
+                    selected: draftSavings,
+                    onSelected: (value) =>
+                        setSheetState(() => draftSavings = value),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: BuyerSecondaryButton(
+                      label: 'Clear',
+                      onPressed: () => setSheetState(() {
+                        draftVerified = false;
+                        draftDistance = false;
+                        draftSavings = false;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: BuyerPrimaryButton(
+                      label: 'Show sellers',
+                      onPressed: () {
+                        setState(() {
+                          verifiedOnly = draftVerified;
+                          withinFourMiles = draftDistance;
+                          savesAtLeast160 = draftSavings;
+                        });
+                        Navigator.of(sheetContext).pop();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _message(String value) {
     ScaffoldMessenger.of(context)
@@ -833,17 +1407,14 @@ class _ApprovedHocatrendsPickedSellersPageState
               onBack: widget.onBack,
               onNotifications: widget.onNotifications,
             ),
-            SizedBox(height: metrics.geometry(18)),
+            SizedBox(height: metrics.geometry(12)),
             const _ApprovedSellerProductSummary(),
-            SizedBox(height: metrics.geometry(18)),
+            SizedBox(height: metrics.geometry(12)),
             _ApprovedSellerControls(
               filtersOn: filtersOn,
               sortLabel: sortLabel,
               gridView: gridView,
-              onFilters: () {
-                setState(() => filtersOn = !filtersOn);
-                _message(filtersOn ? 'Filters enabled.' : 'Filters cleared.');
-              },
+              onFilters: _openSellerFilters,
               onSort: (value) {
                 setState(() => sortLabel = value);
                 _message('Sorted by $value.');
@@ -858,23 +1429,36 @@ class _ApprovedHocatrendsPickedSellersPageState
               Wrap(
                 spacing: metrics.geometry(8),
                 runSpacing: metrics.geometry(8),
-                children: const [
-                  _ApprovedFilterChip(label: 'Verified sellers'),
-                  _ApprovedFilterChip(label: 'Within 6 mi'),
-                  _ApprovedFilterChip(label: 'Saves \$125+'),
+                children: [
+                  if (verifiedOnly)
+                    const _ApprovedFilterChip(label: 'Verified sellers'),
+                  if (withinFourMiles)
+                    const _ApprovedFilterChip(label: 'Within 4 mi'),
+                  if (savesAtLeast160)
+                    const _ApprovedFilterChip(label: 'Saves \$160+'),
                 ],
               ),
             ],
-            SizedBox(height: metrics.geometry(14)),
+            SizedBox(height: metrics.geometry(10)),
             LayoutBuilder(
               builder: (context, constraints) {
+                final sellers = visibleSellers;
                 final useGrid = gridView && metrics.availableWidth >= 620;
+                if (sellers.isEmpty) {
+                  return _ApprovedSellerEmptyState(
+                    onClear: () => setState(() {
+                      verifiedOnly = false;
+                      withinFourMiles = false;
+                      savesAtLeast160 = false;
+                    }),
+                  );
+                }
                 if (useGrid) {
                   return Wrap(
                     spacing: metrics.geometry(12),
                     runSpacing: metrics.geometry(12),
                     children: [
-                      for (final seller in _approvedSellers)
+                      for (final seller in sellers)
                         SizedBox(
                           width:
                               (constraints.maxWidth - metrics.geometry(12)) / 2,
@@ -888,17 +1472,13 @@ class _ApprovedHocatrendsPickedSellersPageState
                 }
                 return Column(
                   children: [
-                    for (
-                      var index = 0;
-                      index < _approvedSellers.length;
-                      index++
-                    ) ...[
+                    for (var index = 0; index < sellers.length; index++) ...[
                       _ApprovedSellerCard(
-                        seller: _approvedSellers[index],
+                        seller: sellers[index],
                         onChat: widget.onChatSeller,
                       ),
-                      if (index != _approvedSellers.length - 1)
-                        SizedBox(height: metrics.geometry(12)),
+                      if (index != sellers.length - 1)
+                        SizedBox(height: metrics.geometry(8)),
                     ],
                   ],
                 );
@@ -929,7 +1509,7 @@ class _ApprovedSellerHeader extends StatelessWidget {
         _ApprovedBitmapButton(
           tooltip: 'Back to Hocatrends',
           onPressed: onBack,
-          asset: 'seller-back.png',
+          asset: 'transparent/seller-back.png',
           size: metrics.geometry(44),
           imageWidth: metrics.geometry(18),
           imageHeight: metrics.geometry(18),
@@ -943,7 +1523,7 @@ class _ApprovedSellerHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                   color: _pageText(context),
-                  fontSize: metrics.fontSize(16),
+                  fontSize: _pickedSellerFontSize(metrics, 16),
                   fontWeight: FontWeight.w800,
                   height: metrics.lineHeight(
                     referenceFontSize: 16,
@@ -957,7 +1537,7 @@ class _ApprovedSellerHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: _pageMuted(context),
-                  fontSize: metrics.fontSize(12),
+                  fontSize: _pickedSellerFontSize(metrics, 12),
                   height: metrics.lineHeight(
                     referenceFontSize: 12,
                     referenceLineHeight: 15,
@@ -971,7 +1551,7 @@ class _ApprovedSellerHeader extends StatelessWidget {
         _ApprovedBitmapButton(
           tooltip: 'Notifications',
           onPressed: onNotifications,
-          asset: 'seller-notification.png',
+          asset: 'transparent/seller-notification.png',
           size: metrics.geometry(44),
           imageWidth: metrics.geometry(22),
           imageHeight: metrics.geometry(24),
@@ -1040,7 +1620,7 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
               'iPad Air',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 color: _pageText(context),
-                fontSize: metrics.fontSize(18),
+                fontSize: _pickedSellerFontSize(metrics, 18),
                 fontWeight: FontWeight.w800,
                 height: metrics.lineHeight(
                   referenceFontSize: 18,
@@ -1053,7 +1633,7 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
               'Category: Tablets',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _pageMuted(context),
-                fontSize: metrics.fontSize(13),
+                fontSize: _pickedSellerFontSize(metrics, 13),
                 height: metrics.lineHeight(
                   referenceFontSize: 13,
                   referenceLineHeight: 16.25,
@@ -1075,7 +1655,7 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   _approvedAsset(
-                    'seller-competition.png',
+                    'transparent/seller-competition.png',
                     width: metrics.geometry(10),
                     height: metrics.geometry(11),
                   ),
@@ -1083,12 +1663,12 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
                     'Competition: Very High',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: _approvedAction,
-                      fontSize: metrics.fontSize(11),
+                      fontSize: _pickedSellerFontSize(metrics, 11),
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   _approvedAsset(
-                    'trend-hot.png',
+                    'transparent/trend-hot.png',
                     width: metrics.geometry(11),
                     height: metrics.geometry(13),
                   ),
@@ -1139,8 +1719,8 @@ class _ApprovedSellerControls extends StatelessWidget {
         final reflow =
             constraints.maxWidth < 220 || metrics.accessibilityReflow;
         final filter = SizedBox(
-          width: metrics.geometry(70),
-          height: metrics.geometry(34),
+          width: _sellerDimension(metrics, 78, floor: 72),
+          height: _sellerDimension(metrics, 38, floor: 36),
           child: OutlinedButton(
             onPressed: onFilters,
             style: OutlinedButton.styleFrom(
@@ -1164,7 +1744,7 @@ class _ApprovedSellerControls extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _approvedAsset(
-                  'seller-filter.png',
+                  'transparent/seller-filter.png',
                   width: metrics.geometry(18),
                   height: metrics.geometry(18),
                 ),
@@ -1173,7 +1753,7 @@ class _ApprovedSellerControls extends StatelessWidget {
                   'Filters',
                   maxLines: 1,
                   style: TextStyle(
-                    fontSize: metrics.fontSize(13),
+                    fontSize: _pickedSellerFontSize(metrics, 11),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1182,14 +1762,26 @@ class _ApprovedSellerControls extends StatelessWidget {
           ),
         );
         final sort = PopupMenuButton<String>(
+          key: const Key('approved-trends-seller-sort'),
+          initialValue: sortLabel,
+          position: PopupMenuPosition.under,
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(metrics.geometry(12)),
+            side: const BorderSide(color: _approvedBorder),
+          ),
           onSelected: onSort,
           itemBuilder: (context) => const [
             PopupMenuItem(value: 'Best deal', child: Text('Best deal')),
             PopupMenuItem(value: 'Lowest price', child: Text('Lowest price')),
             PopupMenuItem(value: 'Top rated', child: Text('Top rated')),
+            PopupMenuItem(value: 'Nearest', child: Text('Nearest')),
           ],
           child: Container(
-            constraints: BoxConstraints(minHeight: metrics.geometry(34)),
+            constraints: BoxConstraints(
+              minHeight: _sellerDimension(metrics, 38, floor: 36),
+            ),
             padding: metrics.geometryInsets(
               const EdgeInsets.symmetric(horizontal: 10),
             ),
@@ -1203,15 +1795,17 @@ class _ApprovedSellerControls extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Sort by: $sortLabel',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: _pageText(context),
-                      fontSize: metrics.fontSize(13),
+                      fontSize: _pickedSellerFontSize(metrics, 11),
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
                 _approvedAsset(
-                  'seller-sort-down.png',
+                  'transparent/seller-sort-down.png',
                   width: metrics.geometry(14),
                   height: metrics.geometry(11),
                 ),
@@ -1220,7 +1814,7 @@ class _ApprovedSellerControls extends StatelessWidget {
           ),
         );
         final toggle = Container(
-          height: metrics.geometry(34),
+          height: _sellerDimension(metrics, 38, floor: 36),
           decoration: BoxDecoration(
             color: _pageSurface(context),
             border: border,
@@ -1232,13 +1826,13 @@ class _ApprovedSellerControls extends StatelessWidget {
               _ApprovedViewChoice(
                 tooltip: 'List view',
                 selected: !gridView,
-                asset: 'seller-list.png',
+                asset: 'transparent/seller-list.png',
                 onTap: () => onView(false),
               ),
               _ApprovedViewChoice(
                 tooltip: 'Grid view',
                 selected: gridView,
-                asset: 'seller-grid.png',
+                asset: 'transparent/seller-grid.png',
                 onTap: () => onView(true),
               ),
             ],
@@ -1298,7 +1892,7 @@ class _ApprovedViewChoice extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(metrics.geometry(6)),
         child: Container(
-          width: metrics.geometry(35),
+          width: metrics.artSize(35),
           height: metrics.geometry(32),
           alignment: Alignment.center,
           decoration: BoxDecoration(
@@ -1334,10 +1928,53 @@ class _ApprovedFilterChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.fade,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: _approvedAction,
-          fontSize: metrics.fontSize(12),
+          fontSize: _pickedSellerFontSize(metrics, 11),
         ),
+      ),
+    );
+  }
+}
+
+class _ApprovedSellerEmptyState extends StatelessWidget {
+  const _ApprovedSellerEmptyState({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _replicaMetrics(context);
+    return Container(
+      key: const Key('approved-trends-sellers-empty'),
+      padding: EdgeInsets.all(metrics.spacing(18)),
+      decoration: BoxDecoration(
+        color: _pageSurface(context),
+        border: Border.all(color: _approvedBorder),
+        borderRadius: BorderRadius.circular(metrics.geometry(12)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.storefront_outlined,
+            size: metrics.artSize(32),
+            color: _approvedAction,
+          ),
+          SizedBox(height: metrics.spacing(7)),
+          Text(
+            'No sellers match these filters',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: _pageText(context),
+              fontSize: metrics.fontSize(14),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          TextButton(onPressed: onClear, child: const Text('Clear filters')),
+        ],
       ),
     );
   }
@@ -1354,7 +1991,7 @@ class _ApprovedSellerCard extends StatelessWidget {
     final metrics = _replicaMetrics(context);
     return Container(
       key: ValueKey('approved-seller-card-${seller.name}'),
-      padding: metrics.geometryInsets(const EdgeInsets.fromLTRB(8, 8, 8, 8)),
+      padding: EdgeInsets.all(_sellerDimension(metrics, 8, floor: 8)),
       decoration: BoxDecoration(
         color: _pageSurface(context),
         borderRadius: BorderRadius.circular(metrics.geometry(8)),
@@ -1393,7 +2030,7 @@ class _ApprovedSellerCard extends StatelessWidget {
                     Expanded(child: identity),
                     SizedBox(width: metrics.geometry(8)),
                     SizedBox(
-                      width: metrics.geometry(136),
+                      width: _sellerDimension(metrics, 138, floor: 120),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -1401,20 +2038,20 @@ class _ApprovedSellerCard extends StatelessWidget {
                             alignment: Alignment.centerRight,
                             child: _ApprovedSellerBadge(seller: seller),
                           ),
-                          SizedBox(height: metrics.geometry(6)),
+                          SizedBox(height: metrics.geometry(4)),
                           commerce,
                         ],
                       ),
                     ),
                   ],
                 ),
-              SizedBox(height: metrics.geometry(11)),
+              SizedBox(height: metrics.geometry(6)),
               Divider(
                 height: metrics.geometry(1),
                 thickness: metrics.geometry(1),
                 color: _approvedBorder,
               ),
-              SizedBox(height: metrics.geometry(9)),
+              SizedBox(height: metrics.geometry(6)),
               _ApprovedSellerStats(seller: seller),
             ],
           );
@@ -1437,8 +2074,8 @@ class _ApprovedSellerIdentity extends StatelessWidget {
       children: [
         _approvedAsset(
           seller.avatar,
-          width: metrics.geometry(49),
-          height: metrics.geometry(52),
+          width: _sellerDimension(metrics, 49, floor: 44),
+          height: _sellerDimension(metrics, 52, floor: 47),
           semanticLabel: '${seller.name} profile photo',
         ),
         SizedBox(width: metrics.geometry(8)),
@@ -1448,12 +2085,15 @@ class _ApprovedSellerIdentity extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Flexible(
+                  Expanded(
                     child: Text(
                       seller.name,
+                      maxLines: metrics.accessibilityReflow ? 2 : 1,
+                      softWrap: metrics.accessibilityReflow,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: _pageText(context),
-                        fontSize: metrics.fontSize(16),
+                        fontSize: _pickedSellerFontSize(metrics, 16),
                         fontWeight: FontWeight.w800,
                         height: metrics.lineHeight(
                           referenceFontSize: 16,
@@ -1464,27 +2104,30 @@ class _ApprovedSellerIdentity extends StatelessWidget {
                   ),
                   SizedBox(width: metrics.geometry(4)),
                   _approvedAsset(
-                    'seller-verified.png',
+                    'transparent/seller-verified.png',
                     width: metrics.geometry(11),
                     height: metrics.geometry(12),
                   ),
                 ],
               ),
               SizedBox(height: metrics.geometry(6)),
-              Wrap(
-                spacing: metrics.geometry(5),
-                crossAxisAlignment: WrapCrossAlignment.center,
+              Row(
                 children: [
                   _approvedAsset(
-                    'seller-star.png',
+                    'transparent/seller-star.png',
                     width: metrics.geometry(11),
                     height: metrics.geometry(12),
                   ),
-                  Text(
-                    seller.rating,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: _pageMuted(context),
-                      fontSize: metrics.fontSize(12),
+                  Expanded(
+                    child: Text(
+                      seller.rating,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _pageMuted(context),
+                        fontSize: _pickedSellerFontSize(metrics, 11),
+                      ),
                     ),
                   ),
                 ],
@@ -1492,9 +2135,12 @@ class _ApprovedSellerIdentity extends StatelessWidget {
               SizedBox(height: metrics.geometry(5)),
               Text(
                 '${seller.location}  •  ${seller.distance}',
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: _pageMuted(context),
-                  fontSize: metrics.fontSize(12),
+                  fontSize: _pickedSellerFontSize(metrics, 11),
                 ),
               ),
             ],
@@ -1523,6 +2169,7 @@ class _ApprovedSellerBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(metrics.geometry(6)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _approvedAsset(
@@ -1535,9 +2182,12 @@ class _ApprovedSellerBadge extends StatelessWidget {
             child: Text(
               seller.badge,
               textAlign: TextAlign.center,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: seller.badgeColor,
-                fontSize: metrics.fontSize(9),
+                fontSize: _pickedSellerFontSize(metrics, 9),
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1564,37 +2214,39 @@ class _ApprovedSellerCommerce extends StatelessWidget {
     final accessibility = hocalistAccessibilityVisualsOf(context);
     final metrics = _replicaMetrics(context);
     final values = Column(
-      crossAxisAlignment: fullWidth
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           seller.price,
+          maxLines: 1,
+          softWrap: false,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: _pageText(context),
-            fontSize: metrics.fontSize(16),
+            fontSize: _pickedSellerFontSize(metrics, 16),
             fontWeight: FontWeight.w800,
           ),
         ),
         Text(
           seller.savings,
+          maxLines: 1,
+          softWrap: false,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: _approvedGreen,
-            fontSize: metrics.fontSize(11),
+            fontSize: _pickedSellerFontSize(metrics, 11),
             fontWeight: FontWeight.w700,
           ),
         ),
       ],
     );
     final chat = SizedBox(
-      height: metrics.geometry(26),
+      height: _sellerDimension(metrics, 30, floor: 29),
       child: FilledButton(
         onPressed: onChat,
         style: FilledButton.styleFrom(
           backgroundColor: accessibility.backgroundOr(_approvedAction),
           foregroundColor: accessibility.foregroundOr(Colors.white),
           padding: metrics.geometryInsets(
-            const EdgeInsets.symmetric(horizontal: 5),
+            const EdgeInsets.symmetric(horizontal: 2),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
@@ -1606,16 +2258,18 @@ class _ApprovedSellerCommerce extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _approvedAsset(
-              'seller-chat.png',
-              width: metrics.geometry(12),
+              'transparent/seller-chat.png',
+              width: metrics.geometry(13),
               height: metrics.geometry(13),
             ),
-            SizedBox(width: metrics.geometry(4)),
+            SizedBox(width: metrics.geometry(3)),
             Flexible(
               child: Text(
                 'Chat Seller',
+                maxLines: 1,
+                softWrap: false,
                 style: TextStyle(
-                  fontSize: metrics.fontSize(11),
+                  fontSize: _pickedSellerFontSize(metrics, 10.5),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1639,7 +2293,7 @@ class _ApprovedSellerCommerce extends StatelessWidget {
       children: [
         Expanded(child: values),
         SizedBox(width: metrics.geometry(3)),
-        SizedBox(width: metrics.geometry(78), child: chat),
+        SizedBox(width: _sellerDimension(metrics, 80, floor: 72), child: chat),
       ],
     );
   }
@@ -1655,7 +2309,7 @@ class _ApprovedSellerStats extends StatelessWidget {
     final metrics = _replicaMetrics(context);
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: _pageMuted(context),
-      fontSize: metrics.fontSize(10),
+      fontSize: _pickedSellerFontSize(metrics, 9.5),
       height: metrics.lineHeight(
         referenceFontSize: 10,
         referenceLineHeight: 11.5,
@@ -1664,12 +2318,12 @@ class _ApprovedSellerStats extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final deals = _ApprovedIconText(
-          icon: 'seller-deals.png',
+          icon: 'transparent/seller-deals.png',
           label: seller.deals,
           style: style,
         );
         final response = _ApprovedIconText(
-          icon: 'seller-response.png',
+          icon: 'transparent/seller-response.png',
           label: seller.response,
           style: style,
         );
@@ -1686,8 +2340,8 @@ class _ApprovedSellerStats extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: deals),
-            SizedBox(width: metrics.geometry(12)),
+            SizedBox(width: metrics.geometry(112), child: deals),
+            SizedBox(width: metrics.geometry(16)),
             Expanded(child: response),
           ],
         );
@@ -1719,7 +2373,15 @@ class _ApprovedIconText extends StatelessWidget {
           height: metrics.geometry(10),
         ),
         SizedBox(width: metrics.geometry(5)),
-        Expanded(child: Text(label, style: style)),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: metrics.accessibilityReflow ? 2 : 1,
+            softWrap: metrics.accessibilityReflow,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
       ],
     );
   }
@@ -1765,7 +2427,7 @@ const _approvedSellers = [
     price: '\$820',
     savings: 'Save \$180',
     badge: 'Top Rated Seller',
-    badgeIcon: 'badge-trophy.png',
+    badgeIcon: 'transparent/badge-trophy.png',
     badgeColor: _approvedAction,
     deals: '230+ deals completed',
     response: 'Usually responds in a few hours',
@@ -1779,7 +2441,7 @@ const _approvedSellers = [
     price: '\$835',
     savings: 'Save \$165',
     badge: 'Great Deal',
-    badgeIcon: 'badge-deal.png',
+    badgeIcon: 'transparent/badge-deal.png',
     badgeColor: _approvedGreen,
     deals: '150+ deals completed',
     response: 'Responds within 2 hours',
@@ -1793,7 +2455,7 @@ const _approvedSellers = [
     price: '\$845',
     savings: 'Save \$155',
     badge: 'Fast Responder',
-    badgeIcon: 'badge-fast.png',
+    badgeIcon: 'transparent/badge-fast.png',
     badgeColor: Color(0xff1769ff),
     deals: '120+ deals completed',
     response: 'Usually responds in a few hours',
@@ -1807,7 +2469,7 @@ const _approvedSellers = [
     price: '\$860',
     savings: 'Save \$140',
     badge: 'Good Value',
-    badgeIcon: 'badge-value.png',
+    badgeIcon: 'transparent/badge-value.png',
     badgeColor: Color(0xffdf8500),
     deals: '90+ deals completed',
     response: 'Responds within 3 hours',
@@ -1821,7 +2483,7 @@ const _approvedSellers = [
     price: '\$875',
     savings: 'Save \$125',
     badge: 'Trusted Seller',
-    badgeIcon: 'badge-trusted.png',
+    badgeIcon: 'transparent/badge-trusted.png',
     badgeColor: _approvedAction,
     deals: '110+ deals completed',
     response: 'Usually responds in a few hours',
@@ -1831,9 +2493,14 @@ const _approvedSellers = [
 /// Screenshot-approved buyer notification history (the existing Recent
 /// activity destination) with the current back callback and working filters.
 class ApprovedBuyerNotificationsPage extends StatefulWidget {
-  const ApprovedBuyerNotificationsPage({required this.onBack, super.key});
+  const ApprovedBuyerNotificationsPage({
+    required this.onBack,
+    this.title = 'Recent activity',
+    super.key,
+  });
 
   final VoidCallback onBack;
+  final String title;
 
   @override
   State<ApprovedBuyerNotificationsPage> createState() =>
@@ -1868,12 +2535,13 @@ class _ApprovedBuyerNotificationsPageState
                 SizedBox(width: metrics.geometry(4)),
                 Expanded(
                   child: Text(
-                    'Recent activity',
+                    widget.title,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    style: BuyerTypography.style(
+                      context,
+                      metrics,
+                      BuyerTextRole.pageTitle,
                       color: _pageText(context),
-                      fontSize: metrics.fontSize(16),
-                      fontWeight: FontWeight.w800,
                       height: metrics.lineHeight(
                         referenceFontSize: 16,
                         referenceLineHeight: 19.2,
@@ -2076,10 +2744,10 @@ class _ApprovedActivityRow extends StatelessWidget {
             children: [
               _approvedAsset(
                 item.icon,
-                width: metrics.geometry(44),
-                height: metrics.geometry(44),
+                width: metrics.geometry(36),
+                height: metrics.geometry(36),
               ),
-              SizedBox(width: metrics.geometry(16)),
+              SizedBox(width: metrics.geometry(10)),
               Expanded(child: copy),
               if (!tight) ...[
                 SizedBox(width: metrics.geometry(8)),

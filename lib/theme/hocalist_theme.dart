@@ -3,19 +3,19 @@ part of '../main.dart';
 class HocalistTheme {
   static const primary = Color(0xff00036c);
   static const primaryContainer = Color(0xff20258f);
-  static const actionBlue = Color(0xff1400c8);
+  static const actionBlue = BuyerUiTokens.action;
   static const sellerGreen = Color(0xff078b2d);
   static const giftPurple = Color(0xff8d10ca);
   static const rewardGold = Color(0xffffb331);
   static const buyer = primary;
   static const seller = primary;
   static const background = Color(0xfff7f9ff);
-  static const surface = Color(0xffffffff);
-  static const softSurface = Color(0xfff1f0ff);
-  static const roleSurface = Color(0xffeeedff);
+  static const surface = BuyerUiTokens.surface;
+  static const softSurface = BuyerUiTokens.softSurface;
+  static const roleSurface = BuyerUiTokens.activeSurface;
   static const sellerSurface = Color(0xffeefaf2);
-  static const text = Color(0xff0c123d);
-  static const muted = Color(0xff5e657f);
+  static const text = BuyerUiTokens.text;
+  static const muted = BuyerUiTokens.muted;
   static const outline = Color(0xffc7c9d8);
   static const danger = Color(0xffb42318);
   static const success = Color(0xff08765f);
@@ -41,7 +41,7 @@ class HocalistTheme {
   static const captionSize = 13.0;
   static const smallSize = 12.0;
   static const badgeSize = 11.0;
-  static const buttonSize = 16.0;
+  static const buttonSize = 14.0;
   static const metricSize = 26.0;
 
   static TextTheme _textTheme({
@@ -164,7 +164,7 @@ class HocalistTheme {
     return TextStyle(
       color: color,
       fontFamily: fontFamily,
-      fontSize: bodySize,
+      fontSize: captionSize,
       fontWeight: FontWeight.w600,
       letterSpacing: 0,
     );
@@ -202,7 +202,7 @@ class HocalistTheme {
             buttonBorderWidth: 2,
           )
         : const HocalistAccessibilityVisuals(
-            buttonRadius: 16,
+            buttonRadius: HocalistButtonTokens.radius,
             buttonBackground: primary,
             buttonForeground: Colors.white,
             buttonBorderWidth: 1,
@@ -249,21 +249,26 @@ class HocalistTheme {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        isDense: false,
         filled: true,
         fillColor: surface,
+        constraints: const BoxConstraints(
+          minHeight: HocalistInputTokens.minimumHeight,
+        ),
+        contentPadding: HocalistInputTokens.contentPadding,
         labelStyle: _fieldText(muted, fontFamily: fontFamily),
         hintStyle: _fieldText(muted, fontFamily: fontFamily),
         floatingLabelStyle: _fieldText(primary, fontFamily: fontFamily),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: outline),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: outline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: primary, width: 2),
         ),
       ),
@@ -335,7 +340,7 @@ class HocalistTheme {
             buttonBorderWidth: 2,
           )
         : const HocalistAccessibilityVisuals(
-            buttonRadius: 16,
+            buttonRadius: HocalistButtonTokens.radius,
             buttonBackground: primary,
             buttonForeground: Colors.white,
             buttonBorderWidth: 1,
@@ -385,21 +390,26 @@ class HocalistTheme {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        isDense: false,
         filled: true,
         fillColor: darkSurface,
+        constraints: const BoxConstraints(
+          minHeight: HocalistInputTokens.minimumHeight,
+        ),
+        contentPadding: HocalistInputTokens.contentPadding,
         labelStyle: _fieldText(darkMuted, fontFamily: fontFamily),
         hintStyle: _fieldText(darkMuted, fontFamily: fontFamily),
         floatingLabelStyle: _fieldText(darkBuyer, fontFamily: fontFamily),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: darkOutline),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: darkOutline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: darkPrimary, width: 2),
         ),
       ),

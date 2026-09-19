@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/approved_replica_metrics.dart';
 import 'package:hocalist/features/approved/trends_notifications_pages.dart';
 import 'package:hocalist/main.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'test_fonts.dart';
@@ -16,9 +17,65 @@ const _writeProof = bool.fromEnvironment(
   'HOCALIST_WRITE_TRENDS_NOTIFICATIONS_PROOF',
 );
 
+const _sellerCommerceProofData =
+    <
+      ({
+        String name,
+        String price,
+        String savings,
+        String badge,
+        String deals,
+        String response,
+      })
+    >[
+      (
+        name: 'Northside Tech',
+        price: '\$820',
+        savings: 'Save \$180',
+        badge: 'Top Rated Seller',
+        deals: '230+ deals completed',
+        response: 'Usually responds in a few hours',
+      ),
+      (
+        name: 'Gadget Hub',
+        price: '\$835',
+        savings: 'Save \$165',
+        badge: 'Great Deal',
+        deals: '150+ deals completed',
+        response: 'Responds within 2 hours',
+      ),
+      (
+        name: 'Prime Tech Solutions',
+        price: '\$845',
+        savings: 'Save \$155',
+        badge: 'Fast Responder',
+        deals: '120+ deals completed',
+        response: 'Usually responds in a few hours',
+      ),
+      (
+        name: 'Tech World NY',
+        price: '\$860',
+        savings: 'Save \$140',
+        badge: 'Good Value',
+        deals: '90+ deals completed',
+        response: 'Responds within 3 hours',
+      ),
+      (
+        name: 'Digital Depot',
+        price: '\$875',
+        savings: 'Save \$125',
+        badge: 'Trusted Seller',
+        deals: '110+ deals completed',
+        response: 'Usually responds in a few hours',
+      ),
+    ];
+
 class _ProjectFileAssetBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
+    if (!key.startsWith('assets/')) {
+      return rootBundle.load(key);
+    }
     final bytes = await File(key).readAsBytes();
     return ByteData.sublistView(Uint8List.fromList(bytes));
   }
@@ -50,6 +107,7 @@ Future<void> _pumpApprovedSurface(
     DefaultAssetBundle(
       bundle: _ProjectFileAssetBundle(),
       child: MaterialApp(
+        key: ObjectKey(child),
         debugShowCheckedModeBanner: false,
         theme: HocalistTheme.light,
         builder: (context, appChild) {
@@ -72,6 +130,19 @@ Future<void> _pumpApprovedSurface(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+void _expectSingleRenderedLine(
+  WidgetTester tester,
+  String text, {
+  Finder? within,
+}) {
+  final finder = within == null
+      ? find.text(text)
+      : find.descendant(of: within, matching: find.text(text));
+  final widget = tester.widget<Text>(finder.first);
+  expect(widget.maxLines, 1);
+  expect(widget.softWrap, isFalse);
 }
 
 void main() {
@@ -108,76 +179,56 @@ void main() {
     );
   });
 
-  testWidgets('Hocatrends header logo override preserves normal defaults', (
+  testWidgets('top-level Buyer header keeps one canonical visual contract', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    HocalistGlobalHeader header({double? logoSlotReferenceWidth}) {
+    HocalistGlobalHeader header() {
       return HocalistGlobalHeader(
         role: UserRole.buyer,
         accent: HocalistTheme.actionBlue,
-        logoSlotReferenceWidth: logoSlotReferenceWidth,
         onNotifications: () {},
       );
     }
 
-    await _pumpApprovedSurface(
-      tester,
-      header(logoSlotReferenceWidth: 89.0),
-      width: 390,
-      height: 160,
-    );
-    expect(
-      tester
-          .getSize(
-            find.byKey(const ValueKey('hocalist-global-header-logo-slot')),
-          )
-          .width,
-      closeTo(89, 0.001),
-    );
-
-    await _pumpApprovedSurface(
-      tester,
-      header(logoSlotReferenceWidth: 89.0),
-      width: 320,
-      height: 160,
-    );
-    final narrowLogoSize = tester.getSize(
-      find.byKey(const ValueKey('hocalist-global-header-logo-slot')),
-    );
-    expect(narrowLogoSize.width, closeTo(89 * 320 / 390, 0.001));
-    expect(narrowLogoSize.height, 62);
-
-    await _pumpApprovedSurface(tester, header(), width: 390, height: 160);
-    final defaultLogoSize = tester.getSize(
-      find.byKey(const ValueKey('hocalist-global-header-logo-slot')),
-    );
-    expect(defaultLogoSize.width, 138);
-    expect(defaultLogoSize.height, 62);
-
-    await _pumpApprovedSurface(
-      tester,
-      header(logoSlotReferenceWidth: 89.0),
-      width: 600,
-      height: 160,
-    );
-    expect(
-      tester
-          .getSize(
-            find.byKey(const ValueKey('hocalist-global-header-logo-slot')),
-          )
-          .width,
-      89,
-    );
-
-    await _pumpApprovedSurface(tester, header(), width: 600, height: 160);
-    final defaultTabletLogoSize = tester.getSize(
-      find.byKey(const ValueKey('hocalist-global-header-logo-slot')),
-    );
-    expect(defaultTabletLogoSize.width, 126);
-    expect(defaultTabletLogoSize.height, 60);
+    for (final width in <double>[320, 390, 600]) {
+      await _pumpApprovedSurface(tester, header(), width: width, height: 180);
+      final metrics = ApprovedReplicaMetrics.resolve(
+        availableWidth: width,
+        textScaler: TextScaler.noScaling,
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('buyer-top-level-header-logo')),
+        ),
+        Size(metrics.artSize(88), metrics.artSize(54)),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('buyer-top-level-header-mode')))
+            .height,
+        greaterThanOrEqualTo(metrics.geometry(38)),
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('buyer-top-level-header-notifications')),
+        ),
+        Size(metrics.artSize(44), metrics.artSize(44)),
+      );
+      final notificationArtwork = tester.widget<BuyerAssetIcon>(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey('buyer-top-level-header-notifications'),
+          ),
+          matching: find.byType(BuyerAssetIcon),
+        ),
+      );
+      expect(notificationArtwork.slotSize, metrics.artSize(32));
+      expect(find.text('Buyer mode'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('global buyer navigation matches approved replica geometry', (
@@ -194,6 +245,7 @@ void main() {
     }) async {
       SharedPreferences.setMockInitialValues({
         'hocalist.hasSession': true,
+        'hocalist.authenticated': true,
         'hocalist.role': role,
         'hocalist.page': page,
       });
@@ -207,7 +259,7 @@ void main() {
     const buyerNavContentKey = ValueKey(
       'global-buyer-bottom-navigation-content',
     );
-    const trendsHeaderContentKey = ValueKey('hocatrends-global-header-content');
+    const topLevelHeaderKey = ValueKey('buyer-top-level-header');
 
     await pumpSignedIn(
       role: 'buyer',
@@ -216,12 +268,13 @@ void main() {
       height: 844,
     );
     expect(find.byKey(buyerNavKey), findsOneWidget);
-    expect(tester.getSize(find.byKey(buyerNavKey)).height, closeTo(55, 0.01));
+    expect(tester.getSize(find.byKey(buyerNavKey)).height, closeTo(58.5, 0.01));
     expect(find.text('See Sellers'), findsNWidgets(5));
+    final finalTrendCard = find.byKey(const ValueKey('approved-trend-card-5'));
+    await tester.ensureVisible(finalTrendCard);
+    await tester.pumpAndSettle();
     expect(
-      tester
-          .getBottomLeft(find.byKey(const ValueKey('approved-trend-card-5')))
-          .dy,
+      tester.getBottomLeft(finalTrendCard).dy,
       lessThanOrEqualTo(tester.getTopLeft(find.byKey(buyerNavKey)).dy),
     );
     expect(tester.takeException(), isNull);
@@ -234,7 +287,7 @@ void main() {
     );
     expect(
       tester.getSize(find.byKey(buyerNavKey)).height,
-      closeTo(55 * 320 / 390, 0.01),
+      closeTo(58.5 * 320 / 390, 0.01),
     );
     expect(tester.getSize(find.byKey(buyerNavContentKey)).width, 320);
     expect(tester.takeException(), isNull);
@@ -245,11 +298,21 @@ void main() {
       width: 600,
       height: 1000,
     );
-    expect(tester.getSize(find.byKey(buyerNavKey)).height, closeTo(55, 0.01));
-    expect(tester.getSize(find.byKey(buyerNavContentKey)).width, 390);
+    expect(tester.getSize(find.byKey(buyerNavKey)).height, closeTo(58.5, 0.01));
+    expect(tester.getSize(find.byKey(buyerNavContentKey)).width, 600);
     expect(tester.getCenter(find.byKey(buyerNavContentKey)).dx, 300);
-    expect(tester.getSize(find.byKey(trendsHeaderContentKey)).width, 390);
-    expect(tester.getCenter(find.byKey(trendsHeaderContentKey)).dx, 300);
+    final metrics600 = ApprovedReplicaMetrics.resolve(
+      availableWidth: 600,
+      textScaler: TextScaler.noScaling,
+    );
+    expect(
+      tester.getSize(find.byKey(topLevelHeaderKey)).width,
+      closeTo(
+        metrics600.innerContentMaxWidth(referenceHorizontalInset: 18),
+        0.01,
+      ),
+    );
+    expect(tester.getCenter(find.byKey(topLevelHeaderKey)).dx, 300);
     expect(tester.takeException(), isNull);
 
     await pumpSignedIn(
@@ -258,8 +321,18 @@ void main() {
       width: 768,
       height: 1024,
     );
-    expect(tester.getSize(find.byKey(trendsHeaderContentKey)).width, 390);
-    expect(tester.getCenter(find.byKey(trendsHeaderContentKey)).dx, 384);
+    final metrics768 = ApprovedReplicaMetrics.resolve(
+      availableWidth: 768,
+      textScaler: TextScaler.noScaling,
+    );
+    expect(
+      tester.getSize(find.byKey(topLevelHeaderKey)).width,
+      closeTo(
+        metrics768.innerContentMaxWidth(referenceHorizontalInset: 18),
+        0.01,
+      ),
+    );
+    expect(tester.getCenter(find.byKey(topLevelHeaderKey)).dx, 384);
     expect(tester.takeException(), isNull);
 
     await pumpSignedIn(
@@ -268,12 +341,13 @@ void main() {
       width: 390,
       height: 844,
     );
-    final sellerNavigation = tester.widget<NavigationBar>(
-      find.byType(NavigationBar),
+    final sellerNavigation = find.byKey(
+      const ValueKey('sellerAppBottomNavigation'),
     );
-    expect(sellerNavigation.height, 72);
+    expect(sellerNavigation, findsOneWidget);
+    expect(tester.getSize(sellerNavigation).height, greaterThan(50));
     expect(find.byKey(buyerNavKey), findsNothing);
-    expect(find.byKey(trendsHeaderContentKey), findsNothing);
+    expect(find.byKey(topLevelHeaderKey), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -334,19 +408,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final scales = <double, double>{
-      320: ApprovedReplicaMetrics.narrowScale,
-      360: ApprovedReplicaMetrics.compactScale,
-      390: 1,
-      430: 1,
-      600: 1,
-      768: 1,
-      1024: 1,
-    };
+    final widths = <double>[304, 320, 360, 390, 430, 600, 768, 980];
 
-    for (final entry in scales.entries) {
-      final width = entry.key;
-      final expectedScale = entry.value;
+    for (final width in widths) {
+      final resolvedMetrics = ApprovedReplicaMetrics.resolve(
+        availableWidth: width,
+        textScaler: TextScaler.noScaling,
+      );
+      final expectedScale = resolvedMetrics.typographyScale;
       await _pumpApprovedSurface(
         tester,
         ApprovedHocatrendsPage(
@@ -377,14 +446,12 @@ void main() {
           inInclusiveRange(68, 70),
         );
       }
-      if (width >= 430) {
-        expect(
-          tester
-              .getSize(find.byKey(const ValueKey('approved-replica-content')))
-              .width,
-          closeTo(390, 0.001),
-        );
-      }
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('approved-replica-content')))
+            .width,
+        closeTo((width - 32).clamp(0, resolvedMetrics.contentMaxWidth), 0.001),
+      );
       expect(
         tester.takeException(),
         isNull,
@@ -397,9 +464,10 @@ void main() {
         width: width,
         height: 3200,
       );
+      final expectedSellerNameSize = 16 * expectedScale;
       expect(
         tester.widget<Text>(find.text('Northside Tech')).style?.fontSize,
-        closeTo(16 * expectedScale, 0.001),
+        closeTo(expectedSellerNameSize, 0.001),
       );
       expect(
         tester.widget<Text>(find.text('Northside Tech')).style?.fontWeight,
@@ -415,14 +483,12 @@ void main() {
             controlsY.reduce((a, b) => a < b ? a : b),
         lessThan(3),
       );
-      if (width >= 430) {
-        expect(
-          tester
-              .getSize(find.byKey(const ValueKey('approved-replica-content')))
-              .width,
-          closeTo(390, 0.001),
-        );
-      }
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('approved-replica-content')))
+            .width,
+        closeTo((width - 32).clamp(0, resolvedMetrics.contentMaxWidth), 0.001),
+      );
       expect(
         tester.takeException(),
         isNull,
@@ -448,14 +514,12 @@ void main() {
             .abs(),
         lessThan(2),
       );
-      if (width >= 430) {
-        expect(
-          tester
-              .getSize(find.byKey(const ValueKey('approved-replica-content')))
-              .width,
-          closeTo(390, 0.001),
-        );
-      }
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('approved-replica-content')))
+            .width,
+        closeTo((width - 32).clamp(0, resolvedMetrics.contentMaxWidth), 0.001),
+      );
       expect(
         tester.takeException(),
         isNull,
@@ -515,11 +579,10 @@ void main() {
           controlsY.reduce((a, b) => a < b ? a : b),
       lessThan(3),
     );
-    expect(
-      tester.getCenter(find.text('Chat Seller').first).dy -
-          tester.getCenter(find.text('Northside Tech')).dy,
-      lessThanOrEqualTo(34),
-    );
+    _expectSingleRenderedLine(tester, 'Chat Seller');
+    _expectSingleRenderedLine(tester, 'Northside Tech');
+    _expectSingleRenderedLine(tester, 'Tech World NY');
+    _expectSingleRenderedLine(tester, 'Usually responds in a few hours');
     expect(tester.takeException(), isNull);
 
     await _pumpApprovedSurface(
@@ -543,6 +606,91 @@ void main() {
       lessThan(650),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('picked seller cards keep commerce content separated', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final width in <double>[304, 320, 360, 390, 430]) {
+      await _pumpApprovedSurface(
+        tester,
+        ApprovedHocatrendsPickedSellersPage(onBack: () {}, onChatSeller: () {}),
+        width: width,
+        height: 3200,
+      );
+
+      for (final seller in _sellerCommerceProofData) {
+        final card = find.byKey(
+          ValueKey('approved-seller-card-${seller.name}'),
+        );
+        final chatText = find.descendant(
+          of: card,
+          matching: find.text('Chat Seller'),
+        );
+        final chatButton = find.ancestor(
+          of: chatText,
+          matching: find.byType(FilledButton),
+        );
+        final price = find.descendant(
+          of: card,
+          matching: find.text(seller.price),
+        );
+        final savings = find.descendant(
+          of: card,
+          matching: find.text(seller.savings),
+        );
+        final badge = find.descendant(
+          of: card,
+          matching: find.byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == '_ApprovedSellerBadge',
+          ),
+        );
+        final deals = find.descendant(
+          of: card,
+          matching: find.text(seller.deals),
+        );
+        final response = find.descendant(
+          of: card,
+          matching: find.text(seller.response),
+        );
+
+        for (final label in <String>[
+          seller.name,
+          seller.price,
+          seller.savings,
+          seller.badge,
+          seller.deals,
+          seller.response,
+          'Chat Seller',
+        ]) {
+          _expectSingleRenderedLine(tester, label, within: card);
+        }
+        expect(
+          tester.getRect(chatButton).overlaps(tester.getRect(price)),
+          isFalse,
+        );
+        expect(
+          tester.getRect(chatButton).overlaps(tester.getRect(savings)),
+          isFalse,
+        );
+        expect(
+          (tester.getRect(price).left - tester.getRect(savings).left).abs(),
+          lessThan(1),
+        );
+        expect(
+          tester.getRect(badge).width,
+          lessThan(tester.getRect(card).width * .36),
+        );
+        expect(
+          tester.getRect(response).left - tester.getRect(deals).left,
+          lessThan(tester.getRect(card).width * .44),
+        );
+      }
+      expect(tester.takeException(), isNull, reason: 'Seller cards at $width');
+    }
   });
 
   testWidgets('Large XL and external text scales reflow without overflow', (

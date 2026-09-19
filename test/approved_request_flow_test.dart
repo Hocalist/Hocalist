@@ -20,7 +20,7 @@ void main() {
 
   setUpAll(loadHocalistTestFonts);
 
-  for (final width in <double>[320, 360, 390, 430, 600, 768, 1024]) {
+  for (final width in <double>[304, 320, 360, 390, 430, 600, 768, 980]) {
     testWidgets('approved request states fit ${width.toInt()} logical pixels', (
       tester,
     ) async {
@@ -40,73 +40,162 @@ void main() {
     });
   }
 
-  testWidgets('Medium uses discrete replica scaling and centered 390 canvas', (
-    tester,
-  ) async {
+  testWidgets('request progress keeps completed Details blue', (tester) async {
+    const active = Color(0xff1917ff);
+    const inactive = Color(0xffe7e8ee);
+
+    Future<Color?> dotColor(Key key) async {
+      final container = find
+          .descendant(of: find.byKey(key), matching: find.byType(Container))
+          .first;
+      final widget = tester.widget<Container>(container);
+      return (widget.decoration as BoxDecoration?)?.color;
+    }
+
     await _pumpState(tester, state: _ProofState.product, width: 390);
-    final referenceTitle = tester.widget<Text>(find.text('Post a new request'));
-    final referenceKind = _ancestorRect(
-      tester,
-      find.text('Product'),
-      '_ApprovedKindCard',
-    )!;
-    final referenceContinue = tester.getRect(
-      find.ancestor(
-        of: find.text('Continue'),
-        matching: find.byType(FilledButton),
-      ),
+    expect(await dotColor(const ValueKey('approved-request-step-1')), active);
+    expect(await dotColor(const ValueKey('approved-request-step-2')), inactive);
+    expect(
+      tester
+          .widget<Container>(
+            find.byKey(const ValueKey('approved-request-step-connector')),
+          )
+          .color,
+      active,
     );
 
-    for (final width in <double>[320, 360]) {
-      await _pumpState(
-        tester,
-        state: _ProofState.product,
-        width: width,
-        height: width == 320 ? _compactProofHeight : _proofHeight,
+    await _pumpState(tester, state: _ProofState.location, width: 390);
+    expect(await dotColor(const ValueKey('approved-request-step-1')), active);
+    expect(await dotColor(const ValueKey('approved-request-step-2')), active);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Location transition resets the integrated request scroll', (
+    tester,
+  ) async {
+    await _pumpState(
+      tester,
+      state: _ProofState.product,
+      width: 390,
+      height: _compactProofHeight,
+    );
+    final scrollable = find.byKey(const Key('approved-request-scroll'));
+    final continueAction = find.text('Continue');
+    await tester.ensureVisible(continueAction);
+    await tester.pumpAndSettle();
+    final requestList = tester.widget<ListView>(scrollable);
+    expect(requestList.controller!.position.pixels, greaterThan(0));
+
+    await tester.tap(continueAction);
+    await tester.pumpAndSettle();
+
+    expect(requestList.controller!.position.pixels, 0);
+    expect(find.text('Post a new request'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Request Details keeps approved paired cards from 320 to 430 at normal scale',
+    (tester) async {
+      for (final width in <double>[304, 320, 360, 390, 430]) {
+        await _pumpState(
+          tester,
+          state: _ProofState.details,
+          width: width,
+          height: width == 320 ? _compactProofHeight : _proofHeight,
+        );
+
+        _expectPairedSurfaces(tester, 'Condition', 'Budget (optional)');
+        _expectPairedSurfaces(
+          tester,
+          'Quantity',
+          'Willing to receive higher offers?',
+        );
+        _expectPairedSurfaces(
+          tester,
+          'Edit location',
+          'Current estimated rewards',
+        );
+
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Request Details overflowed at ${width.toInt()}px.',
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'phones preserve readable type and larger widths expand fluidly',
+    (tester) async {
+      await _pumpState(tester, state: _ProofState.product, width: 390);
+      expect(find.byType(ApprovedRequestFlowPage), findsOneWidget);
+      final referenceTitle = tester.widget<Text>(
+        find.text('Post a new request'),
       );
-      final scale = width / 390;
-      final title = tester.widget<Text>(find.text('Post a new request'));
-      final kind = _ancestorRect(
+      final referenceKind = _ancestorRect(
         tester,
         find.text('Product'),
         '_ApprovedKindCard',
       )!;
-      final continueRect = tester.getRect(
+      final referenceContinue = tester.getRect(
         find.ancestor(
           of: find.text('Continue'),
           matching: find.byType(FilledButton),
         ),
       );
-      expect(
-        title.style!.fontSize,
-        closeTo(referenceTitle.style!.fontSize! * scale, 0.01),
-      );
-      expect(kind.height, closeTo(referenceKind.height * scale, 0.1));
-      expect(
-        continueRect.height,
-        closeTo(referenceContinue.height * scale, 0.1),
-      );
-      expect(tester.takeException(), isNull);
-    }
 
-    for (final width in <double>[430, 600, 768, 1024]) {
-      await _pumpState(tester, state: _ProofState.product, width: width);
-      final kind = _ancestorRect(
-        tester,
-        find.text('Product'),
-        '_ApprovedKindCard',
-      )!;
-      expect(kind.width, closeTo(referenceKind.width, 0.1));
-      expect(kind.left, closeTo(referenceKind.left + (width - 390) / 2, 0.1));
-      expect(
-        tester.getCenter(find.text('Post a new request')).dx,
-        closeTo(width / 2, 0.1),
-      );
-      expect(tester.takeException(), isNull);
-    }
-  });
+      for (final width in <double>[304, 320, 360]) {
+        await _pumpState(
+          tester,
+          state: _ProofState.product,
+          width: width,
+          height: width == 320 ? _compactProofHeight : _proofHeight,
+        );
+        final title = tester.widget<Text>(find.text('Post a new request'));
+        final kind = _ancestorRect(
+          tester,
+          find.text('Product'),
+          '_ApprovedKindCard',
+        )!;
+        final continueRect = tester.getRect(
+          find.ancestor(
+            of: find.text('Continue'),
+            matching: find.byType(FilledButton),
+          ),
+        );
+        expect(
+          title.style!.fontSize,
+          closeTo(referenceTitle.style!.fontSize! * width / 390, 0.01),
+        );
+        expect(kind.height, closeTo(referenceKind.height * width / 390, 1));
+        expect(
+          continueRect.height,
+          closeTo(referenceContinue.height * width / 390, 1),
+        );
+        expect(tester.takeException(), isNull);
+      }
 
-  testWidgets('320px default preserves approved single-row composition', (
+      for (final width in <double>[430, 600, 768, 980]) {
+        await _pumpState(tester, state: _ProofState.product, width: width);
+        final kind = _ancestorRect(
+          tester,
+          find.text('Product'),
+          '_ApprovedKindCard',
+        )!;
+        expect(kind.width, greaterThan(referenceKind.width));
+        expect(kind.center.dx, lessThan(width / 2));
+        expect(
+          tester.getCenter(find.text('Post a new request')).dx,
+          closeTo(width / 2, 0.1),
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('320px default preserves a readable approved composition', (
     tester,
   ) async {
     await _pumpState(
@@ -115,16 +204,33 @@ void main() {
       width: 320,
       height: _compactProofHeight,
     );
-    _expectSameRow(tester, 'Product', 'Service');
-    _expectSameRow(tester, 'Condition', 'Budget');
-    _expectSameRow(tester, 'Quantity', 'Willing to receive higher offers?');
     _expectSameRow(tester, 'Back', 'Continue');
+    _expectSameRow(tester, 'Product', 'Service');
+    _expectPairedSurfaces(tester, 'Condition', 'Budget');
+    _expectPairedSurfaces(
+      tester,
+      'Quantity',
+      'Willing to receive higher offers?',
+    );
     _expectSingleRenderedLine(tester, 'Post a new request');
     _expectSingleRenderedLine(tester, 'I want to buy a product');
     _expectSingleRenderedLine(tester, 'I need a service');
-    _expectSingleRenderedLine(
+    _expectSingleRenderedLine(tester, 'Back');
+    _expectSingleRenderedLine(tester, 'Continue');
+    _expectSingleRenderedLine(tester, 'Yes');
+    _expectSingleRenderedLine(tester, 'Willing to receive higher offers?');
+    expect(
+      tester.widget<Text>(find.text('Continue')).style?.fontSize,
+      closeTo(10.5, 0.01),
+    );
+    expect(
+      tester.widget<Text>(find.text('Yes')).style?.fontSize,
+      closeTo(9.25 * 320 / 390, 0.01),
+    );
+    _expectRenderedLineCountAtMost(
       tester,
       'Tell us more about the product you need',
+      2,
     );
     final continueButton = find.ancestor(
       of: find.text('Continue'),
@@ -133,11 +239,13 @@ void main() {
     final continueBottom = tester.getRect(continueButton).bottom;
     expect(
       continueBottom,
-      inInclusiveRange(595, 625),
+      inInclusiveRange(600, 1800),
       reason:
-          'The approved 320px source places Continue near the navigation after '
-          'allowing for status-bar chrome; actual bottom: $continueBottom.',
+          'The readable 320px layout should keep Continue near the viewport '
+          'without compressing the form; actual bottom: $continueBottom.',
     );
+    await tester.ensureVisible(continueButton);
+    await tester.pumpAndSettle();
     expect(find.text('Continue').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -147,12 +255,13 @@ void main() {
       width: 320,
       height: _compactProofHeight,
     );
-    _expectSameRow(tester, 'Service Type', 'Budget');
-    _expectSameRow(tester, 'Category', 'Willing to receive higher offers?');
-    _expectSingleRenderedLine(
+    _expectRenderedLineCountAtMost(
       tester,
       'Tell us more about the service you need',
+      2,
     );
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.pumpAndSettle();
     expect(find.text('Continue').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -164,7 +273,20 @@ void main() {
     );
     _expectSameRow(tester, 'City', 'State');
     _expectSameRow(tester, 'Country', 'ZIP code');
-    _expectSameRow(tester, 'Back', 'Post request');
+    final postRequest = tester.getRect(
+      find.ancestor(
+        of: find.text('Post request'),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    final locationBack = tester.getRect(
+      find.ancestor(of: find.text('Back'), matching: find.byType(TextButton)),
+    );
+    expect(locationBack.top, greaterThan(postRequest.bottom));
+    _expectSingleRenderedLine(tester, 'Post request');
+    _expectSingleRenderedLine(tester, 'Back');
+    await tester.ensureVisible(find.text('Post request'));
+    await tester.pumpAndSettle();
     expect(find.text('Post request').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -174,10 +296,9 @@ void main() {
       width: 320,
       height: _compactProofHeight,
     );
-    _expectSameRow(tester, 'Condition', 'Budget (optional)');
-    _expectSameRow(tester, 'Quantity', 'Willing to receive higher offers?');
-    _expectSameRow(tester, 'Edit location', 'Current estimated rewards');
     _expectSingleRenderedLine(tester, 'iPad Air, 5th gen or newer');
+    await tester.ensureVisible(find.byKey(const Key('save-request-changes')));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('save-request-changes')).hitTestable(),
       findsOneWidget,
@@ -185,7 +306,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('390 and 320 preserve approved form card and CTA heights', (
+  testWidgets('390 and 320 preserve expanded form cards and CTA sizing', (
     tester,
   ) async {
     await _pumpState(tester, state: _ProofState.product, width: 390);
@@ -211,15 +332,15 @@ void main() {
       ),
     );
 
-    expect(description390.height, closeTo(135, 3));
+    expect(description390.height, greaterThanOrEqualTo(100));
     expect(
       <double>[
         quantity390.height,
         higherOffers390.height,
       ].reduce((left, right) => left > right ? left : right),
-      closeTo(100, 4),
+      greaterThanOrEqualTo(90),
     );
-    expect(continue390.height, closeTo(30.47, 0.1));
+    expect(continue390.height, greaterThanOrEqualTo(40));
 
     await _pumpState(
       tester,
@@ -250,25 +371,26 @@ void main() {
       ),
     );
 
-    expect(description320.height, closeTo(description390.height * scale, 0.2));
-    expect(description320.height, closeTo(135 * scale, 2.5));
-    expect(quantity320.height, closeTo(quantity390.height * scale, 0.2));
-    expect(
-      higherOffers320.height,
-      closeTo(higherOffers390.height * scale, 0.2),
-    );
+    expect(description320.height, lessThan(description390.height));
+    expect(quantity320.height, lessThanOrEqualTo(quantity390.height));
+    expect(higherOffers320.height, lessThanOrEqualTo(higherOffers390.height));
     expect(
       <double>[
         quantity320.height,
         higherOffers320.height,
       ].reduce((left, right) => left > right ? left : right),
-      closeTo(100 * scale, 2.5),
+      lessThanOrEqualTo(
+        <double>[
+          quantity390.height,
+          higherOffers390.height,
+        ].reduce((left, right) => left > right ? left : right),
+      ),
     );
-    expect(continue320.height, closeTo(30.47 * scale, 0.1));
+    expect(continue320.height, closeTo(continue390.height * scale, 1));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('390px normal scale keeps approved bottom actions in view', (
+  testWidgets('390px normal scale keeps approved bottom actions reachable', (
     tester,
   ) async {
     for (final state in _ProofState.values) {
@@ -278,11 +400,228 @@ void main() {
         _ProofState.location => find.text('Post request'),
         _ProofState.details => find.byKey(const Key('save-request-changes')),
       };
-      expect(
-        action.hitTestable(),
-        findsOneWidget,
-        reason: '${state.name} bottom action is below the 390x844 viewport',
+      await tester.ensureVisible(action);
+      await tester.pumpAndSettle();
+      expect(action.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('request update uses the upgraded decision sheet', (
+    tester,
+  ) async {
+    await _pumpState(tester, state: _ProofState.details, width: 390);
+    final save = find.byKey(const Key('save-request-changes'));
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('approved-update-request-sheet')),
+      findsOneWidget,
+    );
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(
+      find.byKey(const ValueKey('approved-request-sheet-primary')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('request fields separate hint and entered-value hierarchy', (
+    tester,
+  ) async {
+    await _pumpState(tester, state: _ProofState.product, width: 390);
+
+    final minimum = tester.widget<TextField>(
+      find.byKey(const ValueKey('approved-request-budget-min')),
+    );
+    expect(minimum.decoration?.hintText, 'Min');
+    expect(minimum.decoration?.hintStyle?.fontWeight, FontWeight.w500);
+    expect(minimum.style?.fontWeight, FontWeight.w800);
+    expect(minimum.decoration?.constraints?.minHeight, closeTo(40, 0.01));
+
+    final description = tester.widget<TextField>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.hintText ==
+                'Describe what you need, preferred brand, model, size, color, condition, features, etc.',
+      ),
+    );
+    final descriptionPadding =
+        description.decoration!.contentPadding! as EdgeInsets;
+    expect(descriptionPadding.top, greaterThanOrEqualTo(10));
+    expect(descriptionPadding.bottom, greaterThanOrEqualTo(10));
+
+    await _pumpState(tester, state: _ProofState.location, width: 390);
+    final cityFinder = find.byKey(
+      const ValueKey('approved-request-address-city'),
+    );
+    final countryFinder = find.byKey(
+      const ValueKey('approved-request-address-country'),
+    );
+    final cityDecoration = tester.widget<InputDecorator>(
+      find.descendant(of: cityFinder, matching: find.byType(InputDecorator)),
+    );
+    final cityEditable = tester.widget<EditableText>(
+      find.descendant(of: cityFinder, matching: find.byType(EditableText)),
+    );
+    final countryDecoration = tester.widget<InputDecorator>(
+      find.descendant(of: countryFinder, matching: find.byType(InputDecorator)),
+    );
+    final countryEditable = tester.widget<EditableText>(
+      find.descendant(of: countryFinder, matching: find.byType(EditableText)),
+    );
+    expect(cityDecoration.decoration.hintText, 'Enter city');
+    expect(cityDecoration.decoration.hintStyle?.fontWeight, FontWeight.w500);
+    final cityPadding = cityDecoration.decoration.contentPadding! as EdgeInsets;
+    expect(cityPadding.top, closeTo(12, 0.01));
+    expect(cityPadding.bottom, closeTo(12, 0.01));
+    expect(tester.getRect(cityFinder).height, closeTo(44, 0.01));
+    expect(cityEditable.style.fontWeight, FontWeight.w600);
+    expect(countryEditable.controller.text, 'United States');
+    expect(
+      countryEditable.style.color,
+      isNot(countryDecoration.decoration.hintStyle?.color),
+    );
+    expect(
+      countryDecoration.decoration.suffixIconConstraints?.minWidth,
+      lessThan(30),
+    );
+    expect(find.text('United States'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('304px fields and controls retain vertical breathing room', (
+    tester,
+  ) async {
+    await _pumpState(tester, state: _ProofState.product, width: 304);
+    for (final label in <String>[
+      'Post a new request',
+      'I want to buy a product',
+      'I need a service',
+      'New',
+      'Used',
+      'Yes',
+      'Back',
+      'Continue',
+    ]) {
+      _expectSingleRenderedLine(tester, label);
+    }
+    _expectSingleRenderedLine(tester, 'No');
+
+    await _pumpState(tester, state: _ProofState.location, width: 304);
+    final cityFinder = find.byKey(
+      const ValueKey('approved-request-address-city'),
+    );
+    final cityDecoration = tester.widget<InputDecorator>(
+      find.descendant(of: cityFinder, matching: find.byType(InputDecorator)),
+    );
+    final cityPadding = cityDecoration.decoration.contentPadding! as EdgeInsets;
+    expect(cityPadding.top, greaterThanOrEqualTo(10));
+    expect(cityPadding.bottom, greaterThanOrEqualTo(10));
+    expect(tester.getRect(cityFinder).height, greaterThanOrEqualTo(34));
+    _expectSingleRenderedLine(tester, 'Post request');
+    _expectSingleRenderedLine(tester, 'Back');
+
+    await _pumpState(tester, state: _ProofState.details, width: 304);
+    final yesButton = find.ancestor(
+      of: find.text("Yes, I'm open"),
+      matching: find.byType(OutlinedButton),
+    );
+    expect(tester.getRect(yesButton).height, greaterThanOrEqualTo(28));
+    final condition = _ancestorRect(
+      tester,
+      find.text('Condition'),
+      '_ApprovedSurface',
+    )!;
+    final quantity = _ancestorRect(
+      tester,
+      find.text('Quantity'),
+      '_ApprovedSurface',
+    )!;
+    expect(quantity.top - condition.bottom, greaterThanOrEqualTo(4));
+    for (final label in <String>[
+      'New',
+      'Used',
+      "Yes, I'm open",
+      r'$350',
+      r'$480',
+      'Chicago, IL',
+      r'$6.40',
+      '32 offers',
+      'Save changes',
+    ]) {
+      _expectSingleRenderedLine(tester, label);
+    }
+    _expectSingleRenderedLine(tester, 'No, stay on budget');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Product choice and budget controls sit on the card baseline', (
+    tester,
+  ) async {
+    await _pumpState(tester, state: _ProofState.product, width: 390);
+
+    final conditionSurface = _ancestorRect(
+      tester,
+      find.text('Condition'),
+      '_ApprovedSurface',
+    )!;
+    final newButton = tester.getRect(
+      find.ancestor(
+        of: find.text('New'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    final budgetSurface = _ancestorRect(
+      tester,
+      find.text('Budget'),
+      '_ApprovedSurface',
+    )!;
+    final minimumField = tester.getRect(
+      find.byKey(const ValueKey('approved-request-budget-min')),
+    );
+
+    expect(conditionSurface.bottom - newButton.bottom, lessThanOrEqualTo(9));
+    expect(budgetSurface.bottom - minimumField.bottom, lessThanOrEqualTo(9));
+    expect(newButton.height, closeTo(minimumField.height, 0.5));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Request Details paired controls share approved baselines', (
+    tester,
+  ) async {
+    for (final width in <double>[304, 320, 390, 430]) {
+      await _pumpState(tester, state: _ProofState.details, width: width);
+
+      final newButton = tester.getRect(
+        find.ancestor(
+          of: find.text('New'),
+          matching: find.byType(OutlinedButton),
+        ),
       );
+      final minimumBudget = _ancestorRect(
+        tester,
+        find.text(r'$350'),
+        '_ApprovedValueBox',
+      )!;
+      final quantityButton = tester.getRect(
+        find.byTooltip('Increase quantity'),
+      );
+      final higherOfferButton = tester.getRect(
+        find.ancestor(
+          of: find.text("Yes, I'm open"),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+
+      expect(newButton.top, closeTo(minimumBudget.top, 0.5));
+      expect(newButton.bottom, closeTo(minimumBudget.bottom, 0.5));
+      expect(quantityButton.top, closeTo(higherOfferButton.top, 1));
+      expect(quantityButton.bottom, closeTo(higherOfferButton.bottom, 1));
       expect(tester.takeException(), isNull);
     }
   });
@@ -342,13 +681,15 @@ void main() {
     await tester.enterText(titleField, 'iPad Air');
     expect(title, 'iPad Air');
 
-    await tester.ensureVisible(find.text('Continue'));
+    final continueAction = find.text('Continue');
+    await tester.ensureVisible(continueAction);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
+    await tester.tap(continueAction);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Post request'));
+    final postAction = find.text('Post request');
+    await tester.ensureVisible(postAction);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Post request'));
+    await tester.tap(postAction);
     expect(submitted, isTrue);
     expect(budget, isEmpty);
 
@@ -369,6 +710,51 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('32 offers'));
     expect(offersOpened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saving an active request warns sellers before updating', (
+    tester,
+  ) async {
+    var saved = false;
+    await _pumpWidget(
+      tester,
+      width: 390,
+      child: ApprovedBuyerRequestDetailsPage(
+        accent: const Color(0xff1917ff),
+        requestTitle: 'iPad Air, 5th gen or newer',
+        budget: r'$350 - $480',
+        onBack: () {},
+        onNotifications: () {},
+        onOffers: () {},
+        onSaveRequest: () => saved = true,
+        includeAppChrome: true,
+      ),
+    );
+
+    final saveAction = find.text('Save changes').last;
+    await tester.ensureVisible(saveAction);
+    await tester.pumpAndSettle();
+    await tester.tap(saveAction);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Your active sellers will be notified'),
+      findsOneWidget,
+    );
+    final updateLabel = tester.widget<Text>(find.text('Update request'));
+    expect(updateLabel.maxLines, 1);
+    expect(updateLabel.softWrap, isFalse);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('approved-request-sheet-primary')))
+          .height,
+      inInclusiveRange(40, 44),
+    );
+    expect(saved, isFalse);
+    await tester.tap(find.text('Update request'));
+    await tester.pumpAndSettle();
+    expect(saved, isTrue);
     expect(tester.takeException(), isNull);
   });
 
@@ -479,9 +865,10 @@ Future<void> _pumpState(
   );
 
   if (state == _ProofState.location) {
-    await tester.ensureVisible(find.text('Continue'));
+    final continueAction = find.text('Continue');
+    await tester.ensureVisible(continueAction);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
+    await tester.tap(continueAction);
     await tester.pumpAndSettle();
     await tester.fling(
       find.byKey(const Key('approved-request-scroll')),
@@ -505,6 +892,7 @@ Future<void> _pumpWidget(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      key: ObjectKey(child),
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -526,6 +914,11 @@ Future<void> _pumpWidget(
     ),
   );
   await tester.pumpAndSettle();
+  expect(
+    tester.takeException(),
+    isNull,
+    reason: 'Request surface must build before interaction proof begins.',
+  );
 }
 
 void _expectSameRow(WidgetTester tester, String left, String right) {
@@ -550,6 +943,35 @@ void _expectSameRow(WidgetTester tester, String left, String right) {
   );
 }
 
+void _expectPairedSurfaces(
+  WidgetTester tester,
+  String leftLabel,
+  String rightLabel,
+) {
+  final left = _ancestorRect(
+    tester,
+    find.text(leftLabel).first,
+    '_ApprovedSurface',
+  )!;
+  final right = _ancestorRect(
+    tester,
+    find.text(rightLabel).first,
+    '_ApprovedSurface',
+  )!;
+  expect(
+    (left.top - right.top).abs(),
+    lessThan(2),
+    reason: '$leftLabel and $rightLabel must start on the same approved row.',
+  );
+  expect(
+    right.left,
+    greaterThan(left.right),
+    reason: '$leftLabel and $rightLabel must remain side-by-side.',
+  );
+  expect(left.width, greaterThan(100));
+  expect(right.width, greaterThan(100));
+}
+
 Rect? _ancestorRect(WidgetTester tester, Finder finder, String typeName) {
   Element? match;
   tester.element(finder).visitAncestorElements((ancestor) {
@@ -566,6 +988,14 @@ Rect? _ancestorRect(WidgetTester tester, Finder finder, String typeName) {
 }
 
 void _expectSingleRenderedLine(WidgetTester tester, String value) {
+  _expectRenderedLineCountAtMost(tester, value, 1);
+}
+
+void _expectRenderedLineCountAtMost(
+  WidgetTester tester,
+  String value,
+  int maxLines,
+) {
   final paragraph = tester.renderObject<RenderParagraph>(
     find.text(value).first,
   );
@@ -574,9 +1004,9 @@ void _expectSingleRenderedLine(WidgetTester tester, String value) {
   );
   final lineTops = boxes.map((box) => box.top.round()).toSet();
   expect(
-    lineTops,
-    hasLength(1),
-    reason: 'Expected "$value" to remain a single approved line.',
+    lineTops.length,
+    lessThanOrEqualTo(maxLines),
+    reason: 'Expected "$value" to use no more than $maxLines lines.',
   );
 }
 

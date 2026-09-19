@@ -15,14 +15,14 @@ const planDetails = [
   },
   {
     badge: 'Shop support',
-    note: 'For local teams',
+    note: 'For higher-volume sellers',
     metric: 'Scale',
-    metricLabel: 'Business profile workflow'
+    metricLabel: 'Higher targeting and listing limits'
   }
 ];
 
 const pricingProof = [
-  'Plans coming soon',
+  'Monthly prices in USD',
   'Seller tools and visibility only',
   'Seller plan payment boundary',
   'Item payment stays between users'
@@ -53,9 +53,9 @@ export default function PricingPage() {
               <p className="eyebrow">Seller plan options</p>
               <h2>Plans for seller tools, visibility, and profile support.</h2>
               <p>
-                Plans are previews while Hocalist finalizes prices, limits, credits, and billing
-                launch timing. Each option stays focused on request visibility, credits, promoted
-                placement, seller tools, and support.
+                These are the planned monthly prices and limits. Paid access is not available yet.
+                HocaCredits are purchased separately for eligible targeting fees; weekly target
+                limits do not include those fees. Buyer rewards are separate from seller credits.
               </p>
             </div>
             <div className="pricing-proof-strip" aria-label="Seller pricing boundaries">

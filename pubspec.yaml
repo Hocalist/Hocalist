@@ -99,6 +99,11 @@ flutter:
     - assets/approved_onboarding_home/
     - assets/approved_offers_chat/
     - assets/approved_trends_notifications/
+    - assets/approved_trends_notifications/transparent/
+    - assets/approved_seller/
+    - assets/approved_seller/nav/
+    - assets/approved_seller/chat/
+    - assets/approved_seller/onboarding_home/
     - assets/fonts/licenses/
 
   fonts:

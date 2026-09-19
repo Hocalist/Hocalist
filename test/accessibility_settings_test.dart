@@ -270,7 +270,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('applied Large and Extra Large deliberately reflow and scroll', (
+  testWidgets('Large preserves composition and Extra Large reflows locally', (
     tester,
   ) async {
     useViewport(tester, const Size(360, 900), textScale: 1.15);
@@ -285,13 +285,18 @@ void main() {
     final small = find.byKey(const Key('text-size-small'));
     final medium = find.byKey(const Key('text-size-medium'));
     final large = find.byKey(const Key('text-size-large'));
+    final extraLarge = find.byKey(const Key('text-size-extraLarge'));
     expect(
       tester.getTopLeft(small).dy,
       closeTo(tester.getTopLeft(medium).dy, 0.1),
     );
     expect(
       tester.getTopLeft(large).dy,
-      greaterThan(tester.getTopLeft(small).dy),
+      closeTo(tester.getTopLeft(small).dy, 0.1),
+    );
+    expect(
+      tester.getTopLeft(extraLarge).dy,
+      closeTo(tester.getTopLeft(small).dy, 0.1),
     );
     expect(tester.takeException(), isNull, reason: 'text-size grid');
 
@@ -301,7 +306,7 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'font grid scroll');
     expect(
       tester.getTopLeft(friendly).dy,
-      greaterThan(tester.getTopLeft(standard).dy),
+      closeTo(tester.getTopLeft(standard).dy, 0.1),
     );
     expect(tester.takeException(), isNull, reason: 'font grid');
 
@@ -311,6 +316,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'Extra Large initial view');
+    expect(
+      tester.getTopLeft(large).dy,
+      greaterThan(tester.getTopLeft(small).dy),
+    );
     await scrollPageTo(
       tester,
       find.byKey(const Key('accessibility-full-preview-panel')),

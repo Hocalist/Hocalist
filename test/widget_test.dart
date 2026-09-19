@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 import 'package:hocalist/features/approved/trends_notifications_pages.dart';
 import 'package:hocalist/main.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 import 'test_fonts.dart';
 
@@ -103,8 +104,25 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> completeSellerSignup(WidgetTester tester) async {
+    await tapHomeRole(tester, 1);
+    await tapVisible(tester, 'Create account');
+    final continueButton = find.byKey(const Key('sellerTutorialContinue'));
+    await tester.scrollUntilVisible(
+      continueButton,
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('sellerTutorialScroll')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(continueButton);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> finishBuyerOnboarding(WidgetTester tester) async {
-    await tapVisible(tester, 'Continue');
     await tapVisible(tester, 'Jump to dashboard');
   }
 
@@ -163,13 +181,13 @@ void main() {
             widget is Image &&
             widget.image is AssetImage &&
             (widget.image as AssetImage).assetName ==
-                'assets/approved_onboarding_home/wordmark.png',
+                'assets/brand/hocalist-wordmark.png',
       ),
     );
     expect(image.image, isA<AssetImage>());
     expect(
       (image.image as AssetImage).assetName,
-      'assets/approved_onboarding_home/wordmark.png',
+      'assets/brand/hocalist-wordmark.png',
     );
     expect(
       find.text(
@@ -207,15 +225,55 @@ void main() {
     await tester.pumpWidget(const HocalistApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Hocatrends').last);
+    await tester.tap(
+      find.byKey(const ValueKey('approved-public-nav-hocatrends')),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Saving'), findsOneWidget);
     expect(
-      find.text('Skip the Rewards & save on current offers'),
+      tester
+          .widget<ApprovedNoAccountBottomNavigation>(
+            find.byType(ApprovedNoAccountBottomNavigation),
+          )
+          .selectedIndex,
+      1,
+    );
+    expect(find.byType(ApprovedPublicHocatrendsPage), findsOneWidget);
+    expect(find.byType(ApprovedHocatrendsPage), findsOneWidget);
+    expect(find.text('Hocatrends preview is coming soon.'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('approved-bottom-navigation')),
       findsOneWidget,
     );
-    expect(find.text('Hocatrends preview is coming soon.'), findsNothing);
+    expect(find.text('Winners'), findsOneWidget);
+    expect(find.text('Sign Up'), findsOneWidget);
+    expect(find.text('Offers'), findsNothing);
+    expect(find.text('Chats'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('logged-out Hocatrends see sellers opens buyer account access', (
+    tester,
+  ) async {
+    useTallMobileViewport(tester);
+    await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('approved-public-nav-hocatrends')),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('See Sellers').first);
+    await tester.tap(find.text('See Sellers').first);
+    await tester.pumpAndSettle();
+
+    final accountPage = find.byType(ApprovedAccountCreationPage);
+    expect(accountPage, findsOneWidget);
+    expect(
+      tester.widget<ApprovedAccountCreationPage>(accountPage).role,
+      ApprovedAccountRole.buyer,
+    );
+    expect(find.text('iPad Air Sellers'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -255,6 +313,32 @@ void main() {
       expect(find.text('Pressure Washing'), findsOneWidget);
       expect(find.text('Living Room Furniture'), findsOneWidget);
       expect(find.text('See Sellers'), findsNWidgets(5));
+      if (width == 390) {
+        final hero = tester.getRect(
+          find.byKey(const ValueKey('approved-saving-opportunities-hero')),
+        );
+        final copy = tester.getRect(
+          find.byKey(const ValueKey('approved-saving-opportunities-copy')),
+        );
+        final art = tester.getRect(
+          find.byKey(const ValueKey('approved-saving-opportunities-art')),
+        );
+        final opportunities = tester.widget<Text>(find.text('Opportunities'));
+
+        expect(hero.height, closeTo(104, 1));
+        expect(copy.left, closeTo(hero.left, 1));
+        expect(copy.center.dx, lessThan(art.center.dx));
+        expect(art.right, closeTo(hero.right + 4, 1));
+        expect(art.center.dy, closeTo(hero.center.dy, 3));
+        expect(opportunities.style?.color, BuyerUiTokens.trendsAction);
+        expect(
+          find.text(
+            'Explore verified sellers offering\n'
+            'discounts on products & services.',
+          ),
+          findsOneWidget,
+        );
+      }
       final error = tester.takeException();
       if (error is FlutterError) {
         debugPrint('Hocatrends overflow diagnostics for width $width');
@@ -320,7 +404,7 @@ void main() {
               widget is Image &&
               widget.image is AssetImage &&
               (widget.image as AssetImage).assetName ==
-                  'assets/approved_onboarding_home/wordmark.png',
+                  'assets/brand/hocalist-wordmark.png',
         ),
         findsOneWidget,
       );
@@ -368,7 +452,8 @@ void main() {
     expect(find.text('Store or seller name'), findsNothing);
 
     await tapVisible(tester, 'Log in');
-    expect(find.text('Northside Tech'), findsOneWidget);
+    expect(find.text('Seller mode'), findsOneWidget);
+    expect(find.text('Find more buyers'), findsOneWidget);
   });
 
   testWidgets('buyer signup opens benefit onboarding before dashboard', (
@@ -384,14 +469,13 @@ void main() {
     expect(find.textContaining('Welcome,'), findsOneWidget);
     expect(find.text('As a buyer, you will:'), findsOneWidget);
     expect(find.text('Earn rewards on every purchase'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
-    await tapVisible(tester, 'Continue');
     await tester.scrollUntilVisible(
       find.text('Mileage logic for less driving'),
       180,
       scrollable: find.byType(Scrollable).first,
       maxScrolls: 12,
     );
+    expect(find.text('Continue'), findsNothing);
     expect(find.text('Jump to dashboard'), findsOneWidget);
 
     await tapVisible(tester, 'Jump to dashboard');
@@ -417,6 +501,17 @@ void main() {
     expect(HocalistTheme.darkBuyer, const Color(0xffbec2ff));
     expect(HocalistTheme.darkSeller, const Color(0xffbec2ff));
     expect(HocalistTheme.roleSurface, const Color(0xffeeedff));
+  });
+
+  test('global input theme preserves vertical breathing room', () {
+    for (final theme in <ThemeData>[HocalistTheme.light, HocalistTheme.dark]) {
+      final input = theme.inputDecorationTheme;
+      expect(input.isDense, isFalse);
+      expect(input.constraints?.minHeight, 48);
+      final padding = input.contentPadding! as EdgeInsets;
+      expect(padding.top, 12);
+      expect(padding.bottom, 12);
+    }
   });
 
   testWidgets('filled actions stay brand navy when given a role accent', (
@@ -480,45 +575,15 @@ void main() {
     await tapVisible(tester, 'Select this seller');
 
     expect(find.text('John D.'), findsOneWidget);
-    expect(
-      find.textContaining('Seller\'s Final Offer'),
-      findsAtLeastNWidgets(1),
-    );
-    expect(find.text('Accept to meet'), findsOneWidget);
+    expect(find.byKey(const Key('active-deal-ipad')), findsOneWidget);
     expect(find.text('Seller selected. Chatroom opened.'), findsOneWidget);
-    expect(find.text('Tap to close details'), findsOneWidget);
-    expect(find.text('Request Change'), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 5));
+    await tester.tap(find.byKey(const Key('active-deal-ipad')));
     await tester.pumpAndSettle();
-    await tapVisible(tester, 'Offers');
-    final selectedChatButton = find.byKey(const Key('approved-chat-after-NT'));
-    await tester.ensureVisible(selectedChatButton);
-    await tester.pumpAndSettle();
-    await tester.tap(selectedChatButton);
-    await tester.pumpAndSettle();
-    expect(find.text('John D.'), findsOneWidget);
-
-    await tapVisible(tester, 'Tap to close details');
-    expect(find.text('Tap to view details'), findsOneWidget);
-    expect(find.text('Request Change'), findsNothing);
-
-    await tapVisible(tester, 'Tap to view details');
-    expect(find.text('Tap to close details'), findsOneWidget);
-    expect(find.text('Request Change'), findsOneWidget);
-
+    expect(find.text('Accept to meet'), findsOneWidget);
     await tapVisible(tester, 'Accept to meet');
-    expect(find.text('Meetup accepted'), findsOneWidget);
-    await tapVisible(tester, 'Add meeting details');
-    expect(find.text('Meeting place'), findsOneWidget);
-    expect(find.text('City, area, address, or map pin'), findsOneWidget);
-    expect(find.byTooltip('Map options'), findsWidgets);
-    await tapVisible(tester, 'Confirm meeting');
-    await tapVisible(tester, 'Deal failed or seller unavailable');
-    expect(find.text('Recover deal'), findsOneWidget);
-    expect(find.text('Compare backup offers'), findsOneWidget);
-    await tapVisible(tester, 'Compare backup offers');
-    expect(find.text('Backup offers restored for comparison.'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Upcoming meetings'), findsOneWidget);
+    expect(find.text('On schedule'), findsWidgets);
   });
 
   testWidgets('buyer home active request body opens request details', (
@@ -541,7 +606,7 @@ void main() {
     expect(find.text('Offers received'), findsOneWidget);
   });
 
-  testWidgets('buyer home offer activity and offers tab open correct pages', (
+  testWidgets('buyer home meeting and offers navigation open correct pages', (
     tester,
   ) async {
     await openBuyerDashboard(tester);
@@ -566,14 +631,13 @@ void main() {
 
     await tester.tap(find.text('Home').last);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.text('Northside Tech sent you a new offer'),
-    );
+    final upcomingMeeting = find.text('iPad Air 5, 256GB').last;
+    await tester.ensureVisible(upcomingMeeting);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Northside Tech sent you a new offer'));
+    await tester.tap(upcomingMeeting);
     await tester.pumpAndSettle();
 
-    expect(find.text('Recent activity'), findsOneWidget);
+    expect(find.text('Meeting details'), findsOneWidget);
     expect(find.text('Offers received'), findsNothing);
   });
 
@@ -599,7 +663,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
-    expect(find.text('Request changes saved on this device.'), findsOneWidget);
+    expect(
+      find.textContaining('Your active sellers will be notified'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Update request'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Your active sellers will be notified'),
+      findsNothing,
+    );
 
     final deleteButton = find.byKey(const Key('delete-request'));
     await tester.drag(find.byType(ListView).first, const Offset(0, 2200));
@@ -620,13 +693,11 @@ void main() {
     await tester.tap(find.text('View offers  ›').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Your total rewards'), findsOneWidget);
+    expect(find.text('Est. Rewards'), findsOneWidget);
     expect(find.text('From 2 sellers'), findsOneWidget);
-    expect(find.text('You earn when you buy'), findsOneWidget);
-    expect(find.text('Buy from any seller within 5 days'), findsOneWidget);
-    expect(find.text('Rewards are added after purchase'), findsOneWidget);
+    expect(find.text(r'$0.40'), findsOneWidget);
+    expect(find.textContaining('confirm your purchase'), findsOneWidget);
     expect(find.text('Northside Tech'), findsOneWidget);
-    expect(find.byKey(const Key('approved-chat-after-NT')), findsOneWidget);
 
     await tapVisible(tester, 'Filter');
     expect(find.text('Offer filters opened.'), findsOneWidget);
@@ -650,12 +721,7 @@ void main() {
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Offers').last);
-    await tester.pumpAndSettle();
-    final chatAfterSelection = find.byKey(const Key('approved-chat-after-NT'));
-    await tester.ensureVisible(chatAfterSelection);
-    await tester.pumpAndSettle();
-    await tester.tap(chatAfterSelection);
+    await tapVisible(tester, 'Select this seller');
     await tester.pumpAndSettle();
     expect(find.text('John D.'), findsOneWidget);
     expect(find.text('Seller selected. Chatroom opened.'), findsOneWidget);
@@ -727,6 +793,8 @@ void main() {
     await tapVisible(tester, 'Select this seller');
 
     expect(find.text('John D.'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('active-deal-ipad')));
+    await tester.pumpAndSettle();
     expect(find.text('Accept to meet'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -802,25 +870,14 @@ void main() {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
 
-    await tapHomeRole(tester, 1);
-    await tapVisible(tester, 'Create account');
-    await tapVisible(tester, 'Start verification');
-    await tapVisible(tester, 'Enter seller dashboard');
+    await completeSellerSignup(tester);
+    expect(find.text('Seller mode'), findsOneWidget);
 
-    expect(find.text('Northside Tech'), findsOneWidget);
+    await tapVisible(tester, 'Browse requests');
 
-    await tapVisible(tester, 'Browse buyer requests');
-
-    expect(find.text('Request marketplace'), findsOneWidget);
-    expect(find.text('Search by location'), findsOneWidget);
-    expect(find.text('City, area, address, or map pin'), findsOneWidget);
-    await tester.tap(find.byTooltip('Map options').first);
-    await tester.pumpAndSettle();
-    expect(find.text('Google Maps preview placeholder'), findsOneWidget);
-    await tester.tap(find.text('Close'));
-    await tester.pumpAndSettle();
-    expect(find.text('Looking for a used iPad Air'), findsOneWidget);
-    expect(find.text('No requests found nearby'), findsOneWidget);
+    expect(find.text('Find Customers'), findsOneWidget);
+    expect(find.text('Looking for iPad Air (5th gen)'), findsOneWidget);
+    expect(find.byKey(const Key('sellerLeadsSearch')), findsOneWidget);
   });
 
   testWidgets('buyer chats tab opens inbox before individual chat', (
@@ -838,11 +895,17 @@ void main() {
 
     expect(find.text('Chats'), findsWidgets);
     expect(find.byTooltip('Back'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('buyer-top-level-header-logo')),
+      findsOneWidget,
+    );
     expect(find.text('Northside Tech'), findsOneWidget);
     expect(find.text('Loop Resale'), findsOneWidget);
     expect(find.text('Selected seller'), findsOneWidget);
 
     await tapVisible(tester, 'Northside Tech');
+    await tester.tap(find.byKey(const Key('active-deal-ipad')));
+    await tester.pumpAndSettle();
     expect(find.text('Accept to meet'), findsOneWidget);
     expect(find.byTooltip('Back'), findsOneWidget);
   });
@@ -869,7 +932,9 @@ void main() {
 
     await tester.tap(find.byTooltip('Chat options'));
     await tester.pumpAndSettle();
-    expect(find.text('Report user or deal'), findsOneWidget);
+    expect(find.text('Report seller'), findsOneWidget);
+    expect(find.text('Search conversation'), findsOneWidget);
+    expect(find.text('Mute chat messages'), findsOneWidget);
   });
 
   testWidgets('welcome journey and marketplace cards adapt for tablet', (
@@ -888,33 +953,19 @@ void main() {
     );
     expect(buyerCard, findsOneWidget);
     final homeCardSize = tester.getSize(buyerCard);
-    expect(homeCardSize.width, lessThanOrEqualTo(426));
+    expect(homeCardSize.width, greaterThan(600));
+    expect(homeCardSize.width, lessThanOrEqualTo(920));
     expect(homeCardSize.height, lessThan(540));
     expect(
       homeCardSize.width / homeCardSize.height,
       moreOrLessEquals(1.71, epsilon: 0.02),
     );
 
-    await tapHomeRole(tester, 1);
-    await tapVisible(tester, 'Create account');
-    await tapVisible(tester, 'Start verification');
-    await tapVisible(tester, 'Enter seller dashboard');
-    await tapVisible(tester, 'Browse buyer requests');
+    await completeSellerSignup(tester);
+    await tapVisible(tester, 'Browse requests');
 
-    final requestCard = find
-        .ancestor(
-          of: find.text('Looking for a used iPad Air'),
-          matching: find.byType(AppCard),
-        )
-        .first;
-    final emptyCard = find
-        .ancestor(
-          of: find.text('No requests found nearby'),
-          matching: find.byType(AppCard),
-        )
-        .first;
-    expect(tester.getSize(requestCard).width, lessThan(430));
-    expect(tester.getSize(emptyCard).width, lessThan(430));
+    expect(find.text('Find Customers'), findsOneWidget);
+    expect(find.byKey(const Key('sellerLeadsSearch')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -932,17 +983,76 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('More'), findsWidgets);
-    expect(find.text('Edit buyer profile'), findsOneWidget);
-    expect(find.text('Account settings'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('buyer-top-level-header-logo')),
+      findsOneWidget,
+    );
+    expect(find.text('Maya Chen'), findsOneWidget);
+    expect(find.text('maya.chen@example.com'), findsOneWidget);
+    expect(find.text('Edit profile'), findsOneWidget);
+    expect(find.text('Account Settings'), findsOneWidget);
     expect(find.text('Notifications'), findsOneWidget);
-    expect(find.text('Saved favorites and requests'), findsOneWidget);
-    expect(find.text('Safety guide'), findsOneWidget);
-    expect(find.text('Help and support'), findsOneWidget);
-    expect(find.text('Report user or deal'), findsOneWidget);
+    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Safety Guide'), findsOneWidget);
+    expect(find.text('Help & Support'), findsOneWidget);
+    expect(find.text('Quick controls'), findsNothing);
+    expect(find.text('Offer alerts'), findsNothing);
+    expect(find.text('Chat reminders'), findsNothing);
+    expect(find.text('Safety tips'), findsNothing);
+    expect(find.text('Report user or deal'), findsNothing);
+    expect(find.text('Safety first'), findsNothing);
     expect(find.text('Log out'), findsOneWidget);
 
+    await tapVisible(tester, 'Edit profile');
+    expect(find.text('Edit Profile'), findsOneWidget);
+    expect(find.text('Full name'), findsOneWidget);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Seller categories'), findsNothing);
+    expect(find.text('Preferred request categories'), findsNothing);
+
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
     await tapVisible(tester, 'Notifications');
-    expect(find.text('Notification center ready'), findsOneWidget);
+    expect(find.text('Notification Preferences'), findsOneWidget);
+    expect(find.text('Offers'), findsWidgets);
+    expect(find.text('Messages & chats'), findsOneWidget);
+    expect(find.text('Meetings & deal updates'), findsOneWidget);
+    expect(find.text('Account & safety alerts'), findsOneWidget);
+    expect(find.text('Notification center ready'), findsNothing);
+    final offersPreference = find.ancestor(
+      of: find.text('Offers'),
+      matching: find.byType(SwitchListTile),
+    );
+    await tester.tap(
+      find.descendant(of: offersPreference, matching: find.byType(Switch)),
+    );
+    await tester.pumpAndSettle();
+    final notificationPreferences = await SharedPreferences.getInstance();
+    expect(
+      notificationPreferences.getBool('hocalist.buyer.notifications.offers'),
+      isFalse,
+    );
+
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'Saved');
+    expect(find.text('Nothing saved yet'), findsOneWidget);
+    expect(find.text('Saved request: compact espresso machine'), findsNothing);
+
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'Safety Guide');
+    expect(find.text('Meet in public'), findsOneWidget);
+    expect(find.text('Protect private information'), findsOneWidget);
+
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'Help & Support');
+    expect(find.text('Contact support'), findsOneWidget);
+    expect(find.text('Report a problem or unsafe interaction'), findsOneWidget);
+    await tapVisible(tester, 'Report a problem or unsafe interaction');
+    expect(find.text('Report a Problem'), findsOneWidget);
+    expect(find.text('Save report'), findsOneWidget);
 
     await tester.tap(find.text('More'));
     await tester.pumpAndSettle();
@@ -960,14 +1070,17 @@ void main() {
 
     await tester.tap(find.text('More'));
     await tester.pumpAndSettle();
-    await tapVisible(tester, 'Account settings');
+    await tapVisible(tester, 'Account Settings');
 
-    expect(find.text('Buyer request controls'), findsOneWidget);
-    expect(find.text('Account access'), findsOneWidget);
-    expect(find.text('Preferences'), findsOneWidget);
-    expect(find.text('Privacy and local data'), findsOneWidget);
-    expect(find.text('Account removal needs backend'), findsOneWidget);
-    expect(find.text('Light mode'), findsOneWidget);
+    expect(find.text('ACCOUNT'), findsOneWidget);
+    expect(find.text('Personal information'), findsOneWidget);
+    expect(find.text('Password & security'), findsOneWidget);
+    expect(find.text('PREFERENCES'), findsOneWidget);
+    expect(find.text('PRIVACY'), findsOneWidget);
+    expect(find.text('Request & location privacy'), findsOneWidget);
+    expect(find.text('ACCOUNT MANAGEMENT'), findsOneWidget);
+    expect(find.text('Account removal needs backend'), findsNothing);
+    expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Accessibility'), findsOneWidget);
     expect(find.text('Medium'), findsOneWidget);
     expect(find.byType(Slider), findsNothing);
@@ -979,7 +1092,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('accessibility-back')));
     await tester.pumpAndSettle();
-    expect(find.text('Account settings'), findsOneWidget);
+    expect(find.text('Account Settings'), findsOneWidget);
     await tapVisible(tester, 'Accessibility');
 
     await tester.tap(find.byKey(const Key('text-size-extraLarge')));
@@ -1027,17 +1140,14 @@ void main() {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
 
-    await tapHomeRole(tester, 1);
-    await tapVisible(tester, 'Create account');
-    await tapVisible(tester, 'Start verification');
-    await tapVisible(tester, 'Enter seller dashboard');
-
-    await tester.tap(find.text('Profile'));
+    await completeSellerSignup(tester);
+    await tester.tap(find.byKey(const Key('sellerNavMore')));
     await tester.pumpAndSettle();
     await tapVisible(tester, 'Account settings');
 
-    expect(find.text('Seller profile controls'), findsOneWidget);
-    expect(find.text('Service area and meetup radius'), findsOneWidget);
-    expect(find.text('Plan and credit visibility'), findsOneWidget);
+    expect(find.text('Account Settings'), findsOneWidget);
+    expect(find.text('Seller information'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Accessibility'), findsOneWidget);
   });
 }

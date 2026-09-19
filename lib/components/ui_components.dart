@@ -60,7 +60,7 @@ class _HocalistWordmarkImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      'assets/brand/hocalist-wordmark-header.png',
+      'assets/brand/hocalist-wordmark.png',
       fit: BoxFit.contain,
       alignment: Alignment.topLeft,
       filterQuality: FilterQuality.high,
@@ -87,6 +87,10 @@ class HocalistGlobalHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (role == UserRole.buyer) {
+      return BuyerTopLevelHeader(onNotifications: onNotifications);
+    }
+
     final label = role == UserRole.buyer ? 'Buyer mode' : 'Seller mode';
     final media = MediaQuery.of(context);
     final compact = media.size.width < 430;
@@ -808,131 +812,12 @@ class NoAccountHomeNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (
-        label: 'Home',
-        icon: Icons.home,
-        selectedIcon: Icons.home,
-        onTap: onHome,
-      ),
-      (
-        label: 'Hocatrends',
-        icon: Icons.offline_bolt_outlined,
-        selectedIcon: Icons.offline_bolt,
-        onTap: onTrends,
-      ),
-      (
-        label: 'Winners',
-        icon: Icons.emoji_events_outlined,
-        selectedIcon: Icons.emoji_events,
-        onTap: onWinners,
-      ),
-      (
-        label: 'Sign Up',
-        icon: Icons.person_outline,
-        selectedIcon: Icons.person,
-        onTap: onSignup,
-      ),
-    ];
-
-    return Container(
-      height: 94,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: HocalistTheme.primary.withValues(alpha: 0.08)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          children: [
-            for (var index = 0; index < items.length; index++)
-              Expanded(
-                child: _ScaleSafeBottomNavItem(
-                  label: items[index].label,
-                  icon: items[index].icon,
-                  selectedIcon: items[index].selectedIcon,
-                  selected: index == selectedIndex,
-                  onTap: items[index].onTap,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ScaleSafeBottomNavItem extends StatelessWidget {
-  const _ScaleSafeBottomNavItem({
-    required this.label,
-    required this.icon,
-    required this.selectedIcon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final IconData selectedIcon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? HocalistTheme.actionBlue : HocalistTheme.muted;
-    return InkWell(
-      onTap: onTap,
-      child: Semantics(
-        selected: selected,
-        button: true,
-        label: label,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: selected ? 60 : 46,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? HocalistTheme.roleSurface
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Icon(
-                  selected ? selectedIcon : icon,
-                  color: color,
-                  size: selected ? 25 : 23,
-                ),
-              ),
-              const SizedBox(height: 2),
-              SizedBox(
-                height: 18,
-                width: double.infinity,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.center,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontSize: HocalistTheme.smallSize,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return ApprovedNoAccountBottomNavigation(
+      selectedIndex: selectedIndex,
+      onHome: onHome,
+      onHocatrends: onTrends,
+      onWinners: onWinners,
+      onSignup: onSignup,
     );
   }
 }
@@ -1443,15 +1328,22 @@ class PrimaryButton extends StatelessWidget {
           foregroundColor: highContrast
               ? accessibility!.buttonForeground
               : foreground,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          minimumSize: const Size.fromHeight(
+            HocalistButtonTokens.minimumHeight,
+          ),
+          padding: HocalistButtonTokens.contentPadding,
+          textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
-              accessibility?.buttonRadius ?? 16,
+              accessibility?.buttonRadius ?? HocalistButtonTokens.radius,
             ),
           ),
         ),
         onPressed: onPressed,
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: HocalistButtonTokens.iconSize),
         label: Text(label),
       ),
     );
@@ -1487,10 +1379,17 @@ class SecondaryButton extends StatelessWidget {
             color: effectiveColor,
             width: accessibility?.buttonBorderWidth ?? 1,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          minimumSize: const Size.fromHeight(
+            HocalistButtonTokens.minimumHeight,
+          ),
+          padding: HocalistButtonTokens.contentPadding,
+          textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
-              accessibility?.buttonRadius ?? 16,
+              accessibility?.buttonRadius ?? HocalistButtonTokens.radius,
             ),
           ),
         ),

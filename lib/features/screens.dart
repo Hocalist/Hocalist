@@ -1555,45 +1555,43 @@ class _RewardInfoButton extends StatelessWidget {
       onPressed: () {
         showModalBottomSheet<void>(
           context: context,
-          showDragHandle: true,
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (context) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineLarge
-                          ?.copyWith(
-                            color: HocalistTheme.primary,
-                            fontSize: 22,
-                          ),
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          barrierColor: const Color(0x990B1231),
+          builder: (sheetContext) {
+            final media = MediaQuery.of(sheetContext);
+            final metrics =
+                ApprovedReplicaScope.maybeOf(sheetContext) ??
+                ApprovedReplicaMetrics.resolve(
+                  availableWidth: media.size.width,
+                  textScaler: media.textScaler,
+                );
+            return BuyerModalSheet(
+              icon: Icons.info_outline_rounded,
+              iconColor: color,
+              title: title,
+              subtitle: 'Reward information',
+              onClose: () => Navigator.pop(sheetContext),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    body,
+                    style: BuyerTypography.style(
+                      sheetContext,
+                      metrics,
+                      BuyerTextRole.primaryBody,
+                      color: BuyerUiTokens.muted,
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      body,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: HocalistTheme.muted,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Done'),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  BuyerPrimaryButton(
+                    label: 'Done',
+                    onPressed: () => Navigator.pop(sheetContext),
+                  ),
+                ],
               ),
             );
           },
@@ -6023,24 +6021,55 @@ class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
   }
 
   Future<void> _confirmDelete() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete this request?'),
-        content: const Text(
-          'This prototype will only simulate deleting the request.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) {
+        final media = MediaQuery.of(sheetContext);
+        final metrics =
+            ApprovedReplicaScope.maybeOf(sheetContext) ??
+            ApprovedReplicaMetrics.resolve(
+              availableWidth: media.size.width,
+              textScaler: media.textScaler,
+            );
+        return BuyerModalSheet(
+          icon: Icons.delete_outline_rounded,
+          iconColor: const Color(0xffef1f29),
+          iconSurface: const Color(0xffffecee),
+          title: 'Delete this request?',
+          subtitle: 'Review the effect before removing the request.',
+          onClose: () => Navigator.pop(sheetContext, false),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'This prototype will only simulate deleting the request.',
+                style: BuyerTypography.style(
+                  sheetContext,
+                  metrics,
+                  BuyerTextRole.primaryBody,
+                  color: BuyerUiTokens.muted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              BuyerPrimaryButton(
+                label: 'Delete request',
+                colors: const [Color(0xffef1f29), Color(0xffd9101b)],
+                onPressed: () => Navigator.pop(sheetContext, true),
+              ),
+              const SizedBox(height: 8),
+              BuyerSecondaryButton(
+                label: 'Keep request',
+                onPressed: () => Navigator.pop(sheetContext, false),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     if (confirmed == true && mounted) {
       _message('Delete preview only — no request was removed.');
@@ -7938,38 +7967,14 @@ class SellerPublicProfilePage extends StatelessWidget {
   }
 }
 
-class ChatPage extends StatefulWidget {
-  const ChatPage({
-    required this.accent,
-    required this.title,
-    required this.body,
-    required this.primaryLabel,
-    required this.onBack,
-    required this.onPrimary,
-    this.onCall,
-    this.onMore,
-    this.onRequestChange,
-    this.onChangeLocation,
-    this.onAttach,
-    this.onReport,
-    super.key,
-  });
-
-  final Color accent;
-  final String title;
-  final String body;
-  final String primaryLabel;
-  final VoidCallback onBack;
-  final VoidCallback onPrimary;
-  final VoidCallback? onCall;
-  final VoidCallback? onMore;
-  final VoidCallback? onRequestChange;
-  final VoidCallback? onChangeLocation;
-  final VoidCallback? onAttach;
-  final VoidCallback? onReport;
-
-  @override
-  State<ChatPage> createState() => _ChatPageState();
+String _profileInitials(String name) {
+  final value = name
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .take(2)
+      .map((part) => part[0].toUpperCase())
+      .join();
+  return value.isEmpty ? 'NT' : value;
 }
 
 class BuyerChatsPage extends StatelessWidget {
@@ -7977,23 +7982,36 @@ class BuyerChatsPage extends StatelessWidget {
     required this.onBack,
     required this.onOpenChat,
     required this.onOffers,
+    this.latestOffer,
+    this.latestMessagePreview,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onOpenChat;
   final VoidCallback onOffers;
+  final LocalOfferRecord? latestOffer;
+  final String? latestMessagePreview;
 
   @override
   Widget build(BuildContext context) {
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
     final threads = [
       _BuyerChatThreadData(
-        seller: 'Northside Tech',
-        initials: 'NT',
-        request: 'iPad Air 5, 256GB',
-        preview: 'Hi! The iPad is in perfect condition like we discussed.',
+        seller: latestOffer?.sellerName ?? 'Northside Tech',
+        initials: _profileInitials(latestOffer?.sellerName ?? 'Northside Tech'),
+        request: latestOffer?.requestTitle ?? 'iPad Air 5, 256GB',
+        preview:
+            latestMessagePreview ??
+            latestOffer?.message ??
+            'Hi! The iPad is in perfect condition like we discussed.',
         time: '9:30 AM',
-        price: '\$420',
+        price: latestOffer?.price ?? r'$420',
         status: 'Selected seller',
         unread: 2,
         active: true,
@@ -8020,7 +8038,7 @@ class BuyerChatsPage extends StatelessWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 920),
+        constraints: BoxConstraints(maxWidth: metrics.contentMaxWidth),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -8029,50 +8047,73 @@ class BuyerChatsPage extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Chats',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: HocalistTheme.primary,
-                      fontWeight: FontWeight.w900,
+                    style: BuyerTypography.style(
+                      context,
+                      metrics,
+                      BuyerTextRole.pageTitle,
                     ),
                   ),
                 ),
                 TextButton.icon(
                   onPressed: onOffers,
-                  icon: const Icon(Icons.sell_outlined, size: 19),
-                  label: const Text('Offers'),
+                  style: TextButton.styleFrom(
+                    minimumSize: Size(
+                      metrics.geometry(44),
+                      metrics.geometry(40),
+                    ),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.geometry(8),
+                    ),
+                    foregroundColor: BuyerUiTokens.action,
+                  ),
+                  icon: Icon(Icons.sell_outlined, size: metrics.artSize(17)),
+                  label: Text(
+                    'Offers',
+                    style: BuyerTypography.style(
+                      context,
+                      metrics,
+                      BuyerTextRole.buttonLabel,
+                      color: BuyerUiTokens.action,
+                      weight: FontWeight.w700,
+                    ).copyWith(fontSize: metrics.fontSize(12)),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: metrics.spacing(8)),
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(metrics.spacing(11)),
               decoration: BoxDecoration(
-                color: HocalistTheme.roleSurface,
-                borderRadius: BorderRadius.circular(16),
+                color: BuyerUiTokens.softSurface,
+                borderRadius: BorderRadius.circular(metrics.geometry(9)),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.lock_outline,
-                    color: HocalistTheme.actionBlue,
+                    color: BuyerUiTokens.action,
+                    size: metrics.artSize(18),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: metrics.spacing(8)),
                   Expanded(
                     child: Text(
                       'Chats open after you select a seller. Compare active conversations here before finalizing meetup details.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: HocalistTheme.primary,
-                        height: 1.35,
-                        fontWeight: FontWeight.w600,
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                        color: BuyerUiTokens.text,
+                        weight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: metrics.spacing(10)),
             for (final thread in threads) ...[
               _BuyerChatThreadCard(data: thread, onTap: onOpenChat),
-              const SizedBox(height: 12),
+              SizedBox(height: metrics.spacing(9)),
             ],
           ],
         ),
@@ -8089,93 +8130,145 @@ class _BuyerChatThreadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: _ReplicaSurface(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: data.active
-                  ? Colors.black
-                  : HocalistTheme.roleSurface,
-              foregroundColor: data.active
-                  ? Colors.white
-                  : HocalistTheme.primary,
-              child: Text(
-                data.initials,
-                style: const TextStyle(fontWeight: FontWeight.w900),
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+        side: const BorderSide(color: BuyerUiTokens.border),
+      ),
+      child: InkWell(
+        key: ValueKey('buyer-chat-thread-${data.initials}'),
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.all(metrics.spacing(12)),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: metrics.artSize(21),
+                backgroundColor: data.active
+                    ? Colors.black
+                    : BuyerUiTokens.softSurface,
+                foregroundColor: data.active
+                    ? Colors.white
+                    : BuyerUiTokens.text,
+                child: Text(
+                  data.initials,
+                  style: BuyerTypography.style(
+                    context,
+                    metrics,
+                    BuyerTextRole.badgeStatus,
+                    color: data.active ? Colors.white : BuyerUiTokens.text,
+                    weight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          data.seller,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: HocalistTheme.primary,
-                                fontWeight: FontWeight.w900,
+              SizedBox(width: metrics.spacing(10)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (metrics.accessibilityReflow)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data.seller,
+                            style: BuyerTypography.style(
+                              context,
+                              metrics,
+                              BuyerTextRole.cardTitle,
+                            ),
+                          ),
+                          Text(
+                            data.time,
+                            style: BuyerTypography.style(
+                              context,
+                              metrics,
+                              BuyerTextRole.metadata,
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              data.seller,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: BuyerTypography.style(
+                                context,
+                                metrics,
+                                BuyerTextRole.cardTitle,
                               ),
-                        ),
+                            ),
+                          ),
+                          SizedBox(width: metrics.spacing(8)),
+                          Text(
+                            data.time,
+                            style: BuyerTypography.style(
+                              context,
+                              metrics,
+                              BuyerTextRole.metadata,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        data.time,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: HocalistTheme.muted,
-                        ),
+                    SizedBox(height: metrics.spacing(3)),
+                    Text(
+                      data.request,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                        color: BuyerUiTokens.action,
+                        weight: FontWeight.w700,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    data.request,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: HocalistTheme.actionBlue,
-                      fontWeight: FontWeight.w800,
                     ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    data.preview,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: HocalistTheme.muted,
-                      height: 1.3,
+                    SizedBox(height: metrics.spacing(5)),
+                    Text(
+                      data.preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _ChatThreadChip(label: data.status, active: data.active),
-                      _ChatThreadChip(label: data.price),
-                    ],
-                  ),
-                ],
+                    SizedBox(height: metrics.spacing(7)),
+                    Wrap(
+                      spacing: metrics.spacing(6),
+                      runSpacing: metrics.spacing(5),
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _ChatThreadChip(
+                          label: data.status,
+                          active: data.active,
+                        ),
+                        _ChatThreadChip(label: data.price),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (data.unread > 0) ...[
-              const SizedBox(width: 8),
-              _ChatUnreadDot(count: data.unread),
+              if (data.unread > 0) ...[
+                SizedBox(width: metrics.spacing(6)),
+                _ChatUnreadDot(count: data.unread),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -8190,18 +8283,28 @@ class _ChatThreadChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: EdgeInsets.symmetric(
+        horizontal: metrics.geometry(8),
+        vertical: metrics.geometry(4),
+      ),
       decoration: BoxDecoration(
-        color: active ? HocalistTheme.roleSurface : const Color(0xfff5f6fb),
-        borderRadius: BorderRadius.circular(999),
+        color: active ? BuyerUiTokens.softSurface : const Color(0xfff5f6fb),
+        borderRadius: BorderRadius.circular(metrics.geometry(999)),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: active ? HocalistTheme.actionBlue : HocalistTheme.muted,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
+        style: BuyerTypography.style(
+          context,
+          metrics,
+          BuyerTextRole.badgeStatus,
+          color: active ? BuyerUiTokens.action : BuyerUiTokens.muted,
         ),
       ),
     );
@@ -8215,20 +8318,28 @@ class _ChatUnreadDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
     return Container(
-      width: 20,
-      height: 20,
+      width: metrics.artSize(18),
+      height: metrics.artSize(18),
       alignment: Alignment.center,
       decoration: const BoxDecoration(
-        color: HocalistTheme.actionBlue,
+        color: BuyerUiTokens.action,
         shape: BoxShape.circle,
       ),
       child: Text(
         '$count',
-        style: const TextStyle(
+        style: BuyerTypography.style(
+          context,
+          metrics,
+          BuyerTextRole.badgeStatus,
           color: Colors.white,
-          fontSize: HocalistTheme.badgeSize,
-          fontWeight: FontWeight.w900,
+          weight: FontWeight.w800,
           height: 1,
         ),
       ),
@@ -8258,271 +8369,6 @@ class _BuyerChatThreadData {
   final String status;
   final int unread;
   final bool active;
-}
-
-class _ChatPageState extends State<ChatPage> {
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _mockChatAction(String text) {
-    _mockAction(context, text);
-  }
-
-  void _showCallSellerDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Call seller'),
-          content: const Text(
-            'Call Northside Tech after confirming price, item condition, and public meetup expectations in chat.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Keep chatting'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.phone_outlined),
-              label: const Text('Call Northside Tech'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showChatOptionsDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        void closeThen(VoidCallback action) {
-          Navigator.of(dialogContext).pop();
-          action();
-        }
-
-        return AlertDialog(
-          title: const Text('Chat options'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ChatOptionRow(
-                icon: Icons.edit_note_outlined,
-                label: 'Request change',
-                onTap: () => closeThen(
-                  widget.onRequestChange ?? _showRequestChangeDialog,
-                ),
-              ),
-              _ChatOptionRow(
-                icon: Icons.location_on_outlined,
-                label: 'Change location',
-                onTap: () => closeThen(
-                  widget.onChangeLocation ?? _showChangeLocationDialog,
-                ),
-              ),
-              _ChatOptionRow(
-                icon: Icons.report_problem_outlined,
-                label: 'Report seller or deal',
-                onTap: () => closeThen(
-                  widget.onReport ??
-                      () => _mockChatAction(
-                        'Report flow is available from More.',
-                      ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showRequestChangeDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Request change'),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: 'Requested change'),
-                controller: null,
-              ),
-              SizedBox(height: 12),
-              TextField(
-                decoration: InputDecoration(labelText: 'Message to seller'),
-                minLines: 2,
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Send change request'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showChangeLocationDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Change location'),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'City, area, address, or map pin',
-                  prefixIcon: Icon(Icons.place_outlined),
-                ),
-              ),
-              SizedBox(height: 12),
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Search radius or distance',
-                  prefixIcon: Icon(Icons.radar_outlined),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Send location update'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showAttachmentDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Attachments'),
-          content: const Text(
-            'Attach a photo, file, or evidence item to this chat after media storage is connected.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.attach_file_outlined),
-              label: const Text('Attach to chat'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 920),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _ApprovedChatHeader(
-              onBack: widget.onBack,
-              onCall: widget.onCall ?? _showCallSellerDialog,
-              onMore: widget.onMore ?? _showChatOptionsDialog,
-            ),
-            const SizedBox(height: 16),
-            const _ApprovedChatProductCard(),
-            const SizedBox(height: 16),
-            _ApprovedFinalOfferCard(
-              onRequestChange:
-                  widget.onRequestChange ?? _showRequestChangeDialog,
-              onChangeLocation:
-                  widget.onChangeLocation ?? _showChangeLocationDialog,
-            ),
-            const SizedBox(height: 14),
-            FilledButton(
-              key: const Key('accept-to-meet'),
-              onPressed: widget.onPrimary,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 60),
-                backgroundColor: const Color(0xff0618ff),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-              child: Text(
-                widget.primaryLabel,
-                style: TextStyle(
-                  fontSize: HocalistTheme.buttonSize,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const _ApprovedDateDivider(),
-            const SizedBox(height: 18),
-            const _ApprovedIncomingMessage(
-              text: 'Hi! The iPad is in perfect condition like we discussed.',
-              time: '9:30 AM',
-            ),
-            const SizedBox(height: 14),
-            const _ApprovedOutgoingMessage(
-              text: 'Looks good! I\'m ready to move forward thumbs up',
-              time: '9:31 AM',
-            ),
-            const SizedBox(height: 14),
-            const _ApprovedIncomingMessage(
-              text: 'Hi! The iPad is in perfect condition like we discussed.',
-              time: '9:30 AM',
-            ),
-            const SizedBox(height: 20),
-            const _ApprovedSafetyChatNotice(),
-            const SizedBox(height: 18),
-            _ApprovedMessageComposer(
-              controller: _controller,
-              onAttach: widget.onAttach ?? _showAttachmentDialog,
-              onSend: () {
-                _controller.clear();
-                _mockChatAction('Message sent in UI preview.');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 void _mockAction(BuildContext context, String text) {
@@ -9358,965 +9204,6 @@ class _SoftSquareIcon extends StatelessWidget {
   }
 }
 
-class _ChatOptionRow extends StatelessWidget {
-  const _ChatOptionRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        splashColor: Colors.transparent,
-        highlightColor: HocalistTheme.roleSurface,
-        hoverColor: HocalistTheme.roleSurface,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-          child: Row(
-            children: [
-              Icon(icon, color: HocalistTheme.primary, size: 22),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: HocalistTheme.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ApprovedChatHeader extends StatelessWidget {
-  const _ApprovedChatHeader({
-    required this.onBack,
-    required this.onCall,
-    required this.onMore,
-  });
-
-  final VoidCallback onBack;
-  final VoidCallback onCall;
-  final VoidCallback onMore;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final tight = constraints.maxWidth < 340;
-        final avatarSize = tight ? 54.0 : 64.0;
-        final actionSize = tight ? 36.0 : 40.0;
-        final gap = tight ? 8.0 : 12.0;
-
-        return Row(
-          children: [
-            SizedBox(
-              width: actionSize,
-              height: actionSize,
-              child: IconButton(
-                tooltip: 'Back',
-                padding: EdgeInsets.zero,
-                onPressed: onBack,
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: HocalistTheme.primary,
-                  size: tight ? 26 : 28,
-                ),
-              ),
-            ),
-            SizedBox(width: gap),
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                ClipOval(
-                  child: _SafeChatAssetImage(
-                    asset: 'assets/offer_detail/john-avatar-approved.png',
-                    width: avatarSize,
-                    height: avatarSize,
-                    fit: BoxFit.cover,
-                    icon: Icons.person,
-                  ),
-                ),
-                Positioned(
-                  right: -1,
-                  bottom: 3,
-                  child: Container(
-                    width: tight ? 17 : 19,
-                    height: tight ? 17 : 19,
-                    decoration: BoxDecoration(
-                      color: const Color(0xff18b85a),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(width: gap),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      const Flexible(
-                        child: Text(
-                          'John D.',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: HocalistTheme.primary,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w900,
-                            height: 1.08,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: const BoxDecoration(
-                          color: Color(0xffeeeaff),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.verified_user,
-                          size: 15,
-                          color: Color(0xff6757ff),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xfff2f0ff),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Text(
-                      'Active now',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: HocalistTheme.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(width: tight ? 6 : 10),
-            SizedBox(
-              width: actionSize,
-              height: actionSize,
-              child: IconButton(
-                tooltip: 'Call seller',
-                padding: EdgeInsets.zero,
-                onPressed: onCall,
-                icon: Icon(
-                  Icons.phone_outlined,
-                  color: HocalistTheme.primary,
-                  size: tight ? 27 : 29,
-                ),
-              ),
-            ),
-            SizedBox(
-              width: actionSize,
-              height: actionSize,
-              child: IconButton(
-                tooltip: 'More options',
-                padding: EdgeInsets.zero,
-                onPressed: onMore,
-                icon: Icon(
-                  Icons.more_vert,
-                  color: HocalistTheme.primary,
-                  size: tight ? 27 : 29,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ApprovedChatProductCard extends StatelessWidget {
-  const _ApprovedChatProductCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ReplicaSurface(
-      padding: const EdgeInsets.all(16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final tight = constraints.maxWidth < 330;
-          final imageWidth = tight ? 94.0 : 112.0;
-          final imageHeight = tight ? 124.0 : 136.0;
-          final gap = tight ? 14.0 : 20.0;
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: _SafeChatAssetImage(
-                  asset: 'assets/offer_detail/ipad-chat-approved.png',
-                  width: imageWidth,
-                  height: imageHeight,
-                  fit: BoxFit.cover,
-                  icon: Icons.tablet_mac_outlined,
-                ),
-              ),
-              SizedBox(width: gap),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'iPad Air 5th Gen 64GB',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: HocalistTheme.primary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        height: 1.15,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      '\$650',
-                      style: TextStyle(
-                        color: HocalistTheme.primary,
-                        fontSize: 27,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.verified_user,
-                          color: Color(0xff22aa69),
-                          size: 28,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Deal Protection by Hocalist',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: HocalistTheme.primary,
-                              fontSize: tight ? 13 : 14,
-                              fontWeight: FontWeight.w800,
-                              height: 1.18,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SafeChatAssetImage extends StatelessWidget {
-  const _SafeChatAssetImage({
-    required this.asset,
-    required this.width,
-    required this.height,
-    required this.icon,
-    this.fit = BoxFit.cover,
-  });
-
-  final String asset;
-  final double width;
-  final double height;
-  final IconData icon;
-  final BoxFit fit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      asset,
-      width: width,
-      height: height,
-      fit: fit,
-      filterQuality: FilterQuality.high,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          width: width,
-          height: height,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: HocalistTheme.roleSurface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: HocalistTheme.primary, size: width * 0.42),
-        );
-      },
-    );
-  }
-}
-
-class _ApprovedFinalOfferCard extends StatefulWidget {
-  const _ApprovedFinalOfferCard({
-    required this.onRequestChange,
-    required this.onChangeLocation,
-  });
-
-  final VoidCallback onRequestChange;
-  final VoidCallback onChangeLocation;
-
-  @override
-  State<_ApprovedFinalOfferCard> createState() =>
-      _ApprovedFinalOfferCardState();
-}
-
-class _ApprovedFinalOfferCardState extends State<_ApprovedFinalOfferCard> {
-  bool _expanded = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ReplicaSurface(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final title = const Row(
-                  children: [
-                    Icon(Icons.verified, color: Color(0xff6757ff), size: 36),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        'Seller\'s Final Offer',
-                        style: TextStyle(
-                          color: HocalistTheme.primary,
-                          fontSize: HocalistTheme.sectionTitleSize,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-                final details = TextButton.icon(
-                  key: const Key('toggle-final-offer-details'),
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  iconAlignment: IconAlignment.end,
-                  icon: Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                  ),
-                  label: Text(
-                    _expanded ? 'Tap to close details' : 'Tap to view details',
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: HocalistTheme.muted,
-                  ),
-                );
-                if (constraints.maxWidth < 430) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      title,
-                      Align(alignment: Alignment.centerRight, child: details),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(child: title),
-                    const SizedBox(width: 10),
-                    details,
-                  ],
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1, color: Color(0xffe4e5f4)),
-          if (_expanded)
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 560;
-                  final facts = [
-                    const _FinalOfferFact(
-                      icon: Icons.attach_money,
-                      iconColor: Color(0xff12aa5b),
-                      title: 'Price',
-                      body: '\$650',
-                    ),
-                    const _FinalOfferFact(
-                      icon: Icons.location_on,
-                      iconColor: Color(0xff6757ff),
-                      title: 'Pickup Location',
-                      body: 'Yonkers, NY',
-                    ),
-                    const _FinalOfferFact(
-                      icon: Icons.schedule,
-                      iconColor: Color(0xffffa000),
-                      title: 'Meet Time',
-                      body: 'Today • 5:00 PM',
-                    ),
-                    const _FinalOfferFact(
-                      icon: Icons.star,
-                      iconColor: Color(0xffffa000),
-                      title: 'Close Deal To Earn',
-                      body: '\$1.40',
-                      bodyColor: Color(0xff0ba34e),
-                    ),
-                  ];
-                  final buttons = [
-                    OutlinedButton(
-                      key: const Key('request-offer-change'),
-                      onPressed: widget.onRequestChange,
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 58),
-                        foregroundColor: HocalistTheme.primary,
-                        side: const BorderSide(color: Color(0xffdedff0)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Request Change',
-                        style: TextStyle(
-                          fontSize: HocalistTheme.buttonSize,
-                          height: 1.1,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    FilledButton(
-                      key: const Key('change-meet-location'),
-                      onPressed: widget.onChangeLocation,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 58),
-                        backgroundColor: HocalistTheme.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Change Location',
-                        style: TextStyle(
-                          fontSize: HocalistTheme.buttonSize,
-                          height: 1.1,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ];
-                  if (compact) {
-                    return Column(
-                      children: [
-                        ...facts.map(
-                          (fact) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: fact,
-                          ),
-                        ),
-                        ...buttons.map(
-                          (button) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: button,
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  return Column(
-                    children: [
-                      GridView.count(
-                        crossAxisCount: 2,
-                        childAspectRatio: 4.2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 18,
-                        children: facts,
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(child: buttons.first),
-                          const SizedBox(width: 18),
-                          Expanded(child: buttons.last),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FinalOfferFact extends StatelessWidget {
-  const _FinalOfferFact({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.body,
-    this.bodyColor = HocalistTheme.primary,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String body;
-  final Color bodyColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: iconColor, size: 34),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: HocalistTheme.muted,
-                  fontSize: HocalistTheme.bodySize,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                body,
-                style: TextStyle(
-                  color: bodyColor,
-                  fontSize: HocalistTheme.titleSize,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ApprovedDateDivider extends StatelessWidget {
-  const _ApprovedDateDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(child: Divider(color: Color(0xffd7d8e8), thickness: 1.5)),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Today 9:30 AM',
-            style: TextStyle(
-              color: HocalistTheme.muted,
-              fontSize: HocalistTheme.bodySize,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Expanded(child: Divider(color: Color(0xffd7d8e8), thickness: 1.5)),
-      ],
-    );
-  }
-}
-
-class _ApprovedIncomingMessage extends StatelessWidget {
-  const _ApprovedIncomingMessage({required this.text, required this.time});
-
-  final String text;
-  final String time;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final tight = constraints.maxWidth < 340;
-        final avatarSize = tight ? 50.0 : 58.0;
-        final bubbleMaxWidth = (constraints.maxWidth * (tight ? 0.72 : 0.66))
-            .clamp(190.0, 390.0);
-
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ClipOval(
-                    child: _SafeChatAssetImage(
-                      asset: 'assets/offer_detail/john-avatar-approved.png',
-                      width: avatarSize,
-                      height: avatarSize,
-                      fit: BoxFit.cover,
-                      icon: Icons.person,
-                    ),
-                  ),
-                  Positioned(
-                    right: -2,
-                    bottom: 1,
-                    child: Container(
-                      width: tight ? 15 : 16,
-                      height: tight ? 15 : 16,
-                      decoration: BoxDecoration(
-                        color: const Color(0xff18b85a),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(width: tight ? 10 : 14),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-                child: Container(
-                  padding: EdgeInsets.fromLTRB(
-                    tight ? 18 : 22,
-                    tight ? 16 : 18,
-                    tight ? 18 : 22,
-                    14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x10101054),
-                        blurRadius: 18,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        text,
-                        style: const TextStyle(
-                          color: Color(0xff0f1530),
-                          fontSize: HocalistTheme.bodySize,
-                          height: 1.35,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        time,
-                        style: const TextStyle(
-                          color: HocalistTheme.muted,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ApprovedOutgoingMessage extends StatelessWidget {
-  const _ApprovedOutgoingMessage({required this.text, required this.time});
-
-  final String text;
-  final String time;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final tight = constraints.maxWidth < 340;
-        final bubbleMaxWidth = (constraints.maxWidth * (tight ? 0.76 : 0.7))
-            .clamp(210.0, 430.0);
-
-        return Align(
-          alignment: Alignment.centerRight,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                tight ? 20 : 24,
-                tight ? 18 : 20,
-                tight ? 18 : 20,
-                16,
-              ),
-              decoration: BoxDecoration(
-                color: HocalistTheme.primary,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      text,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: HocalistTheme.bodySize,
-                        height: 1.45,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        time,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.done_all, color: Color(0xff1688ff)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ApprovedSafetyChatNotice extends StatelessWidget {
-  const _ApprovedSafetyChatNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final tight = constraints.maxWidth < 360;
-
-        return Container(
-          padding: EdgeInsets.all(tight ? 16 : 18),
-          decoration: BoxDecoration(
-            color: const Color(0xfff1efff),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SoftSquareIcon(icon: Icons.verified_user),
-              SizedBox(width: tight ? 14 : 16),
-              Expanded(
-                child: tight
-                    ? const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Always be safe, meet in public crowded places with the person you expect.',
-                            style: TextStyle(
-                              color: HocalistTheme.primary,
-                              fontSize: HocalistTheme.bodySize,
-                              height: 1.35,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          _SafetyLearnMoreLink(),
-                        ],
-                      )
-                    : const Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Always be safe, meet in public crowded places with the person you expect.',
-                              style: TextStyle(
-                                color: HocalistTheme.primary,
-                                fontSize: HocalistTheme.bodySize,
-                                height: 1.35,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          _SafetyLearnMoreLink(),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SafetyLearnMoreLink extends StatelessWidget {
-  const _SafetyLearnMoreLink();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Learn more',
-          style: TextStyle(
-            color: Color(0xff1520ff),
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        SizedBox(width: 6),
-        Icon(Icons.chevron_right, color: Color(0xff1520ff)),
-      ],
-    );
-  }
-}
-
-class _ApprovedMessageComposer extends StatelessWidget {
-  const _ApprovedMessageComposer({
-    required this.controller,
-    required this.onAttach,
-    required this.onSend,
-  });
-
-  final TextEditingController controller;
-  final VoidCallback onAttach;
-  final VoidCallback onSend;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final tight = constraints.maxWidth < 360;
-        final actionSize = tight ? 52.0 : 58.0;
-        final iconSize = tight ? 30.0 : 34.0;
-        final gap = tight ? 10.0 : 14.0;
-
-        return Row(
-          children: [
-            SizedBox(
-              width: actionSize,
-              height: actionSize,
-              child: IconButton.filled(
-                tooltip: 'Add attachment',
-                onPressed: onAttach,
-                style: IconButton.styleFrom(
-                  backgroundColor: HocalistTheme.primary,
-                  padding: EdgeInsets.zero,
-                ),
-                icon: Icon(Icons.add, color: Colors.white, size: iconSize),
-              ),
-            ),
-            SizedBox(width: gap),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: tight ? 'Message...' : 'Type a message...',
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: tight ? 18 : 24,
-                    vertical: tight ? 16 : 18,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: const BorderSide(color: Color(0xffe0e2f1)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: const BorderSide(color: Color(0xffe0e2f1)),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: gap),
-            SizedBox(
-              width: actionSize,
-              height: actionSize,
-              child: IconButton(
-                tooltip: 'Send message',
-                padding: EdgeInsets.zero,
-                onPressed: onSend,
-                icon: Icon(
-                  Icons.send_outlined,
-                  color: HocalistTheme.primary,
-                  size: iconSize,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 class FinalizeDealPage extends StatelessWidget {
   const FinalizeDealPage({
     required this.accent,
@@ -10954,10 +9841,15 @@ class WithdrawalPage extends StatelessWidget {
   }
 }
 
+enum BuyerProfilePhotoAction { camera, gallery, remove }
+
 class SupportPage extends StatelessWidget {
   const SupportPage({
     required this.accent,
+    required this.name,
+    required this.email,
     required this.onNotifications,
+    this.onRewards,
     required this.onSaved,
     required this.onSafety,
     required this.onReport,
@@ -10965,11 +9857,15 @@ class SupportPage extends StatelessWidget {
     required this.onEditProfile,
     required this.onSettings,
     required this.onLogout,
+    this.onProfilePhotoAction,
     super.key,
   });
 
   final Color accent;
+  final String name;
+  final String email;
   final VoidCallback onNotifications;
+  final VoidCallback? onRewards;
   final VoidCallback onSaved;
   final VoidCallback onSafety;
   final VoidCallback onReport;
@@ -10977,91 +9873,626 @@ class SupportPage extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback onSettings;
   final VoidCallback onLogout;
+  final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
 
   @override
   Widget build(BuildContext context) {
-    return ScreenBlock(
-      title: 'More',
-      subtitle:
-          'Account, saved activity, safety, support, and local app controls.',
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SettingsProfileHeader(accent: accent, role: UserRole.buyer),
-        PrimaryButton(
-          label: 'Edit buyer profile',
-          icon: Icons.edit_outlined,
-          color: accent,
-          onPressed: onEditProfile,
+        Text(
+          'More',
+          style: BuyerTypography.style(
+            context,
+            metrics,
+            BuyerTextRole.pageTitle,
+          ),
         ),
-        _MoreQuickControls(accent: accent),
-        _MoreSection(
-          title: 'Account',
-          children: [
-            MenuCard(
+        SizedBox(height: metrics.spacing(10)),
+        _BuyerMoreProfileCard(
+          name: name,
+          email: email,
+          onEditProfile: onEditProfile,
+          onProfilePhotoAction: onProfilePhotoAction,
+        ),
+        SizedBox(height: metrics.spacing(18)),
+        const _BuyerMoreSectionLabel('ACCOUNT'),
+        SizedBox(height: metrics.spacing(7)),
+        _BuyerMoreMenuGroup(
+          items: [
+            _BuyerMoreItem(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Rewards & payouts',
+              onTap: onRewards ?? () {},
+            ),
+            _BuyerMoreItem(
               icon: Icons.settings_outlined,
-              title: 'Account settings',
-              body:
-                  'Profile, theme, notification, privacy, and local data preferences.',
-              color: accent,
+              title: 'Account Settings',
               onTap: onSettings,
             ),
-            MenuCard(
+            _BuyerMoreItem(
               icon: Icons.notifications_outlined,
               title: 'Notifications',
-              body:
-                  'Offer updates, chat messages, meeting reminders, and system alerts.',
-              color: accent,
               onTap: onNotifications,
             ),
-            MenuCard(
+            _BuyerMoreItem(
               icon: Icons.bookmark_border,
-              title: 'Saved favorites and requests',
-              body: 'Saved sellers, watched requests, and backup offers.',
-              color: accent,
+              title: 'Saved',
               onTap: onSaved,
             ),
           ],
         ),
-        AlertBanner(
-          accent: accent,
-          title: 'Safety first',
-          body:
-              'Pay for the item offline only after meeting publicly and inspecting the item.',
-          icon: Icons.health_and_safety_outlined,
-        ),
-        _MoreSection(
-          title: 'Safety and support',
-          children: [
-            MenuCard(
+        SizedBox(height: metrics.spacing(18)),
+        const _BuyerMoreSectionLabel('SUPPORT & SAFETY'),
+        SizedBox(height: metrics.spacing(7)),
+        _BuyerMoreMenuGroup(
+          items: [
+            _BuyerMoreItem(
               icon: Icons.shield_outlined,
-              title: 'Safety guide',
-              body: 'Meetup, payment, inspection, and reporting guidance.',
-              color: accent,
+              title: 'Safety Guide',
               onTap: onSafety,
             ),
-            MenuCard(
+            _BuyerMoreItem(
               icon: Icons.support_agent_outlined,
-              title: 'Help and support',
-              body: 'FAQ, contact support, and loading/error states.',
-              color: accent,
+              title: 'Help & Support',
               onTap: onHelp,
-            ),
-            MenuCard(
-              icon: Icons.report_problem_outlined,
-              title: 'Report user or deal',
-              body: 'Report reason, notes, screenshots, and submission status.',
-              color: HocalistTheme.danger,
-              onTap: onReport,
             ),
           ],
         ),
-        SecondaryButton(
-          label: 'Log out',
-          color: HocalistTheme.danger,
-          onPressed: onLogout,
+        SizedBox(height: metrics.spacing(20)),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: onLogout,
+            style: OutlinedButton.styleFrom(
+              minimumSize: Size(0, metrics.geometry(46)),
+              foregroundColor: HocalistTheme.danger,
+              side: const BorderSide(color: HocalistTheme.danger),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(metrics.geometry(10)),
+              ),
+            ),
+            child: Text(
+              'Log out',
+              style: BuyerTypography.style(
+                context,
+                metrics,
+                BuyerTextRole.buttonLabel,
+                color: HocalistTheme.danger,
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
+}
+
+class _BuyerMoreProfileCard extends StatelessWidget {
+  const _BuyerMoreProfileCard({
+    required this.name,
+    required this.email,
+    required this.onEditProfile,
+    this.onProfilePhotoAction,
+  });
+
+  final String name;
+  final String email;
+  final VoidCallback onEditProfile;
+  final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    Future<void> changePhoto() => _showBuyerProfilePhotoOptions(
+      context,
+      onSelected: onProfilePhotoAction,
+    );
+    final avatar = _BuyerProfileAvatar(
+      metrics: metrics,
+      diameter: 46,
+      onChangePhoto: changePhoto,
+      actionKey: const Key('buyerMoreProfilePhotoAction'),
+    );
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BuyerTypography.style(
+            context,
+            metrics,
+            BuyerTextRole.cardTitle,
+          ),
+        ),
+        SizedBox(height: metrics.spacing(2)),
+        Text(
+          email,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BuyerTypography.style(
+            context,
+            metrics,
+            BuyerTextRole.secondaryBody,
+          ),
+        ),
+      ],
+    );
+    final edit = TextButton(
+      onPressed: onEditProfile,
+      style: TextButton.styleFrom(
+        minimumSize: Size(metrics.geometry(44), metrics.geometry(40)),
+        foregroundColor: BuyerUiTokens.action,
+        padding: EdgeInsets.symmetric(horizontal: metrics.geometry(8)),
+      ),
+      child: Text(
+        'Edit profile',
+        style: BuyerTypography.style(
+          context,
+          metrics,
+          BuyerTextRole.buttonLabel,
+          color: BuyerUiTokens.action,
+        ).copyWith(fontSize: metrics.fontSize(12)),
+      ),
+    );
+    return Container(
+      padding: EdgeInsets.all(metrics.spacing(13)),
+      decoration: BoxDecoration(
+        color: BuyerUiTokens.surface,
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+        border: Border.all(color: BuyerUiTokens.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0a101054),
+            blurRadius: 14,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: metrics.accessibilityReflow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    avatar,
+                    SizedBox(width: metrics.spacing(11)),
+                    Expanded(child: details),
+                  ],
+                ),
+                SizedBox(height: metrics.spacing(6)),
+                Align(alignment: Alignment.centerRight, child: edit),
+              ],
+            )
+          : Row(
+              children: [
+                avatar,
+                SizedBox(width: metrics.spacing(11)),
+                Expanded(child: details),
+                SizedBox(width: metrics.spacing(8)),
+                edit,
+              ],
+            ),
+    );
+  }
+}
+
+class _BuyerProfileAvatar extends StatelessWidget {
+  const _BuyerProfileAvatar({
+    required this.metrics,
+    required this.diameter,
+    required this.onChangePhoto,
+    required this.actionKey,
+  });
+
+  final ApprovedReplicaMetrics metrics;
+  final double diameter;
+  final VoidCallback onChangePhoto;
+  final Key actionKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaledDiameter = metrics.artSize(diameter);
+    final actionDiameter = metrics.artSize(diameter >= 60 ? 30 : 22);
+    return Tooltip(
+      message: 'Change profile picture',
+      child: Semantics(
+        button: true,
+        label: 'Change profile picture',
+        child: InkResponse(
+          key: actionKey,
+          onTap: onChangePhoto,
+          radius: scaledDiameter / 2,
+          child: SizedBox(
+            width: scaledDiameter,
+            height: scaledDiameter,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CircleAvatar(
+                    backgroundColor: BuyerUiTokens.softSurface,
+                    foregroundColor: BuyerUiTokens.action,
+                    child: Icon(
+                      Icons.person_outline,
+                      size: metrics.artSize(diameter >= 60 ? 31 : 23),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: -metrics.spacing(2),
+                  bottom: -metrics.spacing(2),
+                  child: Material(
+                    color: BuyerUiTokens.action,
+                    shape: const CircleBorder(),
+                    elevation: 1,
+                    child: SizedBox(
+                      width: actionDiameter,
+                      height: actionDiameter,
+                      child: Icon(
+                        Icons.photo_camera_outlined,
+                        color: Colors.white,
+                        size: metrics.artSize(diameter >= 60 ? 16 : 12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerProfilePhotoEditor extends StatelessWidget {
+  const _BuyerProfilePhotoEditor({this.onProfilePhotoAction});
+
+  final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    Future<void> changePhoto() => _showBuyerProfilePhotoOptions(
+      context,
+      onSelected: onProfilePhotoAction,
+    );
+    return Padding(
+      padding: EdgeInsets.all(metrics.spacing(14)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _BuyerProfileAvatar(
+            metrics: metrics,
+            diameter: 62,
+            onChangePhoto: changePhoto,
+            actionKey: const Key('buyerEditProfilePhotoAction'),
+          ),
+          SizedBox(width: metrics.spacing(14)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Buyer photo',
+                  style: BuyerTypography.style(
+                    context,
+                    metrics,
+                    BuyerTextRole.cardTitle,
+                    weight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: metrics.spacing(3)),
+                Text(
+                  'Use a clear photo that sellers can recognize.',
+                  style: BuyerTypography.style(
+                    context,
+                    metrics,
+                    BuyerTextRole.secondaryBody,
+                  ),
+                ),
+                SizedBox(height: metrics.spacing(4)),
+                TextButton.icon(
+                  key: const Key('buyerEditProfileChangePhoto'),
+                  onPressed: changePhoto,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.spacing(4),
+                      vertical: metrics.spacing(4),
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: Icon(
+                    Icons.photo_camera_outlined,
+                    size: metrics.artSize(15),
+                  ),
+                  label: Text(
+                    'Change profile picture',
+                    style: BuyerTypography.style(
+                      context,
+                      metrics,
+                      BuyerTextRole.buttonLabel,
+                      color: BuyerUiTokens.action,
+                    ).copyWith(fontSize: metrics.fontSize(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _showBuyerProfilePhotoOptions(
+  BuildContext context, {
+  ValueChanged<BuyerProfilePhotoAction>? onSelected,
+}) async {
+  final metrics = ApprovedReplicaScope.of(context);
+  final selected = await showModalBottomSheet<BuyerProfilePhotoAction>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (sheetContext) => BuyerModalSheet(
+      title: 'Change profile picture',
+      subtitle: 'Choose how you want to update your Buyer photo.',
+      icon: Icons.account_circle_outlined,
+      onClose: () => Navigator.of(sheetContext).pop(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BuyerPhotoOption(
+            metrics: metrics,
+            optionKey: const Key('buyerPhotoTakePhoto'),
+            icon: Icons.photo_camera_outlined,
+            title: 'Take a photo',
+            subtitle: 'Use your device camera',
+            onTap: () =>
+                Navigator.of(sheetContext).pop(BuyerProfilePhotoAction.camera),
+          ),
+          _BuyerPhotoOption(
+            metrics: metrics,
+            optionKey: const Key('buyerPhotoChooseGallery'),
+            icon: Icons.photo_library_outlined,
+            title: 'Choose from photo library',
+            subtitle: 'Select a photo already on your device',
+            onTap: () =>
+                Navigator.of(sheetContext).pop(BuyerProfilePhotoAction.gallery),
+          ),
+          _BuyerPhotoOption(
+            metrics: metrics,
+            optionKey: const Key('buyerPhotoRemove'),
+            icon: Icons.delete_outline,
+            title: 'Remove current photo',
+            subtitle: 'Show the default Buyer avatar instead',
+            isDestructive: true,
+            onTap: () =>
+                Navigator.of(sheetContext).pop(BuyerProfilePhotoAction.remove),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  if (selected != null) {
+    onSelected?.call(selected);
+  }
+}
+
+class _BuyerPhotoOption extends StatelessWidget {
+  const _BuyerPhotoOption({
+    required this.metrics,
+    required this.optionKey,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  final ApprovedReplicaMetrics metrics;
+  final Key optionKey;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDestructive ? HocalistTheme.danger : BuyerUiTokens.action;
+    return Padding(
+      padding: EdgeInsets.only(bottom: metrics.spacing(8)),
+      child: Material(
+        color: isDestructive
+            ? HocalistTheme.danger.withValues(alpha: 0.05)
+            : BuyerUiTokens.softSurface,
+        borderRadius: BorderRadius.circular(metrics.geometry(12)),
+        child: InkWell(
+          key: optionKey,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(metrics.geometry(12)),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: metrics.spacing(12),
+              vertical: metrics.spacing(11),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: metrics.artSize(22)),
+                SizedBox(width: metrics.spacing(12)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.cardTitle,
+                          color: color,
+                          weight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: metrics.spacing(2)),
+                      Text(
+                        subtitle,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.secondaryBody,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: color,
+                  size: metrics.artSize(20),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerMoreSectionLabel extends StatelessWidget {
+  const _BuyerMoreSectionLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Text(
+      label,
+      style: BuyerTypography.style(
+        context,
+        metrics,
+        BuyerTextRole.metadata,
+        color: BuyerUiTokens.muted,
+        weight: FontWeight.w800,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
+class _BuyerMoreMenuGroup extends StatelessWidget {
+  const _BuyerMoreMenuGroup({required this.items});
+
+  final List<_BuyerMoreItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: BuyerUiTokens.surface,
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+        border: Border.all(color: BuyerUiTokens.border),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < items.length; index++) ...[
+            _BuyerMoreMenuTile(item: items[index]),
+            if (index != items.length - 1)
+              Divider(
+                height: 1,
+                indent: metrics.spacing(52),
+                color: BuyerUiTokens.border,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BuyerMoreMenuTile extends StatelessWidget {
+  const _BuyerMoreMenuTile({required this.item});
+
+  final _BuyerMoreItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return InkWell(
+      onTap: item.onTap,
+      borderRadius: BorderRadius.circular(metrics.geometry(10)),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: metrics.spacing(12),
+          vertical: metrics.spacing(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: metrics.artSize(34),
+              height: metrics.artSize(34),
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: BuyerUiTokens.softSurface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                item.icon,
+                size: metrics.artSize(19),
+                color: BuyerUiTokens.action,
+              ),
+            ),
+            SizedBox(width: metrics.spacing(10)),
+            Expanded(
+              child: Text(
+                item.title,
+                style: BuyerTypography.style(
+                  context,
+                  metrics,
+                  BuyerTextRole.primaryBody,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: metrics.artSize(20),
+              color: BuyerUiTokens.muted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerMoreItem {
+  const _BuyerMoreItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
 }
 
 class _MoreQuickControls extends StatefulWidget {
@@ -11124,351 +10555,735 @@ class _MoreQuickControlsState extends State<_MoreQuickControls> {
   }
 }
 
-class _MoreSection extends StatelessWidget {
-  const _MoreSection({required this.title, required this.children});
+class _BuyerSubpageBlock extends StatelessWidget {
+  const _BuyerSubpageBlock({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaMetrics.resolve(
+      availableWidth: MediaQuery.sizeOf(context).width,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    final onBack = _TitleBackScope.maybeOf(context);
+    return ApprovedReplicaScope(
+      metrics: metrics,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: metrics.artSize(44),
+                height: metrics.artSize(44),
+                child: IconButton(
+                  tooltip: 'Back',
+                  onPressed: onBack,
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: BuyerUiTokens.text,
+                    size: metrics.artSize(23),
+                  ),
+                ),
+              ),
+              SizedBox(width: metrics.spacing(6)),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(top: metrics.spacing(3)),
+                  child: Column(
+                    children: [
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.pageTitle,
+                          weight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: metrics.spacing(3)),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.secondaryBody,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: metrics.spacing(6)),
+              SizedBox(width: metrics.artSize(44)),
+            ],
+          ),
+          SizedBox(height: metrics.spacing(18)),
+          ...children.expand(
+            (child) => <Widget>[child, SizedBox(height: metrics.spacing(16))],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BuyerSubpageSection extends StatelessWidget {
+  const _BuyerSubpageSection({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 8),
-          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+          padding: EdgeInsets.only(left: metrics.spacing(2)),
+          child: Text(
+            title.toUpperCase(),
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.metadata,
+              color: BuyerUiTokens.muted,
+              weight: FontWeight.w800,
+              letterSpacing: .8,
+            ),
+          ),
         ),
-        ...children.expand((child) => [child, const SizedBox(height: 10)]),
+        SizedBox(height: metrics.spacing(7)),
+        Material(
+          color: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(color: BuyerUiTokens.border),
+            borderRadius: BorderRadius.circular(metrics.geometry(11)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: metrics.geometry(52),
+                    color: BuyerUiTokens.border,
+                  ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
 }
 
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({
-    required this.accent,
-    required this.role,
+class _BuyerSubpageRow extends StatelessWidget {
+  const _BuyerSubpageRow({
+    required this.icon,
+    required this.title,
+    required this.body,
+    this.status,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final String? status;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Semantics(
+      button: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: metrics.spacing(12),
+            vertical: metrics.spacing(11),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: metrics.artSize(34),
+                height: metrics.artSize(34),
+                decoration: const BoxDecoration(
+                  color: BuyerUiTokens.softSurface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: BuyerUiTokens.action,
+                  size: metrics.artSize(18),
+                ),
+              ),
+              SizedBox(width: metrics.spacing(10)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.cardTitle,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: metrics.spacing(3)),
+                    Text(
+                      body,
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                      ),
+                    ),
+                    if (status != null) ...[
+                      SizedBox(height: metrics.spacing(5)),
+                      Text(
+                        status!,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.badgeStatus,
+                          color: onTap == null
+                              ? BuyerUiTokens.muted
+                              : BuyerUiTokens.action,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (onTap != null) ...[
+                SizedBox(width: metrics.spacing(8)),
+                Padding(
+                  padding: EdgeInsets.only(top: metrics.spacing(7)),
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: BuyerUiTokens.muted,
+                    size: metrics.artSize(20),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerPreferenceSwitch extends StatelessWidget {
+  const _BuyerPreferenceSwitch({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return SwitchListTile.adaptive(
+      value: value,
+      onChanged: onChanged,
+      activeThumbColor: BuyerUiTokens.action,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: metrics.spacing(12),
+        vertical: metrics.spacing(4),
+      ),
+      secondary: Container(
+        width: metrics.artSize(34),
+        height: metrics.artSize(34),
+        decoration: const BoxDecoration(
+          color: BuyerUiTokens.softSurface,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: BuyerUiTokens.action,
+          size: metrics.artSize(18),
+        ),
+      ),
+      title: Text(
+        title,
+        style: BuyerTypography.style(
+          context,
+          metrics,
+          BuyerTextRole.cardTitle,
+          weight: FontWeight.w700,
+        ),
+      ),
+      subtitle: Padding(
+        padding: EdgeInsets.only(top: metrics.spacing(3)),
+        child: Text(
+          body,
+          style: BuyerTypography.style(
+            context,
+            metrics,
+            BuyerTextRole.secondaryBody,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BuyerAccountSettingsPage extends StatelessWidget {
+  const _BuyerAccountSettingsPage({
     required this.darkMode,
     required this.textSize,
     required this.onEditProfile,
     required this.onThemeChanged,
-    required this.onTextSizeChanged,
-    this.onAccessibility,
-    super.key,
+    required this.onAccessibility,
   });
 
-  final Color accent;
-  final UserRole role;
   final bool darkMode;
   final AppTextSize textSize;
   final VoidCallback onEditProfile;
   final ValueChanged<bool> onThemeChanged;
-  final ValueChanged<AppTextSize> onTextSizeChanged;
   final VoidCallback? onAccessibility;
 
   @override
   Widget build(BuildContext context) {
-    final isSeller = role == UserRole.seller;
-
-    return ScreenBlock(
-      title: 'Account settings',
-      subtitle: isSeller
-          ? 'Manage seller profile, notifications, access, and local prototype preferences.'
-          : 'Manage buyer profile, notifications, privacy, and local prototype preferences.',
+    return _BuyerSubpageBlock(
+      title: 'Account Settings',
+      subtitle: 'Manage your Buyer account, preferences, and privacy.',
       children: [
-        SettingsProfileHeader(accent: accent, role: role),
-        PrimaryButton(
-          label: isSeller ? 'Edit seller profile' : 'Edit buyer profile',
-          icon: Icons.edit_outlined,
-          color: accent,
-          onPressed: onEditProfile,
-        ),
-        SettingsSection(
-          title: isSeller
-              ? 'Seller profile controls'
-              : 'Buyer request controls',
-          children: isSeller
-              ? [
-                  SettingsActionTile(
-                    icon: Icons.storefront_outlined,
-                    title: 'Public seller profile',
-                    body:
-                        'Store name, category, verification badge, ratings, and public trust details.',
-                    status: 'Preview',
-                    accent: accent,
-                  ),
-                  SettingsActionTile(
-                    icon: Icons.travel_explore_outlined,
-                    title: 'Service area and meetup radius',
-                    body:
-                        'Where your offers appear and where you can meet buyers.',
-                    status: '15 mi',
-                    accent: accent,
-                  ),
-                  SettingsActionTile(
-                    icon: Icons.workspace_premium_outlined,
-                    title: 'Plan and credit visibility',
-                    body:
-                        'Seller platform access remains mock-only until Phase 2 billing.',
-                    status: 'Mock',
-                    accent: accent,
-                  ),
-                ]
-              : [
-                  SettingsActionTile(
-                    icon: Icons.assignment_outlined,
-                    title: 'Request privacy defaults',
-                    body:
-                        'Show item need, budget, and approximate area before seller selection.',
-                    status: 'Limited',
-                    accent: accent,
-                  ),
-                  SettingsActionTile(
-                    icon: Icons.location_on_outlined,
-                    title: 'Preferred buyer area',
-                    body:
-                        'Set city and pickup radius used by new request drafts.',
-                    status: '12 mi',
-                    accent: accent,
-                  ),
-                  SettingsActionTile(
-                    icon: Icons.bookmark_border,
-                    title: 'Saved sellers and backups',
-                    body:
-                        'Keep backup offers and saved sellers available during deal recovery.',
-                    status: 'Ready',
-                    accent: accent,
-                  ),
-                ],
-        ),
-        SettingsSection(
-          title: 'Account access',
+        _BuyerSubpageSection(
+          title: 'Account',
           children: [
-            SettingsActionTile(
+            _BuyerSubpageRow(
               icon: Icons.person_outline,
               title: 'Personal information',
-              body: 'Name, email, phone, and preferred contact method.',
-              status: 'Review',
-              accent: accent,
+              body: 'Review and update your Buyer profile information.',
+              onTap: onEditProfile,
             ),
-            SettingsActionTile(
-              icon: Icons.location_on_outlined,
-              title: 'Local marketplace area',
-              body:
-                  'Approximate city and pickup radius. Exact meeting details stay in chat.',
-              status: 'Chicago',
-              accent: accent,
-            ),
-            SettingsActionTile(
+            const _BuyerSubpageRow(
               icon: Icons.lock_outline,
-              title: 'Password and sign-in',
-              body: 'Password, saved session, and future device security.',
-              status: 'Protected',
-              accent: accent,
+              title: 'Password & security',
+              body:
+                  'Password changes require connected account authentication.',
+              status: 'Not currently available',
             ),
           ],
         ),
-        SettingsSection(
+        _BuyerSubpageSection(
           title: 'Preferences',
           children: [
-            SettingsPreferenceRow(
+            _BuyerPreferenceSwitch(
               icon: darkMode
                   ? Icons.dark_mode_outlined
                   : Icons.light_mode_outlined,
-              title: darkMode ? 'Dark mode' : 'Light mode',
-              body:
-                  'Choose the app appearance for this device. This mock preference is saved locally.',
-              enabled: darkMode,
-              accent: accent,
+              title: 'Appearance',
+              body: darkMode
+                  ? 'Dark theme is active.'
+                  : 'Light theme is active.',
+              value: darkMode,
               onChanged: onThemeChanged,
             ),
-            if (isSeller)
-              TextSizePreferenceCard(
-                accent: accent,
-                value: textSize,
-                onChanged: onTextSizeChanged,
-              )
-            else
-              SettingsActionTile(
-                icon: Icons.accessibility_new,
-                asset: 'assets/accessibility/icons/accessibility-person.png',
-                title: 'Accessibility',
-                body:
-                    'Text size, font readability, button visibility, and preview.',
-                status: textSize.label,
-                accent: HocalistTheme.primary,
-                onTap: onAccessibility,
-              ),
-            SettingsPreferenceRow(
-              icon: Icons.local_offer_outlined,
-              title: 'Offer updates',
-              body: 'New offers, selected seller, and backup offer activity.',
-              enabled: true,
-              accent: accent,
-            ),
-            SettingsPreferenceRow(
-              icon: Icons.chat_bubble_outline,
-              title: 'Chat and meeting reminders',
-              body: 'Private chat, meetup notes, and completion reminders.',
-              enabled: true,
-              accent: accent,
-            ),
-            SettingsPreferenceRow(
-              icon: Icons.campaign_outlined,
-              title: 'Product and launch updates',
-              body: 'Early-access messages, feature notices, and support tips.',
-              enabled: false,
-              accent: accent,
+            _BuyerSubpageRow(
+              icon: Icons.accessibility_new,
+              title: 'Accessibility',
+              body: 'Text size, font readability, and button visibility.',
+              status: textSize.label,
+              onTap: onAccessibility,
             ),
           ],
         ),
-        SettingsSection(
-          title: 'Privacy and local data',
+        const _BuyerSubpageSection(
+          title: 'Privacy',
           children: [
-            SettingsActionTile(
-              icon: Icons.visibility_off_outlined,
-              title: isSeller
-                  ? 'Public seller visibility'
-                  : 'Public request privacy',
-              body: isSeller
-                  ? 'Show verified profile details without exposing private contact data.'
-                  : 'Show approximate location only until a seller is selected.',
-              status: 'Limited',
-              accent: accent,
-            ),
-            SettingsActionTile(
-              icon: Icons.offline_pin_outlined,
-              title: 'Progress saved on this device',
+            _BuyerSubpageRow(
+              icon: Icons.location_on_outlined,
+              title: 'Request & location privacy',
               body:
-                  'This Stage 2 prototype stores demo flow progress locally for review.',
-              status: 'Local',
-              accent: accent,
-            ),
-            SettingsActionTile(
-              icon: Icons.health_and_safety_outlined,
-              title: 'Offline payment boundary',
-              body:
-                  'Hocalist does not process, hold, ship, or guarantee item payment.',
-              status: 'Guide',
-              accent: accent,
+                  'Requests use an approximate area until meeting details are shared in chat.',
+              status: 'Approximate location',
             ),
           ],
         ),
-        AlertBanner(
-          accent: HocalistTheme.danger,
-          title: 'Account removal needs backend',
-          body:
-              'Delete-account and export-data actions need backend, auth, and support workflows before release.',
-          icon: Icons.warning_amber_outlined,
-        ),
-        PrimaryButton(
-          label: 'Save mock preferences',
-          icon: Icons.check_circle_outline,
-          color: accent,
-          onPressed: () {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                const SnackBar(
-                  content: Text('Mock settings saved for review.'),
-                ),
-              );
-          },
+        const _BuyerSubpageSection(
+          title: 'Account Management',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.manage_accounts_outlined,
+              title: 'No account-management actions available',
+              body:
+                  'Delete and export actions are not shown until secure account services support them.',
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class ProfileEditPage extends StatelessWidget {
-  const ProfileEditPage({
-    required this.accent,
-    required this.role,
-    required this.name,
-    required this.onNameChanged,
-    required this.onDone,
-    super.key,
-  });
+class BuyerNotificationPreferencesPage extends StatefulWidget {
+  const BuyerNotificationPreferencesPage({required this.accent, super.key});
 
   final Color accent;
-  final UserRole role;
-  final String name;
-  final ValueChanged<String> onNameChanged;
-  final VoidCallback onDone;
+
+  @override
+  State<BuyerNotificationPreferencesPage> createState() =>
+      _BuyerNotificationPreferencesPageState();
+}
+
+class _BuyerNotificationPreferencesPageState
+    extends State<BuyerNotificationPreferencesPage> {
+  static const _offersKey = 'hocalist.buyer.notifications.offers';
+  static const _messagesKey = 'hocalist.buyer.notifications.messages';
+  static const _dealsKey = 'hocalist.buyer.notifications.deals';
+  static const _safetyKey = 'hocalist.buyer.notifications.safety';
+
+  bool offers = true;
+  bool messages = true;
+  bool deals = true;
+  bool safety = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      offers = preferences.getBool(_offersKey) ?? true;
+      messages = preferences.getBool(_messagesKey) ?? true;
+      deals = preferences.getBool(_dealsKey) ?? true;
+      safety = preferences.getBool(_safetyKey) ?? true;
+    });
+  }
+
+  Future<void> _update(String key, bool value, VoidCallback apply) async {
+    setState(apply);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(key, value);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isSeller = role == UserRole.seller;
-    return ScreenBlock(
-      title: isSeller ? 'Edit seller profile' : 'Edit buyer profile',
-      subtitle: isSeller
-          ? 'Update the seller details buyers use to judge trust, location fit, and response expectations.'
-          : 'Update the buyer details sellers use to understand request fit and safe meetup preferences.',
+    return _BuyerSubpageBlock(
+      title: 'Notification Preferences',
+      subtitle:
+          'Choose the Buyer updates you want. These preferences are saved on this device.',
       children: [
-        AlertBanner(
-          accent: accent,
-          title: 'Phase 1 local profile',
-          body:
-              'These profile edits are saved in the local prototype session only. Backend profile storage is deferred.',
-          icon: Icons.info_outline,
+        _BuyerSubpageSection(
+          title: 'Buyer notifications',
+          children: [
+            _BuyerPreferenceSwitch(
+              icon: Icons.local_offer_outlined,
+              title: 'Offers',
+              body: 'New offers, offer changes, and seller-selection updates.',
+              value: offers,
+              onChanged: (value) =>
+                  _update(_offersKey, value, () => offers = value),
+            ),
+            _BuyerPreferenceSwitch(
+              icon: Icons.chat_bubble_outline,
+              title: 'Messages & chats',
+              body: 'Messages from sellers and selected-seller chat updates.',
+              value: messages,
+              onChanged: (value) =>
+                  _update(_messagesKey, value, () => messages = value),
+            ),
+            _BuyerPreferenceSwitch(
+              icon: Icons.event_available_outlined,
+              title: 'Meetings & deal updates',
+              body: 'Meeting reminders, changes, and deal-status updates.',
+              value: deals,
+              onChanged: (value) =>
+                  _update(_dealsKey, value, () => deals = value),
+            ),
+            _BuyerPreferenceSwitch(
+              icon: Icons.health_and_safety_outlined,
+              title: 'Account & safety alerts',
+              body:
+                  'Security, reporting, and important account safety notices.',
+              value: safety,
+              onChanged: (value) =>
+                  _update(_safetyKey, value, () => safety = value),
+            ),
+          ],
         ),
-        AppCard(
-          child: Column(
-            children: [
-              TextFormField(
-                initialValue: name,
-                decoration: InputDecoration(
-                  labelText: isSeller ? 'Store or seller name' : 'Full name',
-                ),
-                onChanged: onNameChanged,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: isSeller
-                    ? 'Electronics, tablets, accessories'
-                    : 'Electronics, home goods, local pickup',
-                decoration: InputDecoration(
-                  labelText: isSeller
-                      ? 'Seller categories'
-                      : 'Preferred request categories',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: isSeller
-                    ? 'Verified seller, public pickup preferred'
-                    : 'Prefers public meetup points and verified sellers',
-                decoration: const InputDecoration(labelText: 'Profile note'),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
-        LocationSearchPanel(
-          accent: accent,
-          title: isSeller ? 'Service area' : 'Default request area',
-          locationValue: isSeller ? 'Chicago north side' : 'Chicago, IL',
-          radiusValue: isSeller ? 'Within 15 miles' : 'Within 12 miles',
-          hint: isSeller
-              ? 'Seller service area is mock-only until Google Maps and backend profile storage are connected.'
-              : 'Buyer default request area is approximate until a seller is selected.',
-        ),
-        PrimaryButton(
-          label: 'Save profile edits',
-          icon: Icons.check_circle_outline,
-          color: accent,
-          onPressed: onDone,
+        const _BuyerSubpageSection(
+          title: 'Delivery',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.notifications_active_outlined,
+              title: 'Device delivery',
+              body:
+                  'Delivery still depends on operating-system permissions and connected notification services.',
+              status: 'Preference storage is active',
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({
+class BuyerSettingsPage extends StatelessWidget {
+  const BuyerSettingsPage({
+    required this.darkMode,
+    required this.textSize,
+    required this.onEditProfile,
+    required this.onThemeChanged,
+    this.onAccessibility,
+    super.key,
+  });
+
+  final bool darkMode;
+  final AppTextSize textSize;
+  final VoidCallback onEditProfile;
+  final ValueChanged<bool> onThemeChanged;
+  final VoidCallback? onAccessibility;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BuyerAccountSettingsPage(
+      darkMode: darkMode,
+      textSize: textSize,
+      onEditProfile: onEditProfile,
+      onThemeChanged: onThemeChanged,
+      onAccessibility: onAccessibility,
+    );
+  }
+}
+
+class BuyerProfileEditPage extends StatelessWidget {
+  const BuyerProfileEditPage({
+    required this.name,
+    required this.onNameChanged,
+    required this.onDone,
+    this.onProfilePhotoAction,
+    super.key,
+  });
+
+  final String name;
+  final ValueChanged<String> onNameChanged;
+  final VoidCallback onDone;
+  final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BuyerSubpageBlock(
+      title: 'Edit Profile',
+      subtitle: 'Keep your Buyer information accurate and concise.',
+      children: [
+        _BuyerSubpageSection(
+          title: 'Profile picture',
+          children: [
+            _BuyerProfilePhotoEditor(
+              onProfilePhotoAction: onProfilePhotoAction,
+            ),
+          ],
+        ),
+        _BuyerSubpageSection(
+          title: 'Personal information',
+          children: [
+            Builder(
+              builder: (context) {
+                final metrics = ApprovedReplicaScope.of(context);
+                return Padding(
+                  padding: EdgeInsets.all(metrics.spacing(14)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _BuyerProfileField(
+                        label: 'Full name',
+                        initialValue: name,
+                        textInputAction: TextInputAction.done,
+                        onChanged: onNameChanged,
+                      ),
+                      SizedBox(
+                        height: metrics.spacing(
+                          HocalistInputTokens.relatedFieldSpacing,
+                        ),
+                      ),
+                      const _BuyerProfileField(
+                        label: 'Email',
+                        initialValue: 'maya.chen@example.com',
+                        readOnly: true,
+                        helperText:
+                            'Email changes require account verification.',
+                      ),
+                      SizedBox(
+                        height: metrics.spacing(
+                          HocalistInputTokens.relatedFieldSpacing,
+                        ),
+                      ),
+                      const _BuyerProfileField(
+                        label: 'Phone number',
+                        initialValue: '(914) 555-0182',
+                        helperText:
+                            'Used for important account and meetup alerts.',
+                      ),
+                      SizedBox(
+                        height: metrics.spacing(
+                          HocalistInputTokens.relatedFieldSpacing,
+                        ),
+                      ),
+                      const _BuyerProfileField(
+                        label: 'Home area',
+                        initialValue: 'Yonkers, NY',
+                        helperText:
+                            'Your exact address stays private until you choose to share it.',
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        _BuyerSubpageSection(
+          title: 'Buying preferences',
+          children: [
+            Builder(
+              builder: (context) {
+                final metrics = ApprovedReplicaScope.of(context);
+                return Padding(
+                  padding: EdgeInsets.all(metrics.spacing(14)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _BuyerProfileField(
+                        label: 'Preferred meetup type',
+                        initialValue: 'Public safe-meet location',
+                      ),
+                      SizedBox(
+                        height: metrics.spacing(
+                          HocalistInputTokens.relatedFieldSpacing,
+                        ),
+                      ),
+                      const _BuyerProfileField(
+                        label: 'Profile note',
+                        initialValue:
+                            'Usually available on weekday evenings and Saturday afternoons.',
+                        maxLines: 2,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        BuyerPrimaryButton(
+          label: 'Save profile',
+          onPressed: onDone,
+          leading: const BuyerGlyphIcon(
+            icon: Icons.check_circle_outline,
+            slotSize: BuyerIconTokens.inline,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BuyerProfileField extends StatelessWidget {
+  const _BuyerProfileField({
+    required this.label,
+    required this.initialValue,
+    this.helperText,
+    this.readOnly = false,
+    this.textInputAction,
+    this.onChanged,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final String initialValue;
+  final String? helperText;
+  final bool readOnly;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onChanged;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    final valueStyle = BuyerTypography.style(
+      context,
+      metrics,
+      BuyerTextRole.primaryBody,
+      color: BuyerUiTokens.text,
+      weight: FontWeight.w700,
+    ).copyWith(fontSize: metrics.fontSize(13));
+
+    return Semantics(
+      textField: true,
+      label: label,
+      readOnly: readOnly,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BuyerFieldLabel(label),
+          SizedBox(height: metrics.spacing(5)),
+          TextFormField(
+            initialValue: initialValue,
+            readOnly: readOnly,
+            maxLines: maxLines,
+            textInputAction: textInputAction,
+            onChanged: onChanged,
+            style: valueStyle,
+            decoration: buyerInputDecoration(context),
+          ),
+          if (helperText != null) ...[
+            SizedBox(height: metrics.spacing(6)),
+            Text(
+              helperText!,
+              style: BuyerTypography.style(
+                context,
+                metrics,
+                BuyerTextRole.metadata,
+                color: BuyerUiTokens.muted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class BuyerNotificationsPage extends StatelessWidget {
+  const BuyerNotificationsPage({
     required this.accent,
-    required this.sellerMode,
     required this.requestPosted,
     required this.sellerOfferSent,
     required this.offerSelected,
@@ -11480,7 +11295,6 @@ class NotificationsPage extends StatelessWidget {
   });
 
   final Color accent;
-  final bool sellerMode;
   final bool requestPosted;
   final bool sellerOfferSent;
   final bool offerSelected;
@@ -11490,18 +11304,39 @@ class NotificationsPage extends StatelessWidget {
   final bool reportSubmitted;
 
   void _showNotificationDetail(BuildContext context) {
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Notification details'),
-          content: const Column(
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) {
+        final media = MediaQuery.of(sheetContext);
+        final metrics =
+            ApprovedReplicaScope.maybeOf(sheetContext) ??
+            ApprovedReplicaMetrics.resolve(
+              availableWidth: media.size.width,
+              textScaler: media.textScaler,
+            );
+        return BuyerModalSheet(
+          icon: Icons.notifications_none_rounded,
+          title: 'Notification details',
+          subtitle: 'See the activity connected to this buyer notification.',
+          onClose: () => Navigator.pop(sheetContext),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Northside Tech sent an offer for your iPad Air request.'),
-              SizedBox(height: 12),
-              InfoList(
+              Text(
+                'Northside Tech sent an offer for your iPad Air request.',
+                style: BuyerTypography.style(
+                  sheetContext,
+                  metrics,
+                  BuyerTextRole.primaryBody,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const InfoList(
                 items: [
                   'Request posted',
                   'Offer received',
@@ -11509,14 +11344,13 @@ class NotificationsPage extends StatelessWidget {
                   'Chat and meeting details ready',
                 ],
               ),
+              const SizedBox(height: 16),
+              BuyerPrimaryButton(
+                label: 'Done',
+                onPressed: () => Navigator.pop(sheetContext),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
         );
       },
     );
@@ -11524,44 +11358,29 @@ class NotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = sellerMode ? 'Seller notifications' : 'Notifications';
-    final subtitle = sellerMode
-        ? 'Buyer selections, messages, seller-tool credits, and verification alerts.'
-        : 'Offer updates, chat messages, meeting reminders, and safety alerts.';
-
     return ScreenBlock(
-      title: title,
-      subtitle: subtitle,
+      title: 'Notifications',
+      subtitle:
+          'Offer updates, chat messages, meeting reminders, and safety alerts.',
       children: [
         AlertBanner(
           accent: accent,
-          title: sellerMode
-              ? offerSelected
-                    ? 'Offer selected'
-                    : 'Seller inbox ready'
-              : sellerOfferSent || requestPosted
+          title: sellerOfferSent || requestPosted
               ? 'New offer received'
               : 'Notification center ready',
-          body: sellerMode
-              ? offerSelected
-                    ? 'Maya selected your iPad Air offer. Chat is now open.'
-                    : 'Selections, messages, seller-tool alerts, and verification updates appear here.'
-              : sellerOfferSent || requestPosted
+          body: sellerOfferSent || requestPosted
               ? 'Northside Tech sent an offer for your iPad Air request.'
               : 'Post a request to create offer, chat, meeting, deal-history, and safety alerts.',
-          icon: sellerMode
-              ? Icons.check_circle_outline
-              : Icons.local_offer_outlined,
+          icon: Icons.local_offer_outlined,
         ),
-        if (!sellerMode)
-          MenuCard(
-            icon: Icons.article_outlined,
-            title: 'View notification details',
-            body: 'Review request, offer, chat, and meeting context.',
-            color: accent,
-            onTap: () => _showNotificationDetail(context),
-          ),
-        if (requestPosted && !sellerMode)
+        MenuCard(
+          icon: Icons.article_outlined,
+          title: 'View notification details',
+          body: 'Review request, offer, chat, and meeting context.',
+          color: accent,
+          onTap: () => _showNotificationDetail(context),
+        ),
+        if (requestPosted)
           NotificationTile(
             accent: accent,
             icon: Icons.publish_outlined,
@@ -11569,31 +11388,20 @@ class NotificationsPage extends StatelessWidget {
             body: 'Your buying request is active for nearby verified sellers.',
             time: 'Just now',
           ),
-        if (sellerOfferSent && sellerMode)
-          NotificationTile(
-            accent: accent,
-            icon: Icons.outgoing_mail,
-            title: 'Offer sent',
-            body: 'Your iPad Air offer is live in the buyer comparison view.',
-            time: 'Just now',
-          ),
         if (offerSelected)
           NotificationTile(
             accent: accent,
             icon: Icons.check_circle_outline,
-            title: sellerMode ? 'Buyer selected you' : 'Seller selected',
-            body: sellerMode
-                ? 'Maya selected your offer and opened the chatroom.'
-                : 'Northside Tech is selected. Continue through chat and meeting details.',
+            title: 'Seller selected',
+            body:
+                'Northside Tech is selected. Continue through chat and meeting details.',
             time: 'Just now',
           ),
         NotificationTile(
           accent: accent,
           icon: Icons.chat_bubble_outline,
           title: 'Chat message',
-          body: sellerMode
-              ? 'Buyer asked if Saturday pickup still works.'
-              : 'Seller confirmed public pickup and keyboard case.',
+          body: 'Seller confirmed public pickup and keyboard case.',
           time: '4 min ago',
         ),
         NotificationTile(
@@ -11614,7 +11422,7 @@ class NotificationsPage extends StatelessWidget {
                 'The app recorded completion; item payment stayed outside Hocalist.',
             time: 'Today',
           ),
-        if (withdrawalRequested && !sellerMode)
+        if (withdrawalRequested)
           NotificationTile(
             accent: accent,
             icon: Icons.support_agent_outlined,
@@ -11632,15 +11440,10 @@ class NotificationsPage extends StatelessWidget {
           ),
         NotificationTile(
           accent: accent,
-          icon: sellerMode
-              ? Icons.storefront_outlined
-              : Icons.fact_check_outlined,
-          title: sellerMode
-              ? 'Seller access credits low'
-              : 'Deal history pending',
-          body: sellerMode
-              ? '42 credits remain. Packages are managed by admin configuration.'
-              : 'Your buyer deal history is pending confirmation. Item payment remains offline.',
+          icon: Icons.fact_check_outlined,
+          title: 'Deal history pending',
+          body:
+              'Your buyer deal history is pending confirmation. Item payment remains offline.',
           time: 'Yesterday',
         ),
         EmptyStatePanel(
@@ -11661,30 +11464,20 @@ class SavedItemsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ScreenBlock(
-      title: 'Saved favorites',
-      subtitle: 'Saved sellers, watched requests, and empty-state treatment.',
+    return const _BuyerSubpageBlock(
+      title: 'Saved',
+      subtitle: 'Buyer items, requests, and sellers you save will appear here.',
       children: [
-        BuyerRequestCard(
-          title: 'Saved request: compact espresso machine',
-          budget: 'Up to \$220',
-          location: 'Pickup preferred',
-          status: 'Watching',
-          onTap: () {},
-        ),
-        SellerOfferCard(
-          seller: 'Favorite seller: Northside Tech',
-          price: '4.9',
-          detail: 'Verified electronics seller saved from a previous offer.',
-          status: 'Favorite',
-          accent: accent,
-          onTap: () {},
-        ),
-        EmptyStatePanel(
-          accent: accent,
-          title: 'No saved searches yet',
-          body:
-              'When a buyer saves filters or a seller saves request searches, they will appear in this state.',
+        _BuyerSubpageSection(
+          title: 'Saved content',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.bookmark_border,
+              title: 'Nothing saved yet',
+              body:
+                  'Save a supported item, request, or seller and it will appear here.',
+            ),
+          ],
         ),
       ],
     );
@@ -11698,26 +11491,49 @@ class SafetyGuidePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ScreenBlock(
-      title: 'Safety guide',
-      subtitle: 'Visible guidance from the Stitch safety screens.',
+    return const _BuyerSubpageBlock(
+      title: 'Safety Guide',
+      subtitle: 'Simple steps for safer local Buyer deals.',
       children: [
-        AlertBanner(
-          accent: accent,
-          title: 'Offline payment only',
-          body:
-              'Hocalist does not hold money, ship items, provide escrow, or guarantee payment.',
-          icon: Icons.info_outline,
-        ),
-        const InfoList(
-          items: [
-            'Meet in a public location with good lighting.',
-            'Inspect the item before paying or handing it over.',
-            'Do not share verification codes, passwords, or private banking details.',
-            'Use report tools if the item, user, or meeting feels unsafe.',
+        _BuyerSubpageSection(
+          title: 'Meet & inspect',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.place_outlined,
+              title: 'Meet in public',
+              body:
+                  'Choose a busy, well-lit location and tell someone your plan.',
+            ),
+            _BuyerSubpageRow(
+              icon: Icons.fact_check_outlined,
+              title: 'Inspect before completing the deal',
+              body: 'Check the item and confirm it matches the agreed offer.',
+            ),
           ],
         ),
-        LoadingStatePanel(accent: accent),
+        _BuyerSubpageSection(
+          title: 'Protect yourself',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.payments_outlined,
+              title: 'Remember payment stays offline',
+              body:
+                  'Hocalist does not hold money, provide escrow, ship items, or guarantee payment.',
+            ),
+            _BuyerSubpageRow(
+              icon: Icons.password_outlined,
+              title: 'Protect private information',
+              body:
+                  'Never share passwords, verification codes, or private banking information.',
+            ),
+            _BuyerSubpageRow(
+              icon: Icons.report_problem_outlined,
+              title: 'Report a problem',
+              body:
+                  'Use Help & Support or the contextual report action if a user or deal feels unsafe.',
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -11738,65 +11554,81 @@ class ReportIssuePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (submitted) {
-      return ScreenBlock(
-        title: 'Report submitted',
-        subtitle: 'The issue is saved for admin moderation review.',
+      return const _BuyerSubpageBlock(
+        title: 'Report Saved',
+        subtitle:
+            'Your report is available in the current support status flow.',
         children: [
-          AlertBanner(
-            accent: HocalistTheme.danger,
-            title: 'Admin review pending',
-            body:
-                'Your report stays attached to this session until the admin backend is connected.',
-            icon: Icons.admin_panel_settings_outlined,
-          ),
-          const InfoList(
-            items: [
-              'Reason: Item did not match offer',
-              'Evidence: 1 attached photo',
-              'Status: pending admin review',
+          _BuyerSubpageSection(
+            title: 'Status',
+            children: [
+              _BuyerSubpageRow(
+                icon: Icons.schedule_outlined,
+                title: 'Review pending',
+                body:
+                    'Online moderation delivery is not connected yet. Keep any evidence until support confirms receipt.',
+              ),
             ],
           ),
         ],
       );
     }
 
-    return ScreenBlock(
-      title: 'Report user or deal',
-      subtitle: 'Choose a reason, add notes, and attach evidence.',
+    return _BuyerSubpageBlock(
+      title: 'Report a Problem',
+      subtitle: 'Describe an unsafe interaction, user, or deal concern.',
       children: [
-        AlertBanner(
-          accent: HocalistTheme.danger,
-          title: 'Reports are reviewed by admin',
-          body:
-              'This report is saved on this device now and will move to admin moderation when backend storage is connected.',
-          icon: Icons.report_problem_outlined,
-        ),
-        AppCard(
-          child: Column(
-            children: [
-              TextFormField(
-                initialValue: 'Item did not match offer',
-                decoration: const InputDecoration(labelText: 'Report reason'),
+        _BuyerSubpageSection(
+          title: 'Report details',
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  const BuyerFieldLabel('Report reason'),
+                  const SizedBox(height: 5),
+                  TextFormField(
+                    decoration: buyerInputDecoration(
+                      context,
+                      hintText: 'Choose or describe the main concern',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const BuyerFieldLabel('What happened?'),
+                  const SizedBox(height: 5),
+                  TextFormField(
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: buyerInputDecoration(
+                      context,
+                      hintText: 'Add the details support should review',
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue:
-                    'Seller photos did not match the item shown at pickup.',
-                minLines: 3,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Describe the issue',
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        UploadBox(accent: HocalistTheme.danger, label: 'Attach evidence'),
-        PrimaryButton(
-          label: 'Submit report',
-          icon: Icons.outgoing_mail,
-          color: HocalistTheme.danger,
+        const _BuyerSubpageSection(
+          title: 'Before you submit',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.cloud_off_outlined,
+              title: 'Online delivery is not connected',
+              body:
+                  'This report is stored in the current on-device support flow only.',
+            ),
+          ],
+        ),
+        BuyerPrimaryButton(
+          label: 'Save report',
           onPressed: onSubmit,
+          colors: const [HocalistTheme.danger, Color(0xffd62f29)],
+          leading: const BuyerGlyphIcon(
+            icon: Icons.outgoing_mail,
+            slotSize: BuyerIconTokens.inline,
+            color: Colors.white,
+          ),
         ),
       ],
     );
@@ -11804,47 +11636,67 @@ class ReportIssuePage extends StatelessWidget {
 }
 
 class HelpSupportPage extends StatelessWidget {
-  const HelpSupportPage({required this.accent, super.key});
+  const HelpSupportPage({
+    required this.accent,
+    required this.onReport,
+    required this.onContactSupport,
+    super.key,
+  });
 
   final Color accent;
+  final VoidCallback onReport;
+  final VoidCallback onContactSupport;
 
   @override
   Widget build(BuildContext context) {
-    return ScreenBlock(
-      title: 'Help and support',
-      subtitle: 'FAQ, support contact, loading, and error states.',
+    return _BuyerSubpageBlock(
+      title: 'Help & Support',
+      subtitle: 'Find answers, contact support, or report a safety concern.',
       children: [
-        const InfoList(
-          items: [
-            'How buyer requests work',
-            'How sellers send offers',
-            'Why item payment is offline',
-            'How to report unsafe behavior',
+        const _BuyerSubpageSection(
+          title: 'Frequently asked questions',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.help_outline,
+              title: 'How Buyer requests work',
+              body:
+                  'Post what you need, compare offers, select a seller, and continue in chat.',
+            ),
+            _BuyerSubpageRow(
+              icon: Icons.payments_outlined,
+              title: 'Why payment is offline',
+              body:
+                  'Item payment happens outside Hocalist after you inspect the item and agree with the seller.',
+            ),
           ],
         ),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Contact support',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: 'I need help with my selected offer.',
-                minLines: 3,
-                maxLines: 4,
-                decoration: InputDecoration(labelText: 'Message'),
-              ),
-            ],
-          ),
+        _BuyerSubpageSection(
+          title: 'Support',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.support_agent_outlined,
+              title: 'Contact support',
+              body: 'Open the existing support request and status area.',
+              onTap: onContactSupport,
+            ),
+            _BuyerSubpageRow(
+              icon: Icons.report_problem_outlined,
+              title: 'Report a problem or unsafe interaction',
+              body: 'Share deal or user details for review.',
+              onTap: onReport,
+            ),
+          ],
         ),
-        ErrorStatePanel(
-          accent: accent,
-          title: 'Could not load older tickets',
-          body:
-              'Retry state for support history once backend data is connected.',
+        const _BuyerSubpageSection(
+          title: 'Availability',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.cloud_off_outlined,
+              title: 'Support delivery status',
+              body:
+                  'On-device request status is available. Online ticket delivery is not connected yet.',
+            ),
+          ],
         ),
       ],
     );
@@ -11904,41 +11756,41 @@ class BuyerRewardsDetailPage extends StatelessWidget {
 class BuyerSupportStatusPage extends StatelessWidget {
   const BuyerSupportStatusPage({
     required this.accent,
-    required this.onWallet,
+    required this.actionLabel,
+    required this.onAction,
     super.key,
   });
 
   final Color accent;
-  final VoidCallback onWallet;
+  final String actionLabel;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
-    return ScreenBlock(
-      title: 'Support review status',
-      subtitle:
-          'Review state for buyer support notes, report handoff, and admin follow-up.',
+    return _BuyerSubpageBlock(
+      title: 'Support Status',
+      subtitle: 'Review the support request state available on this device.',
       children: [
-        AlertBanner(
-          accent: accent,
-          title: 'Support note queued',
-          body:
-              'This UI shows what the buyer sees after asking support to review a deal.',
-          icon: Icons.support_agent_outlined,
-        ),
-        StatusTimeline(
-          accent: accent,
-          items: const [
-            'Support note submitted',
-            'Admin review pending',
-            'Buyer will receive a notification',
-            'Deal history remains visible',
+        const _BuyerSubpageSection(
+          title: 'Current status',
+          children: [
+            _BuyerSubpageRow(
+              icon: Icons.save_outlined,
+              title: 'Request saved on this device',
+              body:
+                  'Online support submission and staff responses are not connected yet.',
+              status: 'On-device only',
+            ),
           ],
         ),
-        PrimaryButton(
-          label: 'Back to buyer deal history',
-          icon: Icons.history_outlined,
-          color: accent,
-          onPressed: onWallet,
+        BuyerPrimaryButton(
+          label: actionLabel,
+          onPressed: onAction,
+          leading: const BuyerGlyphIcon(
+            icon: Icons.arrow_back_rounded,
+            slotSize: BuyerIconTokens.inline,
+            color: Colors.white,
+          ),
         ),
       ],
     );
@@ -12464,78 +12316,6 @@ class SellerPaymentPage extends StatelessWidget {
       ],
       primaryLabel: 'Save mock seller-tools note',
       onPrimary: onDone,
-    );
-  }
-}
-
-class SellerProfilePage extends StatelessWidget {
-  const SellerProfilePage({
-    required this.accent,
-    required this.onNotifications,
-    required this.onSafety,
-    required this.onHelp,
-    required this.onEditProfile,
-    required this.onSettings,
-    required this.onLogout,
-    super.key,
-  });
-
-  final Color accent;
-  final VoidCallback onNotifications;
-  final VoidCallback onSafety;
-  final VoidCallback onHelp;
-  final VoidCallback onEditProfile;
-  final VoidCallback onSettings;
-  final VoidCallback onLogout;
-
-  @override
-  Widget build(BuildContext context) {
-    return ScreenBlock(
-      title: 'Seller profile',
-      subtitle: 'Private setup and public seller profile preview.',
-      children: [
-        ProfileCard(
-          accent: accent,
-          title: 'Northside Tech',
-          body: '4.9 rating, 134 completed deals, verified electronics seller.',
-        ),
-        PrimaryButton(
-          label: 'Edit seller profile',
-          icon: Icons.edit_outlined,
-          color: accent,
-          onPressed: onEditProfile,
-        ),
-        MenuCard(
-          icon: Icons.notifications_outlined,
-          title: 'Seller notifications',
-          body:
-              'Buyer selections, chat, meeting changes, credits, and seller-tool alerts.',
-          color: accent,
-          onTap: onNotifications,
-        ),
-        MenuCard(
-          icon: Icons.shield_outlined,
-          title: 'Safety guide',
-          body: 'Seller meetup, item handoff, and report guidance.',
-          color: accent,
-          onTap: onSafety,
-        ),
-        MenuCard(
-          icon: Icons.support_agent_outlined,
-          title: 'Help and support',
-          body: 'Seller FAQ, access-tool support, and issue escalation.',
-          color: accent,
-          onTap: onHelp,
-        ),
-        MenuCard(
-          icon: Icons.settings_outlined,
-          title: 'Account settings',
-          body: 'Contact, notifications, privacy, and logout.',
-          color: accent,
-          onTap: onSettings,
-        ),
-        SecondaryButton(label: 'Log out', color: accent, onPressed: onLogout),
-      ],
     );
   }
 }

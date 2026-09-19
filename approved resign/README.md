@@ -2,6 +2,32 @@
 
 Owner-approved mobile home page design references and logo source files.
 
+## Upgraded Buyer Replacements — 2026-08-22
+
+The following files are the current authoritative references and supersede their
+earlier image contents:
+
+| Route / state | Approved source | Reference viewport | State |
+| --- | --- | --- | --- |
+| Created-account buyer home | `home-with-created-account-approved-talk-details.png` | 426 × 923 logical pixels | Active request plus upcoming meetings |
+| Post product request — details | `post-request-approved/4.2-post-new-request-products-approved.png` | 426 × 923 logical pixels | Product selected, step 1 |
+| Post service request — details | `post-request-approved/4.2.1-post-new-request-service-approved.png` | 426 × 922 logical pixels | Service selected, step 1 |
+| Offers received | `buyer-request-navigation-approved/5 Offers Received Dashboard-approved.png` | 426 × 923 logical pixels | Two offers, best-match sorting |
+| Buyer chat | `offer-chat-approved/6.1 Talk to seller chat-approved.png` | 426 × 922 logical pixels | One active deal with meeting set |
+
+Implementation notes:
+
+- Names, prices, dates, PINs, rewards, locations, and messages are realistic
+  reference content, not values to hardcode as business configuration.
+- One buyer/seller conversation may contain multiple deal cards. The seller can
+  revise a deal from its card; the buyer reviews the changes before accepting.
+- After acceptance, the meeting appears in the buyer home `Upcoming meetings`
+  section.
+- Database persistence, realtime delivery, targeting-credit restoration, and
+  reward recalculation are deferred until the Supabase integration.
+- Conversation-level three-dot menus contain profile/request access, search,
+  mute, safety/help, report, and block. Deal-specific actions stay on deal cards.
+
 ## Home Page Design
 
 - `home-page-design/1-home-with-no-account-approved.png`
