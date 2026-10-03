@@ -1,10 +1,14 @@
 import Link from 'next/link';
+import WaitlistForm from '../WaitlistForm';
 import { PageShell } from '../site-content';
 
 export const metadata = {
   title: 'Hocalist Mobile App | Early access updates',
   description: 'Hocalist Android and iOS early access updates for buyer requests, seller offers, chat coordination, and local marketplace access.'
 };
+
+const playStoreUrl = process.env.NEXT_PUBLIC_PLAY_STORE_URL || '';
+const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL || '';
 
 export default function DownloadPage() {
   return (
@@ -85,6 +89,11 @@ export default function DownloadPage() {
               Android availability gives buyers and sellers a mobile-first way to post requests,
               review offers, and coordinate locally.
             </p>
+            {playStoreUrl ? (
+              <a className="button primary small" href={playStoreUrl}>Get it on Google Play</a>
+            ) : (
+              <p className="store-availability">Not available to download yet. Store links appear here once the listing is live.</p>
+            )}
           </article>
           <article className="reveal delay-1">
             <span className="status-chip gold">iOS</span>
@@ -93,6 +102,11 @@ export default function DownloadPage() {
               iOS availability keeps the same request-led marketplace experience available for
               Apple device users.
             </p>
+            {appStoreUrl ? (
+              <a className="button primary small" href={appStoreUrl}>Download on the App Store</a>
+            ) : (
+              <p className="store-availability">Not available to download yet. Store links appear here once the listing is live.</p>
+            )}
           </article>
           <article className="reveal delay-2">
             <span className="status-chip success">Launch updates</span>
@@ -116,9 +130,15 @@ export default function DownloadPage() {
         </section>
         <section className="cta-band download-cta-band">
           <h2>Want to be notified when app access is ready?</h2>
+          <p>
+            Join the consented launch update list below. The form stores only your address, the
+            consent version and time. If the list is not open on this deployment it says so and
+            stores nothing.
+          </p>
+          <WaitlistForm />
           <div>
-            <Link className="button primary" href="mailto:support@hocalist.com?subject=Hocalist%20app%20availability">
-              Get launch updates
+            <Link className="button secondary" href="mailto:support@hocalist.com?subject=Hocalist%20app%20availability">
+              Email launch updates
             </Link>
             <Link className="button secondary" href="/support">
               Contact support

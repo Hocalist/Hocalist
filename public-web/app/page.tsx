@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import GuidedPreviewButton from './GuidedPreview';
 import {
   OfflineNotice,
   PageShell,
@@ -123,7 +124,7 @@ export default function HomePage() {
             </p>
             <div className="hero-actions">
               <Link className="button primary" href="/download">
-                Join buyer waitlist
+                Get launch updates
               </Link>
               <Link className="button secondary seller-cta" href="/pricing">
                 Join as an early seller
@@ -160,7 +161,7 @@ export default function HomePage() {
                 <span>Budget</span>
                 <input readOnly value="$350-$450, pickup nearby" />
               </label>
-              <button type="button">Preview request flow</button>
+              <GuidedPreviewButton kind="request" label="Preview request flow" />
               <p>
                 Preview only. Hocalist supports discovery, offers, selection, and chat. Buyers
                 and sellers arrange item payment directly after confirming the details.
@@ -303,7 +304,7 @@ export default function HomePage() {
                     <li>{offer.distance}</li>
                     <li>{offer.rating}</li>
                   </ul>
-                  <button type="button">Preview select seller</button>
+                  <GuidedPreviewButton kind="select" label="Preview select seller" />
                 </article>
               ))}
             </div>
@@ -352,7 +353,7 @@ export default function HomePage() {
               />
             </figure>
             <Link className="button primary" href="/download">
-              Join buyer waitlist
+              Get launch updates
             </Link>
           </article>
           <article className="role-panel seller-panel reveal delay-1">
@@ -379,7 +380,7 @@ export default function HomePage() {
           <SectionIntro
             eyebrow="Seller plans and credits"
             title="Built-in plans for sellers who want better request visibility"
-            body="Preview the planned Free, Pro and Elite seller plans below. Prices are in USD per month. Paid access is not available yet. HocaCredits and targeting fees are separate from subscriptions and weekly target limits."
+            body="Seller plans and HocaCredits are purchased from your seller account on this website; billing runs in TEST mode until activation. HocaCredits and targeting fees are separate from subscriptions and weekly target limits."
           />
           <div className="pricing-grid compact-pricing">
             {pricingPlans.map((plan) => (

@@ -29,15 +29,15 @@ const steps = [
   },
   {
     kicker: 'Buyer control',
-    title: 'Buyer chooses a seller',
-    body: 'The buyer compares offers and selects the seller they want to speak with.',
+    title: 'Buyer chooses who to continue with',
+    body: 'The buyer compares offers and can accept more than one seller while comparing; each gets a separate chat and meeting.',
     image: '/images/how-it-works/buyer-seller-coordinate.png',
     alt: 'Buyer and seller reviewing details together',
     visual: 'choose',
     badge: 'Buyer chooses',
-    detail: 'One seller moves forward',
+    detail: 'One purchase seller at the end',
     frameTitle: 'Offer shortlist',
-    frameItems: ['Best fit selected', 'Profile checked', 'Next step: chat']
+    frameItems: ['Several sellers accepted', 'Profile checked', 'Next step: chat']
   },
   {
     kicker: 'Private coordination',

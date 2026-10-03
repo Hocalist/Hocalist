@@ -21,7 +21,7 @@ export const sellerPlanUrl = process.env.NEXT_PUBLIC_SELLER_PLAN_URL || '';
 
 const headerCtas = [
   { href: '/download', label: 'Join buyer waitlist' },
-  { href: '/pricing', label: 'Seller plan preview' }
+  { href: '/pricing', label: 'Seller plans' }
 ];
 
 export function SiteHeader() {
@@ -40,7 +40,7 @@ export function SiteHeader() {
       <MobileMenu ctaItems={headerCtas} navItems={siteNav} />
       <div className="header-actions">
         <Link className="ghost-link" href="/pricing">
-          Seller plan preview
+          Seller plans
         </Link>
         <Link className="button primary small" href="/download">
           Join buyer waitlist

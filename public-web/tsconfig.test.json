@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "lib": ["esnext"],
+    "types": ["node"],
+    "isolatedModules": false,
+    "incremental": false,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "app/lib/website-rules.ts",
+    "app/lib/website-preview.ts",
+    "app/lib/website-guard.ts",
+    "app/lib/website-checkout.ts",
+    "app/api/waitlist/waitlist.ts",
+    "tests/**/*.ts"
+  ]
+}
