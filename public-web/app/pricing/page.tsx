@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { OfflineNotice, PageShell, SectionIntro, faqItems, pricingPlans } from '../site-content';
 
 const planDetails = [
@@ -5,19 +6,22 @@ const planDetails = [
     badge: 'Profile launch',
     note: 'For sellers getting ready',
     metric: 'Setup',
-    metricLabel: 'Profile and offer basics'
+    metricLabel: 'Profile and offer basics',
+    action: { href: '/download', label: 'Join as an early seller', variant: 'secondary' }
   },
   {
     badge: 'Best seller fit',
     note: 'For active local sellers',
     metric: 'Growth',
-    metricLabel: 'Visibility and response tools'
+    metricLabel: 'Visibility and response tools',
+    action: { href: '/billing', label: 'Buy Pro from your account', variant: 'primary' }
   },
   {
     badge: 'Shop support',
     note: 'For higher-volume sellers',
     metric: 'Scale',
-    metricLabel: 'Higher targeting and listing limits'
+    metricLabel: 'Higher targeting and listing limits',
+    action: { href: '/billing', label: 'Buy Elite from your account', variant: 'secondary' }
   }
 ];
 
@@ -53,9 +57,10 @@ export default function PricingPage() {
               <p className="eyebrow">Seller plan options</p>
               <h2>Plans for seller tools, visibility, and profile support.</h2>
               <p>
-                These are the planned monthly prices and limits. Paid access is not available yet.
-                HocaCredits are purchased separately for eligible targeting fees; weekly target
-                limits do not include those fees. Buyer rewards are separate from seller credits.
+                Monthly prices in USD. Seller plans and HocaCredits are purchased from your seller
+                account on this website; billing runs in TEST mode until activation. HocaCredits
+                are separate from weekly target limits. Buyer rewards are separate from seller
+                credits. Annual plans and trials are not offered here.
               </p>
             </div>
             <div className="pricing-proof-strip" aria-label="Seller pricing boundaries">
@@ -101,12 +106,12 @@ export default function PricingPage() {
                     </ul>
                   </div>
                   <div className="plan-action-row">
-                    <a
-                      className={plan.featured ? 'button primary' : 'button secondary'}
-                      href="mailto:sellers@hocalist.com?subject=Hocalist%20seller%20early%20access"
+                    <Link
+                      className={`button ${details.action.variant === 'primary' ? 'primary' : 'secondary'}`}
+                      href={details.action.href}
                     >
-                      {plan.action}
-                    </a>
+                      {details.action.label}
+                    </Link>
                     <p>{details.note}</p>
                   </div>
                 </article>

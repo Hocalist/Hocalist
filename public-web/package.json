@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-build/tests/*.test.js\""
   },
   "dependencies": {
     "next": "15.5.20",
@@ -13,6 +15,7 @@
     "react-dom": "19.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "22.15.30",
     "@types/react": "19.0.12",
     "@types/react-dom": "19.0.4",

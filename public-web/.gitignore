@@ -1,5 +1,6 @@
 .next/
 node_modules/
+.test-build/
 out/
 dist/
 coverage/
