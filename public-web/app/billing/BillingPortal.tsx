@@ -423,8 +423,8 @@ export default function BillingPortal({
           </article>
           <article className="billing-stat">
             <span>Payment method</span>
-            <strong>{activePaid || deposits.some((entry) => entry.state === 'complete') ? 'On file with Stripe' : 'Not set up yet'}</strong>
-            <p>Card details stay with Stripe; Hocalist never sees them.</p>
+            <strong>Managed by Stripe</strong>
+            <p>View or update saved payment methods in Stripe. A completed purchase does not confirm that a card is saved.</p>
             <button
               className="button secondary small"
               type="button"

@@ -192,7 +192,7 @@ export function CheckoutReturn({
       <section className="billing-section">
         {banner}
         <div className="billing-card">
-          <span className="status-chip gold">Payment processing</span>
+          <span className="status-chip gold">Awaiting confirmation</span>
           <h1>This checkout is not confirmed yet</h1>
           <p>
             Stripe has not reported a verified paid event for this exact checkout yet. This page
