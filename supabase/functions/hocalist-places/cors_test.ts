@@ -42,3 +42,12 @@ Deno.test('approved response includes CORS headers without changing status', () 
     throw new Error('CORS response changed status or omitted the origin');
   }
 });
+
+Deno.test('HTTPS preview is exact; lookalike hosts remain refused', () => {
+  const origin = 'https://catalog-bishop-mere-workers.trycloudflare.com';
+  for (const [candidate, status] of [[origin,204],[origin+'.evil.example',403],['https://other.trycloudflare.com',403],['http://catalog-bishop-mere-workers.trycloudflare.com',403]] as const) {
+    const response=placesPreflight(new Request('https://example.test', {method:'OPTIONS',headers:{Origin:candidate}}));
+    if(response.status!==status)throw new Error('origin boundary failed');
+    if(status===204 && response.headers.get('Access-Control-Allow-Origin')!==origin)throw new Error('missing exact origin');
+  }
+});

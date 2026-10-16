@@ -1,6 +1,11 @@
 // Browser access is limited to the approved local Hocalist test preview.
 // Native apps do not send Origin and continue through the normal Auth check.
-const localOrigins = new Set(['http://127.0.0.1:7359']);
+const localOrigins = new Set([
+  'http://127.0.0.1:7359',
+  'https://catalog-bishop-mere-workers.trycloudflare.com',
+]);
+export const isAllowedPlacesOrigin = (origin: string | null) =>
+  origin == null || localOrigins.has(origin);
 
 const allowedHeaders =
   'authorization, apikey, x-client-info, content-type, x-retry-count, ' +

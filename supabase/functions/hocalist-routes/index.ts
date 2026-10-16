@@ -1,10 +1,10 @@
 import {createRoutesHandler} from './handler.ts';
 import {createPlacesAuthVerifier} from '../hocalist-places/auth.ts';
-import {placesPreflight, withPlacesCors} from '../hocalist-places/cors.ts';
+import {placesPreflight, withPlacesCors, isAllowedPlacesOrigin} from '../hocalist-places/cors.ts';
 const project = 'https://icqwbzswokoulatomgql.supabase.co';
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return placesPreflight(request);
-  if (request.headers.has('Origin') && request.headers.get('Origin') !== 'http://127.0.0.1:7359') {
+  if (!isAllowedPlacesOrigin(request.headers.get('Origin'))) {
     return withPlacesCors(request, new Response(null, {status: 403}));
   }
   const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';

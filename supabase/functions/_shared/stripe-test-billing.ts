@@ -77,6 +77,7 @@ export function backend() {
           idempotency_conflict: 409,
           checkout_closed: 409,
           subscription_exists: 409,
+          subscription_required: 409,
           checkout_pending: 409,
           checkout_reconciliation_required: 409,
           billing_review_required: 409,
