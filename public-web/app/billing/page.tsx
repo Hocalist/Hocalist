@@ -23,7 +23,7 @@ export default async function BillingPage({
       <main className="billing-page">
         <section className="subpage-hero reveal">
           <p className="eyebrow">Seller billing</p>
-          <h1>Your seller plan, credits, and payment method in one place</h1>
+          <h1>Your seller account.</h1>
           <p>
             Seller plans and HocaCredits are purchased here through Stripe Checkout. Billing is in
             TEST mode until activation. Buyers never pay Hocalist for items; item payment stays

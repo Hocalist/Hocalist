@@ -6122,13 +6122,28 @@ body main .page-section.safety-section,
 
 .homepage .hero-copy-card {
   align-self: center;
-  border-color: rgba(0, 3, 108, 0.16) !important;
-  box-shadow: 0 22px 56px rgba(18, 35, 72, 0.12) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 0;
+}
+
+@media (max-width: 359px) {
+  .homepage .hero-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .homepage .hero-actions .button {
+    width: 100%;
+  }
 }
 
 .homepage .marketplace-hero h1 {
   font-size: clamp(42px, 4.8vw, 64px);
-  max-width: 13ch;
+  max-width: 15ch;
+  color: #00036c !important;
+  text-wrap: balance;
 }
 
 .homepage .hero-stage {
@@ -6696,6 +6711,42 @@ body main .page-section.safety-section,
   margin: 12px 0 0;
   font-size: 13px;
   color: #565b80;
+}
+
+.homepage-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  list-style: none;
+  cursor: pointer;
+  color: #00036c;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.homepage-faq summary::-webkit-details-marker { display: none; }
+.homepage-faq summary:focus-visible {
+  outline: 2px solid #00036c;
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+.homepage-faq summary span {
+  flex: 0 0 28px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 400;
+  transition: transform 180ms ease-out;
+}
+.homepage-faq[open] summary span { transform: rotate(45deg); }
+.homepage-faq[open] p { animation: faq-answer-enter 180ms ease-out; }
+@keyframes faq-answer-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .homepage-faq summary span { transition: none; }
+  .homepage-faq[open] p { animation: none; }
 }
 
 @media (min-width: 820px) {

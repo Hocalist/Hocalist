@@ -1,3 +1,5 @@
+import EditorialAccent from '../EditorialAccent';
+import { ProcessIllustration } from '../ProcessIllustration';
 import { OfflineNotice, PageShell } from '../site-content';
 
 export const metadata = {
@@ -69,9 +71,9 @@ export default function HowItWorksPage() {
   return (
     <PageShell>
       <main>
-        <section className="subpage-hero reveal">
+        <section className="subpage-hero editorial-hero reveal"><EditorialAccent />
           <p className="eyebrow">How it works</p>
-          <h1>How Hocalist works</h1>
+          <h1>One request.<br /><em>A world of possibilities.</em></h1>
           <p>
             Hocalist helps buyers post requests, compare seller offers, choose who to continue
             with, and coordinate details before arranging item payment directly with the seller.
@@ -80,26 +82,18 @@ export default function HowItWorksPage() {
         <section className="timeline-section">
           {steps.map((step, index) => (
             <article className="timeline-card reveal" key={step.title}>
-              <figure className={`timeline-photo timeline-photo-${step.visual}`}>
-                <img alt={step.alt} src={step.image} />
-                {step.frameItems && (
-                  <div className="timeline-ui-frame" aria-hidden="true">
-                    <span>{step.frameTitle}</span>
-                    {step.frameItems.map((item) => (
-                      <em key={item}>{item}</em>
-                    ))}
-                  </div>
-                )}
-                <figcaption>
-                  <strong>{step.badge}</strong>
-                  <span>{step.detail}</span>
-                </figcaption>
-              </figure>
+              <ProcessIllustration step={index} />
+
               <div className="timeline-card-copy">
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <p className="workflow-kicker">{step.kicker}</p>
                 <h2>{step.title}</h2>
                 <p>{step.body}</p>
+                <figure className="process-context-photo">
+                  <img src={step.image} alt={step.alt} loading="lazy" />
+                  <figcaption><strong>{step.badge}</strong><span>{step.detail}</span></figcaption>
+                </figure>
+                {step.frameItems && <div className="process-checklist"><span>{step.frameTitle}</span><ul>{step.frameItems.map(item => <li key={item}>{item}</li>)}</ul></div>}
               </div>
             </article>
           ))}
