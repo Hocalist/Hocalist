@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatUsdMinor } from '../lib/website-rules';
+import { confirmationDelay, confirmationCopy } from '../lib/checkout-confirmation';
 import {
   resolveCheckoutView,
   type CheckoutRow,
@@ -38,52 +39,77 @@ export function CheckoutReturn({
   checkoutHint?: string | null;
 }) {
   const [state, setState] = useState<State>({ kind: 'checking' });
-  const attempts = useRef(0);
+  const [delayed, setDelayed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const mounted = useRef(true);
+  const generation = useRef(0);
+  const inFlight = useRef<number | null>(null);
+  const pendingSince = useRef<number | null>(null);
 
   const load = useCallback(async () => {
+    const current = generation.current;
+    if (inFlight.current === current) return;
+    inFlight.current = current;
+    const isCurrent = () => mounted.current && current === generation.current;
     try {
       const query = new URLSearchParams();
       if (previewKind) query.set('preview', previewKind);
       if (checkoutHint) query.set('checkout', checkoutHint);
       const suffix = query.size > 0 ? `?${query.toString()}` : '';
-      const response = await fetch(`/api/billing/status${suffix}`, { cache: 'no-store' });
+      const response = await fetch(`/api/billing/status${suffix}`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
       const body = await response.json().catch(() => null);
+      if (!isCurrent()) return;
       if (response.status === 401) {
         setState({ kind: 'signed_out', message: body?.message ?? 'Sign in again to check this checkout.' });
         return;
       }
       if (!response.ok || body?.state !== 'ready') {
-        setState({ kind: 'error', message: body?.message ?? 'Checkout status is unavailable right now.' });
+        if (pendingSince.current !== null && response.status >= 500) {
+          setRetrying(true);
+        } else {
+          setState({ kind: 'error', message: body?.message ?? 'Checkout status is unavailable right now.' });
+        }
         return;
       }
       const selected: CheckoutRow | null = body.selected ?? null;
       const deposits: CheckoutRow[] = Array.isArray(body.deposits) ? body.deposits : [];
+      const view = resolveCheckoutView({ selected, deposits }, { cancelled, hintProvided: Boolean(checkoutHint) });
+      pendingSince.current = view.mode === 'pending' ? pendingSince.current ?? Date.now() : null;
+      setDelayed(pendingSince.current !== null && Date.now() - pendingSince.current >= 60_000);
+      setRetrying(false);
       setState({
         kind: 'ready',
         preview: body.preview === true,
-        view: resolveCheckoutView({ selected, deposits }, { cancelled, hintProvided: Boolean(checkoutHint) }),
+        view,
         subscription: body.subscription ?? null
       });
     } catch {
-      setState({ kind: 'error', message: 'Checkout status is unavailable right now.' });
+      if (!isCurrent()) return;
+      if (pendingSince.current !== null) setRetrying(true);
+      else setState({ kind: 'error', message: 'Checkout status is unavailable right now.' });
+    } finally {
+      if (inFlight.current === current) inFlight.current = null;
     }
   }, [previewKind, checkoutHint, cancelled]);
 
   useEffect(() => {
+    mounted.current = true;
+    generation.current += 1;
+    pendingSince.current = null;
+    setDelayed(false);
     void load();
+    return () => { mounted.current = false; generation.current += 1; };
   }, [load]);
 
-  // While the exact checkout may still be processing, reconcile a few times;
-  // stop automatically instead of polling forever.
+  // One bounded request at a time, while this page is mounted and pending.
   useEffect(() => {
-    if (state.kind !== 'ready' || state.view.mode !== 'pending') return;
-    if (attempts.current >= 6) return;
-    const timer = window.setTimeout(() => {
-      attempts.current += 1;
-      void load();
-    }, 5000);
-    return () => window.clearTimeout(timer);
-  }, [state, load]);
+    const delay = confirmationDelay(state.kind === 'ready' && state.view.mode === 'pending', document.hidden);
+    if (delay === null) return;
+    const timer = window.setInterval(() => void load(), delay);
+    const resume = () => { if (!document.hidden) void load(); };
+    document.addEventListener('visibilitychange', resume);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', resume); };
+  }, [state.kind, state.kind === 'ready' ? state.view.mode : null, load]);
 
   const returnPath = checkoutHint
     ? `/billing/return?checkout=${encodeURIComponent(checkoutHint)}`
@@ -191,14 +217,12 @@ export function CheckoutReturn({
     return (
       <section className="billing-section">
         {banner}
-        <div className="billing-card">
-          <span className="status-chip gold">Awaiting confirmation</span>
-          <h1>This checkout is not confirmed yet</h1>
-          <p>
-            Stripe has not reported a verified paid event for this exact checkout yet. This page
-            updates automatically for a short time, or you can check again below. Credits and plan
-            changes appear only after the verified event arrives.
-          </p>
+        <div className="billing-card" aria-busy="true">
+          <span className="billing-confirmation-spinner" aria-hidden="true" />
+          <span className="status-chip gold">Confirmation in progress</span>
+          <h1>{confirmationCopy.title}</h1>
+          <p role="status">{delayed ? confirmationCopy.delayed : confirmationCopy.body}</p>
+          {retrying ? <p>Connection interrupted. We’ll keep checking automatically.</p> : null}
           <div className="billing-actions">
             <button className="button primary" type="button" onClick={() => void load()}>Check again</button>
             <a className="button secondary" href="/billing">Back to billing</a>

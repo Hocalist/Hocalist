@@ -21,6 +21,7 @@ const CHECKOUT_MESSAGES: Record<string, string> = {
   checkout_closed: "That checkout is closed. Start a new one.",
   checkout_reconciliation_required: "The previous checkout attempt needs review. Contact support before starting another.",
   subscription_exists: "This account already has an active seller subscription. Manage it instead of starting a new one.",
+  subscription_required: "Subscribe to a seller plan before buying credits.",
   invalid_plan_or_key: "That seller plan is not available right now. Refresh and choose again.",
   invalid_option_or_key: "That credit pack is not available right now. Refresh and choose again.",
   billing_review_required: "This account needs a billing review before purchases can continue. Contact support.",

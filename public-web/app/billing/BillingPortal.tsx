@@ -37,6 +37,7 @@ type StatusPayload = {
   subscription: BillingSubscription | null;
   deposits: CheckoutRow[];
   selected: CheckoutRow | null;
+  credit_purchase_allowed: boolean;
 };
 
 type ViewState =
@@ -95,6 +96,7 @@ export default function BillingPortal({
       plans: Array.isArray(body.plans) ? (body.plans as PlanRow[]) : [],
       options: Array.isArray(body.options) ? (body.options as BillingOption[]) : [],
       subscription: (body.subscription as BillingSubscription) ?? null,
+      credit_purchase_allowed: body.credit_purchase_allowed === true,
       deposits: Array.isArray(body.deposits) ? (body.deposits as CheckoutRow[]) : [],
       selected: (body.selected as CheckoutRow) ?? null
     };
@@ -448,7 +450,7 @@ export default function BillingPortal({
         ) : null}
       </div>
 
-      <div className="billing-card">
+      <div className="billing-card" id="seller-plans">
         <h2>Seller plans</h2>
         <p className="billing-note">
           Monthly USD prices and availability come from the live seller plan configuration. Paid
@@ -497,6 +499,9 @@ export default function BillingPortal({
 
       <div className="billing-card">
         <h2>HocaCredits</h2>
+        {!view.data.credit_purchase_allowed ? (
+          <p className="billing-message info">An active paid seller subscription is required before buying credits. <a href="#seller-plans">Choose a seller plan</a>.</p>
+        ) : null}
         <p className="billing-note">
           Credits cover eligible targeting fees and are separate from weekly target limits. Each
           purchase keeps the rates shown at purchase time. Item payment stays offline.
@@ -523,10 +528,10 @@ export default function BillingPortal({
                 <button
                   className="button primary"
                   type="button"
-                  disabled={action.busy !== null}
+                  disabled={action.busy !== null || !view.data.credit_purchase_allowed}
                   onClick={() => void startCheckout('credit_deposit', option.id)}
                 >
-                  {action.busy === `credit_deposit:${option.id}` ? 'Opening checkout…' : 'Buy credits'}
+                  {action.busy === `credit_deposit:${option.id}` ? 'Opening checkout…' : view.data.credit_purchase_allowed ? 'Buy credits' : 'Subscribe first'}
                 </button>
               </article>
             ))}
