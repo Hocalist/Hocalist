@@ -10984,7 +10984,10 @@ class _BuyerSubpageBlock extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.tabbed = false,
+    this.onBack,
   });
+
+  final VoidCallback? onBack;
 
   final String title;
   final String subtitle;
@@ -10997,7 +11000,7 @@ class _BuyerSubpageBlock extends StatelessWidget {
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
-    final onBack = _TitleBackScope.maybeOf(context);
+    final onBack = this.onBack ?? _TitleBackScope.maybeOf(context);
     return ApprovedReplicaScope(
       metrics: metrics,
       child: Column(
@@ -11074,7 +11077,8 @@ class _BuyerSubpageBlock extends StatelessWidget {
                     .where(
                       (child) =>
                           child is _BuyerSubpageSection &&
-                          child.title == 'Account',
+                          (child.title == 'Account' ||
+                              child.title == 'Account Management'),
                     )
                     .toList(),
                 'Preferences': children
@@ -11089,6 +11093,7 @@ class _BuyerSubpageBlock extends StatelessWidget {
                       (child) =>
                           child is _BuyerSubpageSection &&
                           child.title != 'Account' &&
+                          child.title != 'Account Management' &&
                           child.title != 'Preferences',
                     )
                     .toList(),
@@ -11337,6 +11342,7 @@ class _BuyerPreferenceSwitch extends StatelessWidget {
 class _BuyerAccountSettingsPage extends StatelessWidget {
   const _BuyerAccountSettingsPage({
     required this.darkMode,
+    this.onBack,
     required this.textSize,
     required this.onEditProfile,
     required this.onThemeChanged,
@@ -11347,6 +11353,8 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
     this.pendingEmailChange,
     this.onAccountLifecycle,
   });
+
+  final VoidCallback? onBack;
 
   final bool darkMode;
   final AppTextSize textSize;
@@ -11363,6 +11371,7 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return _BuyerSubpageBlock(
       tabbed: true,
+      onBack: onBack,
       title: 'Account Settings',
       subtitle: 'Manage your Buyer account, preferences, and privacy.',
       children: [
@@ -11664,6 +11673,7 @@ class _BuyerNotificationPreferencesPageState
 class BuyerSettingsPage extends StatelessWidget {
   const BuyerSettingsPage({
     required this.darkMode,
+    this.onBack,
     required this.textSize,
     required this.onEditProfile,
     required this.onThemeChanged,
@@ -11675,6 +11685,8 @@ class BuyerSettingsPage extends StatelessWidget {
     this.onAccountLifecycle,
     super.key,
   });
+
+  final VoidCallback? onBack;
 
   final bool darkMode;
   final AppTextSize textSize;
@@ -11697,6 +11709,7 @@ class BuyerSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return _BuyerAccountSettingsPage(
       darkMode: darkMode,
+      onBack: onBack,
       textSize: textSize,
       onEditProfile: onEditProfile,
       onThemeChanged: onThemeChanged,

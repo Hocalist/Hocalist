@@ -287,6 +287,7 @@ class _AccountAuthForm extends StatefulWidget {
 
 class _AccountAuthFormState extends State<_AccountAuthForm> {
   bool _showRecoveryRequest = false;
+  final ApprovedAccountDraft _signupDraft = ApprovedAccountDraft();
   String? _recoveryError;
 
   Future<void> _requestReset(String email) async {
@@ -329,11 +330,14 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
         children: [
           Expanded(
             child: ApprovedAccountCreationPage(
-              key: ValueKey('real-account-${role.name}'),
+              key: const ValueKey('real-account-form'),
+              draft: _signupDraft,
               role: role,
               initialLoginMode: controller.returnToLogin,
               name: controller.suggestedDisplayName,
-              onNameChanged: (_) {},
+              onNameChanged: (name) => _signupDraft.name = name,
+              onForgotPassword: () =>
+                  setState(() => _showRecoveryRequest = true),
               onRoleChanged: (next) async {
                 final selected = next == ApprovedAccountRole.seller
                     ? HocalistRole.seller
@@ -367,21 +371,18 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                         controller.requestEmailLink(email: email, name: name)
                   : null,
               onPhoneRequestCode: (phone, {required signup}) =>
-                  controller.requestPhoneCode(phone: phone, signup: signup),
-              onPhoneConfirmCode: (phone, code) =>
-                  controller.confirmPhoneCode(phone: phone, code: code),
+                  controller.requestPhoneCode(
+                    phone: phone,
+                    signup: signup,
+                    name: _signupDraft.name,
+                  ),
+              onPhoneConfirmCode: (phone, code) => controller.confirmPhoneCode(
+                phone: phone,
+                code: code,
+                name: _signupDraft.loginMode == true ? null : _signupDraft.name,
+              ),
               onApple: null,
               onFacebook: null,
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: TextButton(
-              key: const ValueKey('real-account-forgot-password'),
-              onPressed: controller.formBusy
-                  ? null
-                  : () => setState(() => _showRecoveryRequest = true),
-              child: const Text('Forgot password?'),
             ),
           ),
         ],
@@ -499,80 +500,177 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
         ? 'seller'
         : 'buyer';
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(22, 40, 22, 24),
-          children: [
-            Text(
-              'Finish your $role account',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: BuyerUiTokens.text,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Choose the name other people will see on Hocalist.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: BuyerUiTokens.muted,
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              key: const ValueKey('real-account-onboarding-name'),
-              controller: _nameController,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submit(),
-              decoration: const InputDecoration(
-                labelText: 'Display name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _error!,
-                key: const ValueKey('real-account-onboarding-error'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xffb3261e),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final reducedMotion = MediaQuery.disableAnimationsOf(context);
+              return Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: reducedMotion ? 1 : 0, end: 1),
+                  duration: Duration(milliseconds: reducedMotion ? 0 : 320),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) => Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, 12 * (1 - value)),
+                      child: child,
+                    ),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: SizedBox(
+                      width: constraints.maxWidth.clamp(0, 420).toDouble(),
+                      child: Column(
+                        key: const ValueKey('real-account-onboarding-group'),
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              decoration: const BoxDecoration(
+                                gradient: RadialGradient(
+                                  colors: [
+                                    Color(0xfff1edff),
+                                    Color(0x00ffffff),
+                                  ],
+                                ),
+                              ),
+                              child: Image.asset(
+                                'assets/brand/hocalist-wordmark.png',
+                                key: const ValueKey(
+                                  'real-account-onboarding-logo',
+                                ),
+                                width: 150,
+                                height: 72,
+                                fit: BoxFit.contain,
+                                semanticLabel: 'Hocalist, Reverse Marketplace',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Finish your $role account',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: BuyerUiTokens.text,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Choose the name other people will see on Hocalist.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: BuyerUiTokens.muted,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          TextField(
+                            key: const ValueKey('real-account-onboarding-name'),
+                            controller: _nameController,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _submit(),
+                            decoration: InputDecoration(
+                              labelText: 'Display name',
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xffddd8f2),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xff3210ff),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              _error!,
+                              key: const ValueKey(
+                                'real-account-onboarding-error',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xffb3261e),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          BuyerPrimaryButton(
+                            key: const ValueKey(
+                              'real-account-onboarding-submit',
+                            ),
+                            colors: const [
+                              Color(0xff3210ff),
+                              Color(0xff3210ff),
+                            ],
+                            minimumHeight: 48,
+                            leading: controller.formBusy
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : null,
+                            label: controller.formBusy
+                                ? 'Creating account...'
+                                : 'Create $role account',
+                            onPressed: controller.formBusy ? null : _submit,
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            key: const ValueKey(
+                              'real-account-onboarding-logout',
+                            ),
+                            onPressed: controller.busy ? null : _logout,
+                            child: const Text('Log out'),
+                          ),
+                          if (_logoutError != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              _logoutError!,
+                              key: const ValueKey('real-account-gate-error'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xffb3261e),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            BuyerPrimaryButton(
-              key: const ValueKey('real-account-onboarding-submit'),
-              label: controller.formBusy
-                  ? 'Creating account...'
-                  : 'Create $role account',
-              onPressed: controller.formBusy ? null : _submit,
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              key: const ValueKey('real-account-onboarding-logout'),
-              onPressed: controller.busy ? null : _logout,
-              child: const Text('Log out'),
-            ),
-            if (_logoutError != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                _logoutError!,
-                key: const ValueKey('real-account-gate-error'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xffb3261e),
-                ),
-              ),
-            ],
-          ],
+              );
+            },
+          ),
         ),
       ),
     );

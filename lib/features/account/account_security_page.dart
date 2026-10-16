@@ -9,6 +9,7 @@ import '../../components/hocalist_account_field.dart';
 import '../../domain/phase2/profiles.dart';
 
 import 'package:flutter/material.dart';
+import '../../components/account_role_components.dart';
 import '../../components/hocalist_section_intro.dart';
 
 import '../../theme/buyer_ui_foundation.dart';
@@ -174,7 +175,8 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
                   text: _passwordError!,
                 ),
               const SizedBox(height: 8),
-              BuyerPrimaryButton(
+              AccountActionButton(
+                seller: seller,
                 key: const ValueKey('security-password-submit'),
                 label: controller.formBusy ? 'Updating...' : 'Update password',
                 onPressed: controller.formBusy ? null : _changePassword,
@@ -261,9 +263,9 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
+            constraints: const BoxConstraints(maxWidth: double.infinity),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: children,
             ),
           ),

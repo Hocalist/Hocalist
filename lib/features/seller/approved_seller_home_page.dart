@@ -146,14 +146,10 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                           : widget.offersError != null
                           ? 'Unavailable'
                           : null,
-                      actionLabel: realLeads == null
-                          ? 'View all leads'
-                          : 'View offers',
+                      actionLabel: 'View offers',
                       asset: SellerAssets.homeDeals,
                       valueColor: SellerUiColors.green,
-                      onTap: realLeads == null
-                          ? widget.onLeads
-                          : (widget.onOfferHistory ?? widget.onLeads),
+                      onTap: widget.onOfferHistory ?? widget.onLeads,
                     ),
                   ),
                 ],

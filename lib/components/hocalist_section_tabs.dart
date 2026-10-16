@@ -38,6 +38,49 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
   int selected = 0;
   String? _storageKey;
   int _generation = 0;
+  final _scroll = ScrollController();
+  final _stripKey = GlobalKey();
+  final _tabKeys = <String, GlobalKey>{};
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _revealSelected() {
+    if (!mounted || !_scroll.hasClients) return;
+    final labels = widget.sections.keys.toList();
+    if (selected >= labels.length) return;
+    final tab = _tabKeys[labels[selected]]?.currentContext?.findRenderObject();
+    final strip = _stripKey.currentContext?.findRenderObject();
+    if (tab is! RenderBox ||
+        strip is! RenderBox ||
+        !tab.hasSize ||
+        !strip.hasSize) {
+      return;
+    }
+    final left = tab.localToGlobal(Offset.zero, ancestor: strip).dx;
+    final right = left + tab.size.width;
+    final delta = left < 0
+        ? left
+        : right > strip.size.width
+        ? right - strip.size.width
+        : 0.0;
+    if (delta.abs() < 0.5) return;
+    final target = (_scroll.offset + delta).clamp(
+      _scroll.position.minScrollExtent,
+      _scroll.position.maxScrollExtent,
+    );
+    final duration = HocalistMotion.duration(context, 180);
+    if (duration == Duration.zero) {
+      _scroll.jumpTo(target);
+    } else {
+      unawaited(
+        _scroll.animateTo(target, duration: duration, curve: Curves.easeOut),
+      );
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -81,6 +124,7 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
   Widget build(BuildContext context) {
     final labels = widget.sections.keys.toList();
     if (selected >= labels.length) selected = 0;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealSelected());
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
@@ -115,11 +159,14 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
               final equalWidth = constraints.maxWidth / labels.length;
               final scrolls = widths.any((width) => width > equalWidth);
               return SingleChildScrollView(
+                key: _stripKey,
+                controller: _scroll,
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
                     for (var index = 0; index < labels.length; index++)
                       SizedBox(
+                        key: _tabKeys.putIfAbsent(labels[index], GlobalKey.new),
                         width: scrolls ? widths[index] : equalWidth,
                         child: Semantics(
                           selected: selected == index,

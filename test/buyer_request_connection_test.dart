@@ -105,10 +105,7 @@ void main() {
     expect(calls, 0);
     expect(find.text('No saved home address'), findsOneWidget);
     expect(find.text('123 Main Street'), findsNothing);
-    expect(
-      find.text('Choose a location or add your home address in your profile.'),
-      findsOneWidget,
-    );
+    expect(find.text('Choose a location or enter an address.'), findsOneWidget);
   });
 
   testWidgets(
@@ -134,7 +131,13 @@ void main() {
           onChooseLocation: (context) async {
             expect(Navigator.of(context), isNotNull);
             return RequestLocation.custom(
-              address: const PostalAddress(line1: 'Selected meeting area'),
+              address: const PostalAddress(
+                line1: 'Selected meeting area',
+                city: 'Chicago',
+                state: 'IL',
+                postalCode: '60605',
+                country: 'US',
+              ),
               coordinates: RequestCoordinates(latitude: 40.9, longitude: -73.8),
             );
           },
@@ -156,6 +159,17 @@ void main() {
         find.textContaining('Selected: Selected meeting area'),
         findsOneWidget,
       );
+      for (final entry in {
+        'street-address': 'Selected meeting area',
+        'city': 'Chicago',
+        'state': 'IL',
+        'zip-code': '60605',
+      }.entries) {
+        final field = tester.widget<TextFormField>(
+          find.byKey(Key('approved-request-address-${entry.key}')),
+        );
+        expect(field.controller!.text, entry.value);
+      }
       await _tapPost(tester);
       expect(drafts.single.location.coordinates?.latitude, 40.9);
       final address = find.byKey(

@@ -102,6 +102,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(card);
     await tester.pumpAndSettle();
+    if (index == 0) {
+      await tester.enterText(
+        find.byKey(const ValueKey('approved-account-name-field')),
+        'Maya Chen',
+      );
+    }
   }
 
   Future<void> completeSellerSignup(WidgetTester tester) async {
@@ -120,6 +126,7 @@ void main() {
     );
     await tester.tap(continueButton);
     await tester.pumpAndSettle();
+    await tapVisible(tester, 'Save profile');
   }
 
   Future<void> finishBuyerOnboarding(WidgetTester tester) async {
@@ -130,6 +137,8 @@ void main() {
     await tapVisible(tester, 'Post a new request');
     await tapVisible(tester, 'Continue');
     await tapVisible(tester, 'Post request');
+    expect(find.byType(ApprovedRequestPostedDialog), findsOneWidget);
+    await tapVisible(tester, 'Back to dashboard');
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
   }
@@ -556,7 +565,8 @@ void main() {
     await tapVisible(tester, 'Post a new request');
     await tapVisible(tester, 'Continue');
     await tapVisible(tester, 'Post request');
-    expect(find.text('Request posted. You are back home.'), findsOneWidget);
+    expect(find.byType(ApprovedRequestPostedDialog), findsOneWidget);
+    await tapVisible(tester, 'Back to dashboard');
     await tapFirstIpadRequest(tester);
     await tapVisible(tester, '32 offers');
     final firstOfferDetails = find.byKey(const Key('approved-view-offer-NT'));
@@ -773,7 +783,8 @@ void main() {
     await tapVisible(tester, 'Post a new request');
     await tapVisible(tester, 'Continue');
     await tapVisible(tester, 'Post request');
-    expect(find.text('Request posted. You are back home.'), findsOneWidget);
+    expect(find.byType(ApprovedRequestPostedDialog), findsOneWidget);
+    await tapVisible(tester, 'Back to dashboard');
     await tapFirstIpadRequest(tester);
     await tapVisible(tester, '32 offers');
 
@@ -844,7 +855,8 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'request review');
     await tapVisible(tester, 'Post request');
     expect(tester.takeException(), isNull, reason: 'posted dashboard');
-    expect(find.text('Request posted. You are back home.'), findsOneWidget);
+    expect(find.byType(ApprovedRequestPostedDialog), findsOneWidget);
+    await tapVisible(tester, 'Back to dashboard');
     await tapFirstIpadRequest(tester);
     expect(tester.takeException(), isNull, reason: 'request details');
     await tapVisible(tester, '32 offers');
@@ -1082,11 +1094,12 @@ void main() {
     expect(find.text('Personal information'), findsNothing);
     expect(find.byKey(const ValueKey('section-tab-Security')), findsOneWidget);
     expect(find.text('Password & security'), findsOneWidget);
+    expect(find.text('ACCOUNT MANAGEMENT'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('section-tab-Privacy')));
     await tester.pumpAndSettle();
     expect(find.text('PRIVACY'), findsOneWidget);
     expect(find.text('Request & location privacy'), findsOneWidget);
-    expect(find.text('ACCOUNT MANAGEMENT'), findsOneWidget);
+    expect(find.text('ACCOUNT MANAGEMENT'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
     await tester.pumpAndSettle();
     expect(find.text('PREFERENCES'), findsOneWidget);

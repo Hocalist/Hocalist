@@ -228,7 +228,7 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
             ),
           ],
         ),
-        const _SellerSubpageSection(
+        _SellerSubpageSection(
           title: 'Marketplace privacy',
           children: [
             _SellerSubpageRow(
@@ -236,14 +236,16 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
               title: 'Public Seller visibility',
               body:
                   'Buyers see trust and service details without private contact information.',
-              status: 'Limited profile',
+              status: 'Manage public profile',
+              onTap: onEditProfile,
             ),
             _SellerSubpageRow(
               icon: Icons.location_on_outlined,
               title: 'Service-area privacy',
               body:
                   'Only your approximate service area is shown before a meeting is confirmed.',
-              status: 'Approximate location',
+              status: 'Manage service area',
+              onTap: onEditProfile,
             ),
           ],
         ),
@@ -595,12 +597,14 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
     required this.onBack,
     required this.onSafety,
     this.onContactSupport,
+    this.onReportSafety,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onSafety;
   final VoidCallback? onContactSupport;
+  final VoidCallback? onReportSafety;
 
   Future<void> _showAnswer(
     BuildContext context, {
@@ -704,7 +708,7 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
               title: 'Report a safety concern',
               body: 'Save details about an unsafe user, message, or meetup.',
               status: 'Open safety form',
-              onTap: onContactSupport ?? () => _showForm(context, safety: true),
+              onTap: onReportSafety ?? () => _showForm(context, safety: true),
             ),
           ],
         ),
@@ -1119,7 +1123,14 @@ class ApprovedSellerNotificationPreferencesPage extends StatefulWidget {
       _ApprovedSellerNotificationPreferencesPageState();
 }
 
-enum _SellerNotificationFilter { all, leads, offers, meetings, billing }
+enum _SellerNotificationFilter {
+  all,
+  leads,
+  offers,
+  messages,
+  meetings,
+  billing,
+}
 
 class _SellerNotificationData {
   const _SellerNotificationData({
@@ -1152,7 +1163,7 @@ _SellerNotificationData _sellerNotificationFromInbox(
   return _SellerNotificationData(
     filter: switch (item.kind) {
       'new_offer' => _SellerNotificationFilter.offers,
-      'new_message' => _SellerNotificationFilter.offers,
+      'new_message' => _SellerNotificationFilter.messages,
       'meeting_update' => _SellerNotificationFilter.meetings,
       'billing_update' => _SellerNotificationFilter.billing,
       _ => _SellerNotificationFilter.all,
@@ -1302,6 +1313,7 @@ class _ApprovedSellerNotificationsPageState
     _SellerNotificationFilter.all => 'All',
     _SellerNotificationFilter.leads => 'Leads',
     _SellerNotificationFilter.offers => 'Offers',
+    _SellerNotificationFilter.messages => 'Messages',
     _SellerNotificationFilter.meetings => 'Meetings',
     _SellerNotificationFilter.billing => 'Billing',
   };
@@ -1861,66 +1873,6 @@ class _ApprovedSellerNotificationPreferencesPageState
               status: 'Preference storage is active',
             ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class ApprovedSellerProfileSetupPage extends StatelessWidget {
-  const ApprovedSellerProfileSetupPage({
-    required this.onBack,
-    required this.onContinue,
-    super.key,
-  });
-
-  final VoidCallback onBack;
-  final VoidCallback onContinue;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SellerSubpageBlock(
-      key: const Key('approvedSellerProfileSetupPage'),
-      title: 'Set up seller profile',
-      subtitle: 'Your profile helps buyers trust your offers.',
-      onBack: onBack,
-      children: [
-        const _SellerSubpageSection(
-          title: 'Seller information',
-          children: [
-            Padding(
-              padding: EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  _SellerProfileField(
-                    initialValue: 'Electronics, tablets, accessories',
-                    label: 'Business category',
-                  ),
-                  SizedBox(height: 14),
-                  _SellerProfileField(
-                    initialValue: '15 miles',
-                    label: 'Service radius',
-                  ),
-                  SizedBox(height: 14),
-                  _SellerProfileField(
-                    initialValue: 'Weekdays and Saturday afternoon',
-                    label: 'Pickup availability',
-                    maxLines: 2,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        SellerPrimaryButton(
-          key: const Key('sellerProfileSetupContinue'),
-          label: 'Start verification',
-          onPressed: onContinue,
-          leading: const Icon(
-            Icons.verified_user_outlined,
-            size: 18,
-            color: Colors.white,
-          ),
         ),
       ],
     );
@@ -3882,7 +3834,7 @@ class _SellerSubpageBlock extends StatelessWidget {
                 : section == 'Seller categories'
                 ? 'Categories'
                 : 'Private contact')
-          : (section == 'Account'
+          : (section == 'Account' || section == 'Account management'
                 ? 'Security'
                 : section == 'Preferences'
                 ? 'Preferences'

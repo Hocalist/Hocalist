@@ -11,9 +11,13 @@ class SupportCasesPage extends StatefulWidget {
     required this.adapter,
     required this.onBack,
     this.conversationId,
+    this.initialReasonCode,
+    this.generalHelp = false,
     super.key,
   });
   final SupportAdapter adapter;
+  final String? initialReasonCode;
+  final bool generalHelp;
   final VoidCallback onBack;
 
   /// A user-visible reference, not a grant to read the conversation or its messages.
@@ -65,6 +69,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         return;
       }
       _reasons = reasons.valueOrNull!;
+      if (_reason == null &&
+          _reasons.any((r) => r.code == widget.initialReasonCode)) {
+        _reason = widget.initialReasonCode;
+      }
       if (_reason != null && !_reasons.any((r) => r.code == _reason)) {
         _reason = null;
       }
@@ -116,7 +124,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
       _sending = false;
       if (result.isFailure) {
         _formError =
-            'The report was not confirmed. Retry sends the same report safely.';
+            widget.generalHelp ? 'The question was not confirmed. Retry sends the same question safely.' : 'The report was not confirmed. Retry sends the same report safely.';
       } else {
         _ack = result.valueOrNull;
         _intent = null;
@@ -140,8 +148,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           BuyerNestedHeader(
-            title: 'Help & reports',
-            subtitle: 'Send a concern and track the response.',
+            title: widget.generalHelp ? 'Help & support' : 'Safety report',
+            subtitle: widget.generalHelp
+                ? 'Ask a question and track the response.'
+                : 'Report an unsafe interaction and track the response.',
             onBack: widget.onBack,
           ),
           SizedBox(height: metrics.spacing(12)),
@@ -216,7 +226,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
               key: const Key('supportAcknowledged'),
               icon: Icons.task_alt_rounded,
               tone: BuyerNoticeTone.success,
-              title: 'Report received',
+              title: widget.generalHelp ? 'Question received' : 'Report received',
               body: 'Case ID: $_ack',
             ),
             SizedBox(height: metrics.spacing(12)),
@@ -233,8 +243,8 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
               title: _retryDiscarded
                   ? 'Retry discarded'
                   : _intent != null
-                  ? 'Report not confirmed'
-                  : 'Check your report',
+                  ? (widget.generalHelp ? 'Question not confirmed' : 'Report not confirmed')
+                  : (widget.generalHelp ? 'Check your question' : 'Check your report'),
               body: _formError,
             ),
             SizedBox(height: metrics.spacing(12)),
@@ -242,7 +252,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
           BuyerSecondaryButton(
             label:
                 _reasons.where((r) => r.code == _reason).firstOrNull?.label ??
-                'Select report reason',
+                (widget.generalHelp
+                    ? 'Select help topic'
+                    : 'Select report reason'),
             onPressed: _sending || _intent != null
                 ? null
                 : () async {
@@ -264,7 +276,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               BuyerNestedHeader(
-                                title: 'Report reason',
+                                title: widget.generalHelp
+                                    ? 'Help topic'
+                                    : 'Report reason',
                                 subtitle: 'Choose the reason that best fits',
                                 onBack: () => Navigator.pop(sheetContext),
                               ),
@@ -327,8 +341,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
             maxLines: 6,
             decoration: buyerInputDecoration(
               context,
-              hintText:
-                  'What happened? Include the relevant request or meeting reference.',
+              hintText: widget.generalHelp
+                  ? 'How can we help? Include any useful request or account details.'
+                  : 'What happened? Include the relevant request or meeting reference.',
             ).copyWith(counterText: ''),
           ),
           SizedBox(height: metrics.spacing(10)),
@@ -337,7 +352,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
             label: _sending
                 ? 'Submitting…'
                 : _intent != null
-                ? 'Retry report'
+                ? (widget.generalHelp ? 'Retry question' : 'Retry report')
+                : widget.generalHelp
+                ? 'Send question'
                 : 'Send report',
           ),
           if (_intent != null && !_sending) ...[

@@ -30,7 +30,10 @@ void main() {
       );
       expect(find.text('Actual requested item'), findsOneWidget);
       expect(find.textContaining('PIN'), findsNothing);
-      expect(find.text('Latest request details shared by the buyer.'), findsOneWidget);
+      expect(
+        find.text('Latest request details shared by the buyer.'),
+        findsOneWidget,
+      );
       expect(find.textContaining('USD'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -64,6 +67,7 @@ void main() {
     tester,
   ) async {
     var opened = 0;
+    var safetyOpened = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -71,6 +75,9 @@ void main() {
             child: ApprovedSellerHelpSupportPage(
               onBack: () {},
               onSafety: () {},
+              onReportSafety: () {
+                safetyOpened++;
+              },
               onContactSupport: () {
                 opened++;
               },
@@ -85,7 +92,8 @@ void main() {
     await tester.ensureVisible(find.text('Report a safety concern'));
     await tester.tap(find.text('Report a safety concern'));
     await tester.pump();
-    expect(opened, 2);
+    expect(opened, 1);
+    expect(safetyOpened, 1);
     expect(find.text('Support UI is ready'), findsNothing);
     expect(
       find.text('Support request saved for ticket connection.'),

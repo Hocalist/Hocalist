@@ -7,6 +7,7 @@
 library;
 
 import 'dart:async';
+import '../../domain/phase2/common.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ class PlaceCaptureResult {
     this.placeId,
     this.latitude,
     this.longitude,
+    this.postalAddress,
     this.attributions = const <PlaceAttribution>[],
     required this.source,
   });
@@ -41,6 +43,7 @@ class PlaceCaptureResult {
   final String? placeId;
   final double? latitude;
   final double? longitude;
+  final PostalAddress? postalAddress;
   final List<PlaceAttribution> attributions;
   final PlaceCaptureSource source;
 
@@ -262,6 +265,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
         _confirmed = PlaceCaptureResult(
           label: suggestion.label,
           address: details.address,
+          postalAddress: details.postalAddress,
           placeId: details.placeId,
           latitude: details.latitude,
           longitude: details.longitude,
@@ -381,6 +385,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
       _confirmed = PlaceCaptureResult(
         label: current.label,
         address: current.address,
+        postalAddress: current.postalAddress,
         placeId: current.placeId,
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,

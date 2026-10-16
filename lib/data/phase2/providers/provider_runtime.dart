@@ -12,12 +12,32 @@ const hocalistLocalWebTestEnabled = bool.fromEnvironment(
   'HOCALIST_LOCAL_WEB_TEST',
 );
 
-/// Real web access is limited to an explicitly flagged loopback preview.
-/// The same build returns to mobile-only behavior on any hosted domain.
-bool isHocalistLocalWebTestOrigin(Uri uri, {required bool enabled}) =>
-    enabled &&
-    uri.scheme == 'http' &&
-    (uri.host == 'localhost' || uri.host == '127.0.0.1');
+const hocalistWifiTestOrigin = String.fromEnvironment(
+  'HOCALIST_WIFI_TEST_ORIGIN',
+);
+
+const hocalistHttpsTestOrigin = String.fromEnvironment(
+  'HOCALIST_HTTPS_TEST_ORIGIN',
+);
+
+/// Preview access requires an explicit build flag and an exact local/test origin.
+/// Hosted production domains are not admitted by the default build.
+bool isHocalistLocalWebTestOrigin(
+  Uri uri, {
+  required bool enabled,
+  String httpsTestOrigin = hocalistHttpsTestOrigin,
+}) {
+  if (!enabled) return false;
+  if (uri.scheme == 'http') {
+    return uri.host == 'localhost' ||
+        uri.host == '127.0.0.1' ||
+        (hocalistWifiTestOrigin.isNotEmpty &&
+            uri.origin == hocalistWifiTestOrigin);
+  }
+  return uri.scheme == 'https' &&
+      httpsTestOrigin.isNotEmpty &&
+      uri.origin == httpsTestOrigin;
+}
 
 bool get hocalistLocalWebTest =>
     kIsWeb &&
@@ -25,6 +45,30 @@ bool get hocalistLocalWebTest =>
       Uri.base,
       enabled: hocalistLocalWebTestEnabled,
     );
+
+/// Supabase rejects non-loopback IP callbacks before its allowlist is checked.
+bool supportsHocalistOAuthReturn(Uri uri) =>
+    uri.scheme == 'https' ||
+    (uri.scheme == 'http' &&
+        (uri.host == 'localhost' || uri.host == '127.0.0.1'));
+
+/// Move an unsupported local preview to its configured HTTPS origin before
+/// starting OAuth, so the PKCE verifier is created on the destination origin.
+Uri? hocalistSecurePreviewHandoff(
+  Uri current, {
+  String secureOrigin = hocalistHttpsTestOrigin,
+}) {
+  if (supportsHocalistOAuthReturn(current) || secureOrigin.isEmpty) return null;
+  final destination = Uri.tryParse(secureOrigin);
+  if (destination == null ||
+      destination.scheme != 'https' ||
+      destination.host.isEmpty ||
+      destination.userInfo.isNotEmpty ||
+      destination.origin != secureOrigin) {
+    return null;
+  }
+  return destination.replace(path: '/');
+}
 
 String get hocalistAuthRedirect =>
     hocalistLocalWebTest ? '${Uri.base.origin}/' : hocalistAuthCallback;

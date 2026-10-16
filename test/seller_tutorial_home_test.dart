@@ -282,6 +282,14 @@ void main() {
     await tester.tap(find.byKey(const Key('sellerTutorialContinue')));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const Key('approvedSellerEditProfilePage')),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.byKey(const Key('sellerSaveProfile')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sellerSaveProfile')));
+    await tester.pumpAndSettle();
     expect(find.text('Seller mode'), findsOneWidget);
     expect(find.byKey(const Key('sellerNavHome')), findsOneWidget);
     expect(find.text('Find more buyers'), findsOneWidget);
@@ -367,6 +375,12 @@ void main() {
         height: 1000,
       );
 
+      expect(find.byKey(const Key('sellerLeadsScroll')), findsOneWidget);
+      await tester.drag(
+        find.byKey(const Key('sellerLeadsScroll')),
+        const Offset(0, 1600),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Find Customers'), findsOneWidget);
       final verifiedFact = find.byKey(const Key('sellerVerifiedFactAC'));
       final verifiedIcon = find
@@ -389,6 +403,8 @@ void main() {
         tester.getCenter(find.byKey(const Key('sellerPrepareOfferIconAC'))).dx,
         lessThan(tester.getCenter(prepareText).dx),
       );
+      await tester.ensureVisible(find.text('Prepare offer').first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Prepare offer').first);
       await tester.pumpAndSettle();
       expect(
@@ -427,6 +443,12 @@ void main() {
       await tester.tap(find.byKey(const Key('sellerSendOfferClose')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsNothing);
+      expect(find.byKey(const Key('sellerLeadsScroll')), findsOneWidget);
+      await tester.drag(
+        find.byKey(const Key('sellerLeadsScroll')),
+        const Offset(0, 1600),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Find Customers'), findsOneWidget);
     },
   );
@@ -444,6 +466,8 @@ void main() {
       height: 1000,
     );
 
+    await tester.ensureVisible(find.text('Prepare offer').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -460,6 +484,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsNothing);
+    expect(find.byKey(const Key('sellerLeadsScroll')), findsOneWidget);
+    await tester.drag(
+      find.byKey(const Key('sellerLeadsScroll')),
+      const Offset(0, 1600),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Find Customers'), findsOneWidget);
     expect(find.byKey(const Key('sellerOfferSubmittedNotice')), findsOneWidget);
   });
@@ -477,6 +507,8 @@ void main() {
       height: 1000,
     );
 
+    await tester.ensureVisible(find.text('Prepare offer').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     final offerScroll = find
@@ -578,6 +610,8 @@ void main() {
         height: 1000,
       );
 
+      await tester.ensureVisible(find.text('Prepare offer').first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Prepare offer').first);
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
@@ -611,6 +645,8 @@ void main() {
       height: 1000,
     );
 
+    await tester.ensureVisible(find.text('Prepare offer').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -654,6 +690,8 @@ void main() {
       height: 1000,
     );
 
+    await tester.ensureVisible(find.text('Prepare offer').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('sellerOfferPrice')), '');
@@ -692,6 +730,8 @@ void main() {
       find.byKey(const Key('sellerLeadsScroll')),
       const Offset(0, -320),
     );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
@@ -1110,7 +1150,12 @@ void main() {
         onBack: () {},
         onDone: () {},
       ),
-      ApprovedSellerProfileSetupPage(onBack: () {}, onContinue: () {}),
+      ApprovedSellerEditProfilePage(
+        name: 'Seller',
+        onNameChanged: (_) {},
+        onBack: () {},
+        onDone: () async {},
+      ),
       ApprovedSellerVerificationPage(onBack: () {}, onFinish: () {}),
       ApprovedSellerOfferHistoryPage(
         onBack: () {},
@@ -1402,4 +1447,3 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
-

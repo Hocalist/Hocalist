@@ -558,7 +558,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
     );
   }
 
-  Future<void> _openOffer(SellerLeadView lead) async {
+  Future<void> _openOffer(SellerLeadView lead, {bool? highPreset}) async {
     if (_openingOffer) return;
     _openingOffer = true;
     if (widget.onValidateLead != null) {
@@ -591,6 +591,9 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
       barrierColor: const Color(0x990B1231),
       builder: (context) => _SendOfferSheet(
         lead: lead,
+        initialPrice: highPreset == null
+            ? null
+            : lead.presetPrice(high: highPreset),
         sellerName: widget.sellerName,
         presentation: widget.offerPresentation,
         onChooseSpecificLocation: widget.onChooseSpecificLocation,
@@ -737,6 +740,12 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
                         key: Key('sellerLeadCard${lead.initials}'),
                         lead: lead,
                         onPrepareOffer: () => _openOffer(lead),
+                        onLowOffer: lead.presetPrice(high: false) == null
+                            ? null
+                            : () => _openOffer(lead, highPreset: false),
+                        onHighOffer: lead.presetPrice(high: true) == null
+                            ? null
+                            : () => _openOffer(lead, highPreset: true),
                       ),
                       SizedBox(height: metrics.spacing(12)),
                     ],
@@ -1218,11 +1227,14 @@ class _LeadCard extends StatelessWidget {
   const _LeadCard({
     required this.lead,
     required this.onPrepareOffer,
+    this.onLowOffer,
+    this.onHighOffer,
     super.key,
   });
 
   final SellerLeadView lead;
   final VoidCallback onPrepareOffer;
+  final VoidCallback? onLowOffer, onHighOffer;
 
   @override
   Widget build(BuildContext context) {
@@ -1413,26 +1425,20 @@ class _LeadCard extends StatelessWidget {
                 ],
               ),
               SizedBox(height: metrics.spacing(10)),
-              Row(
-                children: [
-                  Expanded(
-                    child: _BidButton(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final actions = <Widget>[
+                    _BidButton(
                       label: 'Send Low Bid',
                       icon: Icons.bolt,
-                      onTap: onPrepareOffer,
+                      onTap: onLowOffer,
                     ),
-                  ),
-                  SizedBox(width: metrics.geometry(7)),
-                  Expanded(
-                    child: _BidButton(
+                    _BidButton(
                       label: 'Send High Bid',
                       icon: Icons.rocket_launch_outlined,
-                      onTap: onPrepareOffer,
+                      onTap: onHighOffer,
                     ),
-                  ),
-                  SizedBox(width: metrics.geometry(7)),
-                  Expanded(
-                    child: SellerPrimaryButton(
+                    SellerPrimaryButton(
                       label: 'Prepare offer',
                       compact: true,
                       fontSize: 12,
@@ -1444,8 +1450,30 @@ class _LeadCard extends StatelessWidget {
                         size: metrics.artSize(17),
                       ),
                     ),
-                  ),
-                ],
+                  ];
+                  final stacked =
+                      constraints.maxWidth < 300 ||
+                      MediaQuery.textScalerOf(context).scale(12) > 15.6;
+                  if (stacked) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < actions.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          actions[i],
+                        ],
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      for (var i = 0; i < actions.length; i++) ...[
+                        if (i > 0) SizedBox(width: metrics.geometry(7)),
+                        Expanded(child: actions[i]),
+                      ],
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -1509,7 +1537,7 @@ class _BidButton extends StatelessWidget {
   });
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
@@ -1543,6 +1571,7 @@ class _SendOfferSheet extends StatefulWidget {
     required this.lead,
     required this.sellerName,
     required this.presentation,
+    this.initialPrice,
     this.onChooseSpecificLocation,
     this.timezones = const <String>[],
     this.onSubmitOffer,
@@ -1552,6 +1581,7 @@ class _SendOfferSheet extends StatefulWidget {
   final SellerLeadView lead;
   final String sellerName;
   final SellerOfferPresentation presentation;
+  final String? initialPrice;
   final SellerOfferPlacePicker? onChooseSpecificLocation;
   final List<String> timezones;
   final SellerOfferSubmitter? onSubmitOffer;
@@ -1591,7 +1621,9 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     final product = widget.lead.request
         .replaceFirst('Looking for ', '')
         .replaceFirst('Need ', '');
-    _priceController = TextEditingController(text: _presentation.defaultPrice);
+    _priceController = TextEditingController(
+      text: widget.initialPrice ?? _presentation.defaultPrice,
+    );
     _messageController = TextEditingController(
       text: _realMode
           ? ''
@@ -3393,6 +3425,8 @@ class SellerLeadView {
     this.matchReasons = const [],
     this.realMode = false,
     this.acceptsHigherOffers = false,
+    this.minimumMinor,
+    this.maximumMinor,
   });
 
   /// Builds the approved lead card from a real seller lead projection.
@@ -3415,6 +3449,8 @@ class SellerLeadView {
       request: projection.title,
       description: projection.description,
       budget: _budgetLabelFor(projection.budget),
+      minimumMinor: projection.budget.minimum?.minorUnits,
+      maximumMinor: projection.budget.maximum?.minorUnits,
       match: projection.matchPercent ?? 0,
       purchases: projection.verifiedPurchaseCount,
       lastPurchase: projection.lastCompletedItemLabel ?? 'Not shared',
@@ -3436,6 +3472,21 @@ class SellerLeadView {
       budget,
       lastPurchase,
       meeting;
+  final int? minimumMinor, maximumMinor;
+  String? presetPrice({required bool high}) {
+    var minor = high ? maximumMinor : minimumMinor;
+    if (!realMode && minor == null) {
+      final amounts = RegExp(
+        r'\d+(?:\.\d+)?',
+      ).allMatches(budget).map((m) => double.parse(m[0]!)).toList();
+      if (amounts.isNotEmpty) {
+        minor = ((high ? amounts.last : amounts.first) * 100).round();
+      }
+    }
+    if (minor == null) return null;
+    return '${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')}';
+  }
+
   final int match;
   final int? purchases;
   final Color avatarColor, initialColor;

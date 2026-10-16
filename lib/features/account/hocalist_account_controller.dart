@@ -119,6 +119,8 @@ String accountActionMessage(String code) {
     'malformed_response' =>
       'Something went wrong while loading your account. Try again later.',
     'server' => 'Something went wrong. Try again.',
+    'https_preview_required' =>
+      'Open the HTTPS test link before continuing with Google. Google cannot return to the Wi-Fi IP address.',
     'authentication_failed' => 'Sign-in failed. Try again.',
     'not_found' => 'The requested account record was not found.',
     'unexpected' => 'Something went wrong. Try again.',
@@ -555,14 +557,28 @@ class HocalistAccountController extends ChangeNotifier {
     });
   }
 
-  Future<void> requestPhoneCode({required String phone, required bool signup}) {
+  Future<void> requestPhoneCode({
+    required String phone,
+    required bool signup,
+    String? name,
+  }) {
+    if (signup && name != null && name.trim().isNotEmpty) {
+      _suggestedDisplayName = name.trim();
+    }
     return _runForm(() => _auth.requestPhoneCode(phone: phone, signup: signup));
   }
 
-  Future<void> confirmPhoneCode({required String phone, required String code}) {
+  Future<void> confirmPhoneCode({
+    required String phone,
+    required String code,
+    String? name,
+  }) {
     return _runForm(() async {
       await _auth.confirmPhoneCode(phone: phone, code: code);
       _adoptCurrentIdentity();
+      if (name != null && name.trim().isNotEmpty) {
+        _suggestedDisplayName = name.trim();
+      }
       if (!_identity.isSignedIn) {
         throw const AccountAuthException('authentication_failed');
       }

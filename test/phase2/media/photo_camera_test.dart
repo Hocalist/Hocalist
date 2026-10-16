@@ -5,6 +5,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/media/photo_camera_page.dart';
 
 void main() {
+  testWidgets('opening the camera prompt requests video without a setup page', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('FlutterWebRTC.Method'),
+      (call) async {
+        calls.add(call);
+        if (call.method == 'createVideoRenderer') return {'textureId': 1};
+        if (call.method == 'getUserMedia') {
+          throw PlatformException(code: 'NotAllowedError');
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel('FlutterWebRTC.Method'),
+        null,
+      ),
+    );
+    await tester.pumpWidget(
+      const MaterialApp(home: PhotoCameraPage(autoStart: true)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byType(AppBar), findsNothing);
+    expect(calls.where((c) => c.method == 'getUserMedia'), hasLength(1));
+    expect(find.text('Camera needs attention'), findsOneWidget);
+  });
+
   testWidgets(
     'permission timeout is retryable and late camera streams are stopped',
     (tester) async {

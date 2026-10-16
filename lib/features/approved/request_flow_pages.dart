@@ -240,6 +240,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   void initState() {
     super.initState();
     _kind = widget.initialKind;
+    _useHomeAddress =
+        !widget.usesRealSubmission ||
+        (widget.homeAddress != null && widget.homeAddress!.isNotEmpty);
     final homeCountry = widget.homeAddress?.country?.trim().toUpperCase();
     _country =
         homeCountry != null && RegExp(r'^[A-Z]{2}$').hasMatch(homeCountry)
@@ -434,8 +437,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
         postalCode: _postalCode,
         country: _country,
       );
-      if (address.isEmpty) {
-        return 'Enter the address where you need this service.';
+      if ((address.line1?.trim().isEmpty ?? true) &&
+          (address.city?.trim().isEmpty ?? true)) {
+        return 'Choose a location or enter an address.';
       }
     }
     return null;
@@ -522,6 +526,13 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       if (!mounted || location == null) return;
       setState(() {
         _mapLocation = location;
+        final address = location.address;
+        _addressLine1 = address?.line1;
+        _addressLine2 = address?.line2;
+        _city = address?.city;
+        _state = address?.state;
+        _postalCode = address?.postalCode;
+        _country = address?.country;
         _useHomeAddress = false;
         _submitError = null;
       });
@@ -669,6 +680,14 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                               : '123 Main Street'),
                       homeAddressLine2: _homeAddressLine2,
                       countryLabel: _countryLabel,
+                      customAddress: PostalAddress(
+                        line1: _addressLine1,
+                        line2: _addressLine2,
+                        city: _city,
+                        state: _state,
+                        postalCode: _postalCode,
+                        country: _country,
+                      ),
                       onAddressLine1Changed: _updateAddress(
                         (value) => _addressLine1 = value,
                       ),
@@ -1136,6 +1155,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     this.onCountryChanged,
     this.onChooseLocation,
     this.selectedMapAddress,
+    this.customAddress,
     super.key,
   });
 
@@ -1168,6 +1188,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
   final ValueChanged<String>? onCountryChanged;
   final VoidCallback? onChooseLocation;
   final String? selectedMapAddress;
+  final PostalAddress? customAddress;
 
   @override
   Widget build(BuildContext context) {
@@ -1343,12 +1364,14 @@ class ApprovedLocationRequestStep extends StatelessWidget {
               SizedBox(height: metrics.geometry(6)),
               _ApprovedAddressField(
                 label: 'Street address',
+                value: customAddress?.line1,
                 hint: '123 Main St',
                 onChanged: onAddressLine1Changed,
               ),
               SizedBox(height: metrics.geometry(5)),
               _ApprovedAddressField(
                 label: 'Apartment, suite, etc. (optional)',
+                value: customAddress?.line2,
                 hint: 'Apt 4B, Suite 200, etc.',
                 onChanged: onAddressLine2Changed,
               ),
@@ -1359,6 +1382,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                   Expanded(
                     child: _ApprovedAddressField(
                       label: 'City',
+                      value: customAddress?.city,
                       hint: 'Enter city',
                       onChanged: onCityChanged,
                     ),
@@ -1367,6 +1391,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                   Expanded(
                     child: _ApprovedAddressField(
                       label: 'State',
+                      value: customAddress?.state,
                       hint: 'Select state',
                       dropdown: true,
                       onChanged: onStateChanged,
@@ -1381,6 +1406,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                   Expanded(
                     child: _ApprovedAddressField(
                       label: 'ZIP code',
+                      value: customAddress?.postalCode,
                       hint: 'Enter ZIP code',
                       onChanged: onPostalCodeChanged,
                     ),
@@ -2194,12 +2220,18 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Image.asset(
-                'assets/brand/hocalist-wordmark.png',
-                width: metrics.geometry(95),
-                height: metrics.geometry(53.625),
-                fit: BoxFit.contain,
-                semanticLabel: 'Hocalist Reverse Marketplace',
+              Positioned(
+                left: metrics.geometry(43),
+                right: constraints.maxWidth * .48,
+                top: 0,
+                bottom: 0,
+                child: Image.asset(
+                  'assets/brand/hocalist-wordmark.png',
+                  width: metrics.geometry(95),
+                  height: metrics.geometry(53.625),
+                  fit: BoxFit.contain,
+                  semanticLabel: 'Hocalist Reverse Marketplace',
+                ),
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -2226,7 +2258,10 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                           ),
                           SizedBox(width: metrics.geometry(3.66)),
                           Text(
-                            metrics.accessibilityReflow || metrics.isNarrow
+                            metrics.accessibilityReflow ||
+                                    metrics.availableWidth < 390 ||
+                                    MediaQuery.textScalerOf(context).scale(12) >
+                                        13.2
                                 ? 'Buyer'
                                 : 'Buyer mode',
                             maxLines: 1,
@@ -2418,11 +2453,16 @@ class _ApprovedStepProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final location = currentStep == _ApprovedRequestStep.location;
     final metrics = _replicaMetrics(context);
+    final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
+    final insetProgress = ((scale - 1) / .3).clamp(0.0, 1.0);
     return Padding(
       padding: metrics.accessibilityReflow
-          ? EdgeInsets.symmetric(horizontal: metrics.geometry(28))
+          ? EdgeInsets.symmetric(horizontal: metrics.geometry(8))
           : metrics.geometryInsets(
-              const EdgeInsets.only(left: 75.56, right: 104.81),
+              EdgeInsets.only(
+                left: 75.56 + (28 - 75.56) * insetProgress,
+                right: 104.81 + (28 - 104.81) * insetProgress,
+              ),
             ),
       child: Row(
         children: [
@@ -3733,6 +3773,15 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
   late final TextEditingController _fieldController = TextEditingController(
     text: widget.value,
   );
+
+  @override
+  void didUpdateWidget(covariant _ApprovedAddressField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _selectedValue = widget.value;
+      _fieldController.text = widget.value ?? '';
+    }
+  }
 
   @override
   void dispose() {

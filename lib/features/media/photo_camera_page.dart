@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
-import '../../components/hocalist_section_intro.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../../theme/seller_ui_foundation.dart';
@@ -11,7 +10,12 @@ import 'photo_bytes.dart';
 /// Browser camera uses an explicit live preview rather than an upload input
 /// whose capture hint desktop browsers ignore. Audio is never requested.
 class PhotoCameraPage extends StatefulWidget {
-  const PhotoCameraPage({this.seller = false, super.key});
+  const PhotoCameraPage({
+    this.seller = false,
+    this.autoStart = false,
+    super.key,
+  });
+  final bool autoStart;
   final bool seller;
   @override
   State<PhotoCameraPage> createState() => _PhotoCameraPageState();
@@ -40,6 +44,16 @@ class _PhotoCameraPageState extends State<PhotoCameraPage> {
           body: body,
           tone: failed ? BuyerNoticeTone.error : BuyerNoticeTone.neutral,
         );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(start());
+      });
+    }
+  }
 
   Future<void> start() async {
     if (busy || ready) return;
@@ -147,12 +161,18 @@ class _PhotoCameraPageState extends State<PhotoCameraPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Profile photo')),
-    body: SafeArea(
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.all(20),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    clipBehavior: Clip.antiAlias,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 440),
       child: ListView(
+        shrinkWrap: true,
         padding: const EdgeInsets.all(16),
         children: [
+          Text('Take photo', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
           if (error != null)
             notice('Camera needs attention', error!, failed: true),
           if (!ready && error == null)
@@ -162,50 +182,16 @@ class _PhotoCameraPageState extends State<PhotoCameraPage> {
                   'Only the photo you choose is uploaded.',
             ),
           const SizedBox(height: 12),
-          const HocalistSectionIntro(
-            title: 'Camera preview',
-            icon: Icons.camera_alt_outlined,
-          ),
-          HocalistExpand(
-            child: SizedBox(
-              height: ready ? 320 : null,
+          if (ready)
+            HocalistExpand(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: ready
-                    ? RTCVideoView(renderer, mirror: true)
-                    : Container(
-                      constraints: const BoxConstraints(minHeight: 120),
-                      padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xfff1f0ff),
-                          border: Border.all(color: const Color(0xffd9d5ff)),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.center_focus_strong_outlined,
-                                size: 32,
-                                color: Color(0xff1717d5),
-                              ),
-                              SizedBox(height: 10),
-                              Text(
-                                'Your preview will appear here',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xff59617f),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: RTCVideoView(renderer, mirror: true),
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 16),
           if (widget.seller)
             SellerPrimaryButton(
