@@ -8,6 +8,7 @@
 library;
 
 import 'dart:math';
+import '../../../domain/phase2/common.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -116,6 +117,7 @@ class PlaceDetails {
     required String address,
     required this.latitude,
     required this.longitude,
+    this.postalAddress,
     List<PlaceAttribution> attributions = const [],
   }) : placeId = _requireText(placeId, 'placeId', 256),
        address = _requireText(address, 'address', 1000),
@@ -132,6 +134,7 @@ class PlaceDetails {
   final String address;
   final double latitude;
   final double longitude;
+  final PostalAddress? postalAddress;
 
   /// Provider attributions that must stay visible where the place is shown.
   final List<PlaceAttribution> attributions;

@@ -351,17 +351,30 @@ void main() {
     );
     await tester.pump();
     expect(
-      find.byKey(const ValueKey('approved-account-email-field')),
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('approved-account-email-field')),
+      ),
       findsNothing,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('approved-account-name-field')),
+      ),
+      'Phone Buyer',
     );
 
     await tester.enterText(
-      find.byKey(const ValueKey('approved-account-phone-field')),
+      find.descendant(of: find.byType(BottomSheet), matching: find.byKey(const ValueKey('approved-account-phone-field'))),
       '+14155550123',
     );
     await tapVisible(
       tester,
-      find.byKey(const ValueKey('approved-account-primary-action')),
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('approved-account-primary-action')),
+      ),
     );
     await tester.pump();
 
@@ -379,16 +392,16 @@ void main() {
     );
     await tapVisible(
       tester,
-      find.byKey(const ValueKey('approved-account-primary-action')),
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('approved-account-primary-action')),
+      ),
     );
     await tester.pump();
     expect(confirmedCode, '123456');
 
-    await tapVisible(
-      tester,
-      find.byKey(const ValueKey('approved-account-phone-cancel')),
-    );
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
     expect(
       find.byKey(const ValueKey('approved-account-email-field')),
       findsOneWidget,
@@ -428,12 +441,15 @@ void main() {
     );
     await tester.pump();
     await tester.enterText(
-      find.byKey(const ValueKey('approved-account-phone-field')),
+      find.descendant(of: find.byType(BottomSheet), matching: find.byKey(const ValueKey('approved-account-phone-field'))),
       '+14155550123',
     );
     await tapVisible(
       tester,
-      find.byKey(const ValueKey('approved-account-primary-action')),
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('approved-account-primary-action')),
+      ),
     );
     await tester.pump();
 

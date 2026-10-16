@@ -1189,7 +1189,12 @@ void main() {
         );
 
         expect(find.text('Your confirmation PIN: 15230'), findsOneWidget);
-        expect(find.textContaining(r'$1.40 reward'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Any eligible reward follows the configured policy',
+          ),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
 
         await pumpSurface(

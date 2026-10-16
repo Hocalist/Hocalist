@@ -115,6 +115,7 @@ import 'features/seller/seller_app_shell.dart';
 import 'features/seller/seller_bottom_navigation.dart';
 import 'theme/accessibility_visuals.dart';
 import 'theme/buyer_ui_foundation.dart';
+import 'theme/seller_ui_foundation.dart' show SellerUiColors;
 import 'theme/input_foundation.dart';
 import 'theme/role_asset_bundle.dart';
 
@@ -454,7 +455,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   SupportAdapter? _supportAdapter;
   String? _supportConversationId;
   Widget _realSupportPage() => SupportCasesPage(
-    key: ValueKey('support-${_supportConversationId ?? 'general'}'),
+    key: ValueKey(
+      'support-${page.name}-${_supportConversationId ?? 'general'}',
+    ),
+    initialReasonCode: page == AppPage.reportIssue ? 'safety' : 'general',
+    generalHelp: page != AppPage.reportIssue,
     adapter: _supportAdapter ??= createSupportAdapter(),
     onBack: back,
     conversationId: page == AppPage.reportIssue ? _supportConversationId : null,
@@ -495,7 +500,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   AppPage page = AppPage.welcome;
   final history = <AppPage>[];
 
-  String buyerName = 'Maya Chen';
+  String buyerName = '';
+  final ApprovedAccountDraft _signupDraft = ApprovedAccountDraft();
   String sellerName = 'Northside Tech';
   String requestTitle = 'iPad Air, 5th gen or newer';
   String requestBudget = '\$350 - \$480';
@@ -629,6 +635,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         AppPage.buyerBenefits,
         AppPage.buyerDashboard,
         AppPage.createRequest,
+        AppPage.requestSuccess,
         AppPage.buyerRequestDetail,
         AppPage.offersReceived,
         AppPage.buyerOfferDetail,
@@ -647,38 +654,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         AppPage.accountSecurity,
         AppPage.accountLifecycle,
       }.contains(page);
-  bool get _suppressesGlobalHeader =>
-      {
-        AppPage.hocatrendsSellers,
-        AppPage.recentActivity,
-        AppPage.sellerProfile,
-        AppPage.sellerProfileSetup,
-        AppPage.sellerVerification,
-        AppPage.sellerOfferHistory,
-        AppPage.sellerOfferDetail,
-        AppPage.sellerOriginalRequest,
-        AppPage.buyerPublicProfile,
-        AppPage.sellerBilling,
-        AppPage.sellerPaymentMethod,
-        AppPage.sellerSettings,
-        AppPage.sellerNotifications,
-        AppPage.sellerNotificationPreferences,
-        AppPage.safetyGuide,
-        AppPage.helpSupport,
-        AppPage.editProfile,
-      }.contains(page) ||
-      (role == UserRole.buyer &&
-          {
-            AppPage.buyerNotificationPreferences,
-            AppPage.savedItems,
-            AppPage.safetyGuide,
-            AppPage.reportIssue,
-            AppPage.helpSupport,
-            AppPage.supportReviewStatus,
-            AppPage.sellerPublicProfile,
-            AppPage.withdrawal,
-            AppPage.buyerSettings,
-          }.contains(page));
+  bool get _suppressesGlobalHeader => false;
 
   ApprovedBuyerNavigation get _approvedBuyerNavigation =>
       ApprovedBuyerNavigation(
@@ -1690,10 +1666,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final XFile? picked;
     try {
       if (camera && kIsWeb) {
-        final bytes = await appNavigatorKey.currentState!.push<Uint8List>(
-          MaterialPageRoute(
-            builder: (_) => PhotoCameraPage(seller: role == 'seller'),
-          ),
+        final bytes = await showDialog<Uint8List>(
+          context: appNavigatorKey.currentContext!,
+          builder: (_) =>
+              PhotoCameraPage(seller: role == 'seller', autoStart: true),
         );
         picked = bytes == null
             ? null
@@ -3349,14 +3325,30 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     setState(() {
       requestPosted = true;
       history.clear();
-      page = AppPage.buyerDashboard;
+      page = AppPage.buyerRequestDetail;
     });
     _saveSession();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      showMessage('Request posted. You are back home.');
+      _showRequestPostedDialog();
     });
+  }
+
+  void _showRequestPostedDialog() {
+    final dialogContext = appNavigatorKey.currentContext;
+    if (dialogContext == null || !mounted) return;
+    showDialog<void>(
+      context: dialogContext,
+      animationStyle: HocalistMotion.dialogStyle(dialogContext),
+      builder: (popupContext) => ApprovedRequestPostedDialog(
+        onViewRequest: () => Navigator.of(popupContext).pop(),
+        onHome: () {
+          Navigator.of(popupContext).pop();
+          resetTo(AppPage.buyerDashboard);
+        },
+      ),
+    );
   }
 
   /// Opens the place-capture sheet for a real offer and maps the confirmed
@@ -3418,7 +3410,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     );
     if (result == null || result.address.trim().isEmpty) return null;
     return RequestLocation.custom(
-      address: PostalAddress(line1: result.address),
+      address: result.postalAddress ?? PostalAddress(line1: result.address),
       coordinates: result.hasCoordinates
           ? RequestCoordinates(
               latitude: result.latitude!,
@@ -3523,7 +3515,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     _saveSession();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      showMessage('Request posted.');
+      _showRequestPostedDialog();
     });
   }
 
@@ -3580,7 +3572,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     if (history.isEmpty) {
       if (signedIn) {
         resetTo(
-          role == UserRole.seller ? AppPage.sellerMore : AppPage.buyerSupport,
+          role == UserRole.seller
+              ? AppPage.sellerDashboard
+              : AppPage.buyerDashboard,
         );
       }
       return;
@@ -3663,12 +3657,70 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       home: Scaffold(
         body: _usesIntegratedPageChrome
             ? HocalistPageTransition(
-                child: KeyedSubtree(key: ValueKey(page), child: currentPage()),
+                child:
+                    {
+                      AppPage.accountSecurity,
+                      AppPage.accountLifecycle,
+                      AppPage.buyerWallet,
+                    }.contains(page)
+                    ? SafeArea(
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                              child: HocalistGlobalHeader(
+                                role: role,
+                                accent: roleAccent,
+                                showSavedIndicator: restoredSession,
+                                onNotifications: () => go(
+                                  role == UserRole.seller
+                                      ? AppPage.sellerNotifications
+                                      : AppPage.notifications,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: KeyedSubtree(
+                                key: ValueKey(page),
+                                child: currentPage(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : KeyedSubtree(key: ValueKey(page), child: currentPage()),
               )
             : SafeArea(
                 child: HocalistPageTransition(
                   child: page == AppPage.accessibility
-                      ? KeyedSubtree(key: ValueKey(page), child: currentPage())
+                      ? Column(
+                          children: [
+                            if (signedIn)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  10,
+                                  16,
+                                  8,
+                                ),
+                                child: HocalistGlobalHeader(
+                                  role: role,
+                                  accent: roleAccent,
+                                  onNotifications: () => go(
+                                    role == UserRole.seller
+                                        ? AppPage.sellerNotifications
+                                        : AppPage.notifications,
+                                  ),
+                                ),
+                              ),
+                            Expanded(
+                              child: KeyedSubtree(
+                                key: ValueKey(page),
+                                child: currentPage(),
+                              ),
+                            ),
+                          ],
+                        )
                       : AppFrame(
                           key: ValueKey(page),
                           childOwnsScroll:
@@ -3763,7 +3815,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       case AppPage.buyerSignup:
         return ApprovedAccountCreationPage(
           role: ApprovedAccountRole.buyer,
-          name: buyerName,
+          draft: _signupDraft,
+          name: _signupDraft.name,
           onNameChanged: updateBuyerName,
           onRoleChanged: (nextRole) {
             setState(
@@ -3786,7 +3839,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       case AppPage.buyerBenefits:
         return ApprovedBuyerBenefitsPage(
           name: buyerName,
-          onClose: () => resetTo(AppPage.welcome),
+          onClose: () =>
+              completeAuthentication(UserRole.buyer, AppPage.buyerDashboard),
           onFinish: () =>
               completeAuthentication(UserRole.buyer, AppPage.buyerDashboard),
         );
@@ -3985,16 +4039,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               : null,
         );
       case AppPage.requestSuccess:
-        return ResultPage(
-          accent: accent,
-          icon: Icons.check_circle_outline,
-          title: 'Request posted',
-          body:
-              'Sellers nearby can now send offers. You can review the request or wait for new offer alerts.',
-          primaryLabel: 'View request',
-          onPrimary: () => go(AppPage.buyerRequestDetail),
-          secondaryLabel: 'Back to dashboard',
-          onSecondary: () => resetTo(AppPage.buyerDashboard),
+        return ApprovedRequestSuccessPage(
+          navigation: _approvedBuyerNavigation,
+          onViewRequest: () => go(AppPage.buyerRequestDetail),
+          onHome: () => resetTo(AppPage.buyerDashboard),
         );
       case AppPage.buyerRequestDetail:
         final activeRequest = _currentBuyerRequest;
@@ -4452,6 +4500,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         );
       case AppPage.buyerConfirmation:
         return ApprovedBuyerAfterMeetupPage(
+          requestTitle: requestTitle,
           onBack: back,
           navigation: _approvedBuyerNavigation,
           onReview: () => commit(
@@ -4694,6 +4743,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onBack: back,
             onSafety: () => go(AppPage.safetyGuide),
             onContactSupport: _realAccountMode
+                ? () => go(AppPage.supportReviewStatus)
+                : null,
+            onReportSafety: _realAccountMode
                 ? () => go(AppPage.reportIssue)
                 : null,
           );
@@ -4706,6 +4758,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         );
       case AppPage.buyerSettings:
         return BuyerSettingsPage(
+          onBack: back,
           darkMode: darkMode,
           textSize: textSize,
           onEditProfile: () => go(AppPage.editProfile),
@@ -4767,6 +4820,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         final lifecycleSession = widget.accountSession;
         final lifecycleUserId = lifecycleSession?.userId;
         return AccountLifecyclePage(
+          seller: role == UserRole.seller,
           backend: createConfiguredAccountLifecycleBackend(),
           email: lifecycleSession?.email,
           reauthenticate: lifecycleSession?.reauthenticate,
@@ -4777,10 +4831,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         );
       case AppPage.accessibility:
         return AccessibilityPage(
+          seller: role == UserRole.seller,
           appliedPreferences: accessibilityPreferences,
           onApply: applyAccessibilityPreferences,
           onBack: back,
         );
+      case AppPage.sellerProfileSetup:
       case AppPage.editProfile:
         final account = widget.accountSession;
         final categoryBackend = createConfiguredProfileCategoriesBackend();
@@ -4835,7 +4891,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   ),
             onDone: () async {
               if (!await _saveProfileName(sellerName, seller: true)) return;
-              if (mounted) resetTo(AppPage.sellerProfile);
+              if (mounted) {
+                resetTo(
+                  page == AppPage.sellerProfileSetup
+                      ? AppPage.sellerDashboard
+                      : AppPage.sellerProfile,
+                );
+              }
             },
           );
         }
@@ -4874,7 +4936,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           variantRoot: 'assets/approved_seller/onboarding_home',
           child: ApprovedAccountCreationPage(
             role: ApprovedAccountRole.seller,
-            name: sellerName,
+            draft: _signupDraft,
+            name: _signupDraft.name,
             onNameChanged: updateSellerName,
             onRoleChanged: (nextRole) {
               setState(
@@ -4899,15 +4962,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         );
       case AppPage.sellerTutorial:
         return ApprovedSellerTutorialPage(
-          onContinue: () =>
-              completeAuthentication(UserRole.seller, AppPage.sellerDashboard),
+          onContinue: () => completeAuthentication(
+            UserRole.seller,
+            AppPage.sellerProfileSetup,
+          ),
           onClose: () =>
               completeAuthentication(UserRole.seller, AppPage.sellerDashboard),
-        );
-      case AppPage.sellerProfileSetup:
-        return ApprovedSellerProfileSetupPage(
-          onBack: () => resetTo(AppPage.sellerTutorial),
-          onContinue: () => go(AppPage.sellerVerification),
         );
       case AppPage.sellerVerification:
         final trustBackend = createConfiguredTrustBackend();
@@ -5482,6 +5542,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     if ({
       AppPage.marketplace,
       AppPage.sellerRequestDetail,
+      AppPage.sellerOfferHistory,
+      AppPage.sellerOfferDetail,
       AppPage.sendOffer,
     }.contains(target)) {
       return SellerNavDestination.home;
@@ -5501,6 +5563,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
     if ({
       AppPage.sellerMore,
+      AppPage.sellerProfileSetup,
+      AppPage.sellerVerification,
       AppPage.sellerProfile,
       AppPage.sellerSettings,
       AppPage.sellerBilling,

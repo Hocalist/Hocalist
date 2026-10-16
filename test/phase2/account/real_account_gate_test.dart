@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hocalist/domain/phase2/accounts.dart';
 import 'package:hocalist/domain/phase2/failures.dart';
 import 'package:hocalist/domain/phase2/profiles.dart';
@@ -50,6 +51,57 @@ void main() {
     return controller;
   }
 
+  test(
+    'phone signup name survives the authenticated identity transition',
+    () async {
+      final controller = buildController();
+      await controller.start();
+      await controller.requestPhoneCode(
+        phone: '+14155550123',
+        signup: true,
+        name: 'Phone Buyer',
+      );
+      await controller.confirmPhoneCode(
+        phone: '+14155550123',
+        code: '123456',
+        name: 'Phone Buyer',
+      );
+      expect(controller.suggestedDisplayName, 'Phone Buyer');
+      expect(controller.userId, 'user-a');
+    },
+  );
+
+  testWidgets('real signup role changes retain typed email and password', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final controller = buildController();
+    await controller.start();
+    await tester.pumpWidget(gate(controller));
+    await tester.enterText(
+      find.byKey(const ValueKey('approved-account-email-field')),
+      'new@example.invalid',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('approved-account-password-field')),
+      'test-pass-123',
+    );
+    await tester.ensureVisible(find.text('I am selling'));
+    await tester.tap(find.text('I am selling'));
+    await tester.pumpAndSettle();
+    expect(controller.selectedRole, HocalistRole.seller);
+    for (final entry in {
+      'email': 'new@example.invalid',
+      'password': 'test-pass-123',
+    }.entries) {
+      final input = find.descendant(
+        of: find.byKey(ValueKey('approved-account-${entry.key}-field')),
+        matching: find.byType(EditableText),
+      );
+      expect(tester.widget<EditableText>(input).controller.text, entry.value);
+    }
+  });
+
   testWidgets('signed out shows the approved account creation page', (
     tester,
   ) async {
@@ -67,7 +119,7 @@ void main() {
               find.widgetWithText(OutlinedButton, provider),
             )
             .onPressed,
-        isNull,
+        isNotNull,
       );
     }
   });
@@ -78,8 +130,14 @@ void main() {
     final controller = buildController();
     await controller.start();
     await tester.pumpWidget(gate(controller));
+    await tester.ensureVisible(find.text('Log in'));
+    await tester.tap(find.text('Log in'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('approved-account-forgot-password')),
+    );
     await tester.tap(
-      find.byKey(const ValueKey('real-account-forgot-password')),
+      find.byKey(const ValueKey('approved-account-forgot-password')),
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Back to log in'));
@@ -145,6 +203,69 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('ACTIVE APP'), findsOneWidget);
+  });
+
+  testWidgets('onboarding centers logo and form without a scrolling page', (
+    tester,
+  ) async {
+    auth.signIn(signedInA);
+    accounts.membershipHandler = (_) => const RepositoryFailureResult(
+      NotFoundError(entityType: 'membership', entityId: 'buyer'),
+    );
+    final controller = buildController();
+    await controller.start();
+    for (final width in [320.0, 360.0, 390.0, 430.0]) {
+      tester.view.resetPhysicalSize();
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 844);
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        for (final keyboard in [0.0, 320.0]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(scale),
+                  viewInsets: EdgeInsets.only(bottom: keyboard),
+                ),
+                child: child!,
+              ),
+              home: HocalistRealAccountGate(
+                controller: controller,
+                activeBuilder: (_, _) => const SizedBox(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final group = tester.getRect(
+            find.byKey(const ValueKey('real-account-onboarding-group')),
+          );
+          final logo = tester.getRect(
+            find.byKey(const ValueKey('real-account-onboarding-logo')),
+          );
+          final heading = tester.getRect(
+            find.text('Finish your buyer account'),
+          );
+          expect(logo.bottom, lessThan(heading.top));
+          expect(group.center.dy, closeTo((844 - keyboard) / 2, 1));
+          expect(group.top, greaterThanOrEqualTo(0));
+          expect(group.bottom, lessThanOrEqualTo(844 - keyboard));
+          expect(
+            find.ancestor(
+              of: find.byKey(const ValueKey('real-account-onboarding-group')),
+              matching: find.byType(Scrollable),
+            ),
+            findsNothing,
+          );
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '$width / $scale / $keyboard',
+          );
+        }
+      }
+    }
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
   });
 
   testWidgets('pending membership blocks app content and can log out', (

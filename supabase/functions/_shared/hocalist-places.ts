@@ -62,11 +62,33 @@ export function parsePlacesQuery(value: unknown): PlacesQuery {
   }
   throw new PlacesFailure("invalid_input");
 }
+export function structuredAddress(value: unknown) {
+  if (value == null) return undefined;
+  if (!Array.isArray(value) || value.length > 40) throw new PlacesFailure('maps_invalid_response');
+  const components = value.map(object);
+  const field = (type: string, short = false): string | undefined => {
+    const component = components.find(c => Array.isArray(c.types) && c.types.includes(type));
+    if (!component) return undefined;
+    const raw = short ? component.shortText : component.longText;
+    return typeof raw === 'string' && raw.trim() ? text(raw, 300) : undefined;
+  };
+  const street = [field('street_number'), field('route')].filter(Boolean).join(' ');
+  return {
+    line1: street || field('premise'),
+    line2: field('subpremise'),
+    city: field('locality') ?? field('postal_town') ?? field('administrative_area_level_2'),
+    state: field('administrative_area_level_1', true),
+    postalCode: field('postal_code'),
+    country: field('country', true),
+  };
+}
+
 export type PlacesResult =
   | { suggestions: { placeId: string; label: string }[] }
   | {
     placeId: string;
     address: string;
+    postalAddress?: {line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string};
     latitude: number;
     longitude: number;
     attributions: { provider: string; uri: string }[];
@@ -116,7 +138,7 @@ export function createPlacesProvider(config: {
           "X-Goog-Api-Key": apiKey,
           "X-Goog-FieldMask": autocomplete
             ? "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text"
-            : "id,formattedAddress,location,attributions",
+            : "id,formattedAddress,addressComponents,location,attributions",
         },
         ...(autocomplete
           ? {
@@ -198,6 +220,7 @@ export function createPlacesProvider(config: {
       return {
         placeId: query.placeId,
         address: text(data.formattedAddress, 1000),
+        postalAddress: structuredAddress(data.addressComponents),
         latitude,
         longitude,
         attributions: attributions.map((item) => {

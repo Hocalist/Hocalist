@@ -55,6 +55,16 @@ typedef ApprovedPhoneRequest =
     Future<void> Function(String phone, {required bool signup});
 typedef ApprovedPhoneConfirm = Future<void> Function(String phone, String code);
 
+/// Ephemeral signup intent shared across role changes; never persisted to disk.
+class ApprovedAccountDraft {
+  String name = '', email = '', phone = '', password = '', confirmation = '';
+  bool? loginMode;
+  void clear() {
+    name = email = phone = password = confirmation = '';
+    loginMode = null;
+  }
+}
+
 class ApprovedAccountCreationPage extends StatefulWidget {
   const ApprovedAccountCreationPage({
     required this.role,
@@ -74,6 +84,9 @@ class ApprovedAccountCreationPage extends StatefulWidget {
     this.onPhoneRequestCode,
     this.onPhoneConfirmCode,
     this.initialLoginMode = false,
+    this.phoneSheet = false,
+    this.draft,
+    this.onForgotPassword,
     super.key,
   });
 
@@ -101,6 +114,9 @@ class ApprovedAccountCreationPage extends StatefulWidget {
   final ApprovedPhoneRequest? onPhoneRequestCode;
   final ApprovedPhoneConfirm? onPhoneConfirmCode;
   final bool initialLoginMode;
+  final bool phoneSheet;
+  final ApprovedAccountDraft? draft;
+  final VoidCallback? onForgotPassword;
 
   @override
   State<ApprovedAccountCreationPage> createState() =>
@@ -136,8 +152,14 @@ class _ApprovedAccountCreationPageState
   @override
   void initState() {
     super.initState();
-    _name = widget.name;
-    _loginMode = widget.initialLoginMode;
+    final draft = widget.draft;
+    _name = draft?.name.isNotEmpty == true ? draft!.name : widget.name;
+    _email = draft?.email ?? '';
+    _phone = draft?.phone ?? '';
+    _password = draft?.password ?? '';
+    _confirmPassword = draft?.confirmation ?? '';
+    _loginMode = draft?.loginMode ?? widget.initialLoginMode;
+    _phoneMode = widget.phoneSheet;
   }
 
   @override
@@ -203,8 +225,10 @@ class _ApprovedAccountCreationPageState
       // Explicit prototype mode keeps its original callback behavior.
       if (_loginMode) {
         widget.onLogin();
+        widget.draft?.clear();
       } else {
         widget.onSignup();
+        widget.draft?.clear();
       }
       return;
     }
@@ -213,8 +237,8 @@ class _ApprovedAccountCreationPageState
       setState(() => _formError = problem);
       return;
     }
-    await _run(
-      () => handler(
+    await _run(() async {
+      await handler(
         ApprovedAccountSubmission(
           role: widget.role,
           loginMode: _loginMode,
@@ -223,16 +247,20 @@ class _ApprovedAccountCreationPageState
           password: _password,
           phone: _phone.trim(),
         ),
-      ),
-      fallback: 'Sign-in failed. Try again.',
-    );
+      );
+      widget.draft?.clear();
+    }, fallback: 'Sign-in failed. Try again.');
   }
 
   Future<void> _submitGoogle() async {
     if (_submitting) return;
     final handler = widget.onRealGoogle;
     if (handler == null) {
-      widget.onGoogle?.call();
+      if (widget.onGoogle != null) {
+        widget.onGoogle!();
+      } else {
+        _providerUnavailable('Google');
+      }
       return;
     }
     await _run(() async {
@@ -268,7 +296,18 @@ class _ApprovedAccountCreationPageState
     }, fallback: 'The sign-in link could not be sent. Try again.');
   }
 
+  void _providerUnavailable(String provider) {
+    setState(
+      () => _providerNotice =
+          '$provider sign-in is unavailable. Use email or phone instead.',
+    );
+  }
+
   Future<void> _requestCode() async {
+    if (!_loginMode && _name.trim().isEmpty) {
+      setState(() => _formError = 'Enter your name.');
+      return;
+    }
     final phone = _phone.trim();
     if (phone.isEmpty) {
       setState(() => _formError = 'Enter your phone number.');
@@ -297,13 +336,64 @@ class _ApprovedAccountCreationPageState
       setState(() => _formError = 'Enter the code from the SMS message.');
       return;
     }
-    await _run(
-      () => widget.onPhoneConfirmCode!(_phone.trim(), code),
-      fallback: 'The code could not be verified. Try again.',
+    await _run(() async {
+      await widget.onPhoneConfirmCode!(_phone.trim(), code);
+      widget.draft?.clear();
+      if (mounted && widget.phoneSheet) Navigator.of(context).pop();
+    }, fallback: 'The code could not be verified. Try again.');
+  }
+
+  Future<void> _openPhoneSheet() async {
+    final draft = widget.draft ?? ApprovedAccountDraft();
+    draft.name = _name;
+    draft.phone = _phone;
+    draft.loginMode = _loginMode;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .9,
+          ),
+          child: ApprovedAccountCreationPage(
+            role: widget.role,
+            name: _name,
+            draft: draft,
+            phoneSheet: true,
+            initialLoginMode: _loginMode,
+            onNameChanged: widget.onNameChanged,
+            onRoleChanged: widget.onRoleChanged,
+            onSignup: widget.onSignup,
+            onLogin: widget.onLogin,
+            onClose: () => Navigator.of(sheetContext).pop(),
+            onPhoneRequestCode: widget.onPhoneRequestCode,
+            onPhoneConfirmCode: widget.onPhoneConfirmCode,
+          ),
+        ),
+      ),
     );
+    if (!mounted) return;
+    setState(() {
+      _name = draft.name;
+      _phone = draft.phone;
+    });
   }
 
   void _cancelPhone() {
+    if (widget.phoneSheet) {
+      Navigator.of(context).pop();
+      return;
+    }
     _cooldownTimer?.cancel();
     setState(() {
       _phoneMode = false;
@@ -350,7 +440,7 @@ class _ApprovedAccountCreationPageState
                 children: [
                   SizedBox(
                     key: const ValueKey('approved-account-modal-header'),
-                    height: metrics.geometry(103),
+                    height: metrics.geometry(widget.phoneSheet ? 40 : 103),
                     child: Stack(
                       children: [
                         Align(
@@ -377,28 +467,29 @@ class _ApprovedAccountCreationPageState
                               onTap: widget.onClose!,
                             ),
                           ),
-                        Positioned(
-                          top: metrics.geometry(29),
-                          left: 0,
-                          right: 0,
-                          child: Center(
-                            child: Semantics(
-                              button: true,
-                              label: 'Upload profile image',
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: widget.onUploadProfile,
-                                child: Image.asset(
-                                  '$_approvedAssetRoot/account-profile-add.png',
-                                  width: metrics.geometry(74),
-                                  height: metrics.geometry(74),
-                                  filterQuality: FilterQuality.high,
-                                  excludeFromSemantics: true,
+                        if (!widget.phoneSheet)
+                          Positioned(
+                            top: metrics.geometry(29),
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Semantics(
+                                button: true,
+                                label: 'Upload profile image',
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: widget.onUploadProfile,
+                                  child: Image.asset(
+                                    '$_approvedAssetRoot/account-profile-add.png',
+                                    width: metrics.geometry(74),
+                                    height: metrics.geometry(74),
+                                    filterQuality: FilterQuality.high,
+                                    excludeFromSemantics: true,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -421,11 +512,12 @@ class _ApprovedAccountCreationPageState
                     style: _text(context, size: 12.5, color: _muted),
                   ),
                   SizedBox(height: metrics.geometry(23)),
-                  _ApprovedRoleSelector(
-                    role: widget.role,
-                    stacked: accessibilityReflow,
-                    onChanged: widget.onRoleChanged,
-                  ),
+                  if (!widget.phoneSheet)
+                    _ApprovedRoleSelector(
+                      role: widget.role,
+                      stacked: accessibilityReflow,
+                      onChanged: widget.onRoleChanged,
+                    ),
                   SizedBox(height: metrics.geometry(23)),
                   if (!phoneMode) ...[
                     if (!loginMode) ...[
@@ -435,9 +527,11 @@ class _ApprovedAccountCreationPageState
                         hint: widget.role == ApprovedAccountRole.buyer
                             ? 'Full name'
                             : 'Store or seller name',
-                        initialValue: widget.name,
+                        initialValue: _name,
                         onChanged: (value) {
                           _name = value;
+                          widget.draft?.name = value;
+                          widget.draft?.name = value;
                           widget.onNameChanged(value);
                         },
                       ),
@@ -448,7 +542,11 @@ class _ApprovedAccountCreationPageState
                       iconAsset: 'account-mail.png',
                       hint: 'Email address',
                       keyboardType: TextInputType.emailAddress,
-                      onChanged: (value) => _email = value,
+                      initialValue: _email,
+                      onChanged: (value) {
+                        _email = value;
+                        widget.draft?.email = value;
+                      },
                     ),
                     SizedBox(height: metrics.geometry(9)),
                     if (!loginMode) ...[
@@ -457,7 +555,11 @@ class _ApprovedAccountCreationPageState
                         iconAsset: 'account-phone.png',
                         hint: 'Phone number (optional)',
                         keyboardType: TextInputType.phone,
-                        onChanged: (value) => _phone = value,
+                        initialValue: _phone,
+                        onChanged: (value) {
+                          _phone = value;
+                          widget.draft?.phone = value;
+                        },
                       ),
                       SizedBox(height: metrics.geometry(9)),
                     ],
@@ -466,7 +568,11 @@ class _ApprovedAccountCreationPageState
                       iconAsset: 'account-lock.png',
                       hint: 'Password',
                       obscureText: !_passwordVisible,
-                      onChanged: (value) => _password = value,
+                      initialValue: _password,
+                      onChanged: (value) {
+                        _password = value;
+                        widget.draft?.password = value;
+                      },
                       suffix: _ApprovedFieldAssetButton(
                         key: const ValueKey('approved-account-password-eye'),
                         tooltip: _passwordVisible
@@ -487,7 +593,11 @@ class _ApprovedAccountCreationPageState
                         iconAsset: 'account-lock.png',
                         hint: 'Confirm password',
                         obscureText: !_confirmPasswordVisible,
-                        onChanged: (value) => _confirmPassword = value,
+                        initialValue: _confirmPassword,
+                        onChanged: (value) {
+                          _confirmPassword = value;
+                          widget.draft?.confirmation = value;
+                        },
                         suffix: _ApprovedFieldAssetButton(
                           key: const ValueKey(
                             'approved-account-confirm-password-eye',
@@ -504,13 +614,34 @@ class _ApprovedAccountCreationPageState
                       ),
                     ],
                   ] else ...[
+                    if (!loginMode) ...[
+                      _ApprovedField(
+                        key: const ValueKey('approved-account-name-field'),
+                        iconAsset: 'account-person.png',
+                        hint: widget.role == ApprovedAccountRole.buyer
+                            ? 'Full name'
+                            : 'Store or seller name',
+                        initialValue: _name,
+                        readOnly: _codeSent,
+                        onChanged: (value) {
+                          _name = value;
+                          widget.draft?.name = value;
+                          widget.onNameChanged(value);
+                        },
+                      ),
+                      SizedBox(height: metrics.geometry(9)),
+                    ],
                     _ApprovedField(
                       key: const ValueKey('approved-account-phone-field'),
                       iconAsset: 'account-phone.png',
                       hint: 'Phone number (+country code)',
                       keyboardType: TextInputType.phone,
                       readOnly: _codeSent,
-                      onChanged: (value) => _phone = value,
+                      initialValue: _phone,
+                      onChanged: (value) {
+                        _phone = value;
+                        widget.draft?.phone = value;
+                      },
                     ),
                     if (_codeSent) ...[
                       SizedBox(height: metrics.geometry(9)),
@@ -523,6 +654,18 @@ class _ApprovedAccountCreationPageState
                       ),
                     ],
                   ],
+                  if (loginMode && !phoneMode)
+                    TextButton(
+                      key: const ValueKey('approved-account-forgot-password'),
+                      onPressed: _submitting
+                          ? null
+                          : widget.onForgotPassword ??
+                                () => setState(
+                                  () => _providerNotice =
+                                      'Password recovery requires the connected account service.',
+                                ),
+                      child: const Text('Forgot password?'),
+                    ),
                   if (_formError != null) ...[
                     SizedBox(height: metrics.geometry(10)),
                     Text(
@@ -646,26 +789,23 @@ class _ApprovedAccountCreationPageState
                       key: const ValueKey('approved-account-apple-action'),
                       label: 'Continue with Apple',
                       asset: 'social-apple.png',
-                      onTap: widget.onApple,
+                      onTap:
+                          widget.onApple ?? () => _providerUnavailable('Apple'),
                     ),
                     SizedBox(height: metrics.geometry(5)),
                     _ApprovedSocialButton(
                       key: const ValueKey('approved-account-facebook-action'),
                       label: 'Continue with Facebook',
                       asset: 'social-facebook.png',
-                      onTap: widget.onFacebook,
+                      onTap:
+                          widget.onFacebook ??
+                          () => _providerUnavailable('Facebook'),
                     ),
                     if (_phoneAvailable) ...[
                       SizedBox(height: metrics.geometry(8)),
                       TextButton(
                         key: const ValueKey('approved-account-phone-action'),
-                        onPressed: _submitting
-                            ? null
-                            : () => setState(() {
-                                _phoneMode = true;
-                                _formError = null;
-                                _providerNotice = null;
-                              }),
+                        onPressed: _submitting ? null : _openPhoneSheet,
                         child: Text(
                           'Continue with phone',
                           style: _text(
@@ -694,6 +834,8 @@ class _ApprovedAccountCreationPageState
                               ? null
                               : () => setState(() {
                                   _loginMode = !loginMode;
+                                  widget.draft?.loginMode = _loginMode;
+                                  widget.draft?.loginMode = _loginMode;
                                   _formError = null;
                                   _providerNotice = null;
                                 }),
@@ -1131,7 +1273,7 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     final firstName = widget.name.trim().isEmpty
-        ? 'Jonathan'
+        ? ''
         : widget.name.trim().split(RegExp(r'\s+')).first;
     final videoPreview = _videoPreviews[_videoIndex];
     return Material(
@@ -1337,7 +1479,7 @@ class _ApprovedBuyerWelcome extends StatelessWidget {
               : CrossAxisAlignment.start,
           children: [
             Text(
-              'Welcome, $name  🎉',
+              name.isEmpty ? 'Welcome to Hocalist  🎉' : 'Welcome, $name  🎉',
               textAlign: stack ? TextAlign.center : TextAlign.left,
               style: _text(
                 context,
@@ -2684,7 +2826,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final firstName = name.trim().isEmpty
-        ? 'Alex'
+        ? ''
         : name.trim().split(RegExp(r'\s+')).first;
     return LayoutBuilder(
       builder: (context, viewport) {
@@ -2866,9 +3008,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                               ),
                             ),
                             TextButton(
-                              onPressed: realMeetings == null
-                                  ? onRecentActivity
-                                  : onMeetingDetails,
+                              onPressed: onMeetingDetails,
                               style: TextButton.styleFrom(
                                 minimumSize: Size.zero,
                                 padding: metrics.geometryInsets(
@@ -5500,6 +5640,85 @@ class _ApprovedMeetingDetailsPageState
 /// This page intentionally carries the same deal facts shown in the approved
 /// chat sheet. The Buyer shows the PIN to the seller after inspecting the item;
 /// the seller submits it from Meets. Item payment remains offline.
+class ApprovedRequestPostedDialog extends StatelessWidget {
+  const ApprovedRequestPostedDialog({
+    required this.onViewRequest,
+    required this.onHome,
+    super.key,
+  });
+  final VoidCallback onViewRequest;
+  final VoidCallback onHome;
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+    backgroundColor: Colors.white,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const BuyerStateNotice(
+              icon: Icons.check_circle_outline,
+              title: 'Request posted',
+              body:
+                  'Your request is ready for sellers to review. Item payment stays offline.',
+            ),
+            const SizedBox(height: 20),
+            BuyerPrimaryButton(label: 'View request', onPressed: onViewRequest),
+            const SizedBox(height: 12),
+            BuyerSecondaryButton(label: 'Back to dashboard', onPressed: onHome),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class ApprovedRequestSuccessPage extends StatelessWidget {
+  const ApprovedRequestSuccessPage({
+    required this.navigation,
+    required this.onViewRequest,
+    required this.onHome,
+    super.key,
+  });
+  final ApprovedBuyerNavigation navigation;
+  final VoidCallback onViewRequest;
+  final VoidCallback onHome;
+
+  @override
+  Widget build(BuildContext context) => _ApprovedBuyerLifecycleScaffold(
+    pageKey: const ValueKey('approved-request-success-page'),
+    navigation: navigation,
+    selected: ApprovedBuyerNavSelection.home,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ApprovedDetailHeading(
+          title: 'Request posted',
+          subtitle: 'Your request is ready for sellers to review.',
+          onBack: onHome,
+        ),
+        const SizedBox(height: 20),
+        const BuyerStateNotice(
+          icon: Icons.check_circle_outline,
+          title: 'You’re ready to receive offers',
+          body:
+              'Review your request or return home to follow its progress. Item payment stays offline.',
+        ),
+        const SizedBox(height: 20),
+        BuyerPrimaryButton(label: 'View request', onPressed: onViewRequest),
+        const SizedBox(height: 12),
+        BuyerSecondaryButton(label: 'Back to dashboard', onPressed: onHome),
+      ],
+    ),
+  );
+}
+
 class ApprovedBuyerAfterMeetupPage extends StatelessWidget {
   const ApprovedBuyerAfterMeetupPage({
     required this.onBack,
@@ -5507,6 +5726,7 @@ class ApprovedBuyerAfterMeetupPage extends StatelessWidget {
     required this.onReview,
     required this.onDealIssue,
     required this.onReport,
+    this.requestTitle,
     super.key,
   });
 
@@ -5515,6 +5735,7 @@ class ApprovedBuyerAfterMeetupPage extends StatelessWidget {
   final VoidCallback onReview;
   final VoidCallback onDealIssue;
   final VoidCallback onReport;
+  final String? requestTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -5539,10 +5760,10 @@ class ApprovedBuyerAfterMeetupPage extends StatelessWidget {
           const SizedBox(height: 12),
           const _ApprovedLifecycleFacts(),
           const SizedBox(height: 12),
-          const _ApprovedLifecyclePinNotice(
+          _ApprovedLifecyclePinNotice(
             title: 'Your confirmation PIN: 15230',
             body:
-                'Show this PIN to the seller only after you inspect the iPad and pay them offline. The seller submits it in Meets so your \$1.40 reward can be honored.',
+                'Show this PIN to the seller only after you check ${requestTitle?.trim().isNotEmpty == true ? requestTitle!.trim() : 'the agreed product or service'} and pay them offline. The seller submits it in Meets to confirm the purchase. Any eligible reward follows the configured policy.',
           ),
           const SizedBox(height: 16),
           Text(
@@ -8165,7 +8386,7 @@ class _ApprovedDashboardHero extends StatelessWidget {
               : CrossAxisAlignment.start,
           children: [
             Text(
-              'Good morning, $name! 👋',
+              name.isEmpty ? 'Good morning! 👋' : 'Good morning, $name! 👋',
               textAlign: stacked ? TextAlign.center : TextAlign.left,
               style: _text(
                 context,

@@ -303,6 +303,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Prepare offer').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     final button = find.byKey(const Key('sellerOfferAddImages'));
@@ -429,6 +431,10 @@ void main() {
     await tester.drag(
       find.byKey(const Key('sellerNotificationFilters')),
       const Offset(-240, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('sellerNotificationFilter-billing')),
     );
     await tester.pumpAndSettle();
     await tester.tap(

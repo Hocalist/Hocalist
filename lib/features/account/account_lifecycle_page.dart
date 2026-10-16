@@ -10,6 +10,7 @@ library;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../components/account_role_components.dart';
 import '../../components/hocalist_section_intro.dart';
 
 import '../../data/phase2/accounts/account_lifecycle_backend.dart';
@@ -20,6 +21,7 @@ import 'hocalist_account_controller.dart';
 class AccountLifecyclePage extends StatefulWidget {
   const AccountLifecyclePage({
     required this.onBack,
+    this.seller = false,
     this.backend,
     this.email,
     this.reauthenticate,
@@ -29,6 +31,7 @@ class AccountLifecyclePage extends StatefulWidget {
   });
 
   final VoidCallback onBack;
+  final bool seller;
 
   /// Null keeps the honest unavailable state.
   final AccountLifecycleBackend? backend;
@@ -290,9 +293,9 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
+            constraints: const BoxConstraints(maxWidth: double.infinity),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
                 BuyerNestedHeader(
                   title: 'Account data & deletion',
@@ -304,6 +307,7 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                 if (_busy) const BuyerProgressStrip(label: 'Updating…'),
                 if (_error != null) ...[
                   _LifecycleNote(
+                    seller: widget.seller,
                     key: const ValueKey('lifecycle-error'),
                     text: _error!,
                     tone: BuyerNoticeTone.error,
@@ -313,12 +317,14 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                 ],
                 if (_message != null)
                   _LifecycleNote(
+                    seller: widget.seller,
                     key: const ValueKey('lifecycle-message'),
                     text: _message!,
                     tone: BuyerNoticeTone.success,
                   ),
                 if (backend == null)
-                  const _LifecycleNote(
+                  _LifecycleNote(
+                    seller: widget.seller,
                     key: ValueKey('lifecycle-unavailable'),
                     text:
                         'Consent records, data export and deletion requests '
@@ -391,7 +397,8 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
             style: const TextStyle(fontSize: 12.5, color: BuyerUiTokens.muted),
           ),
           const SizedBox(height: 10),
-          BuyerPrimaryButton(
+          AccountActionButton(
+            seller: widget.seller,
             key: const ValueKey('lifecycle-export-request'),
             label: _busy ? 'Preparing...' : 'Request my data export',
             onPressed: _busy ? null : _requestExport,
@@ -564,6 +571,7 @@ class _LifecycleSection extends StatelessWidget {
 class _LifecycleNote extends StatelessWidget {
   const _LifecycleNote({
     required this.text,
+    required this.seller,
     this.tone = BuyerNoticeTone.neutral,
     this.actionLabel,
     this.onAction,
@@ -571,6 +579,7 @@ class _LifecycleNote extends StatelessWidget {
   });
 
   final String text;
+  final bool seller;
   final BuyerNoticeTone tone;
   final String? actionLabel;
   final VoidCallback? onAction;
@@ -586,7 +595,8 @@ class _LifecycleNote extends StatelessWidget {
         );
     return Padding(
       padding: EdgeInsets.only(bottom: metrics.spacing(12)),
-      child: BuyerStateNotice(
+      child: AccountStateNotice(
+        seller: seller,
         icon: switch (tone) {
           BuyerNoticeTone.error => Icons.error_outline_rounded,
           BuyerNoticeTone.success => Icons.check_circle_rounded,

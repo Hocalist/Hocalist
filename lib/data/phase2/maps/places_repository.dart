@@ -5,6 +5,7 @@
 /// keeps no query or address history and performs no automatic retries.
 library;
 
+import '../../../domain/phase2/common.dart';
 import 'places_contract.dart';
 import 'places_transport.dart';
 
@@ -61,11 +62,34 @@ class PlacesRepository {
       throw const PlacesFailure(PlacesFailureCode.invalidResponse);
     }
     try {
+      final components = data['postalAddress'];
+      if (components != null && components is! Map) {
+        throw const PlacesFailure(PlacesFailureCode.invalidResponse);
+      }
+      String? component(String key) {
+        final value = components is Map ? components[key] : null;
+        if (value == null) return null;
+        if (value is! String || value.length > 300) {
+          throw const PlacesFailure(PlacesFailureCode.invalidResponse);
+        }
+        return value;
+      }
+
       return PlaceDetails(
         placeId: id,
         address: address,
         latitude: latitude.toDouble(),
         longitude: longitude.toDouble(),
+        postalAddress: components == null
+            ? null
+            : PostalAddress(
+                line1: component('line1'),
+                line2: component('line2'),
+                city: component('city'),
+                state: component('state'),
+                postalCode: component('postalCode'),
+                country: component('country'),
+              ),
         attributions: attributions.map(_attribution).toList(growable: false),
       );
     } on ArgumentError {

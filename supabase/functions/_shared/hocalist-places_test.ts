@@ -2,6 +2,7 @@ import {
   createPlacesProvider,
   parsePlacesQuery,
   PlacesFailure,
+  structuredAddress,
 } from "./hocalist-places.ts";
 import type { PlacesFetch } from "./hocalist-places.ts";
 import assert from "node:assert/strict";
@@ -116,7 +117,7 @@ Deno.test("details preserves session and attribution without extra billed fields
     );
     assert.equal(
       new Headers(init?.headers).get("X-Goog-FieldMask"),
-      "id,formattedAddress,location,attributions",
+      "id,formattedAddress,addressComponents,location,attributions",
     );
     return json({
       id: "ChIJ_fixture",
@@ -132,6 +133,7 @@ Deno.test("details preserves session and attribution without extra billed fields
   assert.deepEqual(await run(details), {
     placeId: "ChIJ_fixture",
     address: "Public library",
+    postalAddress: undefined,
     latitude: 40,
     longitude: -73,
     attributions: [{ provider: "Example", uri: "https://example.com" }],
@@ -214,4 +216,15 @@ Deno.test("empty predictions valid; unsafe deployment config rejected", async ()
   );
   assert.throws(() => createPlacesProvider({ apiKey: "x", regionCodes: [] }));
   assert.equal(parsePlacesQuery(query).operation, "autocomplete");
+});
+
+Deno.test('structured address uses Google components, never guesses from a formatted string', () => {
+  const part = (type: string, longText: string, shortText = longText) => ({types:[type],longText,shortText});
+  assert.deepEqual(structuredAddress([
+    part('street_number','400'), part('route','South State Street'),
+    part('locality','Chicago'), part('administrative_area_level_1','Illinois','IL'),
+    part('postal_code','60605'), part('country','United States','US'),
+  ]), {line1:'400 South State Street',line2:undefined,city:'Chicago',state:'IL',postalCode:'60605',country:'US'});
+  assert.equal(structuredAddress(undefined),undefined);
+  assert.throws(()=>structuredAddress('400 South State Street, Chicago'));
 });

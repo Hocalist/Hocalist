@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart' show launchUrl;
 
 import 'provider_runtime.dart';
 
@@ -65,6 +66,14 @@ class HocalistAuthService {
   }
 
   Future<void> google() => _run(() async {
+    if (hocalistLocalWebTest && !supportsHocalistOAuthReturn(Uri.base)) {
+      final destination = hocalistSecurePreviewHandoff(Uri.base);
+      if (destination != null) {
+        final opened = await launchUrl(destination, webOnlyWindowName: '_self');
+        if (opened) return;
+      }
+      throw const ProviderOperationException('https_preview_required');
+    }
     final opened = await client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: hocalistAuthRedirect,

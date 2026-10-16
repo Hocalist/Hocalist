@@ -5,20 +5,31 @@ class AccessibilityPage extends StatefulWidget {
     required this.appliedPreferences,
     required this.onApply,
     required this.onBack,
+    this.seller = false,
     super.key,
   });
 
   final AccessibilityPreferences appliedPreferences;
   final ValueChanged<AccessibilityPreferences> onApply;
   final VoidCallback onBack;
+  final bool seller;
 
   @override
   State<AccessibilityPage> createState() => _AccessibilityPageState();
 }
 
 class _AccessibilityPageState extends State<AccessibilityPage> {
-  static const _primary = Color(0xff4011ff);
-  static const _highContrast = Color(0xff2b11aa);
+  static bool _isSeller(BuildContext context) =>
+      (context.widget is AccessibilityPage
+              ? context.widget as AccessibilityPage
+              : context.findAncestorWidgetOfExactType<AccessibilityPage>())
+          ?.seller ??
+      false;
+  static Color _primaryFor(BuildContext context) => _isSeller(context)
+      ? SellerUiColors.primaryBright
+      : const Color(0xff4011ff);
+  static Color _highContrastFor(BuildContext context) =>
+      _isSeller(context) ? SellerUiColors.primary : const Color(0xff2b11aa);
   static const _ink = Color(0xff070b38);
   static const _muted = Color(0xff22264e);
   static const _lavender = Color(0xfff8f7fd);
@@ -95,6 +106,20 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
     final appliedScale = widget.appliedPreferences.textSize.scale;
     final systemScale = currentScale > appliedScale ? currentScale : 1.0;
     final previewScale = math.max(systemScale, draft.textSize.scale);
+    final basePreviewTheme = HocalistTheme.lightFor(draft);
+    final previewTheme = widget.seller
+        ? basePreviewTheme.copyWith(
+            colorScheme: basePreviewTheme.colorScheme.copyWith(
+              primary: SellerUiColors.primaryBright,
+            ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                backgroundColor: SellerUiColors.primaryBright,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          )
+        : basePreviewTheme;
     final applied = await showDialog<bool>(
       context: context,
       animationStyle: HocalistMotion.dialogStyle(context),
@@ -104,7 +129,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
         return MediaQuery(
           data: media.copyWith(textScaler: TextScaler.linear(previewScale)),
           child: Theme(
-            data: HocalistTheme.lightFor(draft),
+            data: previewTheme,
             child: Dialog.fullscreen(
               child: SafeArea(
                 child: Scaffold(
@@ -176,13 +201,13 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                       PrimaryButton(
                         label: 'Apply changes',
                         icon: Icons.check_circle_outline,
-                        color: _primary,
+                        color: _primaryFor(context),
                         onPressed: () => Navigator.of(dialogContext).pop(true),
                       ),
                       const SizedBox(height: 10),
                       SecondaryButton(
                         label: 'Cancel',
-                        color: _primary,
+                        color: _primaryFor(context),
                         onPressed: () => Navigator.of(dialogContext).pop(false),
                       ),
                     ],
@@ -268,7 +293,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: draft.textSize == size
-                                      ? _primary
+                                      ? _primaryFor(context)
                                       : _ink,
                                   fontSize: metrics.font(10.5),
                                   height: 1.08,
@@ -340,7 +365,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: draft.fontStyle == style
-                                      ? _primary
+                                      ? _primaryFor(context)
                                       : _ink,
                                   fontSize: metrics.font(10.5),
                                   height: 1.08,
@@ -648,7 +673,7 @@ class _OptionCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(metrics.size(8)),
           side: BorderSide(
             color: selected
-                ? _AccessibilityPageState._primary
+                ? _AccessibilityPageState._primaryFor(context)
                 : _AccessibilityPageState._outline,
             width: metrics.size(selected ? 1.5 : 1),
           ),
@@ -726,7 +751,7 @@ class _TextPreviewPanel extends StatelessWidget {
                 Text(
                   'Preview',
                   style: TextStyle(
-                    color: _AccessibilityPageState._primary,
+                    color: _AccessibilityPageState._primaryFor(context),
                     fontFamily: preferences.fontFamily,
                     fontSize: metrics.font(10.5) * scale,
                     height: 1,
@@ -808,10 +833,15 @@ class _ButtonStyleOption extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: rounded
                         ? null
-                        : _AccessibilityPageState._highContrast,
+                        : _AccessibilityPageState._highContrastFor(context),
                     gradient: rounded
-                        ? const LinearGradient(
-                            colors: [Color(0xff5215ff), Color(0xff2f00ed)],
+                        ? LinearGradient(
+                            colors: _AccessibilityPageState._isSeller(context)
+                                ? [
+                                    SellerUiColors.primaryBright,
+                                    SellerUiColors.primary,
+                                  ]
+                                : const [Color(0xff5215ff), Color(0xff2f00ed)],
                           )
                         : null,
                     borderRadius: BorderRadius.circular(
@@ -838,7 +868,7 @@ class _ButtonStyleOption extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: selected
-                        ? _AccessibilityPageState._primary
+                        ? _AccessibilityPageState._primaryFor(context)
                         : _AccessibilityPageState._ink,
                     fontFamily: HocalistTheme.appFontFamily,
                     fontSize: metrics.font(10),
@@ -974,7 +1004,6 @@ class _AccessibilityReplicaMetrics {
   });
 
   static const double referenceWidth = 390;
-  static const double reflowMaxWidth = 426.5;
 
   factory _AccessibilityReplicaMetrics.resolve({
     required double availableWidth,
@@ -985,10 +1014,7 @@ class _AccessibilityReplicaMetrics {
       textScaler: textScaler,
     );
     final accessibilityReflow = sharedMetrics.accessibilityReflow;
-    final contentMaxWidth = math.min(
-      availableWidth,
-      accessibilityReflow ? reflowMaxWidth : referenceWidth,
-    );
+    final contentMaxWidth = availableWidth;
     return _AccessibilityReplicaMetrics(
       geometryScale: math.min(1, availableWidth / referenceWidth),
       contentMaxWidth: contentMaxWidth,

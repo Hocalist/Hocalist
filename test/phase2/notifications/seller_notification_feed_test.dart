@@ -148,6 +148,11 @@ void main() {
           kind: 'billing_update',
           title: 'Targeting credit restored',
         ),
+        _item(
+          id: '90000000-0000-4000-8000-000000000013',
+          kind: 'new_message',
+          title: 'New chat message',
+        ),
       ],
     );
     final repository = LocalMarketplaceRepository(
@@ -161,6 +166,27 @@ void main() {
         onPreferences: () {},
         repository: repository,
       ),
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('sellerNotificationFilter-messages')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('sellerNotificationFilter-messages')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('New chat message'), findsOneWidget);
+    expect(find.text('Your offer was selected'), findsNothing);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('sellerNotificationFilter-offers')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('sellerNotificationFilter-offers')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Your offer was selected'), findsOneWidget);
+    expect(find.text('New chat message'), findsNothing);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('sellerNotificationFilter-billing')),
     );
     await tester.tap(
       find.byKey(const ValueKey('sellerNotificationFilter-billing')),
