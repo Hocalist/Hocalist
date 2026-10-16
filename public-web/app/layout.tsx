@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './illustrated-site.css';
+import './approved-home.css';
 import { ScrollReveal } from './ScrollReveal';
 
 export const metadata: Metadata = {
