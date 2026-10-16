@@ -2,7 +2,7 @@
 // Native apps do not send Origin and continue through the normal Auth check.
 const localOrigins = new Set([
   'http://127.0.0.1:7359',
-  'https://catalog-bishop-mere-workers.trycloudflare.com',
+  'https://onto-warranties-cork-snow.trycloudflare.com',
 ]);
 export const isAllowedPlacesOrigin = (origin: string | null) =>
   origin == null || localOrigins.has(origin);
