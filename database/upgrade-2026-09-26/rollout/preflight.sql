@@ -1,0 +1,24 @@
+BEGIN READ ONLY;
+DO $guard$ BEGIN
+IF to_regprocedure('hocalist.marketplace_request_json(uuid)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.marketplace_request_json(uuid)')),chr(13),''))<>'d1707451d3854d729b8654fbc9b47985' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.marketplace_request_json(uuid)'; END IF;
+IF to_regprocedure('hocalist.marketplace_lead_json(uuid)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.marketplace_lead_json(uuid)')),chr(13),''))<>'5d0dc0dcc462c59a3c30cb7cbe380a3c' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.marketplace_lead_json(uuid)'; END IF;
+IF to_regprocedure('hocalist.marketplace_offer_json(uuid)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.marketplace_offer_json(uuid)')),chr(13),''))<>'9d5fdec5970731716e843c0b03803731' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.marketplace_offer_json(uuid)'; END IF;
+IF to_regprocedure('hocalist.marketplace_request(uuid)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.marketplace_request(uuid)')),chr(13),''))<>'c6225021a74624672406e0b7d73ccc8b' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.marketplace_request(uuid)'; END IF;
+IF to_regprocedure('hocalist.marketplace_seller_leads(text,uuid,text,integer,text)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.marketplace_seller_leads(text,uuid,text,integer,text)')),chr(13),''))<>'e05521dc79f56fc16118522190da8908' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.marketplace_seller_leads(text,uuid,text,integer,text)'; END IF;
+IF to_regprocedure('hocalist.marketplace_command(text,text,jsonb)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.marketplace_command(text,text,jsonb)')),chr(13),''))<>'f75fb4eae067f16f0270eedcce83772a' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.marketplace_command(text,text,jsonb)'; END IF;
+IF to_regprocedure('hocalist.sale_pin(uuid,text,text)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.sale_pin(uuid,text,text)')),chr(13),''))<>'c935b662860d575095ba45ed6daaf5c5' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.sale_pin(uuid,text,text)'; END IF;
+IF to_regprocedure('hocalist.meeting_json(uuid)') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.meeting_json(uuid)')),chr(13),''))<>'0b1f3230ac1a5f1052f99d6239ff210c' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.meeting_json(uuid)'; END IF;
+IF to_regprocedure('hocalist.credit_wallet()') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.credit_wallet()')),chr(13),''))<>'ade39ebd47e0ebf915a901e4e587b2e4' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.credit_wallet()'; END IF;
+IF to_regprocedure('hocalist.reward_wallet()') IS NULL OR md5(replace(pg_get_functiondef(to_regprocedure('hocalist.reward_wallet()')),chr(13),''))<>'bd5248bf235b034fcdeed1d5d5a0113c' THEN RAISE EXCEPTION 'Prerequisite drift: hocalist.reward_wallet()'; END IF;
+IF to_regclass('hocalist.credit_deposit_options') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: credit_deposit_options'; END IF;
+IF to_regclass('hocalist.reward_policy') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: reward_policy'; END IF;
+IF to_regclass('hocalist.conversation_credit_hook') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: conversation_credit_hook'; END IF;
+IF to_regclass('hocalist.withdrawal_policy') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: withdrawal_policy'; END IF;
+IF to_regclass('hocalist.withdrawal_requests') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: withdrawal_requests'; END IF;
+IF to_regclass('hocalist.withdrawal_events') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: withdrawal_events'; END IF;
+IF to_regclass('hocalist.verification_submissions') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: verification_submissions'; END IF;
+IF to_regclass('hocalist.health_review_notes') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: health_review_notes'; END IF;
+IF to_regclass('hocalist.account_restrictions') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: account_restrictions'; END IF;
+IF to_regclass('hocalist.restriction_appeals') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: restriction_appeals'; END IF;
+END $guard$;
+ROLLBACK;

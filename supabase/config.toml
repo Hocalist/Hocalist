@@ -1,0 +1,37 @@
+# Draft test endpoint. Deployment is a separate reviewed action.
+[functions.hocalist-stripe-test-webhook]
+verify_jwt = false
+
+# Authenticated inside the handler through Supabase Auth /user (not decoded claims).
+[functions.hocalist-stripe-test-checkout]
+verify_jwt = false
+
+# Dedicated server worker bearer secret, never an app-user endpoint.
+[functions.hocalist-stripe-test-reconcile]
+verify_jwt = false
+
+# Authenticated inside the handler through Supabase Auth /user; the provider
+# customer is derived from the verified account in the database.
+[functions.hocalist-stripe-test-portal]
+verify_jwt = false
+
+# Dedicated server secret checked inside handler; disabled until explicitly enabled.
+[functions.hocalist-push-worker]
+verify_jwt = false
+
+# Authenticated inside the handler through Supabase Auth /user (not decoded
+# claims); membership/session/rate gates are service-only database RPCs.
+# Provider traffic stays disabled until HOCALIST_PLACES_ENABLED is set.
+[functions.hocalist-places]
+verify_jwt = false
+
+# Local drafts: user tokens are verified with Auth inside each handler.
+[functions.hocalist-media]
+verify_jwt = false
+
+[functions.hocalist-call-ice]
+verify_jwt = false
+
+# Auth and meeting authorization are verified in the handler; shared rate gates.
+[functions.hocalist-routes]
+verify_jwt = false

@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../components/hocalist_motion.dart';
+import '../../components/notification_indicator.dart';
 
+import '../../data/local_marketplace_repository.dart';
+import '../../domain/phase2/common.dart';
+import '../../domain/phase2/money.dart';
+import '../../domain/phase2/requests.dart';
 import '../../theme/accessibility_visuals.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../../theme/input_foundation.dart';
@@ -12,6 +18,40 @@ const _approvedMuted = BuyerUiTokens.muted;
 const _approvedBorder = BuyerUiTokens.border;
 const _approvedLavender = BuyerUiTokens.softSurface;
 const _approvedSurface = BuyerUiTokens.surface;
+
+/// Supported country choices for the request location step. United States is
+/// first and default; the list is local until the admin-managed catalogue
+/// supplies production values.
+@immutable
+class ApprovedCountryOption {
+  const ApprovedCountryOption(this.code, this.label);
+
+  final String code;
+  final String label;
+}
+
+const approvedRequestCountries = <ApprovedCountryOption>[
+  ApprovedCountryOption('US', 'United States'),
+  ApprovedCountryOption('CA', 'Canada'),
+  ApprovedCountryOption('MX', 'Mexico'),
+  ApprovedCountryOption('GB', 'United Kingdom'),
+  ApprovedCountryOption('IE', 'Ireland'),
+  ApprovedCountryOption('AU', 'Australia'),
+  ApprovedCountryOption('NZ', 'New Zealand'),
+  ApprovedCountryOption('IN', 'India'),
+  ApprovedCountryOption('NG', 'Nigeria'),
+  ApprovedCountryOption('GH', 'Ghana'),
+  ApprovedCountryOption('KE', 'Kenya'),
+  ApprovedCountryOption('ZA', 'South Africa'),
+  ApprovedCountryOption('DE', 'Germany'),
+  ApprovedCountryOption('FR', 'France'),
+  ApprovedCountryOption('ES', 'Spain'),
+  ApprovedCountryOption('IT', 'Italy'),
+  ApprovedCountryOption('NL', 'Netherlands'),
+  ApprovedCountryOption('BR', 'Brazil'),
+  ApprovedCountryOption('JP', 'Japan'),
+  ApprovedCountryOption('PH', 'Philippines'),
+];
 
 const _assetRoot = 'assets/post_request';
 const _productIcon = '$_assetRoot/kind-product.png';
@@ -87,6 +127,13 @@ enum ApprovedRequestKind { product, service }
 
 enum _ApprovedRequestStep { details, location }
 
+/// Submits one complete request draft and returns a user-safe outcome.
+typedef RequestDraftSubmitter =
+    Future<RequestSubmissionResult> Function(
+      RequestDraft draft,
+      String operationKey,
+    );
+
 /// Screenshot-approved buyer request editor with the existing UI-only contract.
 class ApprovedRequestFlowPage extends StatefulWidget {
   const ApprovedRequestFlowPage({
@@ -105,6 +152,15 @@ class ApprovedRequestFlowPage extends StatefulWidget {
     this.onOffers,
     this.onChats,
     this.onMore,
+    this.onSubmitDraft,
+    this.onCreated,
+    this.categories = const <CatalogueCategoryOption>[],
+    this.categoriesLoading = false,
+    this.categoriesError,
+    this.onRefreshCategories,
+    this.initialDescription = '',
+    this.homeAddress,
+    this.onChooseLocation,
     super.key,
   });
 
@@ -124,6 +180,29 @@ class ApprovedRequestFlowPage extends StatefulWidget {
   final VoidCallback? onChats;
   final VoidCallback? onMore;
 
+  /// Real request submission. Null keeps the local prototype flow.
+  final RequestDraftSubmitter? onSubmitDraft;
+
+  /// Called with the server-created request after an acknowledged create.
+  final ValueChanged<MarketplaceRequest>? onCreated;
+
+  /// Server-provided catalogue categories for the real selector.
+  final List<CatalogueCategoryOption> categories;
+  final bool categoriesLoading;
+  final String? categoriesError;
+  final VoidCallback? onRefreshCategories;
+
+  /// Existing description when editing; the create form starts empty.
+  final String initialDescription;
+
+  /// Buyer home address shown on the location step. Null uses the approved
+  /// prototype display value.
+  final PostalAddress? homeAddress;
+  final Future<RequestLocation?> Function(BuildContext context)?
+  onChooseLocation;
+
+  bool get usesRealSubmission => onSubmitDraft != null;
+
   @override
   State<ApprovedRequestFlowPage> createState() =>
       _ApprovedRequestFlowPageState();
@@ -131,6 +210,8 @@ class ApprovedRequestFlowPage extends StatefulWidget {
 
 class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   final ScrollController _scrollController = ScrollController();
+  late final TextEditingController _descriptionController =
+      TextEditingController(text: widget.initialDescription);
   late ApprovedRequestKind _kind;
   _ApprovedRequestStep _step = _ApprovedRequestStep.details;
   int _quantity = 1;
@@ -140,16 +221,36 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   String _serviceType = 'Single';
   String _minimum = '';
   String _maximum = '';
+  String? _categoryId;
+  String? _addressLine1;
+  String? _addressLine2;
+  String? _city;
+  String? _state;
+  String? _postalCode;
+  String? _country;
+  RequestLocation? _mapLocation;
+  bool _choosingLocation = false;
+  bool _submitting = false;
+  String? _submitError;
+  bool _outcomeUncertain = false;
+  RequestDraft? _pendingDraft;
+  String? _pendingOperationKey;
 
   @override
   void initState() {
     super.initState();
     _kind = widget.initialKind;
+    final homeCountry = widget.homeAddress?.country?.trim().toUpperCase();
+    _country =
+        homeCountry != null && RegExp(r'^[A-Z]{2}$').hasMatch(homeCountry)
+        ? homeCountry
+        : 'US';
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -158,6 +259,292 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       _scrollController.jumpTo(0);
+    });
+  }
+
+  String get _homeAddressLine2 {
+    final home = widget.homeAddress;
+    if (home == null) {
+      return widget.usesRealSubmission
+          ? 'Add an address in your profile or choose a location below.'
+          : 'Miami, FL 33101, USA';
+    }
+    final parts = <String>[
+      if (!isBlank(home.city)) home.city!.trim(),
+      if (!isBlank(home.state)) home.state!.trim(),
+      if (!isBlank(home.postalCode)) home.postalCode!.trim(),
+    ];
+    final country = home.country?.trim();
+    final line = parts.join(', ');
+    if (country != null && country.isNotEmpty) {
+      return line.isEmpty ? country : '$line, $country';
+    }
+    return line;
+  }
+
+  /// Display label for the persisted ISO two-letter country code.
+  String get _countryLabel {
+    final code = _country;
+    if (code == null || code.isEmpty) return 'United States';
+    for (final option in approvedRequestCountries) {
+      if (option.code == code) return option.label;
+    }
+    return code;
+  }
+
+  String? get _categoryLabel {
+    final id = _categoryId;
+    if (id == null) return null;
+    for (final option in widget.categories) {
+      if (option.id == id) return option.label;
+    }
+    return id;
+  }
+
+  ValueChanged<String> _updateAddress(void Function(String value) assign) {
+    return (value) {
+      setState(() {
+        assign(value);
+        _mapLocation = null;
+        if (value.trim().isNotEmpty) _useHomeAddress = false;
+        _submitError = null;
+      });
+    };
+  }
+
+  int? _parseMinorUnits(String value) {
+    final trimmed = value.trim().replaceAll(',', '');
+    if (trimmed.isEmpty) return null;
+    final amount = double.tryParse(trimmed);
+    if (amount == null || amount <= 0) return null;
+    return (amount * 100).round();
+  }
+
+  RequestDraft _buildDraft() {
+    final minimum = _parseMinorUnits(_minimum);
+    final maximum = _parseMinorUnits(_maximum);
+    final budget = minimum == null && maximum == null
+        ? MoneyRange.empty
+        : MoneyRange(
+            minimum: minimum == null
+                ? null
+                : Money(minorUnits: minimum, currencyCode: 'USD'),
+            maximum: maximum == null
+                ? null
+                : Money(minorUnits: maximum, currencyCode: 'USD'),
+          );
+    var location = const RequestLocation.homeAddress();
+    if (!_useHomeAddress) {
+      final address = PostalAddress(
+        line1: _addressLine1,
+        line2: _addressLine2,
+        city: _city,
+        state: _state,
+        postalCode: _postalCode,
+        country: _country,
+      );
+      if (address.isNotEmpty) {
+        location = RequestLocation.custom(address: address);
+      }
+      if (_mapLocation != null) location = _mapLocation!;
+    }
+    final isProduct = _kind == ApprovedRequestKind.product;
+    return RequestDraft(
+      kind: isProduct ? RequestKind.product : RequestKind.service,
+      title: widget.requestTitle.trim(),
+      description: _descriptionController.text.trim(),
+      condition: isProduct
+          ? (_condition == 'New'
+                ? ProductCondition.newItem
+                : ProductCondition.used)
+          : null,
+      serviceType: isProduct
+          ? null
+          : (_serviceType == 'Single'
+                ? ServiceType.oneTime
+                : ServiceType.ongoing),
+      quantity: isProduct ? _quantity : 1,
+      budget: budget,
+      acceptsHigherOffers: _acceptHigherOffers,
+      categoryId: isProduct ? null : _categoryId,
+      location: location,
+    );
+  }
+
+  bool _sameDraft(RequestDraft left, RequestDraft right) =>
+      left.kind == right.kind &&
+      left.title == right.title &&
+      left.description == right.description &&
+      left.condition == right.condition &&
+      left.serviceType == right.serviceType &&
+      left.quantity == right.quantity &&
+      left.budget == right.budget &&
+      left.acceptsHigherOffers == right.acceptsHigherOffers &&
+      left.categoryId == right.categoryId &&
+      left.location == right.location;
+
+  String? _detailsValidationMessage() {
+    if (widget.requestTitle.trim().isEmpty) return 'Add a clear request title.';
+    final minimum = _parseMinorUnits(_minimum);
+    final maximum = _parseMinorUnits(_maximum);
+    if (minimum != null && maximum != null && maximum < minimum) {
+      return 'The maximum budget must be at least the minimum.';
+    }
+    final issues = _buildDraft().validationIssues();
+    return issues.isEmpty ? null : issues.first.message;
+  }
+
+  void _continueToLocation() {
+    final error = widget.usesRealSubmission
+        ? _detailsValidationMessage()
+        : null;
+    setState(() => _submitError = error);
+    if (error == null) _showStep(_ApprovedRequestStep.location);
+  }
+
+  String? _localValidationMessage() {
+    final detailsError = _detailsValidationMessage();
+    if (detailsError != null) return detailsError;
+    if (widget.usesRealSubmission &&
+        _useHomeAddress &&
+        (widget.homeAddress == null || widget.homeAddress!.isEmpty)) {
+      return 'Choose a location or add your home address in your profile.';
+    }
+    if (widget.requestTitle.trim().isEmpty) {
+      return 'Add a clear request title.';
+    }
+    final minimum = _parseMinorUnits(_minimum);
+    final maximum = _parseMinorUnits(_maximum);
+    if (minimum != null && maximum != null && maximum < minimum) {
+      return 'The maximum budget must be at least the minimum.';
+    }
+    if (!_useHomeAddress) {
+      if (_mapLocation != null) return null;
+      final country = _country?.trim();
+      if (country != null &&
+          country.isNotEmpty &&
+          !RegExp(r'^[A-Za-z]{2}$').hasMatch(country)) {
+        return 'Enter a two-letter country code (for example US).';
+      }
+      final address = PostalAddress(
+        line1: _addressLine1,
+        line2: _addressLine2,
+        city: _city,
+        state: _state,
+        postalCode: _postalCode,
+        country: _country,
+      );
+      if (address.isEmpty) {
+        return 'Enter the address where you need this service.';
+      }
+    }
+    return null;
+  }
+
+  Future<void> _submitRealRequest() async {
+    final submitter = widget.onSubmitDraft;
+    if (submitter == null) return;
+    final localError = _localValidationMessage();
+    if (localError != null) {
+      setState(() {
+        _submitError = localError;
+        final detailsInvalid = _detailsValidationMessage() != null;
+        _showStep(
+          detailsInvalid
+              ? _ApprovedRequestStep.details
+              : _ApprovedRequestStep.location,
+        );
+      });
+      return;
+    }
+    final draft = _buildDraft();
+    final issues = draft.validationIssues();
+    if (issues.isNotEmpty) {
+      setState(() {
+        _submitError = issues.first.message;
+        _showStep(_ApprovedRequestStep.details);
+      });
+      return;
+    }
+
+    // An attempt whose outcome is unknown keeps its exact payload and
+    // operation key: retry reconciles that intent. A changed payload must
+    // discard the unresolved intent first instead of reusing its key.
+    if (_outcomeUncertain) {
+      if (!_sameDraft(draft, _pendingDraft!)) {
+        setState(
+          () => _submitError =
+              'An earlier request may already have been posted. Retry to '
+              'confirm it, or discard it before changing the details.',
+        );
+        return;
+      }
+    } else {
+      _pendingDraft = draft;
+      _pendingOperationKey = LocalMarketplaceRepository.newStoreOperationKey(
+        'request-create',
+      );
+    }
+
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    final result = await submitter(_pendingDraft!, _pendingOperationKey!);
+    if (!mounted) return;
+    if (result.isSuccess) {
+      final created = result.request!;
+      _pendingDraft = null;
+      _pendingOperationKey = null;
+      _outcomeUncertain = false;
+      setState(() => _submitting = false);
+      widget.onCreated?.call(created);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _submitError = result.error;
+      _outcomeUncertain = result.outcomeUncertain;
+      if (!result.outcomeUncertain) {
+        _pendingDraft = null;
+        _pendingOperationKey = null;
+      }
+    });
+  }
+
+  Future<void> _chooseLocation() async {
+    if (_choosingLocation || _submitting || _outcomeUncertain) return;
+    final choose = widget.onChooseLocation;
+    if (choose == null) return;
+    setState(() => _choosingLocation = true);
+    try {
+      final location = await choose(context);
+      if (!mounted || location == null) return;
+      setState(() {
+        _mapLocation = location;
+        _useHomeAddress = false;
+        _submitError = null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _submitError =
+              'Location could not be selected. Enter an address below.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _choosingLocation = false);
+    }
+  }
+
+  /// Abandons a request whose outcome could not be confirmed so the buyer can
+  /// review the form and start a new intent.
+  void _discardUncertain() {
+    setState(() {
+      _outcomeUncertain = false;
+      _pendingDraft = null;
+      _pendingOperationKey = null;
+      _submitError = null;
     });
   }
 
@@ -246,10 +633,11 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
               ),
             ),
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 160),
+              duration: HocalistMotion.duration(context, 160),
               child: isLocation
                   ? ApprovedLocationRequestStep(
                       key: const ValueKey('approved-location-step'),
+                      isProduct: _kind == ApprovedRequestKind.product,
                       useHomeAddress: _useHomeAddress,
                       onUseHomeAddressChanged: (value) {
                         setState(() => _useHomeAddress = value);
@@ -257,7 +645,44 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onBack: () {
                         _showStep(_ApprovedRequestStep.details);
                       },
-                      onSubmit: widget.onSubmit,
+                      onSubmit: widget.usesRealSubmission
+                          ? _submitRealRequest
+                          : widget.onSubmit,
+                      submitBusy: _submitting,
+                      submitError: _submitError,
+                      submitUncertain: _outcomeUncertain,
+                      onDiscardUncertain: _discardUncertain,
+                      onChooseLocation:
+                          widget.onChooseLocation == null ||
+                              _choosingLocation ||
+                              _submitting ||
+                              _outcomeUncertain
+                          ? null
+                          : _chooseLocation,
+                      selectedMapAddress: !_useHomeAddress
+                          ? _mapLocation?.address?.line1
+                          : null,
+                      homeAddressLine1:
+                          widget.homeAddress?.line1 ??
+                          (widget.usesRealSubmission
+                              ? 'No saved home address'
+                              : '123 Main Street'),
+                      homeAddressLine2: _homeAddressLine2,
+                      countryLabel: _countryLabel,
+                      onAddressLine1Changed: _updateAddress(
+                        (value) => _addressLine1 = value,
+                      ),
+                      onAddressLine2Changed: _updateAddress(
+                        (value) => _addressLine2 = value,
+                      ),
+                      onCityChanged: _updateAddress((value) => _city = value),
+                      onStateChanged: _updateAddress((value) => _state = value),
+                      onPostalCodeChanged: _updateAddress(
+                        (value) => _postalCode = value,
+                      ),
+                      onCountryChanged: _updateAddress(
+                        (value) => _country = value,
+                      ),
                     )
                   : _kind == ApprovedRequestKind.product
                   ? ApprovedProductRequestStep(
@@ -286,9 +711,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                         setState(() => _acceptHigherOffers = value);
                       },
                       onBack: widget.onBack,
-                      onContinue: () {
-                        _showStep(_ApprovedRequestStep.location);
-                      },
+                      onContinue: _continueToLocation,
+                      descriptionController: _descriptionController,
+                      error: _submitError,
                     )
                   : ApprovedServiceRequestStep(
                       key: const ValueKey('approved-service-step'),
@@ -312,9 +737,23 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                         setState(() => _acceptHigherOffers = value);
                       },
                       onBack: widget.onBack,
-                      onContinue: () {
-                        _showStep(_ApprovedRequestStep.location);
-                      },
+                      onContinue: _continueToLocation,
+                      descriptionController: _descriptionController,
+                      categoryId: _categoryId,
+                      categoryLabel: _categoryLabel,
+                      categories: widget.categories,
+                      categoriesLoading: widget.categoriesLoading,
+                      categoriesError: widget.categoriesError,
+                      onRefreshCategories: widget.onRefreshCategories,
+                      onCategorySelected: widget.usesRealSubmission
+                          ? (value) {
+                              setState(() {
+                                _categoryId = value;
+                                _submitError = null;
+                              });
+                            }
+                          : null,
+                      error: _submitError,
                     ),
             ),
           ],
@@ -341,6 +780,15 @@ class ApprovedProductRequestStep extends StatelessWidget {
     required this.onAcceptHigherOffersChanged,
     required this.onBack,
     required this.onContinue,
+    this.descriptionController,
+    this.categoryId,
+    this.categoryLabel,
+    this.categories = const <CatalogueCategoryOption>[],
+    this.categoriesLoading = false,
+    this.categoriesError,
+    this.onRefreshCategories,
+    this.onCategorySelected,
+    this.error,
     super.key,
   });
 
@@ -359,6 +807,15 @@ class ApprovedProductRequestStep extends StatelessWidget {
   final ValueChanged<bool> onAcceptHigherOffersChanged;
   final VoidCallback onBack;
   final VoidCallback onContinue;
+  final TextEditingController? descriptionController;
+  final String? categoryId;
+  final String? categoryLabel;
+  final List<CatalogueCategoryOption> categories;
+  final bool categoriesLoading;
+  final String? categoriesError;
+  final VoidCallback? onRefreshCategories;
+  final ValueChanged<String>? onCategorySelected;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -379,6 +836,15 @@ class ApprovedProductRequestStep extends StatelessWidget {
       onAcceptHigherOffersChanged: onAcceptHigherOffersChanged,
       onBack: onBack,
       onContinue: onContinue,
+      descriptionController: descriptionController,
+      categoryId: categoryId,
+      categoryLabel: categoryLabel,
+      categories: categories,
+      categoriesLoading: categoriesLoading,
+      categoriesError: categoriesError,
+      onRefreshCategories: onRefreshCategories,
+      onCategorySelected: onCategorySelected,
+      error: error,
     );
   }
 }
@@ -398,6 +864,15 @@ class ApprovedServiceRequestStep extends StatelessWidget {
     required this.onAcceptHigherOffersChanged,
     required this.onBack,
     required this.onContinue,
+    this.descriptionController,
+    this.categoryId,
+    this.categoryLabel,
+    this.categories = const <CatalogueCategoryOption>[],
+    this.categoriesLoading = false,
+    this.categoriesError,
+    this.onRefreshCategories,
+    this.onCategorySelected,
+    this.error,
     super.key,
   });
 
@@ -414,6 +889,15 @@ class ApprovedServiceRequestStep extends StatelessWidget {
   final ValueChanged<bool> onAcceptHigherOffersChanged;
   final VoidCallback onBack;
   final VoidCallback onContinue;
+  final TextEditingController? descriptionController;
+  final String? categoryId;
+  final String? categoryLabel;
+  final List<CatalogueCategoryOption> categories;
+  final bool categoriesLoading;
+  final String? categoriesError;
+  final VoidCallback? onRefreshCategories;
+  final ValueChanged<String>? onCategorySelected;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -434,6 +918,15 @@ class ApprovedServiceRequestStep extends StatelessWidget {
       onAcceptHigherOffersChanged: onAcceptHigherOffersChanged,
       onBack: onBack,
       onContinue: onContinue,
+      descriptionController: descriptionController,
+      categoryId: categoryId,
+      categoryLabel: categoryLabel,
+      categories: categories,
+      categoriesLoading: categoriesLoading,
+      categoriesError: categoriesError,
+      onRefreshCategories: onRefreshCategories,
+      onCategorySelected: onCategorySelected,
+      error: error,
     );
   }
 }
@@ -456,6 +949,15 @@ class _ApprovedDetailsStep extends StatelessWidget {
     required this.onAcceptHigherOffersChanged,
     required this.onBack,
     required this.onContinue,
+    this.descriptionController,
+    this.categoryId,
+    this.categoryLabel,
+    this.categories = const <CatalogueCategoryOption>[],
+    this.categoriesLoading = false,
+    this.categoriesError,
+    this.onRefreshCategories,
+    this.onCategorySelected,
+    this.error,
   });
 
   final ApprovedRequestKind kind;
@@ -474,6 +976,17 @@ class _ApprovedDetailsStep extends StatelessWidget {
   final ValueChanged<bool> onAcceptHigherOffersChanged;
   final VoidCallback onBack;
   final VoidCallback onContinue;
+  final TextEditingController? descriptionController;
+  final String? categoryId;
+  final String? categoryLabel;
+  final List<CatalogueCategoryOption> categories;
+  final bool categoriesLoading;
+  final String? categoriesError;
+  final VoidCallback? onRefreshCategories;
+  final ValueChanged<String>? onCategorySelected;
+
+  /// User-safe submission error shown above the action row.
+  final String? error;
 
   bool get isProduct => kind == ApprovedRequestKind.product;
 
@@ -524,6 +1037,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
           hint: isProduct
               ? 'Describe what you need, preferred brand, model, size, color, condition, features, etc.'
               : 'Describe what you need, preferred outcome, specific requirements, etc.',
+          controller: descriptionController,
           maxLines: 3,
           counterText: '0/500',
         ),
@@ -560,7 +1074,16 @@ class _ApprovedDetailsStep extends StatelessWidget {
                     quantity: quantity,
                     onChanged: onQuantityChanged,
                   )
-                : const _ApprovedCategoryPanel(),
+                : _ApprovedCategoryPanel(
+                    options: categories,
+                    selectedId: categoryId,
+                    selectedLabel: categoryLabel,
+                    onSelected: onCategorySelected,
+                    loading: categoriesLoading,
+                    error: categoriesError,
+                    onRetry: onRefreshCategories,
+                    supportsProduct: false,
+                  ),
             _ApprovedHigherOffersPanel(
               value: acceptHigherOffers,
               onChanged: onAcceptHigherOffersChanged,
@@ -568,6 +1091,18 @@ class _ApprovedDetailsStep extends StatelessWidget {
           ],
         ),
         SizedBox(height: metrics.geometry(2)),
+        if (error != null) ...[
+          Text(
+            error!,
+            key: const Key('approvedRequestSubmitError'),
+            style: _bodyStyle(context).copyWith(
+              color: const Color(0xFFD32F2F),
+              fontSize: _requestFontSize(metrics, 11),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: metrics.geometry(6)),
+        ],
         _ApprovedActionRow(
           backLabel: 'Back',
           forwardLabel: 'Continue',
@@ -585,9 +1120,22 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     required this.onUseHomeAddressChanged,
     required this.onBack,
     required this.onSubmit,
+    this.isProduct = false,
     this.homeAddressLine1 = '123 Main Street',
     this.homeAddressLine2 = 'Miami, FL 33101, USA',
     this.countryLabel = 'United States',
+    this.submitBusy = false,
+    this.submitError,
+    this.submitUncertain = false,
+    this.onDiscardUncertain,
+    this.onAddressLine1Changed,
+    this.onAddressLine2Changed,
+    this.onCityChanged,
+    this.onStateChanged,
+    this.onPostalCodeChanged,
+    this.onCountryChanged,
+    this.onChooseLocation,
+    this.selectedMapAddress,
     super.key,
   });
 
@@ -595,9 +1143,31 @@ class ApprovedLocationRequestStep extends StatelessWidget {
   final ValueChanged<bool> onUseHomeAddressChanged;
   final VoidCallback onBack;
   final VoidCallback onSubmit;
+  final bool isProduct;
   final String homeAddressLine1;
   final String homeAddressLine2;
   final String countryLabel;
+
+  /// True while a real submission is in flight.
+  final bool submitBusy;
+
+  /// User-safe submission error shown above the actions.
+  final String? submitError;
+
+  /// True when the last submission's outcome is unknown and must be
+  /// reconciled or discarded before changing anything.
+  final bool submitUncertain;
+  final VoidCallback? onDiscardUncertain;
+
+  /// Custom-address capture for real submission. Prototype callers omit them.
+  final ValueChanged<String>? onAddressLine1Changed;
+  final ValueChanged<String>? onAddressLine2Changed;
+  final ValueChanged<String>? onCityChanged;
+  final ValueChanged<String>? onStateChanged;
+  final ValueChanged<String>? onPostalCodeChanged;
+  final ValueChanged<String>? onCountryChanged;
+  final VoidCallback? onChooseLocation;
+  final String? selectedMapAddress;
 
   @override
   Widget build(BuildContext context) {
@@ -605,7 +1175,9 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'Where do you need this service?',
+          isProduct
+              ? 'Where are you looking for this product?'
+              : 'Where do you need this service?',
           textAlign: TextAlign.center,
           style: _titleStyle(context, 16),
         ),
@@ -741,6 +1313,22 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           ],
         ),
         SizedBox(height: metrics.geometry(10)),
+        if (onChooseLocation != null || selectedMapAddress != null) ...[
+          if (onChooseLocation != null)
+            OutlinedButton(
+              key: const Key('requestChooseMapLocation'),
+              onPressed: onChooseLocation,
+              child: const Text('Choose location on map'),
+            ),
+          if (selectedMapAddress != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Selected: $selectedMapAddress\nEditing an address field below replaces this selection.',
+                style: _smallStyle(context),
+              ),
+            ),
+        ],
         _ApprovedSurface(
           referenceVerticalPadding: 14,
           child: Column(
@@ -753,31 +1341,35 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                 style: _smallStyle(context),
               ),
               SizedBox(height: metrics.geometry(6)),
-              const _ApprovedAddressField(
+              _ApprovedAddressField(
                 label: 'Street address',
                 hint: '123 Main St',
+                onChanged: onAddressLine1Changed,
               ),
               SizedBox(height: metrics.geometry(5)),
-              const _ApprovedAddressField(
+              _ApprovedAddressField(
                 label: 'Apartment, suite, etc. (optional)',
                 hint: 'Apt 4B, Suite 200, etc.',
+                onChanged: onAddressLine2Changed,
               ),
               SizedBox(height: metrics.geometry(5)),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: _ApprovedAddressField(
                       label: 'City',
                       hint: 'Enter city',
+                      onChanged: onCityChanged,
                     ),
                   ),
                   SizedBox(width: metrics.geometry(12)),
-                  const Expanded(
+                  Expanded(
                     child: _ApprovedAddressField(
                       label: 'State',
                       hint: 'Select state',
                       dropdown: true,
+                      onChanged: onStateChanged,
                     ),
                   ),
                 ],
@@ -786,10 +1378,11 @@ class ApprovedLocationRequestStep extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: _ApprovedAddressField(
                       label: 'ZIP code',
                       hint: 'Enter ZIP code',
+                      onChanged: onPostalCodeChanged,
                     ),
                   ),
                   SizedBox(width: metrics.geometry(12)),
@@ -799,6 +1392,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                       hint: 'Select country',
                       value: countryLabel,
                       dropdown: true,
+                      countryOptions: true,
+                      onChanged: onCountryChanged,
                     ),
                   ),
                 ],
@@ -807,7 +1402,14 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           ),
         ),
         SizedBox(height: metrics.geometry(12)),
-        _ApprovedLocationActions(onBack: onBack, onSubmit: onSubmit),
+        _ApprovedLocationActions(
+          onBack: onBack,
+          onSubmit: onSubmit,
+          busy: submitBusy,
+          error: submitError,
+          uncertain: submitUncertain,
+          onDiscard: onDiscardUncertain,
+        ),
       ],
     );
   }
@@ -853,6 +1455,12 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
     this.onHocatrends,
     this.onChats,
     this.onMore,
+    this.request,
+    this.onUpdateRequest,
+    this.onCloseRequest,
+    this.onChooseLocation,
+    this.onUpdated,
+    this.bookmarkAction,
     super.key,
   });
 
@@ -870,6 +1478,23 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
   final VoidCallback? onChats;
   final VoidCallback? onMore;
 
+  /// The authoritative request when a real backend is attached.
+  final MarketplaceRequest? request;
+
+  /// Real update/close commands. Null keeps the prototype preview flow.
+  final RequestDraftSubmitter? onUpdateRequest;
+  final Future<RequestSubmissionResult> Function(String operationKey)?
+  onCloseRequest;
+
+  /// Real place picker for a revisioned location update. Null keeps the
+  /// location tile informational.
+  final Future<RequestLocation?> Function(BuildContext context)?
+  onChooseLocation;
+  final ValueChanged<MarketplaceRequest>? onUpdated;
+  final Widget? bookmarkAction;
+
+  bool get usesRealRequest => request != null && onUpdateRequest != null;
+
   @override
   State<ApprovedBuyerRequestDetailsPage> createState() =>
       _ApprovedBuyerRequestDetailsPageState();
@@ -880,20 +1505,39 @@ class _ApprovedBuyerRequestDetailsPageState
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   bool _isNew = true;
+  ServiceType _serviceType = ServiceType.oneTime;
   bool _acceptHigherOffers = true;
   int _quantity = 1;
+  bool _saving = false;
+  String? _saveError;
+  bool _outcomeUncertain = false;
+  RequestDraft? _pendingDraft;
+  String? _pendingOperationKey;
+  RequestLocation? _editedLocation;
+  bool _choosingLocation = false;
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.requestTitle);
+    final request = widget.request;
+    final draft = request?.draft;
+    _titleController = TextEditingController(
+      text: draft?.title ?? widget.requestTitle,
+    );
     _descriptionController = TextEditingController(
       text:
+          draft?.description ??
           'Looking for an iPad Air 5th generation or newer.\n'
-          'Prefer 64GB or higher, in excellent condition.\n'
-          'Must include original charger and box.\n'
-          "Color doesn't matter.",
+              'Prefer 64GB or higher, in excellent condition.\n'
+              'Must include original charger and box.\n'
+              "Color doesn't matter.",
     );
+    if (draft != null) {
+      _isNew = draft.condition != ProductCondition.used;
+      _serviceType = draft.serviceType ?? ServiceType.oneTime;
+      _acceptHigherOffers = draft.acceptsHigherOffers;
+      _quantity = draft.quantity;
+    }
   }
 
   @override
@@ -907,31 +1551,187 @@ class _ApprovedBuyerRequestDetailsPageState
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
+  String get _displayTitle =>
+      widget.request?.draft.title ?? widget.requestTitle;
+
+  String _formatMinorUnits(int minorUnits) {
+    final amount = minorUnits / 100;
+    return amount.truncateToDouble() == amount
+        ? amount.toStringAsFixed(0)
+        : amount.toStringAsFixed(2);
+  }
+
+  String _displayBudget(String fallback) {
+    final draft = widget.request?.draft;
+    if (draft == null) return fallback;
+    final range = draft.budget;
+    if (range.isEmpty) return 'Any budget';
+    final minimum = range.minimum;
+    final maximum = range.maximum;
+    if (minimum != null && maximum != null) {
+      return '\$${_formatMinorUnits(minimum.minorUnits)} – '
+          '\$${_formatMinorUnits(maximum.minorUnits)}';
+    }
+    if (minimum != null) {
+      return 'From \$${_formatMinorUnits(minimum.minorUnits)}';
+    }
+    return 'Up to \$${_formatMinorUnits(maximum!.minorUnits)}';
+  }
+
+  String get _budgetMinimumLabel {
+    final request = widget.request;
+    if (request == null) return r'$350';
+    final minimum = request.draft.budget.minimum;
+    return minimum == null
+        ? r'$0'
+        : '\$${_formatMinorUnits(minimum.minorUnits)}';
+  }
+
+  String get _budgetMaximumLabel {
+    final request = widget.request;
+    if (request == null) return r'$480';
+    final maximum = request.draft.budget.maximum;
+    return maximum == null
+        ? r'$0'
+        : '\$${_formatMinorUnits(maximum.minorUnits)}';
+  }
+
+  String _displayLocation(String fallback) {
+    final edited = _editedLocation;
+    if (edited != null) {
+      if (edited.useHomeAddress) return 'Home address';
+      final address = edited.address;
+      final parts = <String>[
+        if (!isBlank(address?.city)) address!.city!.trim(),
+        if (!isBlank(address?.state)) address!.state!.trim(),
+      ];
+      return parts.isEmpty ? 'Custom address' : parts.join(', ');
+    }
+    final draft = widget.request?.draft;
+    if (draft == null) return fallback;
+    if (draft.location.useHomeAddress) return 'Home address';
+    final address = draft.location.address;
+    final parts = <String>[
+      if (!isBlank(address?.city)) address!.city!.trim(),
+      if (!isBlank(address?.state)) address!.state!.trim(),
+    ];
+    return parts.isEmpty ? 'Custom address' : parts.join(', ');
+  }
+
+  Future<void> _chooseLocation() async {
+    if (_choosingLocation || _saving || _outcomeUncertain) return;
+    final choose = widget.onChooseLocation;
+    if (choose == null) return;
+    setState(() => _choosingLocation = true);
+    try {
+      final location = await choose(context);
+      if (!mounted || location == null) return;
+      setState(() {
+        _editedLocation = location;
+        _saveError = null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _saveError = 'Location could not be selected. Try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _choosingLocation = false);
+    }
+  }
+
+  RequestDraft _editedDraft() {
+    final current = widget.request!.draft;
+    return current.copyWith(
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      condition: current.kind == RequestKind.product
+          ? (_isNew ? ProductCondition.newItem : ProductCondition.used)
+          : null,
+      serviceType: current.kind == RequestKind.service ? _serviceType : null,
+      quantity: current.kind == RequestKind.product ? _quantity : 1,
+      acceptsHigherOffers: _acceptHigherOffers,
+      location: _editedLocation ?? current.location,
+    );
+  }
+
+  bool _sameDraft(RequestDraft left, RequestDraft right) =>
+      left.kind == right.kind &&
+      left.title == right.title &&
+      left.description == right.description &&
+      left.condition == right.condition &&
+      left.serviceType == right.serviceType &&
+      left.quantity == right.quantity &&
+      left.budget == right.budget &&
+      left.acceptsHigherOffers == right.acceptsHigherOffers &&
+      left.categoryId == right.categoryId &&
+      left.location == right.location;
+
+  void _discardUncertain() {
+    setState(() {
+      _outcomeUncertain = false;
+      _pendingDraft = null;
+      _pendingOperationKey = null;
+      _saveError = null;
+    });
+  }
+
   Future<void> _confirmDelete() async {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _ApprovedRequestDecisionSheet(
         key: const ValueKey('approved-delete-request-sheet'),
         asset: 'assets/post_request/info.png',
-        title: 'Delete this request?',
-        message:
-            'This removes the request from your active list and stops new offers from sellers.',
-        primaryLabel: 'Delete request',
+        title: widget.onCloseRequest != null
+            ? 'Close this request?'
+            : 'Delete this request?',
+        message: widget.onCloseRequest != null
+            ? 'Closing stops new offers from sellers and removes the request '
+                  'from your active list. Existing conversations are kept.'
+            : 'Prototype preview only: nothing is removed and sellers are '
+                  'not affected.',
+        primaryLabel: widget.onCloseRequest != null
+            ? 'Close request'
+            : 'Preview delete',
         destructive: true,
         onCancel: () => Navigator.pop(sheetContext, false),
         onPrimary: () => Navigator.pop(sheetContext, true),
       ),
     );
-    if (confirmed == true && mounted) {
+    if (confirmed != true || !mounted) return;
+    final close = widget.onCloseRequest;
+    if (close == null) {
       _message('Delete preview only - no request was removed.');
+      return;
     }
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    final result = await close(
+      LocalMarketplaceRepository.newStoreOperationKey('request-close'),
+    );
+    if (!mounted) return;
+    if (result.isSuccess) {
+      setState(() => _saving = false);
+      widget.onUpdated?.call(result.request!);
+      _message('Request closed. Sellers can no longer send offers.');
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _saveError = result.error;
+    });
   }
 
   Future<void> _confirmSave() async {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _ApprovedRequestDecisionSheet(
@@ -939,16 +1739,66 @@ class _ApprovedBuyerRequestDetailsPageState
         asset: 'assets/post_request/info.png',
         title: 'Update your request?',
         message:
-            'Your active sellers will be notified. They may continue with the updated request or withdraw, and your estimated rewards may change.',
+            'Updating changes the terms sellers see for this request. They '
+            'may continue with the updated request or withdraw, and your '
+            'estimated rewards may change.',
         primaryLabel: 'Update request',
         onCancel: () => Navigator.pop(sheetContext, false),
         onPrimary: () => Navigator.pop(sheetContext, true),
       ),
     );
-    if (confirmed == true && mounted) {
+    if (confirmed != true || !mounted) return;
+    final update = widget.onUpdateRequest;
+    if (update == null) {
       widget.onSaveRequest?.call();
-      _message('Request updated. Active sellers were notified.');
+      _message('Request updated.');
+      return;
     }
+    final draft = _editedDraft();
+    final issues = draft.validationIssues();
+    if (issues.isNotEmpty) {
+      setState(() => _saveError = issues.first.message);
+      return;
+    }
+    if (_outcomeUncertain) {
+      if (!_sameDraft(draft, _pendingDraft!)) {
+        setState(
+          () => _saveError =
+              'An earlier update may already have been saved. Retry to '
+              'confirm it, or discard it before changing the details.',
+        );
+        return;
+      }
+    } else {
+      _pendingDraft = draft;
+      _pendingOperationKey = LocalMarketplaceRepository.newStoreOperationKey(
+        'request-update',
+      );
+    }
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    final result = await update(_pendingDraft!, _pendingOperationKey!);
+    if (!mounted) return;
+    if (result.isSuccess) {
+      _pendingDraft = null;
+      _pendingOperationKey = null;
+      _outcomeUncertain = false;
+      setState(() => _saving = false);
+      widget.onUpdated?.call(result.request!);
+      _message('Request updated.');
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _saveError = result.error;
+      _outcomeUncertain = result.outcomeUncertain;
+      if (!result.outcomeUncertain) {
+        _pendingDraft = null;
+        _pendingOperationKey = null;
+      }
+    });
   }
 
   @override
@@ -1010,10 +1860,12 @@ class _ApprovedBuyerRequestDetailsPageState
             ),
             SizedBox(height: metrics.geometry(13)),
             _ApprovedRequestSummary(
-              requestTitle: widget.requestTitle,
-              budget: widget.budget,
-              location: widget.locationLabel,
+              requestTitle: _displayTitle,
+              budget: _displayBudget(widget.budget),
+              location: _displayLocation(widget.locationLabel),
               onDelete: _confirmDelete,
+              isReal: widget.usesRealRequest,
+              status: widget.request?.status,
             ),
             SizedBox(height: metrics.geometry(14)),
             Text('Edit your request', style: _titleStyle(context, 16)),
@@ -1035,11 +1887,13 @@ class _ApprovedBuyerRequestDetailsPageState
             _ApprovedEditPanel(
               referenceHeight: 136,
               iconAsset: _descriptionIcon,
-              title: 'Describe the product',
+              title: widget.request?.draft.kind == RequestKind.service
+                  ? 'Describe the service'
+                  : 'Describe the product',
               helper:
                   'Include key details so sellers can give you accurate offers.',
               trailing: '${_descriptionController.text.length}/500',
-              onEdit: () => _message('Edit the product description below.'),
+              onEdit: () => _message('Edit the description below.'),
               child: TextField(
                 key: const Key('request-description-field'),
                 controller: _descriptionController,
@@ -1062,25 +1916,51 @@ class _ApprovedBuyerRequestDetailsPageState
               children: [
                 _ApprovedDetailChoicePanel(
                   referenceHeight: 86,
-                  iconAsset: _conditionIcon,
-                  title: 'Condition',
+                  iconAsset: widget.request?.draft.kind == RequestKind.service
+                      ? _serviceTypeIcon
+                      : _conditionIcon,
+                  title: widget.request?.draft.kind == RequestKind.service
+                      ? 'Service Type'
+                      : 'Condition',
                   helper: 'Select your preference',
-                  onEdit: () => _message('Choose New or Used below.'),
+                  onEdit: () => _message(
+                    widget.request?.draft.kind == RequestKind.service
+                        ? 'Choose Single or Ongoing below.'
+                        : 'Choose New or Used below.',
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: _ApprovedTextChoice(
-                          label: 'New',
-                          selected: _isNew,
-                          onTap: () => setState(() => _isNew = true),
+                          label:
+                              widget.request?.draft.kind == RequestKind.service
+                              ? 'Single'
+                              : 'New',
+                          selected:
+                              widget.request?.draft.kind == RequestKind.service
+                              ? _serviceType == ServiceType.oneTime
+                              : _isNew,
+                          onTap: () => setState(() {
+                            _isNew = true;
+                            _serviceType = ServiceType.oneTime;
+                          }),
                         ),
                       ),
                       SizedBox(width: metrics.geometry(8)),
                       Expanded(
                         child: _ApprovedTextChoice(
-                          label: 'Used',
-                          selected: !_isNew,
-                          onTap: () => setState(() => _isNew = false),
+                          label:
+                              widget.request?.draft.kind == RequestKind.service
+                              ? 'Ongoing'
+                              : 'Used',
+                          selected:
+                              widget.request?.draft.kind == RequestKind.service
+                              ? _serviceType == ServiceType.ongoing
+                              : !_isNew,
+                          onTap: () => setState(() {
+                            _isNew = false;
+                            _serviceType = ServiceType.ongoing;
+                          }),
                         ),
                       ),
                     ],
@@ -1089,12 +1969,15 @@ class _ApprovedBuyerRequestDetailsPageState
                 _ApprovedDetailBudgetPanel(
                   referenceHeight: 86,
                   onEdit: () => _message('Edit the budget range below.'),
+                  minimumLabel: _budgetMinimumLabel,
+                  maximumLabel: _budgetMaximumLabel,
                 ),
-                _ApprovedDetailQuantityPanel(
-                  referenceHeight: 97,
-                  quantity: _quantity,
-                  onChanged: (value) => setState(() => _quantity = value),
-                ),
+                if (widget.request?.draft.kind != RequestKind.service)
+                  _ApprovedDetailQuantityPanel(
+                    referenceHeight: 97,
+                    quantity: _quantity,
+                    onChanged: (value) => setState(() => _quantity = value),
+                  ),
                 _ApprovedDetailChoicePanel(
                   referenceHeight: 97,
                   iconAsset: _higherOffersIcon,
@@ -1134,17 +2017,46 @@ class _ApprovedBuyerRequestDetailsPageState
               children: [
                 _ApprovedLocationSummary(
                   referenceHeight: 69,
-                  location: widget.locationLabel,
-                  onTap: () => _message('Location editor preview opened.'),
+                  location: _displayLocation(widget.locationLabel),
+                  onTap: widget.usesRealRequest
+                      ? (widget.onChooseLocation == null
+                            ? () => _message(
+                                'Location editing is unavailable for this request.',
+                              )
+                            : () => _chooseLocation())
+                      : () => _message('Location editor preview opened.'),
                 ),
-                _ApprovedRewardsPanel(
-                  referenceHeight: 69,
-                  onOffers: widget.onOffers,
-                ),
+                if (widget.usesRealRequest)
+                  _ApprovedRealOffersPanel(onOffers: widget.onOffers)
+                else
+                  _ApprovedRewardsPanel(
+                    referenceHeight: 69,
+                    onOffers: widget.onOffers,
+                  ),
               ],
             ),
+            if (_saveError != null) ...[
+              SizedBox(height: metrics.geometry(5)),
+              Text(
+                _saveError!,
+                key: const Key('requestSaveError'),
+                style: _bodyStyle(context).copyWith(
+                  color: const Color(0xFFD32F2F),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (_outcomeUncertain) ...[
+                SizedBox(height: metrics.geometry(4)),
+                TextButton(
+                  key: const Key('requestDiscardAttempt'),
+                  onPressed: _saving ? null : _discardUncertain,
+                  child: const Text('Discard this attempt'),
+                ),
+              ],
+            ],
             SizedBox(height: metrics.geometry(5)),
-            _ApprovedSavePanel(onSave: _confirmSave),
+            if (widget.bookmarkAction != null) widget.bookmarkAction!,
+            _ApprovedSavePanel(onSave: _confirmSave, busy: _saving),
           ],
         ),
       ),
@@ -1336,9 +2248,11 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                         height: metrics.geometry(39),
                       ),
                       padding: EdgeInsets.zero,
-                      icon: _ApprovedAssetIcon(
-                        asset: _notificationIcon,
-                        size: metrics.geometry(28),
+                      icon: NotificationArtwork(
+                        child: _ApprovedAssetIcon(
+                          asset: _notificationIcon,
+                          size: metrics.geometry(28),
+                        ),
                       ),
                     ),
                   ],
@@ -1423,66 +2337,71 @@ class _ApprovedKindCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
-    return Material(
-      color: selected ? const Color(0xfff8f7ff) : Colors.white,
-      borderRadius: BorderRadius.circular(metrics.geometry(8)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(metrics.geometry(8)),
-        child: Container(
-          constraints: BoxConstraints(
-            minHeight: _requestDimension(metrics, 62, floor: 58),
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: _requestDimension(metrics, 8, floor: 7),
-            vertical: _requestDimension(metrics, 8, floor: 7),
-          ),
-          decoration: BoxDecoration(
+    return HocalistEntrance(
+      child: HocalistPressFeedback(
+        child: Material(
+          color: selected ? const Color(0xfff8f7ff) : Colors.white,
+          borderRadius: BorderRadius.circular(metrics.geometry(8)),
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(metrics.geometry(8)),
-            border: Border.all(
-              color: selected ? _approvedBlue : _approvedBorder,
-              width: metrics.geometry(selected ? 1.5 : 1),
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
+            child: AnimatedContainer(
+              duration: HocalistMotion.duration(context, 180),
+              constraints: BoxConstraints(
+                minHeight: _requestDimension(metrics, 62, floor: 58),
+              ),
+              padding: EdgeInsets.symmetric(
+                horizontal: _requestDimension(metrics, 8, floor: 7),
+                vertical: _requestDimension(metrics, 8, floor: 7),
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(metrics.geometry(8)),
+                border: Border.all(
+                  color: selected ? _approvedBlue : _approvedBorder,
+                  width: metrics.geometry(selected ? 1.5 : 1),
+                ),
+              ),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _ApprovedAssetIcon(
-                    asset: iconAsset,
-                    size: _requestDimension(
-                      metrics,
-                      BuyerIconTokens.control + 2,
-                      floor: 22,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ApprovedAssetIcon(
+                        asset: iconAsset,
+                        size: _requestDimension(
+                          metrics,
+                          BuyerIconTokens.control + 2,
+                          floor: 22,
+                        ),
+                      ),
+                      SizedBox(width: metrics.geometry(4.875)),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _sectionStyle(
+                          context,
+                        ).copyWith(fontSize: _requestFontSize(metrics, 12)),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: metrics.geometry(4.875)),
+                  SizedBox(height: metrics.geometry(2.44)),
                   Text(
-                    title,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: _sectionStyle(
-                      context,
-                    ).copyWith(fontSize: _requestFontSize(metrics, 12)),
+                    subtitle,
+                    maxLines: metrics.screenshotLocked ? 1 : null,
+                    softWrap: !metrics.screenshotLocked,
+                    textAlign: TextAlign.center,
+                    style: _smallStyle(context).copyWith(
+                      color: selected ? _approvedBlue : _approvedNavy,
+                      fontSize: _requestFontSize(metrics, 11),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
-              SizedBox(height: metrics.geometry(2.44)),
-              Text(
-                subtitle,
-                maxLines: metrics.screenshotLocked ? 1 : null,
-                softWrap: !metrics.screenshotLocked,
-                textAlign: TextAlign.center,
-                style: _smallStyle(context).copyWith(
-                  color: selected ? _approvedBlue : _approvedNavy,
-                  fontSize: _requestFontSize(metrics, 11),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1588,6 +2507,7 @@ class _ApprovedFieldCard extends StatelessWidget {
     required this.iconAsset,
     required this.hint,
     this.initialValue,
+    this.controller,
     this.onChanged,
     this.maxLines = 1,
     this.counterText,
@@ -1598,6 +2518,7 @@ class _ApprovedFieldCard extends StatelessWidget {
   final String iconAsset;
   final String hint;
   final String? initialValue;
+  final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
   final int maxLines;
   final String? counterText;
@@ -1609,7 +2530,8 @@ class _ApprovedFieldCard extends StatelessWidget {
     final effectiveLines = maxLines;
     final lockedInputHeight = _requestDimension(metrics, 76, floor: 74);
     final input = TextFormField(
-      initialValue: initialValue,
+      initialValue: controller == null ? initialValue : null,
+      controller: controller,
       onChanged: onChanged,
       minLines: effectiveLines,
       maxLines: effectiveLines,
@@ -2139,40 +3061,99 @@ class _ApprovedQuantityPanel extends StatelessWidget {
 }
 
 class _ApprovedCategoryPanel extends StatefulWidget {
-  const _ApprovedCategoryPanel();
+  const _ApprovedCategoryPanel({
+    this.options = const <CatalogueCategoryOption>[],
+    this.selectedId,
+    this.selectedLabel,
+    this.onSelected,
+    this.loading = false,
+    this.error,
+    this.onRetry,
+    this.supportsProduct,
+  });
+
+  /// Server-provided categories. Empty keeps the prototype free-text picker.
+  final List<CatalogueCategoryOption> options;
+  final String? selectedId;
+  final String? selectedLabel;
+
+  /// Non-null enables real-mode selection by catalogue id.
+  final ValueChanged<String>? onSelected;
+  final bool loading;
+  final String? error;
+  final VoidCallback? onRetry;
+
+  /// Scope filter for the current request kind; null shows every category.
+  final bool? supportsProduct;
 
   @override
   State<_ApprovedCategoryPanel> createState() => _ApprovedCategoryPanelState();
 }
 
 class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
-  String? _category;
+  String? _prototypeCategory;
+
+  List<CatalogueCategoryOption> get _eligible {
+    final supportsProduct = widget.supportsProduct;
+    if (supportsProduct == null) return widget.options;
+    return widget.options
+        .where(
+          (option) =>
+              supportsProduct ? option.supportsProduct : option.supportsService,
+        )
+        .toList(growable: false);
+  }
 
   Future<void> _chooseCategory() async {
+    final onSelected = widget.onSelected;
+    if (onSelected == null) {
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: const Color(0x990B1231),
+        builder: (sheetContext) => _ApprovedEditableSelectionSheet(
+          title: 'Choose a category',
+          subtitle:
+              'Enter the closest category now. Suggested categories will come from the backend later.',
+          icon: Icons.grid_view_outlined,
+          fieldKey: const Key('approved-request-category-input'),
+          label: 'Category',
+          hint: 'Enter a category',
+          actionLabel: 'Use category',
+          initialValue: _prototypeCategory,
+        ),
+      );
+      if (selected != null && mounted) {
+        setState(() => _prototypeCategory = selected);
+      }
+      return;
+    }
     final selected = await showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0x990B1231),
-      builder: (sheetContext) => _ApprovedEditableSelectionSheet(
-        title: 'Choose a category',
-        subtitle:
-            'Enter the closest category now. Suggested categories will come from the backend later.',
-        icon: Icons.grid_view_outlined,
-        fieldKey: const Key('approved-request-category-input'),
-        label: 'Category',
-        hint: 'Enter a category',
-        actionLabel: 'Use category',
-        initialValue: _category,
+      builder: (sheetContext) => _ApprovedCategorySheet(
+        options: _eligible,
+        selectedId: widget.selectedId,
+        onSelected: (id) => Navigator.pop(sheetContext, id),
+        onClose: () => Navigator.pop(sheetContext),
       ),
     );
-    if (selected != null && mounted) setState(() => _category = selected);
+    if (selected != null) onSelected(selected);
   }
 
   @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
+    final selected = widget.selectedId != null
+        ? (widget.selectedLabel ?? widget.selectedId!)
+        : _prototypeCategory;
     return _ApprovedSurface(
       referenceHeight: 105,
       referenceVerticalPadding: 7,
@@ -2189,7 +3170,9 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
           SizedBox(height: metrics.geometry(8)),
           InkWell(
             key: const Key('approved-request-category-select'),
-            onTap: _chooseCategory,
+            onTap: widget.onSelected != null && widget.loading
+                ? null
+                : _chooseCategory,
             borderRadius: BorderRadius.circular(metrics.geometry(8)),
             child: Container(
               height: metrics.geometry(30.47),
@@ -2210,8 +3193,10 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
                   SizedBox(width: metrics.geometry(4.875)),
                   Expanded(
                     child: Text(
-                      _category ?? 'Select a category',
-                      style: _category == null
+                      selected ?? 'Select a category',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: selected == null
                           ? _requestHintStyle(context)
                           : _requestInputStyle(context),
                     ),
@@ -2224,6 +3209,103 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
               ),
             ),
           ),
+          if (widget.loading) ...[
+            SizedBox(height: metrics.geometry(4)),
+            Text('Loading categories…', style: _smallStyle(context)),
+          ] else if (widget.error != null) ...[
+            SizedBox(height: metrics.geometry(4)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.error!,
+                    key: const Key('approvedRequestCategoryError'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _smallStyle(
+                      context,
+                    ).copyWith(color: const Color(0xFFD32F2F)),
+                  ),
+                ),
+                TextButton(
+                  key: const Key('approvedRequestCategoryRetry'),
+                  onPressed: widget.onRetry,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 30),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.geometry(6),
+                    ),
+                    foregroundColor: _approvedBlue,
+                  ),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Real-mode category picker sheet: active server categories by id.
+class _ApprovedCategorySheet extends StatelessWidget {
+  const _ApprovedCategorySheet({
+    required this.options,
+    required this.selectedId,
+    required this.onSelected,
+    required this.onClose,
+  });
+
+  final List<CatalogueCategoryOption> options;
+  final String? selectedId;
+  final ValueChanged<String> onSelected;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = options.where((option) => option.isActive).toList();
+    return BuyerModalSheet(
+      title: 'Choose a category',
+      subtitle: 'Categories come from the Hocalist catalogue.',
+      icon: Icons.grid_view_outlined,
+      onClose: onClose,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (active.isEmpty)
+            Padding(
+              key: const Key('approvedRequestCategoryEmpty'),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Text(
+                'No categories are available yet. An administrator must publish '
+                'the catalogue before categories can be chosen.',
+                textAlign: TextAlign.center,
+                style: _bodyStyle(context),
+              ),
+            )
+          else
+            for (final option in active)
+              InkWell(
+                key: ValueKey('approvedRequestCategory-${option.id}'),
+                onTap: () => onSelected(option.id),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(option.label, style: _bodyStyle(context)),
+                      ),
+                      if (option.id == selectedId)
+                        const Icon(Icons.check, color: _approvedBlue, size: 18),
+                    ],
+                  ),
+                ),
+              ),
         ],
       ),
     );
@@ -2486,10 +3568,16 @@ class _ApprovedActionRow extends StatelessWidget {
 }
 
 class _ApprovedPrimaryButton extends StatelessWidget {
-  const _ApprovedPrimaryButton({required this.label, required this.onPressed});
+  const _ApprovedPrimaryButton({
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+    super.key,
+  });
 
   final String label;
   final VoidCallback onPressed;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -2524,7 +3612,7 @@ class _ApprovedPrimaryButton extends StatelessWidget {
           ),
         ),
         label: Text(
-          label,
+          busy ? 'Posting…' : label,
           maxLines: 1,
           softWrap: false,
           style: _bodyStyle(context).copyWith(
@@ -2542,10 +3630,18 @@ class _ApprovedLocationActions extends StatelessWidget {
   const _ApprovedLocationActions({
     required this.onBack,
     required this.onSubmit,
+    this.busy = false,
+    this.error,
+    this.uncertain = false,
+    this.onDiscard,
   });
 
   final VoidCallback onBack;
   final VoidCallback onSubmit;
+  final bool busy;
+  final String? error;
+  final bool uncertain;
+  final VoidCallback? onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -2553,7 +3649,37 @@ class _ApprovedLocationActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ApprovedPrimaryButton(label: 'Post request', onPressed: onSubmit),
+        if (error != null) ...[
+          Text(
+            error!,
+            key: const Key('approvedRequestSubmitError'),
+            style: _bodyStyle(context).copyWith(
+              color: const Color(0xFFD32F2F),
+              fontSize: _requestFontSize(metrics, 11),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: metrics.geometry(6)),
+        ],
+        _ApprovedPrimaryButton(
+          key: const Key('approvedRequestPostButton'),
+          label: uncertain ? 'Retry' : 'Post request',
+          onPressed: busy ? () {} : onSubmit,
+          busy: busy,
+        ),
+        if (uncertain && !busy && onDiscard != null) ...[
+          SizedBox(height: metrics.geometry(4.875)),
+          OutlinedButton(
+            key: const Key('approvedRequestDiscard'),
+            onPressed: onDiscard,
+            style: OutlinedButton.styleFrom(
+              minimumSize: Size(0, _requestDimension(metrics, 38, floor: 36)),
+              foregroundColor: _approvedBlue,
+              side: const BorderSide(color: _approvedBorder),
+            ),
+            child: const Text('Discard this attempt'),
+          ),
+        ],
         SizedBox(height: metrics.geometry(4.875)),
         TextButton(
           onPressed: onBack,
@@ -2587,12 +3713,16 @@ class _ApprovedAddressField extends StatefulWidget {
     required this.hint,
     this.value,
     this.dropdown = false,
+    this.countryOptions = false,
+    this.onChanged,
   });
 
   final String label;
   final String hint;
   final String? value;
   final bool dropdown;
+  final bool countryOptions;
+  final ValueChanged<String>? onChanged;
 
   @override
   State<_ApprovedAddressField> createState() => _ApprovedAddressFieldState();
@@ -2611,8 +3741,26 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
   }
 
   Future<void> _chooseValue() async {
-    final selected = await showModalBottomSheet<String>(
+    if (widget.countryOptions) {
+      final choice = await _chooseCountry();
+      if (choice == null || !mounted) return;
+      _fieldController.text = choice.label;
+      setState(() => _selectedValue = choice.code);
+      widget.onChanged?.call(choice.code);
+      return;
+    }
+    final selected = await _chooseEditableValue();
+    if (selected != null && mounted) {
+      _fieldController.text = selected;
+      setState(() => _selectedValue = selected);
+      widget.onChanged?.call(selected);
+    }
+  }
+
+  Future<String?> _chooseEditableValue() {
+    return showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -2631,10 +3779,57 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
         initialValue: _selectedValue,
       ),
     );
-    if (selected != null && mounted) {
-      _fieldController.text = selected;
-      setState(() => _selectedValue = selected);
-    }
+  }
+
+  Future<ApprovedCountryOption?> _chooseCountry() {
+    return showModalBottomSheet<ApprovedCountryOption>(
+      context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x990B1231),
+      builder: (sheetContext) => BuyerModalSheet(
+        key: const Key('approved-request-country-sheet'),
+        title: 'Choose country',
+        subtitle:
+            'United States is selected by default. Other supported countries '
+            'remain available.',
+        icon: Icons.public,
+        onClose: () => Navigator.pop(sheetContext),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final option in approvedRequestCountries) ...[
+              Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  key: ValueKey('approved-country-${option.code}'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: option.code == 'US'
+                      ? const Icon(Icons.star, color: _approvedBlue, size: 20)
+                      : const Icon(
+                          Icons.public,
+                          color: _approvedMuted,
+                          size: 20,
+                        ),
+                  title: Text(option.label),
+                  subtitle: Text(option.code),
+                  trailing: option.code == _selectedValue
+                      ? const Icon(Icons.check_circle, color: _approvedBlue)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, option),
+                ),
+              ),
+              if (option != approvedRequestCountries.last)
+                const Divider(height: 1),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -2670,6 +3865,7 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
             controller: _fieldController,
             readOnly: widget.dropdown,
             onTap: widget.dropdown ? _chooseValue : null,
+            onChanged: widget.dropdown ? null : widget.onChanged,
             style: _requestInputStyle(
               context,
             ).copyWith(fontSize: fieldFontSize),
@@ -2803,12 +3999,16 @@ class _ApprovedRequestSummary extends StatelessWidget {
     required this.budget,
     required this.location,
     required this.onDelete,
+    this.isReal = false,
+    this.status,
   });
 
   final String requestTitle;
   final String budget;
   final String location;
   final VoidCallback onDelete;
+  final bool isReal;
+  final RequestStatus? status;
 
   @override
   Widget build(BuildContext context) {
@@ -2882,7 +4082,13 @@ class _ApprovedRequestSummary extends StatelessWidget {
                     ),
                     SizedBox(width: metrics.geometry(2.44)),
                     Text(
-                      'Active',
+                      switch (status) {
+                        RequestStatus.closed => 'Closed',
+                        RequestStatus.expired => 'Expired',
+                        RequestStatus.cancelled => 'Cancelled',
+                        RequestStatus.draft => 'Draft',
+                        _ => 'Active',
+                      },
                       style: TextStyle(
                         color: const Color(0xff07933e),
                         fontSize: _requestFontSize(metrics, 9.5),
@@ -2916,7 +4122,7 @@ class _ApprovedRequestSummary extends StatelessWidget {
                   glyphSize: metrics.geometry(14.625),
                 ),
                 label: Text(
-                  'Delete',
+                  isReal ? 'Close' : 'Delete',
                   style: TextStyle(fontSize: _requestFontSize(metrics, 10.5)),
                 ),
               ),
@@ -2926,8 +4132,10 @@ class _ApprovedRequestSummary extends StatelessWidget {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                image,
-                SizedBox(width: metrics.geometry(7.31)),
+                if (!isReal) ...[
+                  image,
+                  SizedBox(width: metrics.geometry(7.31)),
+                ],
                 Expanded(child: details),
                 SizedBox(width: metrics.geometry(4.875)),
                 actions,
@@ -2939,8 +4147,10 @@ class _ApprovedRequestSummary extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  image,
-                  SizedBox(width: metrics.geometry(12)),
+                  if (!isReal) ...[
+                    image,
+                    SizedBox(width: metrics.geometry(12)),
+                  ],
                   Expanded(child: details),
                 ],
               ),
@@ -3125,9 +4335,13 @@ class _ApprovedDetailBudgetPanel extends StatelessWidget {
   const _ApprovedDetailBudgetPanel({
     required this.referenceHeight,
     required this.onEdit,
+    this.minimumLabel = r'$350',
+    this.maximumLabel = r'$480',
   });
   final double referenceHeight;
   final VoidCallback onEdit;
+  final String minimumLabel;
+  final String maximumLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -3139,14 +4353,14 @@ class _ApprovedDetailBudgetPanel extends StatelessWidget {
       onEdit: onEdit,
       child: Row(
         children: [
-          const Expanded(child: _ApprovedValueBox(value: '\$350')),
+          Expanded(child: _ApprovedValueBox(value: minimumLabel)),
           Padding(
             padding: EdgeInsets.symmetric(
               horizontal: _replicaMetrics(context).geometry(7),
             ),
             child: const Text('-'),
           ),
-          const Expanded(child: _ApprovedValueBox(value: '\$480')),
+          Expanded(child: _ApprovedValueBox(value: maximumLabel)),
         ],
       ),
     );
@@ -3312,6 +4526,31 @@ class _ApprovedLocationSummary extends StatelessWidget {
   }
 }
 
+class _ApprovedRealOffersPanel extends StatelessWidget {
+  const _ApprovedRealOffersPanel({required this.onOffers});
+
+  final VoidCallback onOffers;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ApprovedSurface(
+      referenceHeight: 69,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Seller offers', style: _sectionStyle(context)),
+          TextButton(
+            key: const Key('realRequestReviewOffers'),
+            onPressed: onOffers,
+            child: const Text('Review offers'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ApprovedRewardsPanel extends StatelessWidget {
   const _ApprovedRewardsPanel({
     required this.referenceHeight,
@@ -3424,8 +4663,9 @@ class _ApprovedRewardsPanel extends StatelessWidget {
 }
 
 class _ApprovedSavePanel extends StatelessWidget {
-  const _ApprovedSavePanel({required this.onSave});
+  const _ApprovedSavePanel({required this.onSave, this.busy = false});
   final VoidCallback onSave;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -3448,7 +4688,7 @@ class _ApprovedSavePanel extends StatelessWidget {
           );
           final button = FilledButton.icon(
             key: const Key('save-request-changes'),
-            onPressed: onSave,
+            onPressed: busy ? null : onSave,
             style: FilledButton.styleFrom(
               minimumSize: Size(0, metrics.geometry(30.47)),
               tapTargetSize: metrics.screenshotLocked

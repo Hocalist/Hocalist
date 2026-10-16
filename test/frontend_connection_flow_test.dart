@@ -39,6 +39,10 @@ void main() {
       upgradedDestinationFor(AppPage.finalizeDeal, UserRole.buyer),
       AppPage.buyerChat,
     );
+    expect(
+      upgradedDestinationFor(AppPage.finalizeDeal, UserRole.seller),
+      AppPage.sellerConversation,
+    );
   });
 
   testWidgets('submitted offer data reaches the upgraded Buyer offers page', (

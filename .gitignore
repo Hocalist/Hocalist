@@ -6,6 +6,14 @@
 .pub/
 build/
 coverage/
+.codex-local/
+supabase/.temp/
+
+# Local provider configuration; templates must contain no credentials.
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 # Local build and visual-proof artifacts
 artifacts/

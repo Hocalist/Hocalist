@@ -1,3 +1,4 @@
+import EditorialAccent from '../EditorialAccent';
 import { OfflineNotice, PageShell } from '../site-content';
 
 export const metadata = {
@@ -43,9 +44,9 @@ export default function SafetyPage() {
   return (
     <PageShell>
       <main>
-        <section className="subpage-hero reveal">
+        <section className="subpage-hero editorial-hero reveal"><EditorialAccent />
           <p className="eyebrow">Safety</p>
-          <h1>Safety and offline payment guidance</h1>
+          <h1>A good exchange<br /><em>starts with care.</em></h1>
           <p>
             Hocalist is designed to make local buying coordination clearer. Buyers and sellers
             still need to use good judgment when meeting and arranging offline payment.

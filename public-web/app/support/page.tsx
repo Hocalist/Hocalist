@@ -80,7 +80,7 @@ export default function SupportPage() {
         <section className="support-hero reveal">
           <div className="support-hero-copy">
             <p className="eyebrow">Hocalist support</p>
-            <h1>Get help with requests, seller tools, safety, and account questions.</h1>
+            <h1>A little help.<br /><em>A clearer next step.</em></h1>
             <p>
               Contact Hocalist for public support, seller billing questions, safety reports,
               privacy requests, or help understanding the buyer request and seller offer flow.
@@ -95,6 +95,7 @@ export default function SupportPage() {
             </div>
           </div>
           <aside className="support-contact-panel" aria-label="Support contact details">
+            <svg className="support-envelope" width="44" height="36" viewBox="0 0 44 36" fill="none" aria-hidden="true"><rect x="2" y="4" width="40" height="28" rx="5" stroke="currentColor" strokeWidth="1.5"/><path d="m3 7 19 14L41 7M3 29l12-11m26 11L29 18" stroke="currentColor" strokeWidth="1.5"/></svg>
             <span className="status-chip success">Response target</span>
             <h2>Email support</h2>
             <a className="support-email" href={`mailto:${supportEmail}`}>

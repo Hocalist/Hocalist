@@ -1,9 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../account/device_push_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/local_marketplace_repository.dart';
+import '../../domain/phase2/money.dart';
+import '../../domain/phase2/notifications.dart';
+import '../../domain/phase2/offers.dart';
+import '../../domain/phase2/requests.dart';
+import '../../domain/phase2/profiles.dart' show NotificationPreferences;
+import '../../domain/phase2/schedule.dart';
 import '../../theme/input_foundation.dart';
+import '../../components/hocalist_motion.dart';
+import '../../components/hocalist_section_tabs.dart';
 import '../../theme/seller_ui_foundation.dart';
+import '../media/private_remote_image.dart';
+import '../commercial/seller_subscription_panel.dart';
+import '../commercial/seller_payment_panel.dart';
+import '../commercial/credit_wallet_panel.dart';
 
 enum SellerProfilePhotoAction { camera, gallery, remove }
 
@@ -13,6 +28,10 @@ class ApprovedSellerProfilePage extends StatelessWidget {
     required this.onBack,
     required this.onEditProfile,
     this.onProfilePhotoAction,
+    this.showPrototypeTrustDetails = true,
+    this.serviceAreaLabel,
+    this.categoryLabels,
+    this.retiredCategoryCount = 0,
     super.key,
   });
 
@@ -20,6 +39,20 @@ class ApprovedSellerProfilePage extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onEditProfile;
   final ValueChanged<SellerProfilePhotoAction>? onProfilePhotoAction;
+
+  /// Prototype trust/rating copy is hidden in real-provider mode because the
+  /// backend does not provide verification or reputation data yet.
+  final bool showPrototypeTrustDetails;
+
+  /// Real `role_profiles.area_label`, when loaded.
+  final String? serviceAreaLabel;
+
+  /// Real selected catalogue category labels, when loaded. Null keeps the
+  /// prototype copy.
+  final List<String>? categoryLabels;
+
+  /// How many of the real selections are retired catalogue entries.
+  final int retiredCategoryCount;
 
   @override
   Widget build(BuildContext context) {
@@ -32,29 +65,67 @@ class ApprovedSellerProfilePage extends StatelessWidget {
         _SellerProfileSummary(
           sellerName: sellerName,
           onProfilePhotoAction: onProfilePhotoAction,
+          showPrototypeTrustDetails: showPrototypeTrustDetails,
         ),
-        const _SellerSubpageSection(
+        _SellerSubpageSection(
           title: 'Public details',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.category_outlined,
-              title: 'Seller categories',
-              body: 'Electronics, tablets, and accessories.',
-              status: 'Visible to buyers',
-            ),
-            _SellerSubpageRow(
-              icon: Icons.travel_explore_outlined,
-              title: 'Service area',
-              body: 'Chicago north side and nearby public meetup locations.',
-              status: 'Within 15 miles',
-            ),
-            _SellerSubpageRow(
-              icon: Icons.verified_user_outlined,
-              title: 'Trust details',
-              body: 'Verification, ratings, and completed-deal history.',
-              status: 'Verified seller',
-            ),
-          ],
+          children: showPrototypeTrustDetails
+              ? const [
+                  _SellerSubpageRow(
+                    icon: Icons.category_outlined,
+                    title: 'Seller categories',
+                    body: 'Electronics, tablets, and accessories.',
+                    status: 'Visible to buyers',
+                  ),
+                  _SellerSubpageRow(
+                    icon: Icons.travel_explore_outlined,
+                    title: 'Service area',
+                    body:
+                        'Chicago north side and nearby public meetup locations.',
+                    status: 'Within 15 miles',
+                  ),
+                  _SellerSubpageRow(
+                    icon: Icons.verified_user_outlined,
+                    title: 'Trust details',
+                    body: 'Verification, ratings, and completed-deal history.',
+                    status: 'Verified seller',
+                  ),
+                ]
+              : [
+                  _SellerSubpageRow(
+                    icon: Icons.category_outlined,
+                    title: 'Seller categories',
+                    body: categoryLabels == null
+                        ? 'Category editing is not available yet.'
+                        : (categoryLabels!.isEmpty
+                              ? 'No categories selected yet.'
+                              : categoryLabels!.join(', ')),
+                    status: categoryLabels == null
+                        ? 'Not available yet'
+                        : (categoryLabels!.isEmpty
+                              ? 'None selected'
+                              : (retiredCategoryCount > 0
+                                    ? 'Visible to buyers · $retiredCategoryCount retired'
+                                    : 'Visible to buyers')),
+                  ),
+                  _SellerSubpageRow(
+                    icon: Icons.travel_explore_outlined,
+                    title: 'Service area',
+                    body:
+                        (serviceAreaLabel == null ||
+                            serviceAreaLabel!.trim().isEmpty)
+                        ? 'No service area has been saved yet.'
+                        : serviceAreaLabel!,
+                    status: 'Private',
+                  ),
+                  const _SellerSubpageRow(
+                    icon: Icons.verified_user_outlined,
+                    title: 'Trust details',
+                    body:
+                        'Verification, ratings, and completed-deal history are not available yet.',
+                    status: 'Not available yet',
+                  ),
+                ],
         ),
         SellerPrimaryButton(
           key: const Key('sellerProfileEdit'),
@@ -79,6 +150,11 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
     required this.onEditProfile,
     required this.onThemeChanged,
     required this.onAccessibility,
+    this.onSecurity,
+    this.securityContent,
+    this.securityStatus,
+    this.pendingEmailChange,
+    this.onAccountLifecycle,
     super.key,
   });
 
@@ -89,9 +165,23 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
   final ValueChanged<bool> onThemeChanged;
   final VoidCallback onAccessibility;
 
+  /// Password/email-change entry. Null keeps the honest unavailable row.
+  final Widget? securityContent;
+  final VoidCallback? onSecurity;
+
+  /// Short status under Password & security when the real provider is wired.
+  final String? securityStatus;
+
+  /// Pending provider email change, when one exists.
+  final String? pendingEmailChange;
+
+  /// Consent, export and deletion-request entry.
+  final VoidCallback? onAccountLifecycle;
+
   @override
   Widget build(BuildContext context) {
     return _SellerSubpageBlock(
+      tabbed: true,
       key: const Key('approvedSellerSettingsPage'),
       title: 'Account Settings',
       subtitle: 'Manage your Seller account, preferences, and privacy.',
@@ -100,19 +190,19 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
         _SellerSubpageSection(
           title: 'Account',
           children: [
-            _SellerSubpageRow(
-              icon: Icons.storefront_outlined,
-              title: 'Seller information',
-              body: 'Review and update your Seller profile information.',
-              onTap: onEditProfile,
-            ),
-            const _SellerSubpageRow(
-              icon: Icons.lock_outline,
-              title: 'Password & security',
-              body:
-                  'Password changes require connected account authentication.',
-              status: 'Not currently available',
-            ),
+            if (securityContent != null)
+              securityContent!
+            else
+              _SellerSubpageRow(
+                key: const Key('sellerSettingsSecurity'),
+                icon: Icons.lock_outline,
+                title: 'Password & security',
+                body: pendingEmailChange == null
+                    ? 'Change your password and manage the account email.'
+                    : 'Email change to $pendingEmailChange is pending confirmation.',
+                status: securityStatus ?? 'Not currently available',
+                onTap: onSecurity,
+              ),
           ],
         ),
         _SellerSubpageSection(
@@ -157,17 +247,34 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
             ),
           ],
         ),
-        const _SellerSubpageSection(
-          title: 'Account management',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.manage_accounts_outlined,
-              title: 'No account-management actions available',
-              body:
-                  'Delete and export actions remain hidden until secure account services support them.',
-            ),
-          ],
-        ),
+        if (onAccountLifecycle != null)
+          _SellerSubpageSection(
+            title: 'Account management',
+            children: [
+              _SellerSubpageRow(
+                key: const Key('sellerSettingsAccountLifecycle'),
+                icon: Icons.manage_accounts_outlined,
+                title: 'Account data & deletion',
+                body:
+                    'Accept consent records, export your Hocalist data, or '
+                    'request account deletion.',
+                status: 'Review options',
+                onTap: onAccountLifecycle,
+              ),
+            ],
+          )
+        else
+          const _SellerSubpageSection(
+            title: 'Account management',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.manage_accounts_outlined,
+                title: 'No account-management actions available',
+                body:
+                    'Delete and export actions remain hidden until secure account services support them.',
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -180,6 +287,17 @@ class ApprovedSellerEditProfilePage extends StatelessWidget {
     required this.onBack,
     required this.onDone,
     this.onProfilePhotoAction,
+    this.avatarMediaId,
+    this.avatarPending = false,
+    this.onRetryAvatar,
+    this.onDiscardAvatar,
+    this.email,
+    this.serviceAreaLabel,
+    this.profileNote,
+    this.contactEditor,
+    this.profileDetailsEditor,
+    this.categoryEditor,
+    this.pendingEmailChange,
     super.key,
   });
 
@@ -189,89 +307,207 @@ class ApprovedSellerEditProfilePage extends StatelessWidget {
   final VoidCallback onDone;
   final ValueChanged<SellerProfilePhotoAction>? onProfilePhotoAction;
 
+  /// Real avatar reference for the selected membership, when loaded.
+  final String? avatarMediaId;
+  final bool avatarPending;
+  final VoidCallback? onRetryAvatar;
+  final VoidCallback? onDiscardAvatar;
+
+  /// Real authenticated email and loaded profile values. When [email] is
+  /// provided the screen shows only fields the backend can actually store.
+  final String? email;
+  final String? serviceAreaLabel;
+  final String? profileNote;
+  final Widget? contactEditor;
+  final Widget? profileDetailsEditor;
+
+  /// Real seller category editor over active catalogue ids. When provided the
+  /// read-only category placeholder is replaced by one editable section.
+  final Widget? categoryEditor;
+
+  /// Provider-reported pending email change, shown as an account note.
+  final String? pendingEmailChange;
+
+  bool get _realValues => email != null || contactEditor != null;
+
   @override
   Widget build(BuildContext context) {
-    return _SellerSubpageBlock(
-      key: const Key('approvedSellerEditProfilePage'),
-      title: 'Edit Profile',
-      subtitle: 'Keep your Seller information accurate and concise.',
-      onBack: onBack,
-      children: [
-        _SellerSubpageSection(
-          title: 'Profile picture',
-          children: [
-            _SellerProfilePhotoEditor(
-              sellerName: name,
-              onProfilePhotoAction: onProfilePhotoAction,
-            ),
-          ],
-        ),
-        _SellerSubpageSection(
-          title: 'Seller information',
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Builder(
-                builder: (context) {
-                  final metrics = ApprovedReplicaScope.of(context);
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _SellerProfileField(
-                        initialValue: name,
-                        label: 'Store or seller name',
-                        textInputAction: TextInputAction.next,
-                        onChanged: onNameChanged,
-                      ),
-                      SizedBox(
-                        height: metrics.spacing(
-                          HocalistInputTokens.relatedFieldSpacing,
+    final hasCategoryEditor = categoryEditor != null;
+    final hasDetailsEditor = profileDetailsEditor != null;
+    return SingleChildScrollView(
+      child: _SellerSubpageBlock(
+        key: const Key('approvedSellerEditProfilePage'),
+        title: 'Edit Profile',
+        tabbed: true,
+        subtitle: 'Keep your Seller information accurate and concise.',
+        onBack: onBack,
+        children: [
+          _SellerSubpageSection(
+            title: 'Profile picture',
+            children: [
+              _SellerProfilePhotoEditor(
+                sellerName: name,
+                onProfilePhotoAction: onProfilePhotoAction,
+                avatarMediaId: avatarMediaId,
+                avatarPending: avatarPending,
+                onRetryAvatar: onRetryAvatar,
+                onDiscardAvatar: onDiscardAvatar,
+              ),
+            ],
+          ),
+          _SellerSubpageSection(
+            title: 'Seller information',
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Builder(
+                  builder: (context) {
+                    final metrics = ApprovedReplicaScope.of(context);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _SellerProfileField(
+                          initialValue: name,
+                          label: 'Store or seller name',
+                          textInputAction: TextInputAction.next,
+                          onChanged: onNameChanged,
                         ),
-                      ),
-                      const _SellerProfileField(
-                        initialValue: 'northside.tech@example.com',
-                        label: 'Email',
-                        readOnly: true,
-                        helperText:
-                            'Email changes require account verification.',
-                      ),
-                      SizedBox(height: metrics.spacing(14)),
-                      const _SellerProfileField(
-                        initialValue: 'Electronics, tablets, accessories',
-                        label: 'Seller categories',
-                      ),
-                      SizedBox(height: metrics.spacing(14)),
-                      const _SellerProfileField(
-                        initialValue: 'Chicago north side',
-                        label: 'Service area',
-                        helperText:
-                            'Your exact meetup location remains private until confirmed in chat.',
-                      ),
-                      SizedBox(height: metrics.spacing(14)),
-                      const _SellerProfileField(
-                        initialValue:
-                            'Verified seller; public pickup preferred.',
-                        label: 'Profile note',
-                        maxLines: 2,
-                      ),
-                    ],
-                  );
-                },
+                        SizedBox(
+                          height: metrics.spacing(
+                            HocalistInputTokens.relatedFieldSpacing,
+                          ),
+                        ),
+                        _SellerProfileField(
+                          initialValue: _realValues
+                              ? (email ?? '')
+                              : 'northside.tech@example.com',
+                          label: 'Email',
+                          readOnly: true,
+                          helperText: pendingEmailChange == null
+                              ? (_realValues
+                                    ? 'Email comes from the signed-in account.'
+                                    : 'Email changes require account verification.')
+                              : 'Pending change to $pendingEmailChange. Confirm '
+                                    'it from that address; the current email '
+                                    'stays active until then.',
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (!hasCategoryEditor)
+            _SellerSubpageSection(
+              title: 'Seller categories',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Builder(
+                    builder: (context) {
+                      final metrics = ApprovedReplicaScope.of(context);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!hasCategoryEditor) ...[
+                            SizedBox(height: metrics.spacing(14)),
+                            if (_realValues)
+                              const _SellerProfileField(
+                                initialValue: 'Not available yet',
+                                label: 'Seller categories',
+                                readOnly: true,
+                                helperText:
+                                    'Category editing is not available yet.',
+                              )
+                            else
+                              const _SellerProfileField(
+                                initialValue:
+                                    'Electronics, tablets, accessories',
+                                label: 'Seller categories',
+                              ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          if (!hasDetailsEditor)
+            _SellerSubpageSection(
+              title: 'Profile details',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Builder(
+                    builder: (context) {
+                      final metrics = ApprovedReplicaScope.of(context);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!hasDetailsEditor) ...[
+                            SizedBox(height: metrics.spacing(14)),
+                            _SellerProfileField(
+                              initialValue: _realValues
+                                  ? ((serviceAreaLabel == null ||
+                                            serviceAreaLabel!.trim().isEmpty)
+                                        ? 'Not set yet'
+                                        : serviceAreaLabel!)
+                                  : 'Chicago north side',
+                              label: 'Service area',
+                              readOnly: _realValues,
+                              helperText: _realValues
+                                  ? 'Update this in Profile details below.'
+                                  : 'Your exact meetup location remains private until confirmed in chat.',
+                            ),
+                            SizedBox(height: metrics.spacing(14)),
+                            _SellerProfileField(
+                              initialValue: _realValues
+                                  ? ((profileNote == null ||
+                                            profileNote!.trim().isEmpty)
+                                        ? 'Not set yet'
+                                        : profileNote!)
+                                  : 'Verified seller; public pickup preferred.',
+                              label: 'Profile note',
+                              maxLines: 2,
+                              readOnly: _realValues,
+                              helperText: _realValues
+                                  ? 'Update this in Profile details below.'
+                                  : null,
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          if (categoryEditor != null)
+            _SellerSubpageSection(
+              title: 'Seller categories',
+              children: [categoryEditor!],
+            ),
+          if (profileDetailsEditor != null)
+            KeyedSubtree(
+              key: const Key('sellerProfileDetailsEditor'),
+              child: profileDetailsEditor!,
+            ),
+          ?contactEditor,
+          if (profileDetailsEditor == null)
+            SellerPrimaryButton(
+              key: const Key('sellerSaveProfile'),
+              label: 'Save profile',
+              onPressed: onDone,
+              leading: const Icon(
+                Icons.check_circle_outline,
+                size: 18,
+                color: Colors.white,
               ),
             ),
-          ],
-        ),
-        SellerPrimaryButton(
-          key: const Key('sellerSaveProfile'),
-          label: 'Save profile',
-          onPressed: onDone,
-          leading: const Icon(
-            Icons.check_circle_outline,
-            size: 18,
-            color: Colors.white,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -358,11 +594,13 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
   const ApprovedSellerHelpSupportPage({
     required this.onBack,
     required this.onSafety,
+    this.onContactSupport,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onSafety;
+  final VoidCallback? onContactSupport;
 
   Future<void> _showAnswer(
     BuildContext context, {
@@ -371,6 +609,7 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) =>
@@ -381,6 +620,7 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
   Future<void> _showForm(BuildContext context, {required bool safety}) async {
     final saved = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _SellerSupportFormSheet(safety: safety),
@@ -418,7 +658,20 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
                 context,
                 title: 'How targeting credits work',
                 answer:
-                    'Your available balance is used only for Seller targeting and platform access. Credit activity and restoration appear in Plans & credits. Exact rules will come from backend-managed configuration.',
+                    'Targeting fees use HocaCredits bought through deposits. '
+                    'Each successful deposit creates its own batch with frozen '
+                    'rates. Hocalist spends from the oldest batch that can cover '
+                    'the full fee for one customer and never combines batches. '
+                    'The full winning fee is reserved when an offer is accepted. '
+                    'The initial fee is charged once both parties message, '
+                    'and a confirmed purchase charges only the difference up to that '
+                    'batch\'s winning total. One targeted customer uses one '
+                    'weekly slot; credits and weekly slots are separate. '
+                    'Unused batch remainders stay in your balance. '
+                    'Example for the Elite deposit batches: a \$20 deposit holds '
+                    'the 1.55 HC initial / 3.75 HC winning rates, and a \$40 '
+                    'deposit holds the 1.45 HC initial / 3.25 HC winning rates. '
+                    'See Plans & credits for your batch history and weekly usage.',
               ),
             ),
             _SellerSubpageRow(
@@ -443,14 +696,15 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
               title: 'Ask for help',
               body: 'Save a question with the details support will need.',
               status: 'Open support form',
-              onTap: () => _showForm(context, safety: false),
+              onTap:
+                  onContactSupport ?? () => _showForm(context, safety: false),
             ),
             _SellerSubpageRow(
               icon: Icons.report_problem_outlined,
               title: 'Report a safety concern',
               body: 'Save details about an unsafe user, message, or meetup.',
               status: 'Open safety form',
-              onTap: () => _showForm(context, safety: true),
+              onTap: onContactSupport ?? () => _showForm(context, safety: true),
             ),
           ],
         ),
@@ -466,18 +720,19 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
             ),
           ],
         ),
-        const _SellerSubpageSection(
-          title: 'Connection status',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.cloud_sync_outlined,
-              title: 'Support UI is ready',
-              body:
-                  'Ticket delivery, attachments, and live case updates connect when support services are enabled.',
-              status: 'Local preview data',
-            ),
-          ],
-        ),
+        if (onContactSupport == null)
+          const _SellerSubpageSection(
+            title: 'Connection status',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.cloud_sync_outlined,
+                title: 'Support UI is ready',
+                body:
+                    'Ticket delivery, attachments, and live case updates connect when support services are enabled.',
+                status: 'Local preview data',
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -852,10 +1107,12 @@ class _SellerSheetActionRow extends StatelessWidget {
 class ApprovedSellerNotificationPreferencesPage extends StatefulWidget {
   const ApprovedSellerNotificationPreferencesPage({
     required this.onBack,
+    this.repository,
     super.key,
   });
 
   final VoidCallback onBack;
+  final LocalMarketplaceRepository? repository;
 
   @override
   State<ApprovedSellerNotificationPreferencesPage> createState() =>
@@ -872,6 +1129,7 @@ class _SellerNotificationData {
     required this.body,
     required this.time,
     this.unread = false,
+    this.notificationId,
   });
 
   final _SellerNotificationFilter filter;
@@ -880,17 +1138,83 @@ class _SellerNotificationData {
   final String body;
   final String time;
   final bool unread;
+
+  /// Server notification id when this row is real inbox data.
+  final String? notificationId;
+}
+
+/// Maps one real inbox row onto the seller notification row. Only the offer,
+/// message, meeting and billing kinds have an approved filter; other kinds stay
+/// visible under All without inventing a new filter.
+_SellerNotificationData _sellerNotificationFromInbox(
+  NotificationInboxItem item,
+) {
+  return _SellerNotificationData(
+    filter: switch (item.kind) {
+      'new_offer' => _SellerNotificationFilter.offers,
+      'new_message' => _SellerNotificationFilter.offers,
+      'meeting_update' => _SellerNotificationFilter.meetings,
+      'billing_update' => _SellerNotificationFilter.billing,
+      _ => _SellerNotificationFilter.all,
+    },
+    icon: switch (item.kind) {
+      'new_offer' => Icons.local_offer_outlined,
+      'new_message' => Icons.chat_bubble_outline,
+      'meeting_update' => Icons.event_available_outlined,
+      'billing_update' => Icons.toll_outlined,
+      _ => Icons.edit_notifications_outlined,
+    },
+    title: item.title,
+    body: item.body,
+    time: _sellerRelativeTime(item.createdAt, DateTime.now()),
+    unread: item.isUnread,
+    notificationId: item.id,
+  );
+}
+
+String _sellerRelativeTime(DateTime createdAt, DateTime now) {
+  final local = createdAt.toLocal();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(local.year, local.month, local.day);
+  final difference = today.difference(day).inDays;
+  if (difference <= 0) {
+    final hour = local.hour;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$displayHour:$minute $period';
+  }
+  if (difference == 1) return 'Yesterday';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[local.month - 1]} ${local.day}';
 }
 
 class ApprovedSellerNotificationsPage extends StatefulWidget {
   const ApprovedSellerNotificationsPage({
     required this.onBack,
     required this.onPreferences,
+    this.repository,
+    this.onOpenNotification,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onPreferences;
+  final LocalMarketplaceRepository? repository;
+  final ValueChanged<NotificationInboxItem>? onOpenNotification;
 
   @override
   State<ApprovedSellerNotificationsPage> createState() =>
@@ -941,10 +1265,38 @@ class _ApprovedSellerNotificationsPageState
 
   _SellerNotificationFilter _filter = _SellerNotificationFilter.all;
 
-  List<_SellerNotificationData> get _visible =>
-      _filter == _SellerNotificationFilter.all
-      ? _notifications
-      : _notifications.where((item) => item.filter == _filter).toList();
+  bool get _realMode => widget.repository?.isNotificationsBacked ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.repository?.addListener(_onRepositoryChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.repository?.removeListener(_onRepositoryChanged);
+    super.dispose();
+  }
+
+  void _onRepositoryChanged() {
+    if (mounted) setState(() {});
+  }
+
+  List<_SellerNotificationData> get _visible {
+    if (!_realMode) {
+      return _filter == _SellerNotificationFilter.all
+          ? _notifications
+          : _notifications.where((item) => item.filter == _filter).toList();
+    }
+    final mapped = <_SellerNotificationData>[
+      for (final item in widget.repository!.notifications)
+        _sellerNotificationFromInbox(item),
+    ];
+    return _filter == _SellerNotificationFilter.all
+        ? mapped
+        : mapped.where((item) => item.filter == _filter).toList();
+  }
 
   String _label(_SellerNotificationFilter filter) => switch (filter) {
     _SellerNotificationFilter.all => 'All',
@@ -954,9 +1306,25 @@ class _ApprovedSellerNotificationsPageState
     _SellerNotificationFilter.billing => 'Billing',
   };
 
+  Future<void> _openItem(_SellerNotificationData item) async {
+    final id = item.notificationId;
+    if (id != null) {
+      final source = widget.repository!.notifications
+          .where((row) => row.id == id)
+          .firstOrNull;
+      unawaited(widget.repository!.markNotificationRead(id));
+      if (source != null && widget.onOpenNotification != null) {
+        widget.onOpenNotification!(source);
+        return;
+      }
+    }
+    return _showDetails(item);
+  }
+
   Future<void> _showDetails(_SellerNotificationData item) {
     return showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _SellerNotificationDetailsSheet(item: item),
@@ -1009,11 +1377,117 @@ class _ApprovedSellerNotificationsPageState
               ? 'Latest activity'
               : '${_label(_filter)} notifications',
           children: [
-            for (final item in _visible)
-              _SellerNotificationRow(
-                item: item,
-                onTap: () => _showDetails(item),
-              ),
+            Builder(
+              builder: (context) {
+                final metrics = ApprovedReplicaScope.of(context);
+                final repository = widget.repository;
+                final loading =
+                    _realMode &&
+                    repository!.notificationsLoading &&
+                    _visible.isEmpty;
+                final error =
+                    _realMode &&
+                        repository!.notificationsError != null &&
+                        _visible.isEmpty
+                    ? repository.notificationsError
+                    : null;
+                if (loading) {
+                  return const Padding(
+                    key: Key('sellerNotificationsLoading'),
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
+                    ),
+                  );
+                }
+                if (error != null) {
+                  return Column(
+                    key: const Key('sellerNotificationsError'),
+                    children: [
+                      Text(
+                        error,
+                        textAlign: TextAlign.center,
+                        style: sellerText(
+                          metrics,
+                          11.5,
+                          color: SellerUiColors.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        key: const Key('sellerNotificationsRetry'),
+                        onPressed: () =>
+                            unawaited(repository!.refreshNotifications()),
+                        child: const Text('Try again'),
+                      ),
+                    ],
+                  );
+                }
+                if (_visible.isEmpty) {
+                  final filtered = _filter != _SellerNotificationFilter.all;
+                  final label = _label(_filter);
+                  return Padding(
+                    key: const Key('sellerNotificationsEmpty'),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
+                      children: [
+                        Icon(
+                          filtered
+                              ? Icons.filter_alt_off_outlined
+                              : Icons.notifications_none_rounded,
+                          size: metrics.artSize(26),
+                          color: SellerUiColors.muted,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          filtered
+                              ? 'No $label notifications yet'
+                              : 'No notifications yet',
+                          textAlign: TextAlign.center,
+                          style: sellerText(
+                            metrics,
+                            12,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          filtered
+                              ? (label == 'Leads'
+                                    ? 'Lead alerts are disabled in Notification '
+                                          'preferences. Other updates may still '
+                                          'appear under All.'
+                                    : 'New $label updates appear here. Other '
+                                          'updates may still appear under All.')
+                              : 'Seller activity, deal updates and account '
+                                    'alerts appear here.',
+                          textAlign: TextAlign.center,
+                          style: sellerText(
+                            metrics,
+                            10.5,
+                            color: SellerUiColors.muted,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final item in _visible)
+                      _SellerNotificationRow(
+                        item: item,
+                        onTap: () => unawaited(_openItem(item)),
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
         _SellerSubpageSection(
@@ -1189,11 +1663,26 @@ class _ApprovedSellerNotificationPreferencesPageState
   bool messages = true;
   bool meetings = true;
   bool safety = true;
+  bool _saving = false;
+  String? _saveError;
+
+  bool get _realMode => widget.repository?.isNotificationsBacked ?? false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    widget.repository?.addListener(_onRepositoryChanged);
+    if (!_realMode) _load();
+  }
+
+  @override
+  void dispose() {
+    widget.repository?.removeListener(_onRepositoryChanged);
+    super.dispose();
+  }
+
+  void _onRepositoryChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -1214,59 +1703,151 @@ class _ApprovedSellerNotificationPreferencesPageState
     await preferences.setBool(key, value);
   }
 
+  /// Saves one server-side change at the carried revision. A failed write keeps
+  /// the previous values and reports the error.
+  Future<void> _updateRemote(NotificationPreferences next) async {
+    final repository = widget.repository;
+    if (repository == null || _saving) return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    final result = await repository.updateNotificationPreferences(next);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _saveError = result.isSuccess ? null : result.error;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final record = widget.repository?.notificationPreferences;
+    final preferences = record?.preferences ?? NotificationPreferences.defaults;
+    final supportsLeads = record?.supportsLeads ?? false;
+    final waiting = _realMode && record == null;
+    final loadError = waiting
+        ? widget.repository!.notificationPreferencesError
+        : null;
     return _SellerSubpageBlock(
       key: const Key('approvedSellerNotificationsPage'),
       title: 'Notification Preferences',
-      subtitle:
-          'Choose the Seller updates you want. Preferences are saved on this device.',
+      subtitle: _realMode
+          ? 'Choose the Seller updates you want. Preferences are saved to your account.'
+          : 'Choose the Seller updates you want. Preferences are saved on this device.',
       onBack: widget.onBack,
       children: [
         _SellerSubpageSection(
           title: 'Seller notifications',
           children: [
-            _SellerPreferenceSwitch(
-              icon: Icons.person_search_outlined,
-              title: 'New leads',
-              body: 'New buyer requests that match your Seller profile.',
-              value: leads,
-              onChanged: (value) =>
-                  _update(_leadsKey, value, () => leads = value),
-            ),
-            _SellerPreferenceSwitch(
-              icon: Icons.local_offer_outlined,
-              title: 'Offer updates',
-              body: 'Offer changes, buyer selections, and deal updates.',
-              value: offers,
-              onChanged: (value) =>
-                  _update(_offersKey, value, () => offers = value),
-            ),
-            _SellerPreferenceSwitch(
-              icon: Icons.chat_bubble_outline,
-              title: 'Messages & chats',
-              body: 'Messages from buyers and active conversation updates.',
-              value: messages,
-              onChanged: (value) =>
-                  _update(_messagesKey, value, () => messages = value),
-            ),
-            _SellerPreferenceSwitch(
-              icon: Icons.event_available_outlined,
-              title: 'Meetings',
-              body:
-                  'Meeting reminders, confirmations, and reschedule requests.',
-              value: meetings,
-              onChanged: (value) =>
-                  _update(_meetingsKey, value, () => meetings = value),
-            ),
-            _SellerPreferenceSwitch(
-              icon: Icons.health_and_safety_outlined,
-              title: 'Account & safety alerts',
-              body: 'Security, verification, and important safety notices.',
-              value: safety,
-              onChanged: (value) =>
-                  _update(_safetyKey, value, () => safety = value),
-            ),
+            if (_realMode) const DevicePushSettings(),
+            if (waiting && loadError == null)
+              const Padding(
+                key: Key('sellerNotificationPreferencesLoading'),
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                ),
+              )
+            else if (waiting && loadError != null)
+              Padding(
+                key: const Key('sellerNotificationPreferencesError'),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  children: [
+                    Text(loadError, textAlign: TextAlign.center),
+                    TextButton(
+                      key: const Key('sellerNotificationPreferencesRetry'),
+                      onPressed: () => unawaited(
+                        widget.repository!.refreshNotificationPreferences(),
+                      ),
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              _SellerPreferenceSwitch(
+                icon: Icons.person_search_outlined,
+                title: 'New leads',
+                body: _realMode
+                    ? (supportsLeads
+                          ? 'New and updated buyer requests relevant to your Seller profile.'
+                          : 'Lead notifications are not connected yet.')
+                    : 'New buyer requests that match your Seller profile.',
+                value: _realMode ? (supportsLeads && preferences.leads) : leads,
+                enabled: !_saving && (!_realMode || supportsLeads),
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(leads: value)),
+                      )
+                    : unawaited(_update(_leadsKey, value, () => leads = value)),
+              ),
+              _SellerPreferenceSwitch(
+                icon: Icons.local_offer_outlined,
+                title: 'Offer updates',
+                body: 'Offer changes, buyer selections, and deal updates.',
+                value: _realMode ? preferences.offers : offers,
+                enabled: !_saving,
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(offers: value)),
+                      )
+                    : unawaited(
+                        _update(_offersKey, value, () => offers = value),
+                      ),
+              ),
+              _SellerPreferenceSwitch(
+                icon: Icons.chat_bubble_outline,
+                title: 'Messages & chats',
+                body: 'Messages from buyers and active conversation updates.',
+                value: _realMode ? preferences.messages : messages,
+                enabled: !_saving,
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(messages: value)),
+                      )
+                    : unawaited(
+                        _update(_messagesKey, value, () => messages = value),
+                      ),
+              ),
+              _SellerPreferenceSwitch(
+                icon: Icons.event_available_outlined,
+                title: 'Meetings',
+                body:
+                    'Meeting reminders, confirmations, and reschedule requests.',
+                value: _realMode ? preferences.deals : meetings,
+                enabled: !_saving,
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(deals: value)),
+                      )
+                    : unawaited(
+                        _update(_meetingsKey, value, () => meetings = value),
+                      ),
+              ),
+              _SellerPreferenceSwitch(
+                icon: Icons.health_and_safety_outlined,
+                title: 'Account & safety alerts',
+                body: _realMode
+                    ? 'Security, verification, and important safety notices. Always on.'
+                    : 'Security, verification, and important safety notices.',
+                value: _realMode ? true : safety,
+                enabled: !_saving && !_realMode,
+                onChanged: (value) =>
+                    unawaited(_update(_safetyKey, value, () => safety = value)),
+              ),
+              if (_saveError != null)
+                Padding(
+                  key: const Key('sellerNotificationPreferencesSaveError'),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(_saveError!, textAlign: TextAlign.center),
+                ),
+            ],
           ],
         ),
         const _SellerSubpageSection(
@@ -1350,11 +1931,27 @@ class ApprovedSellerVerificationPage extends StatelessWidget {
   const ApprovedSellerVerificationPage({
     required this.onBack,
     required this.onFinish,
+    this.reviewSection,
+    this.finishEnabled = true,
+    this.identityStatus,
+    this.phoneStatus,
+    this.areaStatus,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onFinish;
+
+  /// Optional real manual-review section (status, evidence submission, appeal).
+  /// Null keeps the approved prototype checklist.
+  final Widget? reviewSection;
+
+  /// False while a real review is pending, so navigation cannot imply a
+  /// self-granted verification.
+  final bool finishEnabled;
+  final String? identityStatus;
+  final String? phoneStatus;
+  final String? areaStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1364,33 +1961,64 @@ class ApprovedSellerVerificationPage extends StatelessWidget {
       subtitle: 'Complete the trust checks buyers see on your profile.',
       onBack: onBack,
       children: [
-        const _SellerSubpageSection(
-          title: 'Verification checklist',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.badge_outlined,
-              title: 'Identity details',
-              body: 'Confirm the name attached to your Seller account.',
-              status: 'Ready to submit',
+        if (reviewSection != null) ...[
+          const SellerSectionHeading(title: 'Verification checklist'),
+          SellerStateNotice(
+            icon: Icons.badge_outlined,
+            title: 'Identity details',
+            body:
+                'Evidence is checked by a reviewer. Submitting does not grant verification.',
+            trailing: SellerStatusChip(
+              label: identityStatus ?? 'Checking status…',
             ),
-            _SellerSubpageRow(
-              icon: Icons.phone_iphone_outlined,
-              title: 'Phone verification',
-              body: 'Verify a phone number for important account alerts.',
-              status: 'Ready to submit',
+          ),
+          SellerStateNotice(
+            icon: Icons.phone_iphone_outlined,
+            title: 'Phone verification',
+            body: 'Contact verification is separate from evidence review.',
+            trailing: SellerStatusChip(
+              label: phoneStatus ?? 'Checking status…',
             ),
-            _SellerSubpageRow(
-              icon: Icons.location_on_outlined,
-              title: 'Service area',
-              body: 'Confirm the local area where you can meet buyers.',
-              status: 'Ready to submit',
-            ),
-          ],
-        ),
+          ),
+          SellerStateNotice(
+            icon: Icons.location_on_outlined,
+            title: 'Service area',
+            body:
+                'Manage your area in Edit profile. A saved area is not identity verification.',
+            trailing: SellerStatusChip(label: areaStatus ?? 'Checking status…'),
+          ),
+        ] else
+          _SellerSubpageSection(
+            title: 'Verification checklist',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.badge_outlined,
+                title: 'Identity details',
+                body: 'Confirm the name attached to your Seller account.',
+                status: identityStatus ?? 'Ready to submit',
+              ),
+              _SellerSubpageRow(
+                icon: Icons.phone_iphone_outlined,
+                title: 'Phone verification',
+                body: 'Verify a phone number for important account alerts.',
+                status: phoneStatus ?? 'Ready to submit',
+              ),
+              _SellerSubpageRow(
+                icon: Icons.location_on_outlined,
+                title: 'Service area',
+                body: 'Confirm the local area where you can meet buyers.',
+                status: areaStatus ?? 'Ready to submit',
+              ),
+            ],
+          ),
+        if (reviewSection != null) ...[
+          const SizedBox(height: 8),
+          reviewSection!,
+        ],
         SellerPrimaryButton(
           key: const Key('sellerVerificationFinish'),
           label: 'Finish setup',
-          onPressed: onFinish,
+          onPressed: finishEnabled ? onFinish : null,
           leading: const Icon(
             Icons.check_circle_outline,
             size: 18,
@@ -1402,6 +2030,204 @@ class ApprovedSellerVerificationPage extends StatelessWidget {
   }
 }
 
+/// Seller-facing projection of one authoritative offer.
+@immutable
+class SellerOfferView {
+  const SellerOfferView({
+    required this.offerId,
+    required this.requestId,
+    required this.revisionId,
+    required this.offerRevision,
+    required this.requestTitle,
+    required this.priceLabel,
+    required this.statusLabel,
+    required this.status,
+    required this.meetingLabel,
+    required this.placeLabel,
+    required this.message,
+    this.conversationId,
+    this.purchaseSelected = false,
+    this.requestAcceptanceExpiresAt,
+  });
+
+  factory SellerOfferView.fromOffer(Offer offer, {String? requestTitle}) {
+    final revision = offer.latestRevision;
+    final terms = revision.terms;
+    return SellerOfferView(
+      offerId: offer.id,
+      conversationId: offer.conversationId,
+      requestId: offer.requestId,
+      revisionId: revision.id,
+      offerRevision: offer.stamp.revision,
+      requestTitle:
+          requestTitle ?? offer.requestTitle ?? 'Request title unavailable',
+      priceLabel: _formatMoney(terms.price),
+      statusLabel: offer.status == OfferStatus.completed
+          ? 'Purchase confirmed'
+          : offer.purchaseSelected
+          ? 'Buyer chose you to complete the purchase'
+          : switch (offer.status) {
+              OfferStatus.submitted => 'Waiting for buyer',
+              OfferStatus.selected => 'Buyer selected your offer',
+              OfferStatus.withdrawn => 'Withdrawn',
+              OfferStatus.declined => 'Declined',
+              OfferStatus.completed => 'Completed',
+              OfferStatus.cancelled => 'Cancelled',
+              OfferStatus.expired => 'Expired',
+            },
+      status: offer.status,
+      meetingLabel: _formatSchedule(terms.schedule),
+      placeLabel: _formatPlace(terms.place),
+      message: terms.message.trim(),
+      purchaseSelected: offer.purchaseSelected,
+      requestAcceptanceExpiresAt: offer.requestAcceptanceExpiresAt,
+    );
+  }
+
+  final String offerId;
+  final String? conversationId;
+  final String requestId;
+  final String revisionId;
+  final int offerRevision;
+  final String requestTitle;
+  final String priceLabel;
+  final String statusLabel;
+  final OfferStatus status;
+  final String meetingLabel;
+  final String placeLabel;
+  final String message;
+
+  /// True when the buyer designated this negotiation as the final purchase.
+  final bool purchaseSelected;
+
+  /// Exclusive end of the request acceptance window, when the server supplied
+  /// it. Shown to the seller as the authoritative countdown.
+  final DateTime? requestAcceptanceExpiresAt;
+
+  /// Only a still-submitted offer can be withdrawn.
+  bool get isWithdrawable => status == OfferStatus.submitted;
+
+  static String _formatMoney(Money money) {
+    final units = money.minorUnits / 100;
+    final text = units.truncateToDouble() == units
+        ? units.toStringAsFixed(0)
+        : units.toStringAsFixed(2);
+    return '\$$text';
+  }
+
+  static String _formatSchedule(LocalSchedule schedule) {
+    final date = DateTime(
+      schedule.date.year,
+      schedule.date.month,
+      schedule.date.day,
+    );
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final hour = schedule.startTime.hour;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+    final minute = schedule.startTime.minute.toString().padLeft(2, '0');
+    return '${weekdays[date.weekday - 1]}, '
+        '${months[schedule.date.month - 1]} ${schedule.date.day} · '
+        '$displayHour:$minute $period';
+  }
+
+  static String _formatPlace(MeetingPlace place) {
+    final label = place.label?.trim();
+    if (label != null && label.isNotEmpty) return label;
+    return switch (place.choice) {
+      MeetupPlaceChoice.sellerBusiness => 'Seller business location',
+      MeetupPlaceChoice.buyerLocation => 'Buyer location',
+      MeetupPlaceChoice.specificPlace => 'Public meetup place',
+    };
+  }
+}
+
+/// Device-local label for the authoritative request acceptance cutoff.
+String _sellerOfferWindowLabel(DateTime expiresAt) {
+  final local = expiresAt.toLocal();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hour = local.hour;
+  final period = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  return 'Closes ${months[local.month - 1]} ${local.day} · '
+      '$displayHour:$minute $period';
+}
+
+/// Compact loading/error/empty notice for the real seller offer list.
+class _SellerOffersNotice extends StatelessWidget {
+  const _SellerOffersNotice({required this.message, this.onRetry, super.key});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Container(
+      padding: EdgeInsets.all(metrics.spacing(12)),
+      decoration: BoxDecoration(
+        color: SellerUiColors.lavender,
+        borderRadius: BorderRadius.circular(metrics.geometry(11)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: sellerText(
+              metrics,
+              11.5,
+              weight: FontWeight.w700,
+              color: SellerUiColors.body,
+            ),
+          ),
+          if (onRetry != null) ...[
+            SizedBox(height: metrics.spacing(4)),
+            TextButton(
+              key: const Key('sellerOffersRetry'),
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                minimumSize: Size(0, metrics.geometry(34)),
+                padding: EdgeInsets.zero,
+                foregroundColor: SellerUiColors.primaryBright,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class ApprovedSellerOfferHistoryPage extends StatelessWidget {
   const ApprovedSellerOfferHistoryPage({
     required this.onBack,
@@ -1409,6 +2235,11 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
     required this.sellerOfferSent,
     required this.offerSelected,
     this.latestOffer,
+    this.realOffers,
+    this.offersLoading = false,
+    this.offersError,
+    this.onRefreshOffers,
+    this.onOpenOffer,
     super.key,
   });
 
@@ -1417,6 +2248,15 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
   final bool sellerOfferSent;
   final bool offerSelected;
   final LocalOfferRecord? latestOffer;
+
+  /// Real seller offers. Null keeps the approved prototype rows.
+  final List<SellerOfferView>? realOffers;
+  final bool offersLoading;
+  final String? offersError;
+  final VoidCallback? onRefreshOffers;
+  final ValueChanged<SellerOfferView>? onOpenOffer;
+
+  bool get usesRealOffers => realOffers != null;
 
   @override
   Widget build(BuildContext context) {
@@ -1431,31 +2271,73 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
       subtitle: 'Review the offers you sent and their current status.',
       onBack: onBack,
       children: [
-        _SellerSubpageSection(
-          title: 'Current',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.tablet_mac_outlined,
-              title: latestOffer?.requestTitle ?? 'iPad Air (5th gen)',
-              body: latestOffer == null
-                  ? r'$650 • Yonkers, NY'
-                  : '${latestOffer!.price} • ${latestOffer!.location}',
-              status: currentStatus,
-              onTap: onOpen,
+        if (usesRealOffers) ...[
+          if (offersLoading)
+            const _SellerOffersNotice(
+              key: Key('sellerOffersLoading'),
+              message: 'Loading your offers…',
+            )
+          else if (offersError != null)
+            _SellerOffersNotice(
+              key: const Key('sellerOffersError'),
+              message: offersError!,
+              onRetry: onRefreshOffers,
+            )
+          else if (realOffers!.isEmpty)
+            const _SellerOffersNotice(
+              key: Key('sellerOffersEmpty'),
+              message:
+                  'No offers yet. Send an offer from a buyer request to see '
+                  'it here.',
+            )
+          else
+            _SellerSubpageSection(
+              title: 'Your offers',
+              children: [
+                for (final offer in realOffers!)
+                  _SellerSubpageRow(
+                    icon: Icons.tablet_mac_outlined,
+                    title: offer.requestTitle,
+                    body: '${offer.priceLabel}  ${offer.placeLabel}',
+                    status: offer.statusLabel,
+                    onTap: () {
+                      final openOffer = onOpenOffer;
+                      if (openOffer != null) {
+                        openOffer(offer);
+                      } else {
+                        onOpen();
+                      }
+                    },
+                  ),
+              ],
             ),
-          ],
-        ),
-        const _SellerSubpageSection(
-          title: 'Previous',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.tv_outlined,
-              title: 'Samsung 65” QLED 4K TV',
-              body: r'$480 • Completed local meetup',
-              status: 'Completed',
-            ),
-          ],
-        ),
+        ] else ...[
+          _SellerSubpageSection(
+            title: 'Current',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.tablet_mac_outlined,
+                title: latestOffer?.requestTitle ?? 'iPad Air (5th gen)',
+                body: latestOffer == null
+                    ? r'$650 • Yonkers, NY'
+                    : '${latestOffer!.price} • ${latestOffer!.location}',
+                status: currentStatus,
+                onTap: onOpen,
+              ),
+            ],
+          ),
+          const _SellerSubpageSection(
+            title: 'Previous',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.tv_outlined,
+                title: 'Samsung 65” QLED 4K TV',
+                body: r'$480 • Completed local meetup',
+                status: 'Completed',
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1466,6 +2348,11 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
     required this.onBack,
     required this.onChat,
     this.latestOffer,
+    this.realOffer,
+    this.withdrawBusy = false,
+    this.withdrawError,
+    this.onWithdraw,
+    this.onEdit,
     super.key,
   });
 
@@ -1473,35 +2360,103 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
   final VoidCallback onChat;
   final LocalOfferRecord? latestOffer;
 
+  /// Authoritative offer shown in real mode.
+  final SellerOfferView? realOffer;
+  final bool withdrawBusy;
+  final String? withdrawError;
+  final VoidCallback? onWithdraw;
+  final VoidCallback? onEdit;
+
   @override
   Widget build(BuildContext context) {
+    final offer = realOffer;
     return _SellerSubpageBlock(
       key: const Key('approvedSellerOfferDetailPage'),
       title: 'Offer details',
       subtitle: 'Review the terms currently shared with the buyer.',
       onBack: onBack,
       children: [
+        if (offer != null &&
+            (offer.requestAcceptanceExpiresAt != null ||
+                offer.purchaseSelected)) ...[
+          _SellerSubpageSection(
+            title: offer.purchaseSelected ? 'Final purchase' : 'Buyer window',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.verified_outlined,
+                title: offer.status == OfferStatus.completed
+                    ? 'Purchase confirmed'
+                    : offer.purchaseSelected
+                    ? 'The buyer chose you to complete the purchase.'
+                    : 'New offers close for this request.',
+                body: offer.status == OfferStatus.completed
+                    ? 'This purchase is complete. Item payment remains between buyer and seller.'
+                    : offer.purchaseSelected
+                    ? 'Only you can complete the request PIN. Other negotiations close after a confirmed purchase.'
+                    : 'Accepted meetings stay valid to their own next-local-midnight cutoff.',
+                status: offer.requestAcceptanceExpiresAt == null
+                    ? ''
+                    : _sellerOfferWindowLabel(
+                        offer.requestAcceptanceExpiresAt!,
+                      ),
+              ),
+            ],
+          ),
+        ],
         _SellerSubpageSection(
           title: 'Agreed offer',
           children: [
             _SellerSubpageRow(
               icon: Icons.tablet_mac_outlined,
-              title: latestOffer?.requestTitle ?? 'iPad Air 5th Gen 64GB',
-              body: latestOffer == null
+              title:
+                  offer?.requestTitle ??
+                  latestOffer?.requestTitle ??
+                  'iPad Air 5th Gen 64GB',
+              body: offer != null
+                  ? offer.placeLabel
+                  : latestOffer == null
                   ? 'Good condition • Pickup in Yonkers, NY'
                   : 'Good condition • ${latestOffer!.location}',
-              status: latestOffer?.price ?? r'$650',
+              status: offer?.priceLabel ?? latestOffer?.price ?? r'$650',
             ),
             _SellerSubpageRow(
               icon: Icons.schedule_outlined,
               title: 'Meeting time',
-              body: latestOffer == null
-                  ? 'Today • 5:00 PM'
-                  : '${latestOffer!.meetingDate} • ${latestOffer!.meetingTime}',
-              status: 'Meeting set',
+              body:
+                  offer?.meetingLabel ??
+                  (latestOffer == null
+                      ? 'Today • 5:00 PM'
+                      : '${latestOffer!.meetingDate} • '
+                            '${latestOffer!.meetingTime}'),
+              status: offer?.statusLabel ?? 'Meeting set',
             ),
           ],
         ),
+        if (offer != null && offer.message.isNotEmpty)
+          _SellerSubpageSection(
+            title: 'Your message',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.chat_bubble_outline,
+                title: 'Message sent with the offer',
+                body: offer.message,
+                status: '',
+              ),
+            ],
+          ),
+        if (withdrawError != null) ...[
+          SizedBox(height: 8),
+          Text(
+            withdrawError!,
+            key: const Key('sellerOfferWithdrawError'),
+            style: sellerText(
+              ApprovedReplicaScope.of(context),
+              11.5,
+              weight: FontWeight.w700,
+              color: SellerUiColors.red,
+            ),
+          ),
+        ],
         SellerPrimaryButton(
           key: const Key('sellerOfferDetailChat'),
           label: 'Open conversation',
@@ -1512,6 +2467,27 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
             color: Colors.white,
           ),
         ),
+        if (offer != null && offer.isWithdrawable && onEdit != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('sellerOfferEdit'),
+            onPressed: onEdit,
+            child: const Text('Update offer'),
+          ),
+        ],
+        if (offer != null && offer.isWithdrawable && onWithdraw != null) ...[
+          SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('sellerOfferWithdraw'),
+            onPressed: withdrawBusy ? null : onWithdraw,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              foregroundColor: SellerUiColors.red,
+              side: const BorderSide(color: SellerUiColors.red),
+            ),
+            child: Text(withdrawBusy ? 'Withdrawing…' : 'Withdraw offer'),
+          ),
+        ],
       ],
     );
   }
@@ -1545,11 +2521,13 @@ class ApprovedSellerBillingPage extends StatefulWidget {
   const ApprovedSellerBillingPage({
     required this.onBack,
     required this.onPayment,
+    this.realContent,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onPayment;
+  final Widget? realContent;
 
   @override
   State<ApprovedSellerBillingPage> createState() =>
@@ -1617,6 +2595,7 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
   Future<void> _showTransaction(_SellerCreditActivity item) {
     return showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _SellerTransactionDetailsSheet(item: item),
@@ -1625,7 +2604,43 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.realContent != null) {
+      final plans = <Widget>[
+        const _SellerSubpageSection(
+          title: 'Current plan',
+          children: [SellerSubscriptionPanel()],
+        ),
+        const _SellerSubpageSection(
+          title: 'Payment method',
+          children: [
+            Padding(padding: EdgeInsets.all(14), child: SellerPaymentPanel()),
+          ],
+        ),
+      ];
+      final wallet = widget.realContent;
+      return _SellerSubpageBlock(
+        tabbed: wallet is! CreditWalletPanel,
+        title: 'Plans & credits',
+        subtitle: 'Balance, targeting activity and your plan.',
+        onBack: widget.onBack,
+        children: wallet is CreditWalletPanel
+            ? [
+                CreditWalletPanel(
+                  load: wallet.load,
+                  additionalSections: {'Plans': plans},
+                ),
+              ]
+            : [
+                _SellerSubpageSection(
+                  title: 'Credit wallet',
+                  children: [wallet!],
+                ),
+                ...plans,
+              ],
+      );
+    }
     return _SellerSubpageBlock(
+      tabbed: true,
       key: const Key('approvedSellerBillingPage'),
       title: 'Plans & credits',
       subtitle: 'Track available credit, spending, and Seller billing.',
@@ -1755,15 +2770,14 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
             ),
           ],
         ),
-        _SellerSubpageSection(
+        const _SellerSubpageSection(
           title: 'Payment',
           children: [
             _SellerSubpageRow(
               icon: Icons.credit_card_outlined,
-              title: 'Payment method',
-              body: 'Used only for Seller plans and targeting credits.',
-              status: 'Add or review',
-              onTap: widget.onPayment,
+              title: 'Visa ending in 4242',
+              body: 'Expires 08/29',
+              status: 'Prototype payment method',
             ),
           ],
         ),
@@ -1778,80 +2792,85 @@ class _SellerCreditBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Container(
-      key: const Key('sellerCreditBalanceCard'),
-      padding: EdgeInsets.all(metrics.spacing(15)),
-      decoration: BoxDecoration(
-        color: SellerUiColors.ink,
-        borderRadius: BorderRadius.circular(metrics.geometry(14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: metrics.artSize(36),
-                height: metrics.artSize(36),
-                decoration: const BoxDecoration(
-                  color: SellerUiColors.lavender,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.toll_outlined,
-                  color: SellerUiColors.primaryBright,
-                  size: metrics.artSize(19),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(10)),
-              Expanded(
-                child: Text(
-                  'Available targeting credit',
-                  style: sellerText(
-                    metrics,
-                    12,
-                    weight: FontWeight.w700,
-                    color: Colors.white70,
+    return HocalistEntrance(
+      child: Container(
+        key: const Key('sellerCreditBalanceCard'),
+        padding: EdgeInsets.all(metrics.spacing(15)),
+        decoration: BoxDecoration(
+          color: SellerUiColors.ink,
+          borderRadius: BorderRadius.circular(metrics.geometry(14)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: metrics.artSize(36),
+                  height: metrics.artSize(36),
+                  decoration: const BoxDecoration(
+                    color: SellerUiColors.lavender,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.toll_outlined,
+                    color: SellerUiColors.primaryBright,
+                    size: metrics.artSize(19),
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: metrics.spacing(10)),
-          Text(
-            r'$36.25',
-            style: sellerText(
-              metrics,
-              28,
-              weight: FontWeight.w900,
-              color: Colors.white,
-            ),
-          ),
-          SizedBox(height: metrics.spacing(14)),
-          Row(
-            children: [
-              Expanded(
-                child: _SellerBalanceMetric(
-                  label: 'Used this cycle',
-                  value: r'$8.75',
+                SizedBox(width: metrics.spacing(10)),
+                Expanded(
+                  child: Text(
+                    'Available targeting credit',
+                    style: sellerText(
+                      metrics,
+                      12,
+                      weight: FontWeight.w700,
+                      color: Colors.white70,
+                    ),
+                  ),
                 ),
+              ],
+            ),
+            SizedBox(height: metrics.spacing(10)),
+            Text(
+              r'$36.25',
+              style: sellerText(
+                metrics,
+                28,
+                weight: FontWeight.w900,
+                color: Colors.white,
               ),
-              Container(
-                width: 1,
-                height: metrics.geometry(34),
-                color: Colors.white24,
-              ),
-              Expanded(
-                child: _SellerBalanceMetric(label: 'Restored', value: r'$1.90'),
-              ),
-            ],
-          ),
-          SizedBox(height: metrics.spacing(10)),
-          Text(
-            'Sample balance until billing and credit records are connected.',
-            style: sellerText(metrics, 9.5, color: Colors.white60),
-          ),
-        ],
+            ),
+            SizedBox(height: metrics.spacing(14)),
+            Row(
+              children: [
+                Expanded(
+                  child: _SellerBalanceMetric(
+                    label: 'Used this cycle',
+                    value: r'$8.75',
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: metrics.geometry(34),
+                  color: Colors.white24,
+                ),
+                Expanded(
+                  child: _SellerBalanceMetric(
+                    label: 'Restored',
+                    value: r'$1.90',
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: metrics.spacing(10)),
+            Text(
+              'Sample balance until billing and credit records are connected.',
+              style: sellerText(metrics, 9.5, color: Colors.white60),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2252,14 +3271,100 @@ class ApprovedSellerOriginalRequestPage extends StatelessWidget {
   const ApprovedSellerOriginalRequestPage({
     required this.onBack,
     required this.onReturnToChat,
+    this.realMode = false,
+    this.request,
+    this.loading = false,
+    this.error,
+    this.onRetry,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onReturnToChat;
+  final bool realMode;
+  final SellerLeadProjection? request;
+  final bool loading;
+  final String? error;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
+    if (realMode) {
+      final record = request;
+      String money(Money value) =>
+          '${value.currencyCode} ${(value.minorUnits / 100).toStringAsFixed(2)}';
+      final minimum = record?.budget.minimum;
+      final maximum = record?.budget.maximum;
+      final budget = minimum != null && maximum != null
+          ? '${money(minimum)} – ${money(maximum)}'
+          : minimum != null
+          ? 'From ${money(minimum)}'
+          : maximum != null
+          ? 'Up to ${money(maximum)}'
+          : 'Not specified';
+      return _SellerSubpageBlock(
+        title: 'Request details',
+        subtitle: 'Latest request details shared by the buyer.',
+        onBack: onBack,
+        children: [
+          if (loading) const Center(child: CircularProgressIndicator()),
+          if (!loading && (error != null || record == null)) ...[
+            Text(error ?? 'This conversation has no available request.'),
+            if (onRetry != null)
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+          if (!loading && error == null && record != null) ...[
+            _SellerSubpageSection(
+              title: 'Request summary',
+              children: [
+                _SellerSubpageRow(
+                  icon: Icons.sell_outlined,
+                  title: record.title,
+                  body: record.kind == RequestKind.product
+                      ? 'Product request'
+                      : 'Service request',
+                  status: 'Revision ${record.requestRevision}',
+                ),
+                _SellerSubpageRow(
+                  icon: Icons.description_outlined,
+                  title: 'What the buyer needs',
+                  body: record.description.isEmpty
+                      ? 'No description provided.'
+                      : record.description,
+                ),
+              ],
+            ),
+            _SellerSubpageSection(
+              title: 'Preferences',
+              children: [
+                _SellerSubpageRow(
+                  icon: Icons.payments_outlined,
+                  title: 'Budget',
+                  body: budget,
+                  status: record.acceptsHigherOffers
+                      ? 'Higher offers accepted'
+                      : null,
+                ),
+                _SellerSubpageRow(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Quantity',
+                  body: '${record.quantity}',
+                ),
+                _SellerSubpageRow(
+                  icon: Icons.location_on_outlined,
+                  title: 'Approximate area',
+                  body: record.areaLabel ?? 'Not specified',
+                ),
+              ],
+            ),
+          ],
+          SellerPrimaryButton(
+            label: 'Return to conversation',
+            onPressed: onReturnToChat,
+          ),
+        ],
+      );
+    }
     return _SellerSubpageBlock(
       key: const Key('approvedSellerOriginalRequestPage'),
       title: 'Original request',
@@ -2331,11 +3436,16 @@ class ApprovedSellerPaymentMethodPage extends StatefulWidget {
   const ApprovedSellerPaymentMethodPage({
     required this.onBack,
     required this.onDone,
+    this.realMode = false,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onDone;
+
+  /// Configured accounts never see a fabricated card or an editable card form.
+  /// Provider-hosted management is required before activation.
+  final bool realMode;
 
   @override
   State<ApprovedSellerPaymentMethodPage> createState() =>
@@ -2356,6 +3466,7 @@ class _ApprovedSellerPaymentMethodPageState
   Future<void> _addPaymentMethod() async {
     final added = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _SellerAddPaymentMethodSheet(
@@ -2381,6 +3492,7 @@ class _ApprovedSellerPaymentMethodPageState
   Future<void> _managePaymentMethod(_SellerPaymentMethodData method) async {
     final action = await showModalBottomSheet<_SellerPaymentAction>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _SellerManagePaymentMethodSheet(
         method: method,
@@ -2401,6 +3513,40 @@ class _ApprovedSellerPaymentMethodPageState
 
   @override
   Widget build(BuildContext context) {
+    if (widget.realMode) {
+      return _SellerSubpageBlock(
+        key: const Key('approvedSellerPaymentMethodPage'),
+        title: 'Payment method',
+        subtitle: 'Seller billing is separate from offline item payment.',
+        onBack: widget.onBack,
+        children: [
+          const _SellerSubpageSection(
+            title: 'Saved payment methods',
+            children: [SellerPaymentPanel()],
+          ),
+          const _SellerSubpageSection(
+            title: 'Payment use',
+            children: [
+              _SellerSubpageRow(
+                icon: Icons.workspace_premium_outlined,
+                title: 'Seller billing only',
+                body:
+                    'Stripe manages payment methods for Seller plans and '
+                    'targeting credits on the Hocalist billing website.',
+                status: 'Provider hosted',
+              ),
+              _SellerSubpageRow(
+                icon: Icons.storefront_outlined,
+                title: 'Item payment stays offline',
+                body:
+                    'Buyers still pay sellers directly after inspecting the item.',
+                status: 'Not charged here',
+              ),
+            ],
+          ),
+        ],
+      );
+    }
     return _SellerSubpageBlock(
       key: const Key('approvedSellerPaymentMethodPage'),
       title: 'Payment method',
@@ -2692,6 +3838,7 @@ class _SellerSubpageBlock extends StatelessWidget {
     required this.subtitle,
     required this.onBack,
     required this.children,
+    this.tabbed = false,
     super.key,
   });
 
@@ -2699,6 +3846,51 @@ class _SellerSubpageBlock extends StatelessWidget {
   final String subtitle;
   final VoidCallback onBack;
   final List<Widget> children;
+  final bool tabbed;
+
+  Map<String, List<Widget>> _tabSections() {
+    final billing = title == 'Plans & credits';
+    final editing = title == 'Edit Profile';
+    final groups = <String, List<Widget>>{
+      for (final label
+          in billing
+              ? ['Credits', 'Activity', 'Plans']
+              : editing
+              ? ['Seller info', 'Categories', 'Private contact']
+              : ['Security', 'Preferences', 'Privacy'])
+        label: [],
+    };
+    for (final child in children) {
+      final section = child is _SellerSubpageSection ? child.title : '';
+      final label = billing
+          ? (section == 'Current plan' ||
+                    section == 'Payment' ||
+                    section == 'Payment method' ||
+                    section == 'Billing history'
+                ? 'Plans'
+                : child is _SellerCreditBalanceCard ||
+                      section == 'Credit wallet'
+                ? 'Credits'
+                : 'Activity')
+          : editing
+          ? (section == 'Profile picture' ||
+                    section == 'Seller information' ||
+                    section == 'Profile details' ||
+                    child.key == const Key('sellerProfileDetailsEditor') ||
+                    child is SellerPrimaryButton
+                ? 'Seller info'
+                : section == 'Seller categories'
+                ? 'Categories'
+                : 'Private contact')
+          : (section == 'Account'
+                ? 'Security'
+                : section == 'Preferences'
+                ? 'Preferences'
+                : 'Privacy');
+      groups[label]!.add(child);
+    }
+    return groups;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2724,7 +3916,9 @@ class _SellerSubpageBlock extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   icon: Icon(
                     Icons.arrow_back,
-                    color: SellerUiColors.ink,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).colorScheme.onSurface
+                        : SellerUiColors.ink,
                     size: metrics.artSize(23),
                   ),
                 ),
@@ -2738,7 +3932,14 @@ class _SellerSubpageBlock extends StatelessWidget {
                       Text(
                         title,
                         textAlign: TextAlign.center,
-                        style: sellerText(metrics, 16, weight: FontWeight.w800),
+                        style: sellerText(
+                          metrics,
+                          16,
+                          weight: FontWeight.w800,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Theme.of(context).colorScheme.onSurface
+                              : SellerUiColors.ink,
+                        ),
                       ),
                       SizedBox(height: metrics.spacing(3)),
                       Text(
@@ -2747,7 +3948,9 @@ class _SellerSubpageBlock extends StatelessWidget {
                         style: sellerText(
                           metrics,
                           12,
-                          color: SellerUiColors.muted,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : SellerUiColors.muted,
                         ),
                       ),
                     ],
@@ -2759,9 +3962,18 @@ class _SellerSubpageBlock extends StatelessWidget {
             ],
           ),
           SizedBox(height: metrics.spacing(18)),
-          ...children.expand(
-            (child) => <Widget>[child, SizedBox(height: metrics.spacing(16))],
-          ),
+          if (tabbed)
+            HocalistSectionTabs(
+              persistenceId: title == 'Account Settings'
+                  ? 'account-settings'
+                  : null,
+              sections: _tabSections(),
+              accent: SellerUiColors.primaryBright,
+            )
+          else
+            ...children.expand(
+              (child) => <Widget>[child, SizedBox(height: metrics.spacing(16))],
+            ),
         ],
       ),
     );
@@ -2777,45 +3989,49 @@ class _SellerSubpageSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: metrics.spacing(2)),
-          child: Text(
-            title.toUpperCase(),
-            style: sellerText(
-              metrics,
-              11,
-              weight: FontWeight.w800,
-              color: SellerUiColors.muted,
-              letterSpacing: .8,
+    return HocalistEntrance(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(left: metrics.spacing(2)),
+            child: Text(
+              title.toUpperCase(),
+              style: sellerText(
+                metrics,
+                11,
+                weight: FontWeight.w800,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Theme.of(context).colorScheme.onSurfaceVariant
+                    : SellerUiColors.muted,
+                letterSpacing: .8,
+              ),
             ),
           ),
-        ),
-        SizedBox(height: metrics.spacing(7)),
-        Material(
-          color: SellerUiColors.white,
-          shape: RoundedRectangleBorder(
-            side: const BorderSide(color: SellerUiColors.line),
-            borderRadius: BorderRadius.circular(metrics.geometry(11)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (var index = 0; index < children.length; index++) ...[
-                children[index],
-                if (index != children.length - 1)
-                  Divider(
-                    height: 1,
-                    indent: metrics.geometry(52),
-                    color: SellerUiColors.line,
-                  ),
+          SizedBox(height: metrics.spacing(7)),
+          Material(
+            color: SellerUiColors.white,
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: SellerUiColors.line),
+              borderRadius: BorderRadius.circular(metrics.geometry(11)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (var index = 0; index < children.length; index++) ...[
+                  children[index],
+                  if (index != children.length - 1)
+                    Divider(
+                      height: 1,
+                      indent: metrics.geometry(52),
+                      color: SellerUiColors.line,
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -2827,6 +4043,7 @@ class _SellerSubpageRow extends StatelessWidget {
     required this.body,
     this.status,
     this.onTap,
+    super.key,
   });
 
   final IconData icon;
@@ -2838,78 +4055,82 @@ class _SellerSubpageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Semantics(
-      button: onTap != null,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: metrics.spacing(12),
-            vertical: metrics.spacing(11),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: metrics.artSize(34),
-                height: metrics.artSize(34),
-                decoration: const BoxDecoration(
-                  color: SellerUiColors.lavender,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color: SellerUiColors.primaryBright,
-                  size: metrics.artSize(18),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(10)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: sellerText(metrics, 14, weight: FontWeight.w700),
-                    ),
-                    SizedBox(height: metrics.spacing(3)),
-                    Text(
-                      body,
-                      style: sellerText(
-                        metrics,
-                        12,
-                        color: SellerUiColors.muted,
-                      ),
-                    ),
-                    if (status != null) ...[
-                      SizedBox(height: metrics.spacing(5)),
-                      Text(
-                        status!,
-                        style: sellerText(
-                          metrics,
-                          11,
-                          weight: FontWeight.w700,
-                          color: onTap == null
-                              ? SellerUiColors.muted
-                              : SellerUiColors.primaryBright,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (onTap != null) ...[
-                SizedBox(width: metrics.spacing(8)),
-                Padding(
-                  padding: EdgeInsets.only(top: metrics.spacing(7)),
+    return HocalistPressFeedback(
+      enabled: onTap != null,
+      child: Semantics(
+        container: true,
+        button: onTap != null,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: metrics.spacing(12),
+              vertical: metrics.spacing(11),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: metrics.artSize(34),
+                  height: metrics.artSize(34),
+                  decoration: const BoxDecoration(
+                    color: SellerUiColors.lavender,
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(
-                    Icons.chevron_right,
-                    color: SellerUiColors.muted,
-                    size: metrics.artSize(20),
+                    icon,
+                    color: SellerUiColors.primaryBright,
+                    size: metrics.artSize(18),
                   ),
                 ),
+                SizedBox(width: metrics.spacing(10)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: sellerText(metrics, 14, weight: FontWeight.w700),
+                      ),
+                      SizedBox(height: metrics.spacing(3)),
+                      Text(
+                        body,
+                        style: sellerText(
+                          metrics,
+                          12,
+                          color: SellerUiColors.muted,
+                        ),
+                      ),
+                      if (status != null) ...[
+                        SizedBox(height: metrics.spacing(5)),
+                        Text(
+                          status!,
+                          style: sellerText(
+                            metrics,
+                            11,
+                            weight: FontWeight.w700,
+                            color: onTap == null
+                                ? SellerUiColors.muted
+                                : SellerUiColors.primaryBright,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (onTap != null) ...[
+                  SizedBox(width: metrics.spacing(8)),
+                  Padding(
+                    padding: EdgeInsets.only(top: metrics.spacing(7)),
+                    child: Icon(
+                      Icons.chevron_right,
+                      color: SellerUiColors.muted,
+                      size: metrics.artSize(20),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -2924,6 +4145,7 @@ class _SellerPreferenceSwitch extends StatelessWidget {
     required this.body,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final IconData icon;
@@ -2931,13 +4153,14 @@ class _SellerPreferenceSwitch extends StatelessWidget {
   final String body;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     return SwitchListTile.adaptive(
       value: value,
-      onChanged: onChanged,
+      onChanged: enabled ? onChanged : null,
       activeThumbColor: SellerUiColors.primaryBright,
       contentPadding: EdgeInsets.symmetric(
         horizontal: metrics.spacing(12),
@@ -2975,10 +4198,12 @@ class _SellerProfileSummary extends StatelessWidget {
   const _SellerProfileSummary({
     required this.sellerName,
     this.onProfilePhotoAction,
+    this.showPrototypeTrustDetails = true,
   });
 
   final String sellerName;
   final ValueChanged<SellerProfilePhotoAction>? onProfilePhotoAction;
+  final bool showPrototypeTrustDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -2988,88 +4213,100 @@ class _SellerProfileSummary extends StatelessWidget {
       context,
       onSelected: onProfilePhotoAction,
     );
-    return Container(
-      padding: EdgeInsets.all(metrics.spacing(14)),
-      decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
-        border: Border.all(color: SellerUiColors.lavenderBorder),
-        borderRadius: BorderRadius.circular(metrics.geometry(14)),
-      ),
-      child: Row(
-        children: [
-          _SellerProfileAvatar(
-            initial: initial,
-            metrics: metrics,
-            onChangePhoto: changePhoto,
-            actionKey: const Key('sellerProfilePhotoAction'),
-          ),
-          SizedBox(width: metrics.spacing(12)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  sellerName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: sellerText(metrics, 17, weight: FontWeight.w800),
-                ),
-                SizedBox(height: metrics.spacing(3)),
-                Text(
-                  'Electronics seller',
-                  style: sellerText(metrics, 12, color: SellerUiColors.body),
-                ),
-                SizedBox(height: metrics.spacing(6)),
-                Wrap(
-                  spacing: metrics.spacing(6),
-                  runSpacing: metrics.spacing(4),
-                  children: [
-                    _SellerStatusChip(
-                      icon: Icons.verified_outlined,
-                      label: 'Verified',
-                      metrics: metrics,
-                    ),
-                    _SellerStatusChip(
-                      icon: Icons.star_outline,
-                      label: '4.9 rating',
-                      metrics: metrics,
-                    ),
-                  ],
-                ),
-                SizedBox(height: metrics.spacing(4)),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    key: const Key('sellerProfileChangePhoto'),
-                    onPressed: changePhoto,
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: metrics.spacing(4),
-                        vertical: metrics.spacing(4),
+    return HocalistEntrance(
+      child: Container(
+        padding: EdgeInsets.all(metrics.spacing(14)),
+        decoration: BoxDecoration(
+          color: SellerUiColors.lavender,
+          border: Border.all(color: SellerUiColors.lavenderBorder),
+          borderRadius: BorderRadius.circular(metrics.geometry(14)),
+        ),
+        child: Row(
+          children: [
+            _SellerProfileAvatar(
+              initial: initial,
+              metrics: metrics,
+              onChangePhoto: changePhoto,
+              actionKey: const Key('sellerProfilePhotoAction'),
+            ),
+            SizedBox(width: metrics.spacing(12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    sellerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: sellerText(metrics, 17, weight: FontWeight.w800),
+                  ),
+                  SizedBox(height: metrics.spacing(3)),
+                  Text(
+                    showPrototypeTrustDetails
+                        ? 'Electronics seller'
+                        : 'Seller account',
+                    style: sellerText(metrics, 12, color: SellerUiColors.body),
+                  ),
+                  SizedBox(height: metrics.spacing(6)),
+                  Wrap(
+                    spacing: metrics.spacing(6),
+                    runSpacing: metrics.spacing(4),
+                    children: showPrototypeTrustDetails
+                        ? [
+                            _SellerStatusChip(
+                              icon: Icons.verified_outlined,
+                              label: 'Verified',
+                              metrics: metrics,
+                            ),
+                            _SellerStatusChip(
+                              icon: Icons.star_outline,
+                              label: '4.9 rating',
+                              metrics: metrics,
+                            ),
+                          ]
+                        : [
+                            _SellerStatusChip(
+                              icon: Icons.check_circle_outline,
+                              label: 'Active account',
+                              metrics: metrics,
+                            ),
+                          ],
+                  ),
+                  SizedBox(height: metrics.spacing(4)),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      key: const Key('sellerProfileChangePhoto'),
+                      onPressed: changePhoto,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: metrics.spacing(4),
+                          vertical: metrics.spacing(4),
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    icon: Icon(
-                      Icons.photo_camera_outlined,
-                      size: metrics.artSize(15),
-                    ),
-                    label: Text(
-                      'Change profile picture',
-                      style: sellerText(
-                        metrics,
-                        12,
-                        weight: FontWeight.w700,
-                        color: SellerUiColors.primaryBright,
+                      icon: Icon(
+                        Icons.photo_camera_outlined,
+                        size: metrics.artSize(15),
+                      ),
+                      label: Text(
+                        'Change profile picture',
+                        style: sellerText(
+                          metrics,
+                          12,
+                          weight: FontWeight.w700,
+                          color: SellerUiColors.primaryBright,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3079,10 +4316,18 @@ class _SellerProfilePhotoEditor extends StatelessWidget {
   const _SellerProfilePhotoEditor({
     required this.sellerName,
     this.onProfilePhotoAction,
+    this.avatarMediaId,
+    this.avatarPending = false,
+    this.onRetryAvatar,
+    this.onDiscardAvatar,
   });
 
   final String sellerName;
   final ValueChanged<SellerProfilePhotoAction>? onProfilePhotoAction;
+  final String? avatarMediaId;
+  final bool avatarPending;
+  final VoidCallback? onRetryAvatar;
+  final VoidCallback? onDiscardAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -3094,60 +4339,141 @@ class _SellerProfilePhotoEditor extends StatelessWidget {
     );
     return Padding(
       padding: EdgeInsets.all(metrics.spacing(14)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SellerProfileAvatar(
-            initial: initial,
-            metrics: metrics,
-            onChangePhoto: changePhoto,
-            actionKey: const Key('sellerEditProfilePhotoAction'),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _SellerProfileAvatar(
+                initial: initial,
+                metrics: metrics,
+                onChangePhoto: changePhoto,
+                actionKey: const Key('sellerEditProfilePhotoAction'),
+                avatarMediaId: avatarMediaId,
+              ),
+              SizedBox(width: metrics.spacing(12)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your Seller photo',
+                      style: sellerText(metrics, 14, weight: FontWeight.w800),
+                    ),
+                    SizedBox(height: metrics.spacing(3)),
+                    Text(
+                      'Use a clear photo that buyers can recognize.',
+                      style: sellerText(
+                        metrics,
+                        12,
+                        color: SellerUiColors.muted,
+                      ),
+                    ),
+                    SizedBox(height: metrics.spacing(5)),
+                    TextButton.icon(
+                      key: const Key('sellerEditProfileChangePhoto'),
+                      onPressed: changePhoto,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: metrics.spacing(4),
+                          vertical: metrics.spacing(4),
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: Icon(
+                        Icons.photo_camera_outlined,
+                        size: metrics.artSize(15),
+                      ),
+                      label: Text(
+                        'Change profile picture',
+                        style: sellerText(
+                          metrics,
+                          12,
+                          weight: FontWeight.w700,
+                          color: SellerUiColors.primaryBright,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: metrics.spacing(12)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (avatarPending) ...[
+            SizedBox(height: metrics.spacing(10)),
+            _SellerAvatarPendingCard(
+              onRetry: onRetryAvatar,
+              onDiscard: onDiscardAvatar,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Reachable Retry/Discard controls for an unconfirmed Seller avatar change.
+class _SellerAvatarPendingCard extends StatelessWidget {
+  const _SellerAvatarPendingCard({this.onRetry, this.onDiscard});
+
+  final VoidCallback? onRetry;
+  final VoidCallback? onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return HocalistEntrance(
+      child: Container(
+        key: const Key('sellerAvatarPendingCard'),
+        padding: EdgeInsets.all(metrics.spacing(12)),
+        decoration: BoxDecoration(
+          color: SellerUiColors.lavender,
+          border: Border.all(color: SellerUiColors.line),
+          borderRadius: BorderRadius.circular(metrics.geometry(11)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Photo change not confirmed',
+              style: sellerText(metrics, 12.5, weight: FontWeight.w800),
+            ),
+            SizedBox(height: metrics.spacing(2)),
+            Text(
+              'Retry checks the original upload and change; it never uploads a new photo.',
+              style: sellerText(
+                metrics,
+                11,
+                color: SellerUiColors.body,
+                height: 1.35,
+              ),
+            ),
+            SizedBox(height: metrics.spacing(8)),
+            Row(
               children: [
-                Text(
-                  'Your Seller photo',
-                  style: sellerText(metrics, 14, weight: FontWeight.w800),
-                ),
-                SizedBox(height: metrics.spacing(3)),
-                Text(
-                  'Use a clear photo that buyers can recognize.',
-                  style: sellerText(metrics, 12, color: SellerUiColors.muted),
-                ),
-                SizedBox(height: metrics.spacing(5)),
-                TextButton.icon(
-                  key: const Key('sellerEditProfileChangePhoto'),
-                  onPressed: changePhoto,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: metrics.spacing(4),
-                      vertical: metrics.spacing(4),
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
+                Expanded(
+                  child: SellerPrimaryButton(
+                    key: const Key('sellerAvatarRetry'),
+                    label: 'Retry change',
+                    onPressed: onRetry,
+                    compact: true,
                   ),
-                  icon: Icon(
-                    Icons.photo_camera_outlined,
-                    size: metrics.artSize(15),
-                  ),
-                  label: Text(
-                    'Change profile picture',
-                    style: sellerText(
-                      metrics,
-                      12,
-                      weight: FontWeight.w700,
-                      color: SellerUiColors.primaryBright,
-                    ),
+                ),
+                SizedBox(width: metrics.spacing(6)),
+                Expanded(
+                  child: TextButton(
+                    key: const Key('sellerAvatarDiscard'),
+                    onPressed: onDiscard,
+                    child: const Text('Discard change'),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3159,12 +4485,16 @@ class _SellerProfileAvatar extends StatelessWidget {
     required this.metrics,
     required this.onChangePhoto,
     required this.actionKey,
+    this.avatarMediaId,
   });
 
   final String initial;
   final ApprovedReplicaMetrics metrics;
   final VoidCallback onChangePhoto;
   final Key actionKey;
+
+  /// Server-issued avatar media id. Null keeps the approved initial avatar.
+  final String? avatarMediaId;
 
   @override
   Widget build(BuildContext context) {
@@ -3175,18 +4505,26 @@ class _SellerProfileAvatar extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned.fill(
-            child: CircleAvatar(
-              backgroundColor: SellerUiColors.primaryBright,
-              child: Text(
-                initial.toUpperCase(),
-                style: sellerText(
-                  metrics,
-                  20,
-                  weight: FontWeight.w800,
-                  color: SellerUiColors.white,
-                ),
-              ),
-            ),
+            child: avatarMediaId == null
+                ? CircleAvatar(
+                    backgroundColor: SellerUiColors.primaryBright,
+                    child: Text(
+                      initial.toUpperCase(),
+                      style: sellerText(
+                        metrics,
+                        20,
+                        weight: FontWeight.w800,
+                        color: SellerUiColors.white,
+                      ),
+                    ),
+                  )
+                : ClipOval(
+                    child: PrivateRemoteImage(
+                      key: ValueKey('sellerAvatar-$avatarMediaId'),
+                      id: avatarMediaId!,
+                      size: metrics.artSize(62),
+                    ),
+                  ),
           ),
           Positioned(
             right: -metrics.spacing(2),
@@ -3224,8 +4562,14 @@ Future<void> _showSellerProfilePhotoOptions(
   ValueChanged<SellerProfilePhotoAction>? onSelected,
 }) async {
   final metrics = ApprovedReplicaScope.of(context);
-  final selected = await showModalBottomSheet<SellerProfilePhotoAction>(
+  void select(BuildContext sheetContext, SellerProfilePhotoAction action) {
+    Navigator.of(sheetContext).pop();
+    onSelected?.call(action);
+  }
+
+  await showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: HocalistMotion.sheetStyle(context),
     backgroundColor: SellerUiColors.white,
     isScrollControlled: true,
     useSafeArea: true,
@@ -3271,9 +4615,8 @@ Future<void> _showSellerProfilePhotoOptions(
               icon: Icons.photo_camera_outlined,
               title: 'Take a photo',
               subtitle: 'Use your device camera',
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(SellerProfilePhotoAction.camera),
+              onTap: () =>
+                  select(sheetContext, SellerProfilePhotoAction.camera),
             ),
             _SellerPhotoOption(
               metrics: metrics,
@@ -3281,9 +4624,8 @@ Future<void> _showSellerProfilePhotoOptions(
               icon: Icons.photo_library_outlined,
               title: 'Choose from photo library',
               subtitle: 'Select a photo already on your device',
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(SellerProfilePhotoAction.gallery),
+              onTap: () =>
+                  select(sheetContext, SellerProfilePhotoAction.gallery),
             ),
             _SellerPhotoOption(
               metrics: metrics,
@@ -3292,19 +4634,14 @@ Future<void> _showSellerProfilePhotoOptions(
               title: 'Remove current photo',
               subtitle: 'Show your Seller initials instead',
               isDestructive: true,
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(SellerProfilePhotoAction.remove),
+              onTap: () =>
+                  select(sheetContext, SellerProfilePhotoAction.remove),
             ),
           ],
         ),
       );
     },
   );
-
-  if (selected != null) {
-    onSelected?.call(selected);
-  }
 }
 
 class _SellerPhotoOption extends StatelessWidget {

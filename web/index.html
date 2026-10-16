@@ -41,6 +41,23 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!-- HOCALIST_LOCAL_MAPS_SDK -->
+  <script>
+    window.hocalistLoadMaps = function (key) {
+      if (window.google && google.maps && google.maps.Map) return Promise.resolve(true);
+      if (window.hocalistMapsLoading) return window.hocalistMapsLoading;
+      window.hocalistMapsLoading = new Promise(function (resolve, reject) {
+        const script = document.createElement('script');
+        const url = new URL('https://maps.googleapis.com/maps/api/js');
+        url.searchParams.set('key', key);
+        script.src = url.toString();
+        script.onload = function () { resolve(!!(window.google && google.maps && google.maps.Map)); };
+        script.onerror = function () { reject(new Error('Maps SDK unavailable')); };
+        document.head.appendChild(script);
+      });
+      return window.hocalistMapsLoading;
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,5 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import '../../components/notification_indicator.dart';
 
+import 'package:flutter/material.dart';
+import '../../components/hocalist_motion.dart';
+
+import '../../data/local_marketplace_repository.dart';
+import '../../domain/phase2/discovery.dart';
+import '../../domain/phase2/notifications.dart';
 import '../../theme/accessibility_visuals.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../../theme/control_foundation.dart';
@@ -185,11 +192,31 @@ class ApprovedHocatrendsPage extends StatefulWidget {
   const ApprovedHocatrendsPage({
     required this.accent,
     required this.onSeeSellers,
+    this.realMode = false,
+    this.trends,
+    this.trendsLoading = false,
+    this.trendsError,
+    this.onRefreshTrends,
+    this.onSeeSellersForTopic,
     super.key,
   });
 
   final Color accent;
   final VoidCallback onSeeSellers;
+
+  /// Configured sessions label the ranking cards as preview data and keep
+  /// unsupported seller results honest until a trend projection exists.
+  final bool realMode;
+
+  /// Signed-in trend projection from verified marketplace activity. Null keeps
+  /// the approved prototype cards (clearly labelled as preview in real mode).
+  final HocatrendsProjection? trends;
+  final bool trendsLoading;
+  final String? trendsError;
+  final VoidCallback? onRefreshTrends;
+
+  /// Opens the real seller results for one topic id.
+  final ValueChanged<String>? onSeeSellersForTopic;
 
   @override
   State<ApprovedHocatrendsPage> createState() => _ApprovedHocatrendsPageState();
@@ -229,6 +256,7 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
     var draft = _competition;
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -277,6 +305,7 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
   Future<void> _openSearch() {
     return showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -323,12 +352,17 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
     return _ApprovedReplicaSurface(
       builder: (context) {
         final metrics = _replicaMetrics(context);
+        final realTrends = widget.trends;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _ApprovedTrendsHero(accent: widget.accent),
             SizedBox(height: metrics.geometry(8)),
             const _ApprovedSavingsNotice(),
+            if (widget.realMode && realTrends == null) ...[
+              SizedBox(height: metrics.geometry(8)),
+              const _ApprovedTrendsPreviewNotice(),
+            ],
             SizedBox(height: metrics.geometry(10)),
             _ApprovedSearchField(
               query: _query,
@@ -339,7 +373,62 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
             SizedBox(height: metrics.geometry(6)),
             _ApprovedCompetitiveHeader(accent: widget.accent),
             SizedBox(height: metrics.geometry(6)),
-            if (_visibleCategories.isEmpty)
+            if (realTrends != null) ...[
+              if (widget.trendsLoading && realTrends.items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: LinearProgressIndicator(
+                    key: Key('approvedTrendsLoading'),
+                  ),
+                ),
+              if (widget.trendsError != null && realTrends.items.isEmpty)
+                Container(
+                  key: const Key('approvedTrendsError'),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xfff5f2ff),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.trendsError!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      if (widget.onRefreshTrends != null)
+                        TextButton(
+                          onPressed: widget.onRefreshTrends,
+                          child: const Text('Retry'),
+                        ),
+                    ],
+                  ),
+                ),
+              if (_visibleRealTopics(realTrends).isEmpty)
+                _ApprovedTrendsEmptyState(
+                  onClear: () {
+                    _searchController.clear();
+                    setState(() {
+                      _query = '';
+                      _competition = _TrendCompetitionFilter.all;
+                    });
+                  },
+                )
+              else ...[
+                for (final topic in _visibleRealTopics(realTrends)) ...[
+                  _ApprovedTrendCard(
+                    item: _trendDataFor(topic),
+                    accent: widget.accent,
+                    onSeeSellers: widget.onSeeSellersForTopic == null
+                        ? widget.onSeeSellers
+                        : () => widget.onSeeSellersForTopic!(topic.categoryId),
+                  ),
+                  if (topic != _visibleRealTopics(realTrends).last)
+                    SizedBox(height: metrics.geometry(8)),
+                ],
+              ],
+            ] else if (_visibleCategories.isEmpty)
               _ApprovedTrendsEmptyState(
                 onClear: () {
                   _searchController.clear();
@@ -366,6 +455,47 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
           ],
         );
       },
+    );
+  }
+
+  List<HocatrendsTopic> _visibleRealTopics(HocatrendsProjection projection) {
+    final query = _query.trim().toLowerCase();
+    return projection.items
+        .where((topic) {
+          final matchesQuery =
+              query.isEmpty ||
+              '${topic.label} ${topic.competition} ${topic.activityCopy}'
+                  .toLowerCase()
+                  .contains(query);
+          final matchesCompetition = switch (_competition) {
+            _TrendCompetitionFilter.all => true,
+            _TrendCompetitionFilter.veryHigh =>
+              topic.competition == 'Very High',
+            _TrendCompetitionFilter.medium =>
+              topic.competition == 'Medium' || topic.competition == 'New',
+          };
+          return matchesQuery &&
+              matchesCompetition &&
+              topic.hasVerifiedActivity;
+        })
+        .toList(growable: false);
+  }
+
+  _ApprovedTrendData _trendDataFor(HocatrendsTopic topic) {
+    return _ApprovedTrendData(
+      rank: topic.rank,
+      title: topic.label,
+      competition: topic.competition,
+      percent: topic.percent,
+      sellerCopy: topic.activityCopy,
+      image: 'transparent/trend-up.png',
+      rankColor: switch (topic.rank) {
+        1 => const Color(0xffffb900),
+        2 => const Color(0xffeef0fa),
+        3 => const Color(0xffff6c20),
+        _ => const Color(0xffeef0fa),
+      },
+      medium: topic.competition == 'Medium' || topic.competition == 'New',
     );
   }
 }
@@ -582,6 +712,51 @@ class _ApprovedSavingsNotice extends StatelessWidget {
   }
 }
 
+class _ApprovedTrendsPreviewNotice extends StatelessWidget {
+  const _ApprovedTrendsPreviewNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _replicaMetrics(context);
+    return Container(
+      key: const Key('approvedTrendsPreviewNotice'),
+      padding: metrics.geometryInsets(const EdgeInsets.fromLTRB(10, 9, 12, 9)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).colorScheme.surfaceContainerHighest
+            : const Color(0xfffff7e8),
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.science_outlined,
+            size: metrics.artSize(20),
+            color: _approvedGold,
+          ),
+          SizedBox(width: metrics.geometry(8)),
+          Expanded(
+            child: Text(
+              'Preview data: live trend rankings, competition percentages and '
+              'seller counts are not connected yet. See Sellers stays '
+              'unavailable until an authorized trend projection exists.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: _pageText(context),
+                fontSize: metrics.fontSize(10.5),
+                height: metrics.lineHeight(
+                  referenceFontSize: 10.5,
+                  referenceLineHeight: 13.125,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ApprovedSearchField extends StatelessWidget {
   const _ApprovedSearchField({
     required this.query,
@@ -729,6 +904,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
   Future<void> _openHowItWorks(BuildContext context) {
     return showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -881,95 +1057,104 @@ class _ApprovedTrendCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accessibility = hocalistAccessibilityVisualsOf(context);
     final metrics = _replicaMetrics(context);
-    return LayoutBuilder(
-      builder: (context, _) {
-        return Container(
-          key: ValueKey('approved-trend-card-${item.rank}'),
-          constraints: BoxConstraints(minHeight: metrics.geometry(84)),
-          padding: metrics.geometryInsets(
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          ),
-          decoration: BoxDecoration(
-            color: _pageSurface(context),
-            borderRadius: BorderRadius.circular(metrics.geometry(9)),
-            border: Border.all(
-              color: _approvedBorder,
-              width: metrics.geometry(1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x0c0b1047),
-                blurRadius: metrics.geometry(8),
-                offset: Offset(0, metrics.geometry(3)),
+    return HocalistEntrance(
+      child: HocalistPressFeedback(
+        child: LayoutBuilder(
+          builder: (context, _) {
+            return Container(
+              key: ValueKey('approved-trend-card-${item.rank}'),
+              constraints: BoxConstraints(minHeight: metrics.geometry(84)),
+              padding: metrics.geometryInsets(
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               ),
-            ],
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final stackAction =
-                  constraints.maxWidth < 220 || metrics.accessibilityReflow;
-              final imageSize = metrics.geometry(58);
-              final details = _ApprovedTrendDetails(item: item, accent: accent);
-              final leading = Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _ApprovedRankBadge(item: item),
-                  SizedBox(width: metrics.geometry(6)),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(metrics.geometry(6)),
-                    child: _approvedAsset(
-                      item.image,
-                      width: imageSize,
-                      height: imageSize,
-                      fit: BoxFit.contain,
-                      semanticLabel: item.title,
-                    ),
+              decoration: BoxDecoration(
+                color: _pageSurface(context),
+                borderRadius: BorderRadius.circular(metrics.geometry(9)),
+                border: Border.all(
+                  color: _approvedBorder,
+                  width: metrics.geometry(1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0x0c0b1047),
+                    blurRadius: metrics.geometry(8),
+                    offset: Offset(0, metrics.geometry(3)),
                   ),
                 ],
-              );
-              final button = _ApprovedTrendAction(
-                background: accessibility.backgroundOr(accent),
-                foreground: accessibility.foregroundOr(Colors.white),
-                radius: metrics.geometry(accessibility.radiusOr(7)),
-                borderWidth: accessibility.usesHighContrastButton
-                    ? metrics.geometry(accessibility.buttonBorderWidth)
-                    : 0,
-                onPressed: onSeeSellers,
-              );
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final stackAction =
+                      constraints.maxWidth < 220 || metrics.accessibilityReflow;
+                  final imageSize = metrics.geometry(58);
+                  final details = _ApprovedTrendDetails(
+                    item: item,
+                    accent: accent,
+                  );
+                  final leading = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ApprovedRankBadge(item: item),
+                      SizedBox(width: metrics.geometry(6)),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          metrics.geometry(6),
+                        ),
+                        child: _approvedAsset(
+                          item.image,
+                          width: imageSize,
+                          height: imageSize,
+                          fit: BoxFit.contain,
+                          semanticLabel: item.title,
+                        ),
+                      ),
+                    ],
+                  );
+                  final button = _ApprovedTrendAction(
+                    background: accessibility.backgroundOr(accent),
+                    foreground: accessibility.foregroundOr(Colors.white),
+                    radius: metrics.geometry(accessibility.radiusOr(7)),
+                    borderWidth: accessibility.usesHighContrastButton
+                        ? metrics.geometry(accessibility.buttonBorderWidth)
+                        : 0,
+                    onPressed: onSeeSellers,
+                  );
 
-              if (stackAction) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  if (stackAction) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        leading,
-                        SizedBox(width: metrics.geometry(10)),
-                        Expanded(child: details),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            leading,
+                            SizedBox(width: metrics.geometry(10)),
+                            Expanded(child: details),
+                          ],
+                        ),
+                        SizedBox(height: metrics.geometry(6)),
+                        button,
                       ],
-                    ),
-                    SizedBox(height: metrics.geometry(6)),
-                    button,
-                  ],
-                );
-              }
+                    );
+                  }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  leading,
-                  SizedBox(width: metrics.geometry(8)),
-                  Expanded(child: details),
-                  SizedBox(width: metrics.geometry(6)),
-                  SizedBox(width: metrics.geometry(78), child: button),
-                ],
-              );
-            },
-          ),
-        );
-      },
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      leading,
+                      SizedBox(width: metrics.geometry(8)),
+                      Expanded(child: details),
+                      SizedBox(width: metrics.geometry(6)),
+                      SizedBox(width: metrics.geometry(78), child: button),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -1248,12 +1433,32 @@ class ApprovedHocatrendsPickedSellersPage extends StatefulWidget {
     required this.onBack,
     required this.onChatSeller,
     this.onNotifications,
+    this.realResults,
+    this.realMode = false,
+    this.topicLabel,
+    this.resultsLoading = false,
+    this.resultsError,
+    this.onRetryResults,
+    this.onChatSellerView,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onChatSeller;
   final VoidCallback? onNotifications;
+
+  /// Real signed-in seller results for one topic. Null keeps the prototype
+  /// seller list; when real mode is on without a projection the prototype
+  /// ratings and prices are never shown.
+  final HocatrendsSellerResults? realResults;
+  final bool realMode;
+  final String? topicLabel;
+  final bool resultsLoading;
+  final String? resultsError;
+  final VoidCallback? onRetryResults;
+
+  /// Origin-isolated chat opener for one real seller result.
+  final void Function(HocatrendsSellerView seller)? onChatSellerView;
 
   @override
   State<ApprovedHocatrendsPickedSellersPage> createState() =>
@@ -1313,6 +1518,7 @@ class _ApprovedHocatrendsPickedSellersPageState
     var draftSavings = savesAtLeast160;
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -1395,8 +1601,90 @@ class _ApprovedHocatrendsPickedSellersPageState
       ..showSnackBar(SnackBar(content: Text(value)));
   }
 
+  _ApprovedSellerData _realSellerData(HocatrendsSellerView seller) {
+    final average = seller.averageRating;
+    return _ApprovedSellerData(
+      name: seller.displayName,
+      avatar: '',
+      rating: average == null
+          ? 'No reviews yet'
+          : '${average.toStringAsFixed(1)} (${seller.ratingCount} reviews)',
+      location: seller.areaLabel ?? 'Area not shared',
+      distance: '—',
+      price: seller.priceLabel ?? 'See listing for price',
+      savings: '',
+      badge: '',
+      badgeIcon: 'transparent/trend-shield.png',
+      badgeColor: _approvedAction,
+      deals: '${seller.completedDeals} confirmed deals',
+      response: '—',
+    );
+  }
+
+  Widget _buildReal(BuildContext context) {
+    final metrics = _replicaMetrics(context);
+    final results = widget.realResults;
+    return _ApprovedReplicaSurface(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ApprovedSellerHeader(
+              onBack: widget.onBack,
+              onNotifications: widget.onNotifications,
+            ),
+            SizedBox(height: metrics.geometry(12)),
+            const _ApprovedSellerProductSummary(),
+            SizedBox(height: metrics.geometry(12)),
+            if (results != null && results.items.isNotEmpty)
+              for (final seller in results.items) ...[
+                _ApprovedSellerCard(
+                  seller: _realSellerData(seller),
+                  onChat: widget.onChatSellerView == null
+                      ? widget.onChatSeller
+                      : () => widget.onChatSellerView!(seller),
+                ),
+                SizedBox(height: metrics.geometry(10)),
+              ]
+            else
+              Container(
+                key: const Key('approvedHocatrendsSellersEmpty'),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _pageSurface(context),
+                  borderRadius: BorderRadius.circular(metrics.geometry(8)),
+                  border: Border.all(color: _approvedBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.resultsLoading
+                          ? 'Loading sellers…'
+                          : widget.resultsError ??
+                                'No sellers currently match this trend.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _pageText(context),
+                      ),
+                    ),
+                    if (widget.resultsError != null &&
+                        widget.onRetryResults != null)
+                      TextButton(
+                        onPressed: widget.onRetryResults,
+                        child: const Text('Retry'),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.realMode) return _buildReal(context);
     return _ApprovedReplicaSurface(
       builder: (context) {
         final metrics = _replicaMetrics(context);
@@ -1594,7 +1882,15 @@ class _ApprovedBitmapButton extends StatelessWidget {
       onPressed: onPressed,
       constraints: BoxConstraints.tightFor(width: size, height: size),
       padding: EdgeInsets.all(_replicaMetrics(context).geometry(5)),
-      icon: _approvedAsset(asset, width: imageWidth, height: imageHeight),
+      icon: asset == 'transparent/seller-notification.png'
+          ? NotificationArtwork(
+              child: _approvedAsset(
+                asset,
+                width: imageWidth,
+                height: imageHeight,
+              ),
+            )
+          : _approvedAsset(asset, width: imageWidth, height: imageHeight),
     );
   }
 }
@@ -1749,12 +2045,16 @@ class _ApprovedSellerControls extends StatelessWidget {
                   height: metrics.geometry(18),
                 ),
                 SizedBox(width: metrics.geometry(4)),
-                Text(
-                  'Filters',
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: _pickedSellerFontSize(metrics, 11),
-                    fontWeight: FontWeight.w800,
+                Flexible(
+                  child: Text(
+                    'Filters',
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: _pickedSellerFontSize(metrics, 11),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
@@ -1891,7 +2191,8 @@ class _ApprovedViewChoice extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(metrics.geometry(6)),
-        child: Container(
+        child: AnimatedContainer(
+          duration: HocalistMotion.duration(context, 180),
           width: metrics.artSize(35),
           height: metrics.geometry(32),
           alignment: Alignment.center,
@@ -1989,73 +2290,84 @@ class _ApprovedSellerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
-    return Container(
-      key: ValueKey('approved-seller-card-${seller.name}'),
-      padding: EdgeInsets.all(_sellerDimension(metrics, 8, floor: 8)),
-      decoration: BoxDecoration(
-        color: _pageSurface(context),
-        borderRadius: BorderRadius.circular(metrics.geometry(8)),
-        border: Border.all(color: _approvedBorder, width: metrics.geometry(1)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0x0d0b1047),
-            blurRadius: metrics.geometry(8),
-            offset: Offset(0, metrics.geometry(3)),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stack =
-              constraints.maxWidth < 220 || metrics.accessibilityReflow;
-          final identity = _ApprovedSellerIdentity(seller: seller);
-          final commerce = _ApprovedSellerCommerce(
-            seller: seller,
-            onChat: onChat,
-            fullWidth: stack,
-          );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (stack) ...[
-                identity,
-                SizedBox(height: metrics.geometry(10)),
-                _ApprovedSellerBadge(seller: seller),
-                SizedBox(height: metrics.geometry(10)),
-                commerce,
-              ] else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: identity),
-                    SizedBox(width: metrics.geometry(8)),
-                    SizedBox(
-                      width: _sellerDimension(metrics, 138, floor: 120),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: _ApprovedSellerBadge(seller: seller),
-                          ),
-                          SizedBox(height: metrics.geometry(4)),
-                          commerce,
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              SizedBox(height: metrics.geometry(6)),
-              Divider(
-                height: metrics.geometry(1),
-                thickness: metrics.geometry(1),
-                color: _approvedBorder,
+    return HocalistEntrance(
+      child: HocalistPressFeedback(
+        child: Container(
+          key: ValueKey('approved-seller-card-${seller.name}'),
+          padding: EdgeInsets.all(_sellerDimension(metrics, 8, floor: 8)),
+          decoration: BoxDecoration(
+            color: _pageSurface(context),
+            borderRadius: BorderRadius.circular(metrics.geometry(8)),
+            border: Border.all(
+              color: _approvedBorder,
+              width: metrics.geometry(1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0x0d0b1047),
+                blurRadius: metrics.geometry(8),
+                offset: Offset(0, metrics.geometry(3)),
               ),
-              SizedBox(height: metrics.geometry(6)),
-              _ApprovedSellerStats(seller: seller),
             ],
-          );
-        },
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final stack =
+                  constraints.maxWidth < 220 || metrics.accessibilityReflow;
+              final identity = _ApprovedSellerIdentity(seller: seller);
+              final commerce = _ApprovedSellerCommerce(
+                seller: seller,
+                onChat: onChat,
+                fullWidth: stack,
+              );
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (stack) ...[
+                    identity,
+                    SizedBox(height: metrics.geometry(10)),
+                    if (seller.badge.isNotEmpty) ...[
+                      _ApprovedSellerBadge(seller: seller),
+                      SizedBox(height: metrics.geometry(10)),
+                    ],
+                    commerce,
+                  ] else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: identity),
+                        SizedBox(width: metrics.geometry(8)),
+                        SizedBox(
+                          width: _sellerDimension(metrics, 138, floor: 120),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (seller.badge.isNotEmpty) ...[
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _ApprovedSellerBadge(seller: seller),
+                                ),
+                                SizedBox(height: metrics.geometry(4)),
+                              ],
+                              commerce,
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  SizedBox(height: metrics.geometry(6)),
+                  Divider(
+                    height: metrics.geometry(1),
+                    thickness: metrics.geometry(1),
+                    color: _approvedBorder,
+                  ),
+                  SizedBox(height: metrics.geometry(6)),
+                  _ApprovedSellerStats(seller: seller),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -2072,12 +2384,31 @@ class _ApprovedSellerIdentity extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _approvedAsset(
-          seller.avatar,
-          width: _sellerDimension(metrics, 49, floor: 44),
-          height: _sellerDimension(metrics, 52, floor: 47),
-          semanticLabel: '${seller.name} profile photo',
-        ),
+        if (seller.avatar.isEmpty)
+          Container(
+            width: _sellerDimension(metrics, 49, floor: 44),
+            height: _sellerDimension(metrics, 52, floor: 47),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xfff2efff),
+              borderRadius: BorderRadius.circular(metrics.geometry(7)),
+            ),
+            child: Text(
+              _approvedSellerInitials(seller.name),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: _approvedAction,
+                fontSize: _pickedSellerFontSize(metrics, 15),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          )
+        else
+          _approvedAsset(
+            seller.avatar,
+            width: _sellerDimension(metrics, 49, floor: 44),
+            height: _sellerDimension(metrics, 52, floor: 47),
+            semanticLabel: '${seller.name} profile photo',
+          ),
         SizedBox(width: metrics.geometry(8)),
         Expanded(
           child: Column(
@@ -2387,6 +2718,20 @@ class _ApprovedIconText extends StatelessWidget {
   }
 }
 
+String _approvedSellerInitials(String displayName) {
+  final parts = displayName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) {
+    final single = parts.first;
+    return (single.length >= 2 ? single.substring(0, 2) : single).toUpperCase();
+  }
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+}
+
 class _ApprovedSellerData {
   const _ApprovedSellerData({
     required this.name,
@@ -2492,15 +2837,23 @@ const _approvedSellers = [
 
 /// Screenshot-approved buyer notification history (the existing Recent
 /// activity destination) with the current back callback and working filters.
+///
+/// With a configured notifications backend the rows are the participant's real
+/// inbox with loading/error/empty states and read markers; without one the
+/// approved prototype fixtures stay unchanged.
 class ApprovedBuyerNotificationsPage extends StatefulWidget {
   const ApprovedBuyerNotificationsPage({
     required this.onBack,
     this.title = 'Recent activity',
+    this.repository,
+    this.onOpenNotification,
     super.key,
   });
 
   final VoidCallback onBack;
   final String title;
+  final LocalMarketplaceRepository? repository;
+  final ValueChanged<NotificationInboxItem>? onOpenNotification;
 
   @override
   State<ApprovedBuyerNotificationsPage> createState() =>
@@ -2511,11 +2864,52 @@ class _ApprovedBuyerNotificationsPageState
     extends State<ApprovedBuyerNotificationsPage> {
   String selected = 'All';
 
+  bool get _realMode => widget.repository?.isNotificationsBacked ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.repository?.addListener(_onRepositoryChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.repository?.removeListener(_onRepositoryChanged);
+    super.dispose();
+  }
+
+  void _onRepositoryChanged() {
+    if (mounted) setState(() {});
+  }
+
+  List<_ApprovedActivityData> _visibleActivities() {
+    if (!_realMode) {
+      return selected == 'All'
+          ? _approvedActivities
+          : _approvedActivities
+                .where((item) => item.category == selected)
+                .toList(growable: false);
+    }
+    final mapped = <_ApprovedActivityData>[
+      for (final item in widget.repository!.notifications)
+        _activityFromNotification(item),
+    ];
+    if (selected == 'All') return mapped;
+    return mapped
+        .where((item) => item.category == selected)
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visible = selected == 'All'
-        ? _approvedActivities
-        : _approvedActivities.where((item) => item.category == selected);
+    final repository = widget.repository;
+    final visible = _visibleActivities();
+    final loading =
+        _realMode && repository!.notificationsLoading && visible.isEmpty;
+    final error =
+        _realMode && repository!.notificationsError != null && visible.isEmpty
+        ? repository.notificationsError
+        : null;
     return _ApprovedReplicaSurface(
       builder: (context) {
         final metrics = _replicaMetrics(context);
@@ -2558,18 +2952,205 @@ class _ApprovedBuyerNotificationsPageState
               onChanged: (value) => setState(() => selected = value),
             ),
             SizedBox(height: metrics.geometry(20)),
-            for (final item in visible) ...[
-              _ApprovedActivityRow(item: item),
-              if (item != visible.last)
-                Divider(
-                  height: metrics.geometry(1),
-                  thickness: metrics.geometry(1),
-                  color: _approvedBorder,
+            if (loading)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: metrics.geometry(24)),
+                child: const Center(
+                  key: Key('approvedActivityLoading'),
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
                 ),
-            ],
+              )
+            else if (error != null)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: metrics.geometry(16)),
+                child: Column(
+                  key: const Key('approvedActivityError'),
+                  children: [
+                    Text(
+                      error,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _pageMuted(context),
+                        fontSize: metrics.fontSize(11),
+                      ),
+                    ),
+                    SizedBox(height: metrics.geometry(8)),
+                    TextButton(
+                      key: const Key('approvedActivityRetry'),
+                      onPressed: () =>
+                          unawaited(repository!.refreshNotifications()),
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              )
+            else if (visible.isEmpty)
+              _ApprovedActivityEmptyCard(
+                key: const Key('approvedActivityEmpty'),
+                tab: selected,
+                metrics: metrics,
+              )
+            else
+              for (final item in visible) ...[
+                HocalistEntrance(
+                  key: ValueKey(item.notificationId ?? item),
+                  child: _ApprovedActivityRow(
+                    item: item,
+                    onTap: item.notificationId == null
+                        ? null
+                        : () {
+                            final source = repository!.notifications
+                                .where((row) => row.id == item.notificationId)
+                                .firstOrNull;
+                            unawaited(
+                              repository.markNotificationRead(
+                                item.notificationId!,
+                              ),
+                            );
+                            if (source != null) {
+                              widget.onOpenNotification?.call(source);
+                            }
+                          },
+                  ),
+                ),
+                if (item != visible.last)
+                  Divider(
+                    height: metrics.geometry(1),
+                    thickness: metrics.geometry(1),
+                    color: _approvedBorder,
+                  ),
+              ],
           ],
         );
       },
+    );
+  }
+}
+
+/// Maps one real inbox row onto the approved activity row. Only the offer and
+/// billing kinds have an approved category tab; the remaining kinds stay
+/// visible under All without inventing a new category.
+_ApprovedActivityData _activityFromNotification(NotificationInboxItem item) {
+  final category = switch (item.kind) {
+    'new_offer' || 'request_update' => 'Offers',
+    'billing_update' => 'Payouts',
+    _ => 'All',
+  };
+  final icon = switch (item.kind) {
+    'new_offer' || 'new_message' || 'request_update' => 'activity-chat.png',
+    'billing_update' => 'activity-wallet.png',
+    _ => 'activity-check.png',
+  };
+  return _ApprovedActivityData(
+    category: category,
+    icon: icon,
+    title: item.title,
+    body: item.body,
+    time: _approvedRelativeTime(item.createdAt, DateTime.now()),
+    notificationId: item.id,
+    unread: item.isUnread,
+  );
+}
+
+String _approvedRelativeTime(DateTime createdAt, DateTime now) {
+  final local = createdAt.toLocal();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(local.year, local.month, local.day);
+  final difference = today.difference(day).inDays;
+  if (difference <= 0) {
+    final hour = local.hour;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$displayHour:$minute $period';
+  }
+  if (difference == 1) return 'Yesterday';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[local.month - 1]} ${local.day}';
+}
+
+/// Designed empty card for the recent-activity tabs. It distinguishes the
+/// all-activity zero from a filtered zero without inventing an event.
+class _ApprovedActivityEmptyCard extends StatelessWidget {
+  const _ApprovedActivityEmptyCard({
+    required this.tab,
+    required this.metrics,
+    super.key,
+  });
+
+  final String tab;
+  final ApprovedReplicaMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = tab == 'All';
+    final asset = switch (tab) {
+      'Offers' => 'activity-chat.png',
+      'Payouts' => 'activity-wallet.png',
+      'Reviews' => 'activity-rating-star.png',
+      _ => 'activity-star.png',
+    };
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: metrics.geometry(18),
+        vertical: metrics.geometry(26),
+      ),
+      decoration: BoxDecoration(
+        color: _pageSurface(context),
+        border: Border.all(color: _approvedBorder, width: metrics.geometry(1)),
+        borderRadius: BorderRadius.circular(metrics.geometry(12)),
+      ),
+      child: Column(
+        children: [
+          _approvedAsset(
+            asset,
+            width: metrics.geometry(46),
+            height: metrics.geometry(46),
+          ),
+          SizedBox(height: metrics.geometry(10)),
+          Text(
+            all ? 'No activity yet' : 'No $tab activity yet',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: _pageText(context),
+              fontSize: metrics.fontSize(12.5),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: metrics.geometry(4)),
+          Text(
+            all
+                ? 'Offer, meeting and account updates appear here as they happen.'
+                : 'New $tab updates appear here. Other activity may still appear under All.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: _pageMuted(context),
+              fontSize: metrics.fontSize(11),
+              height: metrics.lineHeight(
+                referenceFontSize: 11,
+                referenceLineHeight: 13.75,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2646,7 +3227,8 @@ class _ApprovedActivityTab extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(metrics.geometry(6)),
-        child: Container(
+        child: AnimatedContainer(
+          duration: HocalistMotion.duration(context, 180),
           constraints: BoxConstraints(
             minWidth: expand ? 0 : metrics.geometry(72),
             minHeight: metrics.geometry(26),
@@ -2675,9 +3257,10 @@ class _ApprovedActivityTab extends StatelessWidget {
 }
 
 class _ApprovedActivityRow extends StatelessWidget {
-  const _ApprovedActivityRow({required this.item});
+  const _ApprovedActivityRow({required this.item, this.onTap});
 
   final _ApprovedActivityData item;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2698,7 +3281,7 @@ class _ApprovedActivityRow extends StatelessWidget {
                 ),
               )
             : Text(
-                item.value!,
+                item.value ?? '',
                 maxLines: 1,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: item.valueColor,
@@ -2709,19 +3292,48 @@ class _ApprovedActivityRow extends StatelessWidget {
         final copy = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              item.title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _pageText(context),
-                fontSize: metrics.fontSize(12.5),
-                fontWeight: FontWeight.w800,
-                height: metrics.lineHeight(
-                  referenceFontSize: 12.5,
-                  referenceLineHeight: 15.625,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (item.unread) ...[
+                  Container(
+                    key: const Key('approvedActivityUnread'),
+                    width: metrics.geometry(6),
+                    height: metrics.geometry(6),
+                    decoration: const BoxDecoration(
+                      color: _approvedAction,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  SizedBox(width: metrics.geometry(5)),
+                ],
+                Flexible(
+                  child: Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: _pageText(context),
+                      fontSize: metrics.fontSize(12.5),
+                      fontWeight: FontWeight.w800,
+                      height: metrics.lineHeight(
+                        referenceFontSize: 12.5,
+                        referenceLineHeight: 15.625,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
             SizedBox(height: metrics.geometry(3)),
+            if (item.body.isNotEmpty) ...[
+              Text(
+                item.body,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _pageMuted(context),
+                  fontSize: metrics.fontSize(11.5),
+                ),
+              ),
+              SizedBox(height: metrics.geometry(3)),
+            ],
             Text(
               item.time,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -2736,8 +3348,8 @@ class _ApprovedActivityRow extends StatelessWidget {
             if (tight) ...[SizedBox(height: metrics.geometry(5)), trailing],
           ],
         );
-        return Padding(
-          key: ValueKey('approved-activity-${item.time}'),
+        final row = Padding(
+          key: ValueKey('approved-activity-${item.rowKey}'),
           padding: EdgeInsets.symmetric(vertical: metrics.geometry(8)),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -2749,7 +3361,7 @@ class _ApprovedActivityRow extends StatelessWidget {
               ),
               SizedBox(width: metrics.geometry(10)),
               Expanded(child: copy),
-              if (!tight) ...[
+              if (!tight && (item.value != null || item.stars)) ...[
                 SizedBox(width: metrics.geometry(8)),
                 ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: metrics.geometry(104)),
@@ -2758,6 +3370,12 @@ class _ApprovedActivityRow extends StatelessWidget {
               ],
             ],
           ),
+        );
+        if (onTap == null) return row;
+        return InkWell(
+          key: ValueKey('approved-activity-tap-${item.rowKey}'),
+          onTap: onTap,
+          child: row,
         );
       },
     );
@@ -2770,18 +3388,28 @@ class _ApprovedActivityData {
     required this.icon,
     required this.title,
     required this.time,
+    this.body = '',
     this.value,
     this.valueColor = _approvedGreen,
     this.stars = false,
+    this.notificationId,
+    this.unread = false,
   });
 
   final String category;
   final String icon;
   final String title;
   final String time;
+  final String body;
   final String? value;
   final Color valueColor;
   final bool stars;
+
+  /// Server notification id when this row is real inbox data.
+  final String? notificationId;
+  final bool unread;
+
+  String get rowKey => notificationId ?? time;
 }
 
 const _approvedActivities = [

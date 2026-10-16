@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
+import '../../components/hocalist_motion.dart';
+import '../media/private_remote_image.dart';
 
 class ApprovedSellerMorePage extends StatelessWidget {
   const ApprovedSellerMorePage({
@@ -16,11 +18,13 @@ class ApprovedSellerMorePage extends StatelessWidget {
     this.onOfferHistory,
     this.onBilling,
     this.sellerEmail = 'northside.tech@example.com',
+    this.avatarMediaId,
     super.key,
   });
 
   final String sellerName;
   final String sellerEmail;
+  final String? avatarMediaId;
   final VoidCallback onProfile;
   final VoidCallback onEditProfile;
   final VoidCallback onSettings;
@@ -54,6 +58,7 @@ class ApprovedSellerMorePage extends StatelessWidget {
             _ProfileCard(
               sellerName: sellerName,
               sellerEmail: sellerEmail,
+              avatarMediaId: avatarMediaId,
               onProfile: onProfile,
               onEditProfile: onEditProfile,
             ),
@@ -92,7 +97,7 @@ class ApprovedSellerMorePage extends StatelessWidget {
                 _MoreItem(
                   keyName: 'sellerMoreNotifications',
                   icon: Icons.notifications_none_rounded,
-                  label: 'Notifications',
+                  label: 'Notification preferences',
                   onTap: onNotifications,
                 ),
                 _MoreItem(
@@ -149,22 +154,31 @@ class _ProfileCard extends StatelessWidget {
     required this.sellerEmail,
     required this.onProfile,
     required this.onEditProfile,
+    this.avatarMediaId,
   });
 
   final String sellerName;
   final String sellerEmail;
+  final String? avatarMediaId;
   final VoidCallback onProfile;
   final VoidCallback onEditProfile;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    final avatar = CircleAvatar(
-      radius: metrics.artSize(22),
-      backgroundColor: SellerUiColors.lavender,
-      foregroundColor: SellerUiColors.primaryBright,
-      child: Icon(Icons.person_outline, size: metrics.artSize(23)),
-    );
+    final avatar = avatarMediaId != null
+        ? ClipOval(
+            child: PrivateRemoteImage(
+              id: avatarMediaId!,
+              size: metrics.artSize(44),
+            ),
+          )
+        : CircleAvatar(
+            radius: metrics.artSize(22),
+            backgroundColor: SellerUiColors.lavender,
+            foregroundColor: SellerUiColors.primaryBright,
+            child: Icon(Icons.person_outline, size: metrics.artSize(23)),
+          );
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -174,13 +188,15 @@ class _ProfileCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: sellerText(metrics, 14, weight: FontWeight.w800),
         ),
-        SizedBox(height: metrics.spacing(2)),
-        Text(
-          sellerEmail,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: sellerText(metrics, 11, color: SellerUiColors.muted),
-        ),
+        if (sellerEmail.isNotEmpty) ...[
+          SizedBox(height: metrics.spacing(2)),
+          Text(
+            sellerEmail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: sellerText(metrics, 11, color: SellerUiColors.muted),
+          ),
+        ],
       ],
     );
     final identity = InkWell(
@@ -216,42 +232,44 @@ class _ProfileCard extends StatelessWidget {
         ),
       ),
     );
-    return Container(
-      key: const Key('sellerMoreIdentityCard'),
-      decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A101054),
-            blurRadius: 14,
-            offset: Offset(0, 5),
+    return HocalistEntrance(
+      child: Container(
+        key: const Key('sellerMoreIdentityCard'),
+        decoration: BoxDecoration(
+          color: SellerUiColors.white,
+          border: Border.all(color: SellerUiColors.line),
+          borderRadius: BorderRadius.circular(metrics.geometry(10)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0A101054),
+              blurRadius: 14,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(metrics.geometry(10)),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: EdgeInsets.all(metrics.spacing(13)),
+            child: metrics.accessibilityReflow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      identity,
+                      SizedBox(height: metrics.spacing(6)),
+                      Align(alignment: Alignment.centerRight, child: edit),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: identity),
+                      SizedBox(width: metrics.spacing(8)),
+                      edit,
+                    ],
+                  ),
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: EdgeInsets.all(metrics.spacing(13)),
-          child: metrics.accessibilityReflow
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    identity,
-                    SizedBox(height: metrics.spacing(6)),
-                    Align(alignment: Alignment.centerRight, child: edit),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(child: identity),
-                    SizedBox(width: metrics.spacing(8)),
-                    edit,
-                  ],
-                ),
         ),
       ),
     );
@@ -266,39 +284,41 @@ class _MoreSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: metrics.geometry(3)),
-          child: Text(
-            title,
-            style: sellerText(metrics, 13, weight: FontWeight.w800),
+    return HocalistEntrance(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(left: metrics.geometry(3)),
+            child: Text(
+              title,
+              style: sellerText(metrics, 13, weight: FontWeight.w800),
+            ),
           ),
-        ),
-        SizedBox(height: metrics.geometry(6)),
-        Material(
-          color: SellerUiColors.white,
-          shape: RoundedRectangleBorder(
-            side: const BorderSide(color: SellerUiColors.line),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (var index = 0; index < items.length; index++) ...[
-                items[index],
-                if (index != items.length - 1)
-                  const Divider(
-                    height: 1,
-                    indent: 56,
-                    color: SellerUiColors.line,
-                  ),
+          SizedBox(height: metrics.geometry(6)),
+          Material(
+            color: SellerUiColors.white,
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: SellerUiColors.line),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (var index = 0; index < items.length; index++) ...[
+                  items[index],
+                  if (index != items.length - 1)
+                    const Divider(
+                      height: 1,
+                      indent: 56,
+                      color: SellerUiColors.line,
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -319,16 +339,18 @@ class _MoreItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return ListTile(
-      key: Key(keyName),
-      onTap: onTap,
-      minTileHeight: metrics.geometry(54),
-      leading: Icon(icon, color: SellerUiColors.primaryBright),
-      title: Text(
-        label,
-        style: sellerText(metrics, 13, weight: FontWeight.w700),
+    return HocalistPressFeedback(
+      child: ListTile(
+        key: Key(keyName),
+        onTap: onTap,
+        minTileHeight: metrics.geometry(54),
+        leading: Icon(icon, color: SellerUiColors.primaryBright),
+        title: Text(
+          label,
+          style: sellerText(metrics, 13, weight: FontWeight.w700),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: SellerUiColors.muted),
       ),
-      trailing: const Icon(Icons.chevron_right, color: SellerUiColors.muted),
     );
   }
 }

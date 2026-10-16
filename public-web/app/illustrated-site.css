@@ -1,0 +1,177 @@
+/* One explicit visual system for the illustrated public site. */
+/* Scoped route rules below deliberately replace legacy component geometry. */
+:root{--background:#faf9f6;--text:#080b39;--muted:#59617f;--primary:#1717d5;--primary-bright:#1717d5;--surface-soft:#ece8ff;--border:#ded8eb}
+.illustrated-site{background:#faf9f6;color:#080b39;font-family:'DM Sans',sans-serif;overflow-x:clip}
+.illustrated-site :is(h1,h2,h3,h4){font-family:Manrope,sans-serif;letter-spacing:-.045em;color:#080b39}
+.illustrated-site :is(main,.download-page,.support-page,.billing-page){background:#faf9f6!important}
+.illustrated-site .site-header{background:#faf9f6!important;box-shadow:none!important;border:0;border-bottom:1px solid #e8e4ef;position:sticky;top:0;z-index:30}
+.illustrated-site .brand-link{padding:0;border:0;box-shadow:none;background:transparent!important}
+.illustrated-site .brand-wordmark{width:156px;height:66px;border:0;border-radius:0;background:transparent!important;box-shadow:none;padding:0;object-fit:contain}
+.illustrated-site .button{border-radius:100px;box-shadow:none!important;padding:14px 22px;min-height:48px;transition:transform .2s,background .2s}
+.illustrated-site .button.primary{background:#1717d5!important;color:#fff!important;border:1px solid #1717d5}
+.illustrated-site .button.secondary{background:transparent!important;color:#080b39!important;border:1px solid #080b392b}
+.illustrated-site .button:hover{transform:translateY(-2px);box-shadow:none!important}
+.illustrated-site .button:disabled{transform:none}
+.illustrated-site .eyebrow{font-size:11px;letter-spacing:.16em;font-weight:700;color:#1717d5!important}
+.illustrated-site :is(.subpage-hero,.policy-hero,.download-hero,.support-hero){background:transparent!important;box-shadow:none!important;border:0;border-radius:0;max-width:1180px;margin:0 auto;padding:65px 5% 45px;text-align:left;min-height:0}
+.illustrated-site :is(.subpage-hero,.policy-hero,.download-hero,.support-hero):before,.illustrated-site :is(.subpage-hero,.policy-hero,.download-hero,.support-hero):after{display:none}
+.illustrated-site :is(.subpage-hero,.download-hero,.support-hero) h1{font-size:clamp(40px,5.1vw,68px);line-height:1.08;font-weight:800;max-width:840px;margin:18px 0 24px}
+.illustrated-site :is(.subpage-hero,.download-hero,.support-hero)>p,.illustrated-site .download-hero-copy>p,.illustrated-site .support-hero-copy>p{max-width:670px;line-height:1.8;color:#59617f}
+.illustrated-site :is(.page-section,.timeline-section,.support-layout,.support-topic-section,.safety-report-section){max-width:1180px;margin:0 auto;padding:45px 5%}
+.illustrated-site .site-footer{color:#080b39!important;border:0;box-shadow:none}
+.illustrated-site .site-footer :is(a,p,span){color:#59617f!important}.illustrated-site .site-footer h2{color:#080b39!important;font-size:14px;text-transform:none;letter-spacing:0}
+.illustrated-site .mobile-menu-button{border:1px solid #ded8eb;border-radius:50%;box-shadow:none;background:transparent;width:42px;height:42px}
+.illustrated-site .mobile-menu-panel{background:#faf9f6;border:1px solid #ded8eb;border-radius:18px;box-shadow:0 12px 30px #080b3910;padding:22px}
+.illustrated-site .mobile-menu-panel nav a{padding:13px 5px;color:#080b39;border-bottom:1px solid #e8e4ef;font-weight:500}
+.illustrated-site .timeline-card{display:grid;grid-template-columns:1fr 1fr;gap:55px;align-items:center;background:transparent!important;border:0;border-radius:0;box-shadow:none!important;padding:28px 0;margin:0;border-bottom:1px solid #e8e4ef}
+.illustrated-site .timeline-card:nth-child(even) .process-scene{order:2}.illustrated-site .timeline-card-copy{padding:0}.illustrated-site .timeline-card-copy>span{font:italic 36px Georgia;color:#1717d5}.illustrated-site .timeline-card-copy h2{font-size:30px;line-height:1.2}.illustrated-site .timeline-card-copy>p{line-height:1.8}
+.process-scene{min-width:0;position:relative;aspect-ratio:1.27;display:grid;place-items:center}.process-scene-art{position:absolute;inset:0;width:100%;height:100%}.process-paper{position:relative;width:78%;background:#fff;border:1px solid #ded8eb;border-radius:14px;padding:26px;transform:rotate(-3deg);box-shadow:6px 8px 0 #ded8f380;transition:transform .25s}.process-scene:hover .process-paper{transform:rotate(0)}.process-paper>span{font-size:10px;letter-spacing:.1em;color:#1717d5;font-weight:700}.process-paper h3{font-size:24px;margin:18px 0}.process-paper p{font-size:13px;line-height:1.7;color:#59617f}.process-paper-rule{border-top:1px solid #ded8eb;margin:18px 0}.process-paper small{color:#1717d5;font-size:10px}
+.illustrated-site :is(.pricing-section-head,.safety-section-note){background:transparent!important;border:0;border-radius:0;padding:0;box-shadow:none!important;display:block}.illustrated-site .pricing-section-copy h2{font-size:26px}.illustrated-site .pricing-proof-strip{flex-wrap:wrap}.illustrated-site .pricing-proof-strip span{background:transparent;font-size:12px;color:#59617f}
+.illustrated-site .pricing-page-card{background:#fff!important;border:1px solid #ded8eb;box-shadow:none!important;transform:none}.illustrated-site .pricing-page-card.featured{background:#ece8ff!important;border-color:#b8a9ff}.illustrated-site .plan-card-heading{display:block}.illustrated-site .plan-signal{background:transparent;border:0;padding:10px 0;margin:0;display:flex;gap:10px;align-items:baseline}.illustrated-site .plan-signal strong{font-size:13px}.illustrated-site .plan-signal span{font-size:11px}.illustrated-site .plan-badge{background:transparent;font-size:11px;padding:0}.illustrated-site .plan-ribbon{background:#1717d5!important;border-radius:100px;color:white!important;font-size:10px;padding:6px 10px;position:static;transform:none}.illustrated-site .plan-card-topline{display:flex;align-items:center;justify-content:space-between}.illustrated-site .price strong{color:#1717d5!important;font-size:48px}.illustrated-site .plan-action-row .button{width:100%;white-space:normal}
+.illustrated-site :is(.faq-card,.support-topic-card,.support-form-card,.support-contact-panel,.safety-guidance-card,.support-guidance-card,.support-boundary-card,.billing-card){background:#fff!important;box-shadow:none!important;border:1px solid #ded8eb;border-radius:20px;padding:28px}
+.illustrated-site .faq-card{border-radius:0;border:0;border-bottom:1px solid #ded8eb;background:transparent!important;padding:22px 0}.illustrated-site .faq-grid{gap:0 35px}.illustrated-site .offline-notice{background:#ece8ff!important;border:0;border-radius:18px;box-shadow:none;padding:24px}
+.illustrated-site .download-hero{grid-template-columns:1fr 1fr;gap:35px}.illustrated-site .download-float-card{background:#fff!important;border:1px solid #ded8eb;border-radius:14px;box-shadow:none!important}.illustrated-site .download-cta-band{max-width:1060px;margin:20px auto 50px;padding:40px;background:#ece8ff!important;border:0;border-radius:26px;box-shadow:none!important;text-align:left;color:#080b39!important}.illustrated-site .download-cta-band>p{color:#59617f;max-width:660px}.illustrated-site .waitlist-form{max-width:650px;margin:24px 0;background:transparent;border:0;padding:0}.illustrated-site .download-panel{background:transparent!important;box-shadow:none!important;gap:24px;padding:30px 5%;max-width:1180px;margin:auto}.illustrated-site .download-panel article{border:0;border-left:1px solid #ded8eb;border-radius:0;padding:20px}.illustrated-site .download-flow-section{border-radius:0}
+.illustrated-site :is(input[type=email],input[type=password],input[type=text],textarea,select){background:#faf9f6!important;border:1px solid #ded8eb;border-radius:12px;padding:13px 15px;color:#080b39;font:inherit}.illustrated-site :is(input,textarea,select):focus-visible{outline:2px solid #1717d5;outline-offset:2px}.illustrated-site .support-hero{display:grid;grid-template-columns:1.5fr 1fr;gap:45px}.illustrated-site .support-hero h1{font-size:clamp(36px,4.5vw,58px)}.illustrated-site .support-proof-strip{background:transparent!important;box-shadow:none;border:0}.illustrated-site .safety-card-number,.illustrated-site .support-topic-number{background:#ece8ff!important;color:#1717d5!important}.illustrated-site .safety-report-section{background:#ece8ff!important;border-radius:24px}.illustrated-site .billing-page .subpage-hero{padding-bottom:20px}.illustrated-site .billing-page .subpage-hero h1{font-size:44px}.illustrated-site .billing-section{max-width:1060px;margin:0 auto;padding:20px 5% 45px}.illustrated-site .billing-signin{max-width:580px;margin:auto}.illustrated-site .billing-return-page .billing-card{max-width:650px;margin:50px auto}.illustrated-site .policy-hero{padding:45px 5% 25px}.illustrated-site .policy-hero h1{font-size:42px;margin:18px 0}.illustrated-site .policy-layout{max-width:1180px;margin:auto;padding:20px 5% 60px;gap:45px}.illustrated-site .policy-toc{background:transparent!important;border:0;border-left:2px solid #ded8eb;border-radius:0;padding:0 20px}.illustrated-site .policy-card{background:transparent!important;border:0;border-radius:0;padding:0;box-shadow:none!important;max-width:740px}.illustrated-site .policy-card h2{font-size:24px}.illustrated-site .policy-card p{font-size:15px;line-height:1.9}
+@media(max-width:760px){.illustrated-site .site-header{padding:12px 5%}.illustrated-site .brand-wordmark{width:145px;height:58px}.illustrated-site :is(.subpage-hero,.download-hero,.support-hero){padding:38px 6% 28px;display:block}.illustrated-site :is(.subpage-hero,.download-hero,.support-hero) h1{font-size:clamp(36px,9vw,46px)}.illustrated-site :is(.page-section,.timeline-section,.support-layout,.support-topic-section){padding:30px 6%}.illustrated-site .timeline-card{grid-template-columns:minmax(0,1fr);gap:15px;padding:25px 0}.illustrated-site .timeline-card:nth-child(even) .process-scene{order:0}.process-paper{padding:22px}.process-paper h3{font-size:23px}.illustrated-site .timeline-card-copy h2{font-size:26px}.illustrated-site .download-phone-stage{min-height:400px;margin:25px 0;transform:scale(.85)}.illustrated-site .download-cta-band{margin:15px 5% 35px;padding:26px}.illustrated-site .download-cta-band h2{font-size:29px}.illustrated-site .download-cta-band .button{width:auto}.illustrated-site .download-panel article{border-left:0;border-top:1px solid #ded8eb}.illustrated-site .policy-hero{padding:35px 6% 20px}.illustrated-site .policy-hero h1{font-size:32px}.illustrated-site .policy-layout{padding:15px 6% 45px;display:block}.illustrated-site .policy-toc{margin-bottom:30px;padding-left:16px}.illustrated-site .policy-toc a{padding:8px 0}.illustrated-site .billing-page .subpage-hero h1{font-size:36px}.illustrated-site .site-footer{padding:40px 6% 25px}.illustrated-site .mobile-menu-panel{left:auto;right:0;width:min(340px,88vw)}.illustrated-site .support-contact-panel{margin-top:25px}.illustrated-site .pricing-page-card{padding:25px}.illustrated-site .button{max-width:100%;white-space:normal}.illustrated-site .billing-return-page{min-height:55vh}}
+@media(prefers-reduced-motion:reduce){.illustrated-site .button,.process-paper{transition:none}.process-scene:hover .process-paper{transform:rotate(-3deg)}}
+.illustrated-site .timeline-section{background:transparent!important}.illustrated-site .download-phone{box-shadow:none!important}.illustrated-site .pricing-proof-strip span:before{display:none}.illustrated-site .site-footer .footer-brand{background:transparent!important}.illustrated-site .support-hero-copy{background:transparent!important;border:0;box-shadow:none;padding:0;border-radius:0}
+.illustrated-site .timeline-section:before,.illustrated-site .timeline-section:after,.illustrated-site .download-panel:before,.illustrated-site .download-panel:after{display:none}.illustrated-site .timeline-card-copy:before{display:none}.illustrated-site .timeline-card .process-scene{background:transparent}.illustrated-site .support-link-band,.illustrated-site .support-guidance-section{background:transparent!important;box-shadow:none!important;border:0}.illustrated-site .footer-bottom{border-color:#d7d0ea}
+.illustrated-site .page-section{background:transparent!important}.illustrated-site .pricing-section-copy{border:0;padding-left:0}
+.illustrated-site .download-cta-band :is(p,label,label span){color:#080b39!important}.illustrated-site .download-cta-band .button.secondary{color:#1717d5!important;border-color:#b8a9ff!important;background:transparent!important}.illustrated-site .waitlist-form .request-field{display:block;border:0;padding:0;background:transparent}.illustrated-site .waitlist-form .request-field input{display:block;box-sizing:border-box;width:100%;margin-top:8px;background:#fff;color:#080b39;border:1px solid #b8a9ff;border-radius:12px;padding:14px}.illustrated-site .waitlist-consent{display:flex;gap:10px;align-items:flex-start;margin:18px 0;font-size:13px;line-height:1.6}.illustrated-site .waitlist-consent input{flex:none;margin-top:4px}.illustrated-site .download-cta-band{scroll-margin-top:110px}
+.illustrated-site .cta-band.download-cta-band :is(p,label,span){color:#080b39!important}.illustrated-site .cta-band.download-cta-band .waitlist-form .request-field input{background:#fff!important;color:#080b39!important}
+.illustrated-site .cta-band.download-cta-band h2{color:#080b39!important}.illustrated-site .cta-band.download-cta-band .waitlist-form .request-field{border:0!important;background:transparent!important}
+
+/* Route composition: explicit geometry, rather than inherited legacy grids. */
+.illustrated-site .download-flow-section{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);max-width:1060px;margin:30px auto 70px;padding:36px;gap:45px;box-sizing:border-box}
+.illustrated-site .download-flow-section ol{min-width:0;gap:0}
+.illustrated-site .download-flow-section li{grid-template-columns:32px minmax(0,1fr);min-width:0;padding:20px 0;border:0;border-bottom:1px solid #ded8eb;border-radius:0;background:transparent!important;line-height:1.7}
+.illustrated-site .download-flow-section li:before{display:inline-flex;width:26px;height:26px;background:transparent;font:italic 22px Georgia;color:#1717d5;box-shadow:none}
+.illustrated-site .pricing-proof-strip{background:transparent!important;box-shadow:none!important;border:0;border-radius:0;margin:16px 0 28px;display:flex;gap:8px 22px}
+.illustrated-site .pricing-proof-strip span{min-height:0;padding:0!important;border:0!important;font-weight:500;justify-content:flex-start;text-align:left;line-height:1.6}
+.illustrated-site .pricing-page-card .plan-badge{border:0!important;background:transparent!important;border-radius:0;letter-spacing:.06em;text-align:left;padding:0!important}
+.illustrated-site .pricing-page-card .plan-signal{border:0!important;background:transparent!important;box-shadow:none;border-radius:0}
+.illustrated-site .pricing-page-card .plan-feature-group{background:transparent!important;border:0;border-radius:0;padding:20px 0;border-top:1px solid #ded8eb}
+.illustrated-site .pricing-page-card{transition:transform .25s,border-color .25s}
+.illustrated-site .pricing-page-card:hover{transform:translateY(-4px);border-color:#a49ae0}
+.illustrated-site .editorial-hero{position:relative;padding-right:25%}
+.editorial-accent{position:absolute;right:7%;top:75px;width:180px;color:#1717d5;overflow:visible;transform:rotate(-8deg)}
+.accent-dot{animation:accent-breathe 4s ease-in-out infinite;transform-origin:26px 63px}
+@keyframes accent-breathe{50%{transform:scale(.65);opacity:.55}}
+.illustrated-site .reveal{animation:editorial-enter .65s ease-out both}
+@keyframes editorial-enter{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@supports(animation-timeline:view()){
+ .illustrated-site .timeline-card,.illustrated-site .support-topic-card{animation:editorial-enter linear both;animation-timeline:view();animation-range:entry 0% entry 25%}
+}
+.illustrated-site .support-link-band :is(h2,p,span),.illustrated-site .support-link-band .button.secondary{color:#080b39!important}
+.illustrated-site .support-form-card{border-top:3px solid #1717d5}
+.illustrated-site .policy-hero{border:0!important}
+@media(max-width:760px){
+ .illustrated-site .download-flow-section{grid-template-columns:minmax(0,1fr);margin:20px 6% 45px;padding:20px 0;gap:20px}
+ .illustrated-site .editorial-hero{padding-right:6%}
+ .editorial-accent{position:relative;top:auto;right:auto;width:110px;height:60px;margin-bottom:12px;float:right}
+ .illustrated-site .pricing-proof-strip{padding:0;gap:8px 16px}
+ .illustrated-site .download-phone-stage{margin-inline:-10px}
+}
+@media(prefers-reduced-motion:reduce){.illustrated-site .reveal,.illustrated-site .timeline-card,.illustrated-site .support-topic-card,.accent-dot{animation:none!important}.illustrated-site .pricing-page-card{transition:none}.illustrated-site .pricing-page-card:hover{transform:none}}
+.illustrated-site .download-flow-section{box-shadow:none!important;border:0!important;background:transparent!important}
+.illustrated-site footer.site-footer :is(p,a,span,li,strong,h2){color:#080b39!important}
+.illustrated-site footer.site-footer .footer-brand :is(p,a,span){color:#59617f!important}
+.illustrated-site .pricing-page-card .price{border:0!important;background:transparent!important;box-shadow:none!important;border-radius:0;padding:18px 0}
+.illustrated-site .pricing-page-card .plan-card-topline{min-height:24px}
+.illustrated-site .pricing-page-card .plan-badge{width:auto;flex:none}
+.illustrated-site footer.site-footer .footer-grid :is(p,a,span,li,strong,h2),.illustrated-site footer.site-footer .footer-bottom span{color:#080b39!important}.illustrated-site .cta-band.download-cta-band .waitlist-form .request-field{box-shadow:none!important}
+.illustrated-site .pricing-page-card.featured :is(p,li,span,strong,h2){color:#080b39!important}.illustrated-site .pricing-page-card.featured .price strong{color:#1717d5!important}.illustrated-site .pricing-page-card.featured .plan-ribbon{color:#fff!important}
+/* Shared navigation, notices and reading alignment. Explicit light-surface roles. */
+.illustrated-site .site-header{display:flex;align-items:center;justify-content:space-between;gap:28px;padding:18px 5%}
+.illustrated-site .desktop-nav{display:flex;gap:32px;align-items:center;flex:0 1 auto}
+.illustrated-site .desktop-nav a{font-size:14px;font-weight:600;white-space:nowrap}
+.illustrated-site .header-actions{display:flex;align-items:center;gap:22px}
+.illustrated-site .header-actions .ghost-link{font-size:14px;font-weight:500;color:#080b39}
+.illustrated-site .header-actions .button{gap:20px;font-size:14px}
+.illustrated-site .brand-wordmark{display:block;flex:none;max-width:none;image-rendering:auto}
+.illustrated-site main .offline-notice{display:flex;align-items:flex-start;gap:14px;padding:24px;background:#ece8ff!important;color:#080b39!important;box-shadow:none!important;border:0!important}
+.illustrated-site main .offline-notice :is(h1,h2,h3,h4,p,li,strong,span,a,.eyebrow,.fine-print){color:#080b39!important}
+.illustrated-site main .offline-notice p{font-size:14px;line-height:1.8;margin:6px 0 0}
+.illustrated-site :is(.subpage-hero,.policy-hero)>p{margin-left:0;margin-right:0;text-align:left}
+.illustrated-site .site-footer .footer-grid{max-width:1152px;margin:auto;display:grid}
+.illustrated-site .site-footer .footer-grid>div>a:not(.brand-link){display:block;margin:12px 0;font-size:14px}
+.illustrated-site .site-footer .footer-grid p{font-size:14px;line-height:1.8}
+.illustrated-site .site-footer .footer-grid h2{margin-bottom:18px}
+.illustrated-site .process-context-photo{display:grid;grid-template-columns:84px minmax(0,1fr);gap:16px;align-items:center;margin:20px 0;padding:16px 0;border-block:1px solid #ded8eb}
+.illustrated-site .process-context-photo img{width:84px;height:84px;object-fit:cover;border-radius:16px}
+.illustrated-site .process-context-photo figcaption{display:grid;gap:6px;font-size:13px;line-height:1.6}
+.illustrated-site .process-context-photo figcaption span{color:#59617f}
+.illustrated-site .process-checklist>span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#1717d5;font-weight:700}
+.illustrated-site .process-checklist ul{padding-left:18px;font-size:13px;line-height:1.9;color:#59617f}
+@media(max-width:1100px){.illustrated-site .desktop-nav{gap:18px}.illustrated-site .site-header{gap:20px}.illustrated-site .header-actions{gap:14px}}
+@media(max-width:980px){.illustrated-site .desktop-nav,.illustrated-site .header-actions{display:none}.illustrated-site .mobile-menu{display:block;margin-left:auto}.illustrated-site .site-footer .footer-grid{grid-template-columns:1fr 1fr}}
+@media(min-width:981px){.illustrated-site .mobile-menu{display:none}}
+@media(max-width:600px){.illustrated-site .site-footer .footer-grid{grid-template-columns:minmax(0,1fr);gap:26px}.illustrated-site main .offline-notice{padding:20px}.illustrated-site .mobile-menu-panel .mobile-menu-actions{display:grid;gap:10px}}
+.illustrated-site .site-footer{background:#faf9f6!important;max-width:1280px;margin:auto;padding:55px 5% 25px;box-sizing:border-box}
+.illustrated-site .site-footer .footer-grid{grid-template-columns:2fr 1fr 1fr 1fr;gap:30px;border-bottom:1px solid #e2deea;padding-bottom:35px}
+.illustrated-site .site-footer .footer-grid p{max-width:265px}
+.illustrated-site .footer-bottom{border:0;padding-top:22px;color:#59617f;font-size:12px}
+@media(max-width:980px){.illustrated-site .site-footer .footer-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.illustrated-site .brand-wordmark{width:130px;height:55px}.illustrated-site .site-header{padding:18px 5%}}
+@media(max-width:600px){.illustrated-site .site-footer .footer-grid{grid-template-columns:minmax(0,1fr)}}
+.illustrated-site .mobile-menu.is-open .mobile-menu-panel{background:#faf9f6!important;backdrop-filter:none;border:1px solid #ded8eb;opacity:1}.illustrated-site .mobile-menu.is-open .mobile-menu-panel nav a{background:transparent!important;box-shadow:none!important;border:0;border-bottom:1px solid #e8e4ef;border-radius:0}
+/* Editorial polish: the same serif accent and calm rhythm as the homepage. */
+.illustrated-site :is(.subpage-hero,.download-hero,.support-hero) h1 em{font-family:Georgia,serif;font-weight:400;font-style:italic;color:#1717d5;letter-spacing:-.045em}
+.illustrated-site .download-hero h1{font-size:clamp(40px,4.5vw,58px);line-height:1.12}
+.illustrated-site .download-hero-copy>p:not(.eyebrow){font-size:17px;line-height:1.8;max-width:55ch}
+.illustrated-site .download-phone-stage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;min-height:0;transform:none;align-content:center;isolation:isolate}
+.illustrated-site .download-phone{grid-column:1/-1;width:min(300px,88%);margin:0 auto;box-sizing:border-box;padding:12px;border-radius:34px}
+.illustrated-site .download-phone-screen{min-height:390px;padding:16px;gap:12px;background:#ece8ff!important}
+.illustrated-site .download-phone-screen:after{display:none}
+.illustrated-site .download-phone-top{padding:20px 10px 12px}
+.illustrated-site .download-phone .phone-request-card{padding:18px;border:0;box-shadow:none!important}
+.illustrated-site .download-phone .phone-request-card h2{font-size:22px;line-height:1.25}
+.illustrated-site .download-phone .phone-offer-card{background:#fff!important;border:0!important;color:#080b39!important;box-shadow:none!important;padding:14px;border-radius:14px}
+.illustrated-site .download-phone .phone-offer-card :is(strong,span){color:#080b39!important}
+.illustrated-site .download-phone .phone-offer-card span{line-height:1.6}
+.illustrated-site .download-phone-stage .download-float-card{position:relative;inset:auto;transform:none!important;width:auto;min-width:0;align-self:stretch;padding:16px;background:transparent!important;border:0;border-top:1px solid #ded8eb;border-radius:0;text-align:left}
+.illustrated-site .download-phone-orbit{z-index:-1;width:90%;height:70%;top:10%;border-color:#d9d2ef}
+.illustrated-site .download-phone-orbit-two{width:76%;height:62%;border-style:dashed}
+.illustrated-site .download-status-row span{font-size:11px;font-weight:500;padding:7px 10px;border:0;background:#ece8ff}
+.illustrated-site .download-cta-band{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);column-gap:48px;align-items:start}
+.illustrated-site .download-cta-band h2{grid-column:1;margin-top:0;font-size:38px}
+.illustrated-site .download-cta-band>p{grid-column:1;font-size:16px;line-height:1.8}
+.illustrated-site .download-cta-band>.waitlist-form{grid-column:2;grid-row:1/4;margin:0}
+.illustrated-site .download-cta-band>div{grid-column:1;display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}
+.illustrated-site .download-cta-band>div .button{padding:10px 14px;font-size:12px;min-height:40px}
+.illustrated-site .support-contact-panel{position:relative;align-self:center;transform:rotate(1.5deg);padding:32px!important;border-color:#b8a9ff!important}
+.support-envelope{display:block;color:#1717d5;margin-bottom:20px}
+.illustrated-site .support-contact-panel .status-chip{background:transparent!important;color:#59617f!important;box-shadow:none!important;border:0;padding:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.illustrated-site .support-contact-panel h2{font-size:26px;margin-top:18px}
+.illustrated-site .support-contact-panel .support-email{font-size:clamp(16px,1.6vw,21px)}
+.illustrated-site .support-proof-strip{max-width:1060px;margin:0 auto;padding:16px 0;border-top:1px solid #ded8eb;border-bottom:1px solid #ded8eb;gap:14px 28px}
+.illustrated-site .support-proof-strip span{background:transparent!important;border:0;padding:0;font-size:12px;font-weight:500}
+.illustrated-site .support-layout{padding-top:60px}
+.illustrated-site .pricing-section-copy>p{max-width:80ch;line-height:1.8;font-size:14px}
+.illustrated-site .pricing-grid{gap:22px}
+.illustrated-site .pricing-page-card{border-radius:20px;padding:30px}
+.illustrated-site .pricing-page-card .plan-card-heading h2{font-size:29px;line-height:1.2;margin:24px 0 14px}
+.illustrated-site .pricing-page-card .plan-card-heading p{font-size:14px;line-height:1.7;min-height:72px}
+.illustrated-site .pricing-page-card .plan-card-topline{justify-content:space-between}
+.illustrated-site .pricing-page-card .plan-feature-group li{font-size:14px;line-height:1.7}
+.illustrated-site .pricing-page-card .plan-action-row{margin-top:auto;padding-top:24px}
+@media(max-width:760px){
+ .illustrated-site .download-hero h1{font-size:clamp(36px,9vw,46px)}
+ .illustrated-site .download-phone-stage{margin:35px 0 10px;gap:12px}
+ .illustrated-site .download-phone{width:min(300px,90%)}
+ .illustrated-site .download-cta-band{display:block;padding:28px}
+ .illustrated-site .download-cta-band>.waitlist-form{margin:25px 0}
+ .illustrated-site .download-cta-band h2{font-size:32px}
+ .illustrated-site .support-contact-panel{transform:none;margin-top:32px}
+ .illustrated-site .support-proof-strip{margin:0 6%;padding:20px 0}
+ .illustrated-site .pricing-page-card .plan-card-heading p{min-height:0}
+}
+@media(prefers-reduced-motion:reduce){.illustrated-site .download-phone,.illustrated-site .download-phone-orbit{animation:none!important}}
+.illustrated-site .download-panel{border:0!important}
+.illustrated-site .download-phone .status-chip,.illustrated-site .download-panel .status-chip{background:#ece8ff!important;color:#1717d5!important;box-shadow:none!important}
+.illustrated-site .download-phone .phone-offer-card{animation:none!important}
+.illustrated-site .support-side-stack :is(.support-card,.support-guidance-card){background:transparent!important;border:0!important;border-top:1px solid #ded8eb!important;border-radius:0!important;padding:24px 0!important;box-shadow:none!important}
+.illustrated-site .support-side-stack h2{font-size:23px;line-height:1.35;letter-spacing:-.025em}
+.illustrated-site .support-side-stack :is(p,li){font-size:14px;line-height:1.8;color:#59617f!important}
+.illustrated-site .support-section-heading h2{font-size:clamp(26px,3vw,34px);line-height:1.3;max-width:28ch}
+.illustrated-site .support-guidance-intro h2{font-size:clamp(25px,2.8vw,32px);line-height:1.35}

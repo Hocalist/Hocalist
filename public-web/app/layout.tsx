@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './illustrated-site.css';
 import { ScrollReveal } from './ScrollReveal';
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" /></head>
       <body>
         <ScrollReveal />
         {children}

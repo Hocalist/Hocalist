@@ -17,17 +17,17 @@ export default function DownloadPage() {
         <section className="download-hero reveal">
           <div className="download-hero-copy">
             <p className="eyebrow">Early access updates</p>
-            <h1>Get notified when Hocalist app access is ready.</h1>
+            <h1>Your next good find.<br /><em>Coming to your phone.</em></h1>
             <p>
               Describe what you want, compare seller offers, choose who to continue with, and use
               chat to coordinate the details before arranging item payment directly with the seller.
             </p>
             <div className="download-hero-actions">
-              <Link className="button primary" href="/how-it-works">
-                See how it works
+              <Link className="button primary" href="#launch-updates">
+                Get app updates
               </Link>
-              <Link className="button secondary" href="/support">
-                Request early access
+              <Link className="button secondary" href="/how-it-works">
+                Explore the process
               </Link>
             </div>
             <div className="download-status-row" aria-label="App availability">
@@ -81,6 +81,22 @@ export default function DownloadPage() {
           </div>
         </section>
 
+        <section id="launch-updates" className="cta-band download-cta-band">
+          <h2>Be first to hear.</h2>
+          <p>
+            Get a note when Hocalist is ready for you. Join the launch list for app availability
+            and early-access news. You can unsubscribe at any time.
+          </p>
+          <WaitlistForm />
+          <div>
+            <Link className="button secondary" href="mailto:support@hocalist.com?subject=Hocalist%20app%20availability">
+              Email launch updates
+            </Link>
+            <Link className="button secondary" href="/support">
+              Contact support
+            </Link>
+          </div>
+        </section>
         <section className="download-panel">
           <article className="reveal">
             <span className="status-chip">Android</span>
@@ -128,23 +144,7 @@ export default function DownloadPage() {
             <li>Use chat to coordinate condition, timing, and local handoff details.</li>
           </ol>
         </section>
-        <section className="cta-band download-cta-band">
-          <h2>Want to be notified when app access is ready?</h2>
-          <p>
-            Join the consented launch update list below. The form stores only your address, the
-            consent version and time. If the list is not open on this deployment it says so and
-            stores nothing.
-          </p>
-          <WaitlistForm />
-          <div>
-            <Link className="button secondary" href="mailto:support@hocalist.com?subject=Hocalist%20app%20availability">
-              Email launch updates
-            </Link>
-            <Link className="button secondary" href="/support">
-              Contact support
-            </Link>
-          </div>
-        </section>
+
       </main>
     </PageShell>
   );

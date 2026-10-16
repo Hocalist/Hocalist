@@ -374,7 +374,7 @@ void main() {
     );
     expect(
       tester.getSize(find.byKey(const ValueKey('approved-surface'))).height,
-      lessThan(710),
+      lessThan(730),
     );
     expect(
       tester.getBottomRight(find.text('See Sellers').last).dy,

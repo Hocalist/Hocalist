@@ -111,10 +111,10 @@ void main() {
         onDone: () {},
       ),
     );
-    expect(find.text('PHONE NUMBER'), findsOneWidget);
-    expect(find.text('HOME AREA'), findsOneWidget);
-    expect(find.text('PREFERRED MEETUP TYPE'), findsOneWidget);
-    expect(find.text('PROFILE NOTE'), findsOneWidget);
+    expect(find.text('Phone number'), findsOneWidget);
+    expect(find.text('Home area'), findsOneWidget);
+    expect(find.text('Preferred meetup type'), findsOneWidget);
+    expect(find.text('Profile note'), findsOneWidget);
 
     var payoutOpened = 0;
     await _pumpScrollable(
@@ -455,7 +455,11 @@ void main() {
 
       expect(find.byKey(const Key('sellerCreditBalanceCard')), findsOneWidget);
       expect(find.text(r'$36.25'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('section-tab-Plans')));
+      await tester.pumpAndSettle();
       expect(find.text('BILLING HISTORY'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('section-tab-Activity')));
+      await tester.pumpAndSettle();
       final activity = find.byKey(
         const ValueKey('sellerCreditActivity-TGT-250826-1042'),
       );

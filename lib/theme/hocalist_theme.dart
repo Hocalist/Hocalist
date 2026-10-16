@@ -429,6 +429,7 @@ class HocalistTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
+        backgroundColor: darkSurface,
         contentTextStyle: _fieldText(Colors.white, fontFamily: fontFamily),
         actionTextColor: Colors.white,
       ),

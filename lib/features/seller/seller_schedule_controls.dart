@@ -1,3 +1,4 @@
+import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
@@ -14,12 +15,15 @@ Future<SellerScheduleSelection?> showSellerSchedulePicker({
   required BuildContext context,
   required DateTime initialDate,
   required TimeOfDay initialTime,
+  DateTime? earliestDate,
 }) {
   return showDialog<SellerScheduleSelection>(
     context: context,
+    animationStyle: HocalistMotion.dialogStyle(context),
     builder: (context) => _SellerSchedulePickerDialog(
       initialDate: initialDate,
       initialTime: initialTime,
+      earliestDate: earliestDate,
     ),
   );
 }
@@ -28,10 +32,12 @@ class _SellerSchedulePickerDialog extends StatefulWidget {
   const _SellerSchedulePickerDialog({
     required this.initialDate,
     required this.initialTime,
+    this.earliestDate,
   });
 
   final DateTime initialDate;
   final TimeOfDay initialTime;
+  final DateTime? earliestDate;
 
   @override
   State<_SellerSchedulePickerDialog> createState() =>
@@ -48,6 +54,10 @@ class _SellerSchedulePickerDialogState
   void initState() {
     super.initState();
     selectedDate = DateUtils.dateOnly(widget.initialDate);
+    if (widget.earliestDate != null &&
+        selectedDate.isBefore(DateUtils.dateOnly(widget.earliestDate!))) {
+      selectedDate = DateUtils.dateOnly(widget.earliestDate!);
+    }
     displayedMonth = DateTime(selectedDate.year, selectedDate.month);
     selectedTime = widget.initialTime;
   }
@@ -105,6 +115,7 @@ class _SellerSchedulePickerDialogState
                   keyPrefix: 'sellerOfferSchedule',
                   selectedDate: selectedDate,
                   displayedMonth: displayedMonth,
+                  earliestDate: widget.earliestDate,
                   onSelected: (date) => setState(() => selectedDate = date),
                   onDisplayedMonthChanged: (month) =>
                       setState(() => displayedMonth = month),
@@ -149,6 +160,7 @@ class SellerScheduleCalendar extends StatelessWidget {
     required this.onSelected,
     required this.onDisplayedMonthChanged,
     this.highlightedDate,
+    this.earliestDate,
     super.key,
   });
 
@@ -156,6 +168,7 @@ class SellerScheduleCalendar extends StatelessWidget {
   final DateTime selectedDate;
   final DateTime displayedMonth;
   final DateTime? highlightedDate;
+  final DateTime? earliestDate;
   final ValueChanged<DateTime> onSelected;
   final ValueChanged<DateTime> onDisplayedMonthChanged;
 
@@ -276,8 +289,12 @@ class SellerScheduleCalendar extends StatelessWidget {
               final inDisplayedMonth = date.month == month.month;
               final selected = _sameDay(selectedDate, date);
               final highlighted = _sameDay(highlightedDate, date);
+              final allowed =
+                  earliestDate == null ||
+                  !date.isBefore(DateUtils.dateOnly(earliestDate!));
               return Semantics(
                 button: true,
+                enabled: allowed,
                 selected: selected,
                 label:
                     '${_monthNames[date.month - 1]} ${date.day}, ${date.year}',
@@ -285,7 +302,7 @@ class SellerScheduleCalendar extends StatelessWidget {
                   key: inDisplayedMonth
                       ? Key('${keyPrefix}Day${date.day}')
                       : null,
-                  onTap: () => onSelected(date),
+                  onTap: allowed ? () => onSelected(date) : null,
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     margin: const EdgeInsets.all(2),
@@ -306,7 +323,7 @@ class SellerScheduleCalendar extends StatelessWidget {
                         weight: selected ? FontWeight.w800 : FontWeight.w600,
                         color: selected
                             ? Colors.white
-                            : inDisplayedMonth
+                            : inDisplayedMonth && allowed
                             ? SellerUiColors.ink
                             : SellerUiColors.muted.withValues(alpha: .55),
                       ),

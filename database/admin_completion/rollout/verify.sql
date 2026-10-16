@@ -1,0 +1,22 @@
+BEGIN READ ONLY;
+DO $verify$ DECLARE f oid; r text; BEGIN
+f:=to_regprocedure('hocalist.admin_commercial_config()');
+IF f IS NULL OR md5(replace(pg_get_functiondef(f),chr(13),''))<>'0d0ca58a72deec5baca2735cbd220dc3' THEN RAISE EXCEPTION 'Function drift: hocalist.admin_commercial_config()'; END IF;
+f:=to_regprocedure('hocalist.admin_review_queue(integer,text,text,text,text,text,text)');
+IF f IS NULL OR md5(replace(pg_get_functiondef(f),chr(13),''))<>'5190491e44e74c3edb048d6ee7f7a169' THEN RAISE EXCEPTION 'Function drift: hocalist.admin_review_queue(integer,text,text,text,text,text,text)'; END IF;
+f:=to_regprocedure('hocalist.admin_evidence_reference(uuid,uuid)');
+IF f IS NULL OR md5(replace(pg_get_functiondef(f),chr(13),''))<>'54b17dea98f5180547aef90239619ca9' THEN RAISE EXCEPTION 'Function drift: hocalist.admin_evidence_reference(uuid,uuid)'; END IF;
+f:=to_regprocedure('hocalist.admin_failed_events(integer,text,text,text)');
+IF f IS NULL OR md5(replace(pg_get_functiondef(f),chr(13),''))<>'35091e6156cbbb92e8eff89b957b9176' THEN RAISE EXCEPTION 'Function drift: hocalist.admin_failed_events(integer,text,text,text)'; END IF;
+f:=to_regprocedure('hocalist.admin_failed_event_detail(text)');
+IF f IS NULL OR md5(replace(pg_get_functiondef(f),chr(13),''))<>'267b6bc7cde256a1a7ec1345ad3a31ee' THEN RAISE EXCEPTION 'Function drift: hocalist.admin_failed_event_detail(text)'; END IF;
+f:=to_regprocedure('hocalist.admin_audit_feed(integer,text,text,uuid,text)');
+IF f IS NULL OR md5(replace(pg_get_functiondef(f),chr(13),''))<>'b147e5d1a1b9b507a2acd9f43da6df41' THEN RAISE EXCEPTION 'Function drift: hocalist.admin_audit_feed(integer,text,text,uuid,text)'; END IF;
+FOR r IN SELECT unnest(ARRAY['anon','authenticated','service_role']) LOOP IF has_function_privilege(r,to_regprocedure('hocalist.admin_commercial_config()'),'EXECUTE') IS DISTINCT FROM (r='authenticated') THEN RAISE EXCEPTION 'Function privilege drift: hocalist.admin_commercial_config() %',r; END IF; END LOOP;
+FOR r IN SELECT unnest(ARRAY['anon','authenticated','service_role']) LOOP IF has_function_privilege(r,to_regprocedure('hocalist.admin_review_queue(integer,text,text,text,text,text,text)'),'EXECUTE') IS DISTINCT FROM (r='authenticated') THEN RAISE EXCEPTION 'Function privilege drift: hocalist.admin_review_queue(integer,text,text,text,text,text,text) %',r; END IF; END LOOP;
+FOR r IN SELECT unnest(ARRAY['anon','authenticated','service_role']) LOOP IF has_function_privilege(r,to_regprocedure('hocalist.admin_evidence_reference(uuid,uuid)'),'EXECUTE') IS DISTINCT FROM (r='authenticated') THEN RAISE EXCEPTION 'Function privilege drift: hocalist.admin_evidence_reference(uuid,uuid) %',r; END IF; END LOOP;
+FOR r IN SELECT unnest(ARRAY['anon','authenticated','service_role']) LOOP IF has_function_privilege(r,to_regprocedure('hocalist.admin_failed_events(integer,text,text,text)'),'EXECUTE') IS DISTINCT FROM (r='authenticated') THEN RAISE EXCEPTION 'Function privilege drift: hocalist.admin_failed_events(integer,text,text,text) %',r; END IF; END LOOP;
+FOR r IN SELECT unnest(ARRAY['anon','authenticated','service_role']) LOOP IF has_function_privilege(r,to_regprocedure('hocalist.admin_failed_event_detail(text)'),'EXECUTE') IS DISTINCT FROM (r='authenticated') THEN RAISE EXCEPTION 'Function privilege drift: hocalist.admin_failed_event_detail(text) %',r; END IF; END LOOP;
+FOR r IN SELECT unnest(ARRAY['anon','authenticated','service_role']) LOOP IF has_function_privilege(r,to_regprocedure('hocalist.admin_audit_feed(integer,text,text,uuid,text)'),'EXECUTE') IS DISTINCT FROM (r='authenticated') THEN RAISE EXCEPTION 'Function privilege drift: hocalist.admin_audit_feed(integer,text,text,uuid,text) %',r; END IF; END LOOP;
+END $verify$;
+ROLLBACK;

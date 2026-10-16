@@ -433,10 +433,10 @@ export default function HomePage() {
           />
           <div className="faq-grid">
             {homepageFaqItems.map((item) => (
-              <article className="faq-card reveal" key={item.question}>
-                <h3>{item.question}</h3>
+              <details className="faq-card homepage-faq reveal" key={item.question}>
+                <summary>{item.question}<span aria-hidden="true">+</span></summary>
                 <p>{item.answer}</p>
-              </article>
+              </details>
             ))}
           </div>
         </section>

@@ -1,3 +1,4 @@
+import EditorialAccent from '../EditorialAccent';
 import Link from 'next/link';
 import { OfflineNotice, PageShell, SectionIntro, faqItems, pricingPlans } from '../site-content';
 
@@ -42,9 +43,9 @@ export default function PricingPage() {
   return (
     <PageShell>
       <main>
-        <section className="subpage-hero reveal">
+        <section className="subpage-hero editorial-hero reveal"><EditorialAccent />
           <p className="eyebrow">Seller pricing</p>
-          <h1>Seller plans for local offer matching</h1>
+          <h1>Your business.<br /><em>Your pace.</em></h1>
           <p>
             Hocalist plans are for seller tools, credits, profile features, and buyer-request
             visibility. Buyers still compare offers and arrange item payment directly with sellers.
@@ -55,7 +56,7 @@ export default function PricingPage() {
           <div className="pricing-section-head">
             <div className="pricing-section-copy">
               <p className="eyebrow">Seller plan options</p>
-              <h2>Plans for seller tools, visibility, and profile support.</h2>
+              <h2>Choose the room you need.</h2>
               <p>
                 Monthly prices in USD. Seller plans and HocaCredits are purchased from your seller
                 account on this website; billing runs in TEST mode until activation. HocaCredits

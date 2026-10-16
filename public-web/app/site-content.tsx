@@ -3,32 +3,31 @@ import Image from 'next/image';
 import { MobileMenu } from './MobileMenu';
 
 export const siteNav = [
-  { href: '/', label: 'Home' },
-  { href: '/#requests', label: 'Preview requests' },
   { href: '/how-it-works', label: 'How it works' },
-  { href: '/pricing', label: 'Seller plans' },
-  { href: '/safety', label: 'Safety' },
-  { href: '/support', label: 'Support' }
+  { href: '/#discover', label: 'What can I find?' },
+  { href: '/#sellers', label: 'For sellers' }
 ];
 
 export const legalNav = [
   { href: '/terms', label: 'Terms' },
   { href: '/privacy', label: 'Privacy' },
+  { href: '/refund-cancellation', label: 'Refund & cancellation' },
+  { href: '/safety', label: 'Safety guidance' },
   { href: '/download', label: 'App updates' }
 ];
 
 export const sellerPlanUrl = process.env.NEXT_PUBLIC_SELLER_PLAN_URL || '';
 
 const headerCtas = [
-  { href: '/download', label: 'Join buyer waitlist' },
-  { href: '/pricing', label: 'Seller plans' }
+  { href: '/download#launch-updates', label: 'Get app updates' },
+  { href: '/billing', label: 'Seller sign in' }
 ];
 
 export function SiteHeader() {
   return (
     <header className="site-header">
       <Link aria-label="Hocalist home" className="brand-link" href="/">
-        <Image className="brand-wordmark" src="/brand/hocalist-wordmark.png" width={184} height={86} alt="Hocalist Reverse Marketplace" priority />
+        <Image className="brand-wordmark" src="/brand/hocalist-concept-wordmark.png" width={156} height={66} alt="Hocalist Reverse Marketplace" unoptimized priority />
       </Link>
       <nav aria-label="Primary navigation" className="desktop-nav">
         {siteNav.map((item) => (
@@ -39,11 +38,11 @@ export function SiteHeader() {
       </nav>
       <MobileMenu ctaItems={headerCtas} navItems={siteNav} />
       <div className="header-actions">
-        <Link className="ghost-link" href="/pricing">
-          Seller plans
+        <Link className="ghost-link" href="/billing">
+          Seller sign in
         </Link>
         <Link className="button primary small" href="/download">
-          Join buyer waitlist
+          Get app updates <span aria-hidden="true">↗</span>
         </Link>
       </div>
     </header>
@@ -56,7 +55,7 @@ export function SiteFooter() {
       <div className="footer-grid">
         <div>
           <Link className="brand-link footer-brand" href="/">
-            <Image className="brand-wordmark footer-wordmark" src="/brand/hocalist-wordmark.png" width={184} height={86} alt="Hocalist Reverse Marketplace" />
+            <Image className="brand-wordmark footer-wordmark" src="/brand/hocalist-concept-wordmark.png" width={156} height={66} alt="Hocalist Reverse Marketplace" unoptimized />
           </Link>
           <p>
             Hocalist helps buyers post local requests, compare seller offers, choose who to
@@ -66,10 +65,13 @@ export function SiteFooter() {
             Sellers can use plans, credits, and profile tools to respond to active local demand.
           </p>
         </div>
-        <FooterColumn title="Company" links={siteNav} />
-        <FooterColumn title="Legal" links={legalNav} />
+        <FooterColumn title="Meet Hocalist" links={[...siteNav, {href:'/#requests',label:'Preview requests'}, {href:'/pricing',label:'Seller plans'}]} />
+        <FooterColumn title="The important things" links={legalNav} />
         <div>
-          <h2>Support</h2>
+          <h2>Keep in touch</h2>
+          <Link href="/support">Help & support</Link>
+          <Link href="/billing">Seller billing</Link>
+          <Link href="/download">App availability</Link>
           <p>Email: support@hocalist.com</p>
           <p>For written notices, email support for current mailing details.</p>
           <p className="fine-print">We aim to respond within 2 business days.</p>
@@ -128,11 +130,11 @@ export function SellerPlanLink({
 
 export function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <div className="illustrated-site">
       <SiteHeader />
       {children}
       <SiteFooter />
-    </>
+    </div>
   );
 }
 

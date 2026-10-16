@@ -1,0 +1,33 @@
+BEGIN;
+-- Revoke every client and service capability added by this bundle. Ledger,
+-- reversal, reconciliation and payout history rows are preserved.
+REVOKE ALL ON FUNCTION hocalist.account_entitlement() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.entitlement_plan_preview(text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.entitlement_admin_command(text,text,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.reconciliation_admin_command(text,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.admin_reconciliation_overview(integer) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.reversal_admin_command(text,text,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_reversal_status() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.admin_reversal_queue(integer,uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.payout_admin_command(text,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.admin_payout_reconciliation_queue(integer) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_credit_wallet() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_reward_wallet() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_sale_history(timestamptz,uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_sale_detail(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_reconcile_sweep(integer,text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.reversal_open_internal(text,text,text,text,bigint,uuid,uuid,uuid,text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.payout_claim_internal(integer,text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.payout_lease_expire_internal(integer) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.payout_reconcile_batch_internal(integer) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.payout_settle_internal(uuid,text,text,text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.payout_poll_batch_internal(integer) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.entitlement_readings_internal(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.entitlement_resolve_internal(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.credit_reconcile_target_internal(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.withdrawal_available_minor(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.commercial_reward_hold_minor(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.reward_causal_unspent_internal(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.reward_identity_free_internal(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION hocalist.reward_disputed_pool_free_internal(uuid) FROM PUBLIC, anon, authenticated, service_role;
+COMMIT;

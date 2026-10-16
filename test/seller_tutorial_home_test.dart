@@ -321,7 +321,7 @@ void main() {
   ) async {
     await pumpSurface(tester, shell(home()), width: 430);
 
-    for (final label in ['Home', 'Leads', 'Meets', 'Chats', 'More']) {
+    for (final label in ['Home', 'Store', 'Meets', 'Chats', 'More']) {
       expect(find.text(label), findsOneWidget);
     }
     for (final oldLabel in ['Offers', 'Messages', 'Customers', 'Account']) {
@@ -332,17 +332,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Seller Home Leads navigation callback works', (tester) async {
-    var openedLeads = false;
+  testWidgets('Seller Store navigation callback works', (tester) async {
+    var openedStore = false;
     await pumpSurface(
       tester,
-      shell(home(), callbacks: navigation(onLeads: () => openedLeads = true)),
+      shell(
+        home(),
+        callbacks: SellerNavigationCallbacks(
+          onHome: () {},
+          onStore: () => openedStore = true,
+          onMeets: () {},
+          onChats: () {},
+          onMore: () {},
+        ),
+      ),
       width: 390,
     );
 
-    await tester.tap(find.byKey(const Key('sellerNavLeads')));
+    await tester.tap(find.byKey(const Key('sellerNavStore')));
     await tester.pump();
-    expect(openedLeads, isTrue);
+    expect(openedStore, isTrue);
   });
 
   testWidgets(
@@ -954,8 +963,8 @@ void main() {
     final homeIcon = tester.widget<Image>(
       find.byKey(const Key('sellerNavHomeIcon')),
     );
-    final leadsIcon = tester.widget<Image>(
-      find.byKey(const Key('sellerNavLeadsIcon')),
+    final storeIcon = tester.widget<Icon>(
+      find.byKey(const Key('sellerNavStoreIcon')),
     );
     final meetsIcon = tester.widget<Image>(
       find.byKey(const Key('sellerNavMeetsIcon')),
@@ -967,7 +976,8 @@ void main() {
       find.byKey(const Key('sellerNavMoreIcon')),
     );
 
-    expect(leadsIcon.width, greaterThan(homeIcon.width!));
+    expect(storeIcon.icon, Icons.storefront_outlined);
+    expect(storeIcon.size, closeTo(homeIcon.width!, .01));
     expect(chatsIcon.width, greaterThan(homeIcon.width!));
     expect(meetsIcon.width, greaterThan(homeIcon.width!));
     expect(moreIcon.width, closeTo(homeIcon.width!, .01));
@@ -1211,7 +1221,7 @@ void main() {
       findsOneWidget,
     );
     final fields = tester.widgetList<TextField>(find.byType(TextField));
-    expect(fields.length, 5);
+    expect(fields.length, 4);
     expect(fields.elementAt(1).readOnly, isTrue);
     for (final field in fields) {
       expect(field.decoration?.labelText, isNull);
@@ -1238,7 +1248,7 @@ void main() {
       height: 1000,
     );
     await tester.tap(find.byKey(const Key('sellerMeetProductJM')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Reschedule').first,
       300,
@@ -1282,7 +1292,7 @@ void main() {
           .first,
     );
     await tester.tap(find.byKey(const Key('sellerMeetProductJM')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
       find.text('Reschedule').first,
@@ -1392,3 +1402,4 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+

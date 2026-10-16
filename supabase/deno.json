@@ -1,0 +1,7 @@
+{
+  "lock": true,
+  "tasks": {
+    "test": "deno test functions/hocalist-stripe-test-webhook/handler_test.ts functions/hocalist-places/handler_test.ts functions/hocalist-places/auth_test.ts functions/_shared/hocalist-places_test.ts",
+    "check": "deno check functions/hocalist-stripe-test-webhook/index.ts functions/hocalist-stripe-test-checkout/index.ts functions/hocalist-stripe-test-reconcile/index.ts functions/hocalist-places/index.ts"
+  }
+}

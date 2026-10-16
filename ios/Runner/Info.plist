@@ -2,6 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.hocalist.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.hocalist.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -49,6 +64,12 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Hocalist uses your location only while the app is open to suggest a nearby meeting place. You can always enter a place manually.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos for your Hocalist profile, offers, listings, chats and support reports.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo for your Hocalist profile, offers, listings, chats or support reports.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
