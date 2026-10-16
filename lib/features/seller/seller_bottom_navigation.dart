@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
+import '../../components/hocalist_motion.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 
-enum SellerNavDestination { home, leads, meets, chats, more }
+/// `leads` remains a valid nested-flow context even though it is no longer a
+/// visible bottom-navigation destination.
+enum SellerNavDestination { home, leads, store, meets, chats, more }
 
 class SellerNavigationCallbacks {
   const SellerNavigationCallbacks({
     required this.onHome,
-    required this.onLeads,
+    this.onStore,
+    this.onLeads,
     required this.onMeets,
     required this.onChats,
     required this.onMore,
   });
 
   final VoidCallback onHome;
-  final VoidCallback onLeads;
+  final VoidCallback? onStore;
+  final VoidCallback? onLeads;
   final VoidCallback onMeets;
   final VoidCallback onChats;
   final VoidCallback onMore;
@@ -40,7 +45,8 @@ class SellerBottomNavigation extends StatelessWidget {
           ({
             SellerNavDestination destination,
             String label,
-            String asset,
+            String? asset,
+            IconData? icon,
             double opticalSize,
             double verticalOffset,
             VoidCallback onTap,
@@ -50,22 +56,25 @@ class SellerBottomNavigation extends StatelessWidget {
             destination: SellerNavDestination.home,
             label: 'Home',
             asset: SellerAssets.navHome,
+            icon: null,
             opticalSize: 25,
             verticalOffset: 0,
             onTap: callbacks.onHome,
           ),
           (
-            destination: SellerNavDestination.leads,
-            label: 'Leads',
-            asset: SellerAssets.navLeads,
-            opticalSize: 42,
-            verticalOffset: -6,
-            onTap: callbacks.onLeads,
+            destination: SellerNavDestination.store,
+            label: 'Store',
+            asset: null,
+            icon: Icons.storefront_outlined,
+            opticalSize: 25,
+            verticalOffset: 0,
+            onTap: callbacks.onStore ?? callbacks.onLeads ?? () {},
           ),
           (
             destination: SellerNavDestination.meets,
             label: 'Meets',
             asset: SellerAssets.navMeets,
+            icon: null,
             opticalSize: 34,
             verticalOffset: -3,
             onTap: callbacks.onMeets,
@@ -74,6 +83,7 @@ class SellerBottomNavigation extends StatelessWidget {
             destination: SellerNavDestination.chats,
             label: 'Chats',
             asset: SellerAssets.navChats,
+            icon: null,
             opticalSize: 44,
             verticalOffset: -7,
             onTap: callbacks.onChats,
@@ -82,6 +92,7 @@ class SellerBottomNavigation extends StatelessWidget {
             destination: SellerNavDestination.more,
             label: 'More',
             asset: SellerAssets.navMore,
+            icon: null,
             opticalSize: 25,
             verticalOffset: 0,
             onTap: callbacks.onMore,
@@ -117,6 +128,7 @@ class SellerBottomNavigation extends StatelessWidget {
                           destination: item.destination,
                           label: item.label,
                           asset: item.asset,
+                          icon: item.icon,
                           selected: selected == item.destination,
                           opticalSize:
                               metrics?.artSize(
@@ -146,6 +158,7 @@ class _SellerNavigationItem extends StatelessWidget {
     required this.destination,
     required this.label,
     required this.asset,
+    required this.icon,
     required this.selected,
     required this.opticalSize,
     required this.verticalOffset,
@@ -155,7 +168,8 @@ class _SellerNavigationItem extends StatelessWidget {
 
   final SellerNavDestination destination;
   final String label;
-  final String asset;
+  final String? asset;
+  final IconData? icon;
   final bool selected;
   final double opticalSize;
   final double verticalOffset;
@@ -185,7 +199,7 @@ class _SellerNavigationItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
+                duration: HocalistMotion.duration(context, 160),
                 width: indicatorWidth,
                 height: metrics?.geometry(34) ?? 34,
                 alignment: Alignment.center,
@@ -197,16 +211,24 @@ class _SellerNavigationItem extends StatelessWidget {
                 ),
                 child: Transform.translate(
                   offset: Offset(0, verticalOffset),
-                  child: Image.asset(
-                    key: Key('sellerNav${label}Icon'),
-                    asset,
-                    width: opticalSize,
-                    height: opticalSize,
-                    fit: BoxFit.contain,
-                    color: color,
-                    colorBlendMode: BlendMode.srcIn,
-                    semanticLabel: '$label navigation icon',
-                  ),
+                  child: icon == null
+                      ? Image.asset(
+                          key: Key('sellerNav${label}Icon'),
+                          asset!,
+                          width: opticalSize,
+                          height: opticalSize,
+                          fit: BoxFit.contain,
+                          color: color,
+                          colorBlendMode: BlendMode.srcIn,
+                          semanticLabel: '$label navigation icon',
+                        )
+                      : Icon(
+                          icon,
+                          key: Key('sellerNav${label}Icon'),
+                          size: opticalSize,
+                          color: color,
+                          semanticLabel: '$label navigation icon',
+                        ),
                 ),
               ),
               SizedBox(height: metrics?.geometry(1) ?? 1),

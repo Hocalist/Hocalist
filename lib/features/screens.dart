@@ -863,7 +863,7 @@ class _BuyerBenefitOnboardingPageState
                   child: IgnorePointer(
                     child: AnimatedOpacity(
                       opacity: showBenefitScrollCue ? 1 : 0,
-                      duration: const Duration(milliseconds: 180),
+                      duration: HocalistMotion.duration(context, 180),
                       child: const _BenefitScrollCue(),
                     ),
                   ),
@@ -1555,6 +1555,7 @@ class _RewardInfoButton extends StatelessWidget {
       onPressed: () {
         showModalBottomSheet<void>(
           context: context,
+          sheetAnimationStyle: HocalistMotion.sheetStyle(context),
           isScrollControlled: true,
           useSafeArea: true,
           backgroundColor: Colors.transparent,
@@ -4552,7 +4553,7 @@ class _CreateRequestPageState extends State<CreateRequestPage> {
               _RequestStepProgress(currentStep: step),
               const SizedBox(height: 30),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
+                duration: HocalistMotion.duration(context, 180),
                 child: isLocation
                     ? _LocationRequestStep(
                         key: const ValueKey('location-step'),
@@ -6023,6 +6024,7 @@ class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
   Future<void> _confirmDelete() async {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -7977,13 +7979,19 @@ String _profileInitials(String name) {
   return value.isEmpty ? 'NT' : value;
 }
 
-class BuyerChatsPage extends StatelessWidget {
+class BuyerChatsPage extends StatefulWidget {
   const BuyerChatsPage({
     required this.onBack,
     required this.onOpenChat,
     required this.onOffers,
     this.latestOffer,
     this.latestMessagePreview,
+    this.realThreads,
+    this.threadsLoading = false,
+    this.threadsError,
+    this.onRefreshThreads,
+    this.onOpenThread,
+    this.onSearchConversations,
     super.key,
   });
 
@@ -7993,6 +8001,80 @@ class BuyerChatsPage extends StatelessWidget {
   final LocalOfferRecord? latestOffer;
   final String? latestMessagePreview;
 
+  /// Real participant inbox rows. Null keeps the approved prototype list.
+  final List<ChatThreadView>? realThreads;
+  final bool threadsLoading;
+  final String? threadsError;
+  final VoidCallback? onRefreshThreads;
+  final ValueChanged<ChatThreadView>? onOpenThread;
+
+  /// Server-side paged conversation search. Null keeps the loaded-list view.
+  final Future<PageSlice<ConversationSummary>> Function(String query)?
+  onSearchConversations;
+
+  bool get usesRealThreads => realThreads != null;
+
+  @override
+  State<BuyerChatsPage> createState() => _BuyerChatsPageState();
+}
+
+class _BuyerChatsPageState extends State<BuyerChatsPage> {
+  late final TextEditingController _searchController;
+  ChatInboxSearchController? _search;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _search = _createSearchController();
+  }
+
+  ChatInboxSearchController? _createSearchController() {
+    final search = widget.onSearchConversations;
+    if (search == null) return null;
+    return ChatInboxSearchController(search: search)
+      ..addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant BuyerChatsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onSearchConversations != widget.onSearchConversations) {
+      _search?.dispose();
+      _search = _createSearchController();
+    }
+  }
+
+  @override
+  void dispose() {
+    _search?.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<_BuyerChatThreadData> _serverThreads(ChatInboxSearchController search) {
+    return <_BuyerChatThreadData>[
+      for (final summary in search.results)
+        _BuyerChatThreadData(
+          seller: summary.counterpartDisplayName,
+          initials: _profileInitials(summary.counterpartDisplayName),
+          request: '',
+          preview: summary.latestMessage?.text ?? '',
+          time: '',
+          price: '',
+          status: summary.unreadCount > 0
+              ? '${summary.unreadCount} unread'
+              : 'Active conversation',
+          unread: summary.unreadCount,
+          active: summary.unreadCount > 0,
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final metrics =
@@ -8001,40 +8083,66 @@ class BuyerChatsPage extends StatelessWidget {
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
-    final threads = [
-      _BuyerChatThreadData(
-        seller: latestOffer?.sellerName ?? 'Northside Tech',
-        initials: _profileInitials(latestOffer?.sellerName ?? 'Northside Tech'),
-        request: latestOffer?.requestTitle ?? 'iPad Air 5, 256GB',
-        preview:
-            latestMessagePreview ??
-            latestOffer?.message ??
-            'Hi! The iPad is in perfect condition like we discussed.',
-        time: '9:30 AM',
-        price: latestOffer?.price ?? r'$420',
-        status: 'Selected seller',
-        unread: 2,
-        active: true,
-      ),
-      _BuyerChatThreadData(
-        seller: 'Loop Resale',
-        initials: 'LR',
-        request: 'iPad Air 5, 256GB',
-        preview: 'I can include a keyboard case and meet Saturday.',
-        time: 'Yesterday',
-        price: '\$440',
-        status: 'Offer waiting',
-      ),
-      _BuyerChatThreadData(
-        seller: 'City Gadgets',
-        initials: 'CG',
-        request: 'Gaming laptop',
-        preview: 'Send a new request to compare more seller offers.',
-        time: 'May 16',
-        price: '\$1,050',
-        status: 'Closed preview',
-      ),
-    ];
+    final realThreads = widget.realThreads;
+    final search = _search;
+    final searching = search?.isSearching ?? false;
+    final threads = searching
+        ? _serverThreads(search!)
+        : realThreads != null
+        ? <_BuyerChatThreadData>[
+            for (final thread in realThreads)
+              _BuyerChatThreadData(
+                seller: thread.counterpartName,
+                initials: thread.initials,
+                request: '',
+                preview: thread.preview,
+                time: thread.timeLabel,
+                price: '',
+                status: thread.muted
+                    ? 'Muted'
+                    : thread.unreadCount > 0
+                    ? '${thread.unreadCount} unread'
+                    : 'Active conversation',
+                unread: thread.unreadCount,
+                active: thread.unreadCount > 0,
+              ),
+          ]
+        : <_BuyerChatThreadData>[
+            _BuyerChatThreadData(
+              seller: widget.latestOffer?.sellerName ?? 'Northside Tech',
+              initials: _profileInitials(
+                widget.latestOffer?.sellerName ?? 'Northside Tech',
+              ),
+              request: widget.latestOffer?.requestTitle ?? 'iPad Air 5, 256GB',
+              preview:
+                  widget.latestMessagePreview ??
+                  widget.latestOffer?.message ??
+                  'Hi! The iPad is in perfect condition like we discussed.',
+              time: '9:30 AM',
+              price: widget.latestOffer?.price ?? r'$420',
+              status: 'Selected seller',
+              unread: 2,
+              active: true,
+            ),
+            _BuyerChatThreadData(
+              seller: 'Loop Resale',
+              initials: 'LR',
+              request: 'iPad Air 5, 256GB',
+              preview: 'I can include a keyboard case and meet Saturday.',
+              time: 'Yesterday',
+              price: '\$440',
+              status: 'Offer waiting',
+            ),
+            _BuyerChatThreadData(
+              seller: 'City Gadgets',
+              initials: 'CG',
+              request: 'Gaming laptop',
+              preview: 'Send a new request to compare more seller offers.',
+              time: 'May 16',
+              price: '\$1,050',
+              status: 'Closed preview',
+            ),
+          ];
 
     return Center(
       child: ConstrainedBox(
@@ -8055,7 +8163,7 @@ class BuyerChatsPage extends StatelessWidget {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: onOffers,
+                  onPressed: widget.onOffers,
                   style: TextButton.styleFrom(
                     minimumSize: Size(
                       metrics.geometry(44),
@@ -8110,13 +8218,213 @@ class BuyerChatsPage extends StatelessWidget {
                 ],
               ),
             ),
+            if (search != null) ...[
+              SizedBox(height: metrics.spacing(10)),
+              TextField(
+                key: const Key('buyerChatsSearch'),
+                controller: _searchController,
+                onChanged: search.updateQuery,
+                style: BuyerTypography.style(
+                  context,
+                  metrics,
+                  BuyerTextRole.secondaryBody,
+                  color: BuyerUiTokens.text,
+                ),
+                decoration: buyerInputDecoration(
+                  context,
+                  hintText: 'Search conversations',
+                ),
+              ),
+            ],
             SizedBox(height: metrics.spacing(10)),
-            for (final thread in threads) ...[
-              _BuyerChatThreadCard(data: thread, onTap: onOpenChat),
+            if (searching) ...[
+              if (search!.loading)
+                const _BuyerChatStateNotice(
+                  key: Key('buyerChatsSearchLoading'),
+                  message: 'Searching conversations…',
+                )
+              else if (search.error != null)
+                _BuyerChatStateNotice(
+                  key: const Key('buyerChatsSearchError'),
+                  message: search.error!,
+                  onRetry: () => unawaited(search.retry()),
+                )
+              else if (threads.isEmpty)
+                const _BuyerChatsEmptyCard(
+                  key: Key('buyerChatsFilteredEmpty'),
+                  filtered: true,
+                ),
+            ] else if (widget.usesRealThreads) ...[
+              if (widget.threadsLoading)
+                const _BuyerChatStateNotice(
+                  key: Key('buyerChatsLoading'),
+                  message: 'Loading conversations…',
+                )
+              else if (widget.threadsError != null)
+                _BuyerChatStateNotice(
+                  key: const Key('buyerChatsError'),
+                  message: widget.threadsError!,
+                  onRetry: widget.onRefreshThreads,
+                )
+              else if (threads.isEmpty)
+                const _BuyerChatsEmptyCard(key: Key('buyerChatsEmpty')),
+            ],
+            for (var index = 0; index < threads.length; index++) ...[
+              _BuyerChatThreadCard(
+                data: threads[index],
+                onTap: () {
+                  if (searching) {
+                    final open = widget.onOpenThread;
+                    if (open != null) {
+                      open(
+                        ChatThreadView.fromSummary(
+                          search!.results[index],
+                          viewerUserId: '',
+                        ),
+                      );
+                    } else {
+                      widget.onOpenChat();
+                    }
+                    return;
+                  }
+                  final open = widget.onOpenThread;
+                  if (widget.usesRealThreads &&
+                      open != null &&
+                      realThreads != null) {
+                    open(realThreads[index]);
+                  } else {
+                    widget.onOpenChat();
+                  }
+                },
+              ),
               SizedBox(height: metrics.spacing(9)),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Designed zero-conversation card for the Buyer inbox. It preserves the
+/// approved card geometry instead of collapsing to a single text line, and it
+/// distinguishes a filtered zero from an inbox with no conversations.
+class _BuyerChatsEmptyCard extends StatelessWidget {
+  const _BuyerChatsEmptyCard({this.filtered = false, super.key});
+
+  final bool filtered;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+    return Container(
+      padding: EdgeInsets.all(metrics.spacing(16)),
+      decoration: BoxDecoration(
+        color: BuyerUiTokens.surface,
+        border: Border.all(color: BuyerUiTokens.border),
+        borderRadius: BorderRadius.circular(metrics.geometry(12)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: metrics.artSize(48),
+            height: metrics.artSize(48),
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: BuyerUiTokens.softSurface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              filtered ? Icons.search_off_rounded : Icons.chat_bubble_outline,
+              size: metrics.artSize(24),
+              color: BuyerUiTokens.action,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(10)),
+          Text(
+            filtered ? 'No matching conversations' : 'No conversations yet',
+            textAlign: TextAlign.center,
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.cardTitle,
+              color: BuyerUiTokens.text,
+              weight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(4)),
+          Text(
+            filtered
+                ? 'Try another name or clear the search. Your other chats are still here.'
+                : 'Select a seller from your offers to open your first chat. '
+                      'Conversation updates appear here.',
+            textAlign: TextAlign.center,
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.secondaryBody,
+              color: BuyerUiTokens.muted,
+              weight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BuyerChatStateNotice extends StatelessWidget {
+  const _BuyerChatStateNotice({required this.message, this.onRetry, super.key});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+    return Container(
+      padding: EdgeInsets.all(metrics.spacing(11)),
+      decoration: BoxDecoration(
+        color: BuyerUiTokens.softSurface,
+        borderRadius: BorderRadius.circular(metrics.geometry(9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.secondaryBody,
+              color: BuyerUiTokens.text,
+              weight: FontWeight.w600,
+            ),
+          ),
+          if (onRetry != null) ...[
+            SizedBox(height: metrics.spacing(4)),
+            TextButton(
+              key: const Key('buyerChatsRetry'),
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                minimumSize: Size(0, metrics.geometry(34)),
+                padding: EdgeInsets.zero,
+                foregroundColor: BuyerUiTokens.action,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -9858,6 +10166,7 @@ class SupportPage extends StatelessWidget {
     required this.onSettings,
     required this.onLogout,
     this.onProfilePhotoAction,
+    this.avatarMediaId,
     super.key,
   });
 
@@ -9874,6 +10183,7 @@ class SupportPage extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onLogout;
   final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+  final String? avatarMediaId;
 
   @override
   Widget build(BuildContext context) {
@@ -9898,6 +10208,7 @@ class SupportPage extends StatelessWidget {
         _BuyerMoreProfileCard(
           name: name,
           email: email,
+          avatarMediaId: avatarMediaId,
           onEditProfile: onEditProfile,
           onProfilePhotoAction: onProfilePhotoAction,
         ),
@@ -9980,12 +10291,14 @@ class _BuyerMoreProfileCard extends StatelessWidget {
     required this.email,
     required this.onEditProfile,
     this.onProfilePhotoAction,
+    this.avatarMediaId,
   });
 
   final String name;
   final String email;
   final VoidCallback onEditProfile;
   final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+  final String? avatarMediaId;
 
   @override
   Widget build(BuildContext context) {
@@ -9997,6 +10310,7 @@ class _BuyerMoreProfileCard extends StatelessWidget {
     final avatar = _BuyerProfileAvatar(
       metrics: metrics,
       diameter: 46,
+      avatarMediaId: avatarMediaId,
       onChangePhoto: changePhoto,
       actionKey: const Key('buyerMoreProfilePhotoAction'),
     );
@@ -10043,44 +10357,46 @@ class _BuyerMoreProfileCard extends StatelessWidget {
         ).copyWith(fontSize: metrics.fontSize(12)),
       ),
     );
-    return Container(
-      padding: EdgeInsets.all(metrics.spacing(13)),
-      decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        border: Border.all(color: BuyerUiTokens.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0a101054),
-            blurRadius: 14,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: metrics.accessibilityReflow
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    avatar,
-                    SizedBox(width: metrics.spacing(11)),
-                    Expanded(child: details),
-                  ],
-                ),
-                SizedBox(height: metrics.spacing(6)),
-                Align(alignment: Alignment.centerRight, child: edit),
-              ],
-            )
-          : Row(
-              children: [
-                avatar,
-                SizedBox(width: metrics.spacing(11)),
-                Expanded(child: details),
-                SizedBox(width: metrics.spacing(8)),
-                edit,
-              ],
+    return HocalistEntrance(
+      child: Container(
+        padding: EdgeInsets.all(metrics.spacing(13)),
+        decoration: BoxDecoration(
+          color: BuyerUiTokens.surface,
+          borderRadius: BorderRadius.circular(metrics.geometry(10)),
+          border: Border.all(color: BuyerUiTokens.border),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0a101054),
+              blurRadius: 14,
+              offset: Offset(0, 5),
             ),
+          ],
+        ),
+        child: metrics.accessibilityReflow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      avatar,
+                      SizedBox(width: metrics.spacing(11)),
+                      Expanded(child: details),
+                    ],
+                  ),
+                  SizedBox(height: metrics.spacing(6)),
+                  Align(alignment: Alignment.centerRight, child: edit),
+                ],
+              )
+            : Row(
+                children: [
+                  avatar,
+                  SizedBox(width: metrics.spacing(11)),
+                  Expanded(child: details),
+                  SizedBox(width: metrics.spacing(8)),
+                  edit,
+                ],
+              ),
+      ),
     );
   }
 }
@@ -10091,12 +10407,16 @@ class _BuyerProfileAvatar extends StatelessWidget {
     required this.diameter,
     required this.onChangePhoto,
     required this.actionKey,
+    this.avatarMediaId,
   });
 
   final ApprovedReplicaMetrics metrics;
   final double diameter;
   final VoidCallback onChangePhoto;
   final Key actionKey;
+
+  /// Server-issued avatar media id. Null keeps the approved placeholder.
+  final String? avatarMediaId;
 
   @override
   Widget build(BuildContext context) {
@@ -10118,14 +10438,22 @@ class _BuyerProfileAvatar extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Positioned.fill(
-                  child: CircleAvatar(
-                    backgroundColor: BuyerUiTokens.softSurface,
-                    foregroundColor: BuyerUiTokens.action,
-                    child: Icon(
-                      Icons.person_outline,
-                      size: metrics.artSize(diameter >= 60 ? 31 : 23),
-                    ),
-                  ),
+                  child: avatarMediaId == null
+                      ? CircleAvatar(
+                          backgroundColor: BuyerUiTokens.softSurface,
+                          foregroundColor: BuyerUiTokens.action,
+                          child: Icon(
+                            Icons.person_outline,
+                            size: metrics.artSize(diameter >= 60 ? 31 : 23),
+                          ),
+                        )
+                      : ClipOval(
+                          child: PrivateRemoteImage(
+                            key: ValueKey('buyerAvatar-$avatarMediaId'),
+                            id: avatarMediaId!,
+                            size: scaledDiameter,
+                          ),
+                        ),
                 ),
                 Positioned(
                   right: -metrics.spacing(2),
@@ -10155,9 +10483,19 @@ class _BuyerProfileAvatar extends StatelessWidget {
 }
 
 class _BuyerProfilePhotoEditor extends StatelessWidget {
-  const _BuyerProfilePhotoEditor({this.onProfilePhotoAction});
+  const _BuyerProfilePhotoEditor({
+    this.onProfilePhotoAction,
+    this.avatarMediaId,
+    this.avatarPending = false,
+    this.onRetryAvatar,
+    this.onDiscardAvatar,
+  });
 
   final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+  final String? avatarMediaId;
+  final bool avatarPending;
+  final VoidCallback? onRetryAvatar;
+  final VoidCallback? onDiscardAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -10168,67 +10506,149 @@ class _BuyerProfilePhotoEditor extends StatelessWidget {
     );
     return Padding(
       padding: EdgeInsets.all(metrics.spacing(14)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _BuyerProfileAvatar(
-            metrics: metrics,
-            diameter: 62,
-            onChangePhoto: changePhoto,
-            actionKey: const Key('buyerEditProfilePhotoAction'),
-          ),
-          SizedBox(width: metrics.spacing(14)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your Buyer photo',
-                  style: BuyerTypography.style(
-                    context,
-                    metrics,
-                    BuyerTextRole.cardTitle,
-                    weight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: metrics.spacing(3)),
-                Text(
-                  'Use a clear photo that sellers can recognize.',
-                  style: BuyerTypography.style(
-                    context,
-                    metrics,
-                    BuyerTextRole.secondaryBody,
-                  ),
-                ),
-                SizedBox(height: metrics.spacing(4)),
-                TextButton.icon(
-                  key: const Key('buyerEditProfileChangePhoto'),
-                  onPressed: changePhoto,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: metrics.spacing(4),
-                      vertical: metrics.spacing(4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _BuyerProfileAvatar(
+                metrics: metrics,
+                diameter: 62,
+                onChangePhoto: changePhoto,
+                actionKey: const Key('buyerEditProfilePhotoAction'),
+                avatarMediaId: avatarMediaId,
+              ),
+              SizedBox(width: metrics.spacing(14)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your Buyer photo',
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.cardTitle,
+                        weight: FontWeight.w800,
+                      ),
                     ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: Icon(
-                    Icons.photo_camera_outlined,
-                    size: metrics.artSize(15),
-                  ),
-                  label: Text(
-                    'Change profile picture',
-                    style: BuyerTypography.style(
-                      context,
-                      metrics,
-                      BuyerTextRole.buttonLabel,
-                      color: BuyerUiTokens.action,
-                    ).copyWith(fontSize: metrics.fontSize(12)),
-                  ),
+                    SizedBox(height: metrics.spacing(3)),
+                    Text(
+                      'Use a clear photo that sellers can recognize.',
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                      ),
+                    ),
+                    SizedBox(height: metrics.spacing(4)),
+                    TextButton.icon(
+                      key: const Key('buyerEditProfileChangePhoto'),
+                      onPressed: changePhoto,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: metrics.spacing(4),
+                          vertical: metrics.spacing(4),
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: Icon(
+                        Icons.photo_camera_outlined,
+                        size: metrics.artSize(15),
+                      ),
+                      label: Text(
+                        'Change profile picture',
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.buttonLabel,
+                          color: BuyerUiTokens.action,
+                        ).copyWith(fontSize: metrics.fontSize(12)),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+          if (avatarPending) ...[
+            SizedBox(height: metrics.spacing(10)),
+            _BuyerAvatarPendingCard(
+              onRetry: onRetryAvatar,
+              onDiscard: onDiscardAvatar,
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Reachable Retry/Discard controls for an unconfirmed avatar change. Retry
+/// replays the retained media id and operation key without uploading again.
+class _BuyerAvatarPendingCard extends StatelessWidget {
+  const _BuyerAvatarPendingCard({this.onRetry, this.onDiscard});
+
+  final VoidCallback? onRetry;
+  final VoidCallback? onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Container(
+      key: const Key('buyerAvatarPendingCard'),
+      padding: EdgeInsets.all(metrics.spacing(10)),
+      decoration: BoxDecoration(
+        color: BuyerUiTokens.softSurface,
+        border: Border.all(color: BuyerUiTokens.border),
+        borderRadius: BorderRadius.circular(metrics.geometry(11)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Photo change not confirmed',
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.cardTitle,
+              color: BuyerUiTokens.text,
+              weight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(2)),
+          Text(
+            'Retry checks the original upload and change; it never uploads a new photo.',
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.secondaryBody,
+              color: BuyerUiTokens.muted,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(6)),
+          Row(
+            children: [
+              Expanded(
+                child: BuyerPrimaryButton(
+                  key: const Key('buyerAvatarRetry'),
+                  label: 'Retry change',
+                  onPressed: onRetry,
+                  compact: true,
+                ),
+              ),
+              SizedBox(width: metrics.spacing(6)),
+              Expanded(
+                child: TextButton(
+                  key: const Key('buyerAvatarDiscard'),
+                  onPressed: onDiscard,
+                  child: const Text('Discard change'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -10241,8 +10661,14 @@ Future<void> _showBuyerProfilePhotoOptions(
   ValueChanged<BuyerProfilePhotoAction>? onSelected,
 }) async {
   final metrics = ApprovedReplicaScope.of(context);
-  final selected = await showModalBottomSheet<BuyerProfilePhotoAction>(
+  void select(BuildContext sheetContext, BuyerProfilePhotoAction action) {
+    Navigator.of(sheetContext).pop();
+    onSelected?.call(action);
+  }
+
+  await showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: HocalistMotion.sheetStyle(context),
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (sheetContext) => BuyerModalSheet(
@@ -10260,8 +10686,7 @@ Future<void> _showBuyerProfilePhotoOptions(
             icon: Icons.photo_camera_outlined,
             title: 'Take a photo',
             subtitle: 'Use your device camera',
-            onTap: () =>
-                Navigator.of(sheetContext).pop(BuyerProfilePhotoAction.camera),
+            onTap: () => select(sheetContext, BuyerProfilePhotoAction.camera),
           ),
           _BuyerPhotoOption(
             metrics: metrics,
@@ -10269,8 +10694,7 @@ Future<void> _showBuyerProfilePhotoOptions(
             icon: Icons.photo_library_outlined,
             title: 'Choose from photo library',
             subtitle: 'Select a photo already on your device',
-            onTap: () =>
-                Navigator.of(sheetContext).pop(BuyerProfilePhotoAction.gallery),
+            onTap: () => select(sheetContext, BuyerProfilePhotoAction.gallery),
           ),
           _BuyerPhotoOption(
             metrics: metrics,
@@ -10279,17 +10703,12 @@ Future<void> _showBuyerProfilePhotoOptions(
             title: 'Remove current photo',
             subtitle: 'Show the default Buyer avatar instead',
             isDestructive: true,
-            onTap: () =>
-                Navigator.of(sheetContext).pop(BuyerProfilePhotoAction.remove),
+            onTap: () => select(sheetContext, BuyerProfilePhotoAction.remove),
           ),
         ],
       ),
     ),
   );
-
-  if (selected != null) {
-    onSelected?.call(selected);
-  }
 }
 
 class _BuyerPhotoOption extends StatelessWidget {
@@ -10404,24 +10823,26 @@ class _BuyerMoreMenuGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        border: Border.all(color: BuyerUiTokens.border),
-      ),
-      child: Column(
-        children: [
-          for (var index = 0; index < items.length; index++) ...[
-            _BuyerMoreMenuTile(item: items[index]),
-            if (index != items.length - 1)
-              Divider(
-                height: 1,
-                indent: metrics.spacing(52),
-                color: BuyerUiTokens.border,
-              ),
+    return HocalistEntrance(
+      child: Container(
+        decoration: BoxDecoration(
+          color: BuyerUiTokens.surface,
+          borderRadius: BorderRadius.circular(metrics.geometry(10)),
+          border: Border.all(color: BuyerUiTokens.border),
+        ),
+        child: Column(
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              _BuyerMoreMenuTile(item: items[index]),
+              if (index != items.length - 1)
+                Divider(
+                  height: 1,
+                  indent: metrics.spacing(52),
+                  color: BuyerUiTokens.border,
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -10435,48 +10856,50 @@ class _BuyerMoreMenuTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return InkWell(
-      onTap: item.onTap,
-      borderRadius: BorderRadius.circular(metrics.geometry(10)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: metrics.spacing(12),
-          vertical: metrics.spacing(10),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: metrics.artSize(34),
-              height: metrics.artSize(34),
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: BuyerUiTokens.softSurface,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                item.icon,
-                size: metrics.artSize(19),
-                color: BuyerUiTokens.action,
-              ),
-            ),
-            SizedBox(width: metrics.spacing(10)),
-            Expanded(
-              child: Text(
-                item.title,
-                style: BuyerTypography.style(
-                  context,
-                  metrics,
-                  BuyerTextRole.primaryBody,
-                  weight: FontWeight.w700,
+    return HocalistPressFeedback(
+      child: InkWell(
+        onTap: item.onTap,
+        borderRadius: BorderRadius.circular(metrics.geometry(10)),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: metrics.spacing(12),
+            vertical: metrics.spacing(10),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: metrics.artSize(34),
+                height: metrics.artSize(34),
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: BuyerUiTokens.softSurface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  item.icon,
+                  size: metrics.artSize(19),
+                  color: BuyerUiTokens.action,
                 ),
               ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              size: metrics.artSize(20),
-              color: BuyerUiTokens.muted,
-            ),
-          ],
+              SizedBox(width: metrics.spacing(10)),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: BuyerTypography.style(
+                    context,
+                    metrics,
+                    BuyerTextRole.primaryBody,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: metrics.artSize(20),
+                color: BuyerUiTokens.muted,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -10560,11 +10983,13 @@ class _BuyerSubpageBlock extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.children,
+    this.tabbed = false,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
+  final bool tabbed;
 
   @override
   Widget build(BuildContext context) {
@@ -10590,7 +11015,9 @@ class _BuyerSubpageBlock extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   icon: Icon(
                     Icons.arrow_back,
-                    color: BuyerUiTokens.text,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).colorScheme.onSurface
+                        : BuyerUiTokens.text,
                     size: metrics.artSize(23),
                   ),
                 ),
@@ -10609,6 +11036,9 @@ class _BuyerSubpageBlock extends StatelessWidget {
                           metrics,
                           BuyerTextRole.pageTitle,
                           weight: FontWeight.w800,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Theme.of(context).colorScheme.onSurface
+                              : BuyerUiTokens.text,
                         ),
                       ),
                       SizedBox(height: metrics.spacing(3)),
@@ -10619,6 +11049,9 @@ class _BuyerSubpageBlock extends StatelessWidget {
                           context,
                           metrics,
                           BuyerTextRole.secondaryBody,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : BuyerUiTokens.muted,
                         ),
                       ),
                     ],
@@ -10630,9 +11063,41 @@ class _BuyerSubpageBlock extends StatelessWidget {
             ],
           ),
           SizedBox(height: metrics.spacing(18)),
-          ...children.expand(
-            (child) => <Widget>[child, SizedBox(height: metrics.spacing(16))],
-          ),
+          if (tabbed)
+            HocalistSectionTabs(
+              persistenceId: title == 'Account Settings'
+                  ? 'account-settings'
+                  : null,
+              accent: BuyerUiTokens.action,
+              sections: {
+                'Security': children
+                    .where(
+                      (child) =>
+                          child is _BuyerSubpageSection &&
+                          child.title == 'Account',
+                    )
+                    .toList(),
+                'Preferences': children
+                    .where(
+                      (child) =>
+                          child is _BuyerSubpageSection &&
+                          child.title == 'Preferences',
+                    )
+                    .toList(),
+                'Privacy': children
+                    .where(
+                      (child) =>
+                          child is _BuyerSubpageSection &&
+                          child.title != 'Account' &&
+                          child.title != 'Preferences',
+                    )
+                    .toList(),
+              },
+            )
+          else
+            ...children.expand(
+              (child) => <Widget>[child, SizedBox(height: metrics.spacing(16))],
+            ),
         ],
       ),
     );
@@ -10648,46 +11113,50 @@ class _BuyerSubpageSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: metrics.spacing(2)),
-          child: Text(
-            title.toUpperCase(),
-            style: BuyerTypography.style(
-              context,
-              metrics,
-              BuyerTextRole.metadata,
-              color: BuyerUiTokens.muted,
-              weight: FontWeight.w800,
-              letterSpacing: .8,
+    return HocalistEntrance(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(left: metrics.spacing(2)),
+            child: Text(
+              title.toUpperCase(),
+              style: BuyerTypography.style(
+                context,
+                metrics,
+                BuyerTextRole.metadata,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Theme.of(context).colorScheme.onSurfaceVariant
+                    : BuyerUiTokens.muted,
+                weight: FontWeight.w800,
+                letterSpacing: .8,
+              ),
             ),
           ),
-        ),
-        SizedBox(height: metrics.spacing(7)),
-        Material(
-          color: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            side: const BorderSide(color: BuyerUiTokens.border),
-            borderRadius: BorderRadius.circular(metrics.geometry(11)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (var index = 0; index < children.length; index++) ...[
-                children[index],
-                if (index != children.length - 1)
-                  Divider(
-                    height: 1,
-                    indent: metrics.geometry(52),
-                    color: BuyerUiTokens.border,
-                  ),
+          SizedBox(height: metrics.spacing(7)),
+          Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: BuyerUiTokens.border),
+              borderRadius: BorderRadius.circular(metrics.geometry(11)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (var index = 0; index < children.length; index++) ...[
+                  children[index],
+                  if (index != children.length - 1)
+                    Divider(
+                      height: 1,
+                      indent: metrics.geometry(52),
+                      color: BuyerUiTokens.border,
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -10699,6 +11168,7 @@ class _BuyerSubpageRow extends StatelessWidget {
     required this.body,
     this.status,
     this.onTap,
+    super.key,
   });
 
   final IconData icon;
@@ -10710,84 +11180,88 @@ class _BuyerSubpageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Semantics(
-      button: onTap != null,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: metrics.spacing(12),
-            vertical: metrics.spacing(11),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: metrics.artSize(34),
-                height: metrics.artSize(34),
-                decoration: const BoxDecoration(
-                  color: BuyerUiTokens.softSurface,
-                  shape: BoxShape.circle,
+    return HocalistPressFeedback(
+      enabled: onTap != null,
+      child: Semantics(
+        container: true,
+        button: onTap != null,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(metrics.geometry(10)),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: metrics.spacing(12),
+              vertical: metrics.spacing(11),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: metrics.artSize(34),
+                  height: metrics.artSize(34),
+                  decoration: const BoxDecoration(
+                    color: BuyerUiTokens.softSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: BuyerUiTokens.action,
+                    size: metrics.artSize(18),
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  color: BuyerUiTokens.action,
-                  size: metrics.artSize(18),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(10)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: BuyerTypography.style(
-                        context,
-                        metrics,
-                        BuyerTextRole.cardTitle,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: metrics.spacing(3)),
-                    Text(
-                      body,
-                      style: BuyerTypography.style(
-                        context,
-                        metrics,
-                        BuyerTextRole.secondaryBody,
-                      ),
-                    ),
-                    if (status != null) ...[
-                      SizedBox(height: metrics.spacing(5)),
+                SizedBox(width: metrics.spacing(10)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        status!,
+                        title,
                         style: BuyerTypography.style(
                           context,
                           metrics,
-                          BuyerTextRole.badgeStatus,
-                          color: onTap == null
-                              ? BuyerUiTokens.muted
-                              : BuyerUiTokens.action,
+                          BuyerTextRole.cardTitle,
+                          weight: FontWeight.w700,
                         ),
                       ),
+                      SizedBox(height: metrics.spacing(3)),
+                      Text(
+                        body,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.secondaryBody,
+                        ),
+                      ),
+                      if (status != null) ...[
+                        SizedBox(height: metrics.spacing(5)),
+                        Text(
+                          status!,
+                          style: BuyerTypography.style(
+                            context,
+                            metrics,
+                            BuyerTextRole.badgeStatus,
+                            color: onTap == null
+                                ? BuyerUiTokens.muted
+                                : BuyerUiTokens.action,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              if (onTap != null) ...[
-                SizedBox(width: metrics.spacing(8)),
-                Padding(
-                  padding: EdgeInsets.only(top: metrics.spacing(7)),
-                  child: Icon(
-                    Icons.chevron_right,
-                    color: BuyerUiTokens.muted,
-                    size: metrics.artSize(20),
                   ),
                 ),
+                if (onTap != null) ...[
+                  SizedBox(width: metrics.spacing(8)),
+                  Padding(
+                    padding: EdgeInsets.only(top: metrics.spacing(7)),
+                    child: Icon(
+                      Icons.chevron_right,
+                      color: BuyerUiTokens.muted,
+                      size: metrics.artSize(20),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -10802,6 +11276,7 @@ class _BuyerPreferenceSwitch extends StatelessWidget {
     required this.body,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final IconData icon;
@@ -10809,13 +11284,14 @@ class _BuyerPreferenceSwitch extends StatelessWidget {
   final String body;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     return SwitchListTile.adaptive(
       value: value,
-      onChanged: onChanged,
+      onChanged: enabled ? onChanged : null,
       activeThumbColor: BuyerUiTokens.action,
       contentPadding: EdgeInsets.symmetric(
         horizontal: metrics.spacing(12),
@@ -10865,6 +11341,11 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
     required this.onEditProfile,
     required this.onThemeChanged,
     required this.onAccessibility,
+    this.onSecurity,
+    this.securityContent,
+    this.securityStatus,
+    this.pendingEmailChange,
+    this.onAccountLifecycle,
   });
 
   final bool darkMode;
@@ -10872,29 +11353,35 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
   final VoidCallback onEditProfile;
   final ValueChanged<bool> onThemeChanged;
   final VoidCallback? onAccessibility;
+  final Widget? securityContent;
+  final VoidCallback? onSecurity;
+  final String? securityStatus;
+  final String? pendingEmailChange;
+  final VoidCallback? onAccountLifecycle;
 
   @override
   Widget build(BuildContext context) {
     return _BuyerSubpageBlock(
+      tabbed: true,
       title: 'Account Settings',
       subtitle: 'Manage your Buyer account, preferences, and privacy.',
       children: [
         _BuyerSubpageSection(
           title: 'Account',
           children: [
-            _BuyerSubpageRow(
-              icon: Icons.person_outline,
-              title: 'Personal information',
-              body: 'Review and update your Buyer profile information.',
-              onTap: onEditProfile,
-            ),
-            const _BuyerSubpageRow(
-              icon: Icons.lock_outline,
-              title: 'Password & security',
-              body:
-                  'Password changes require connected account authentication.',
-              status: 'Not currently available',
-            ),
+            if (securityContent != null)
+              securityContent!
+            else
+              _BuyerSubpageRow(
+                key: const ValueKey('buyerSettingsSecurity'),
+                icon: Icons.lock_outline,
+                title: 'Password & security',
+                body: pendingEmailChange == null
+                    ? 'Change your password and manage the account email.'
+                    : 'Email change to $pendingEmailChange is pending confirmation.',
+                status: securityStatus ?? 'Not currently available',
+                onTap: onSecurity,
+              ),
           ],
         ),
         _BuyerSubpageSection(
@@ -10932,26 +11419,48 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
             ),
           ],
         ),
-        const _BuyerSubpageSection(
-          title: 'Account Management',
-          children: [
-            _BuyerSubpageRow(
-              icon: Icons.manage_accounts_outlined,
-              title: 'No account-management actions available',
-              body:
-                  'Delete and export actions are not shown until secure account services support them.',
-            ),
-          ],
-        ),
+        if (onAccountLifecycle != null)
+          _BuyerSubpageSection(
+            title: 'Account Management',
+            children: [
+              _BuyerSubpageRow(
+                key: const ValueKey('buyerSettingsAccountLifecycle'),
+                icon: Icons.manage_accounts_outlined,
+                title: 'Account data & deletion',
+                body:
+                    'Accept consent records, export your Hocalist data, or '
+                    'request account deletion.',
+                status: 'Review options',
+                onTap: onAccountLifecycle,
+              ),
+            ],
+          )
+        else
+          const _BuyerSubpageSection(
+            title: 'Account Management',
+            children: [
+              _BuyerSubpageRow(
+                icon: Icons.manage_accounts_outlined,
+                title: 'No account-management actions available',
+                body:
+                    'Delete and export actions are not shown until secure account services support them.',
+              ),
+            ],
+          ),
       ],
     );
   }
 }
 
 class BuyerNotificationPreferencesPage extends StatefulWidget {
-  const BuyerNotificationPreferencesPage({required this.accent, super.key});
+  const BuyerNotificationPreferencesPage({
+    required this.accent,
+    this.repository,
+    super.key,
+  });
 
   final Color accent;
+  final LocalMarketplaceRepository? repository;
 
   @override
   State<BuyerNotificationPreferencesPage> createState() =>
@@ -10969,11 +11478,26 @@ class _BuyerNotificationPreferencesPageState
   bool messages = true;
   bool deals = true;
   bool safety = true;
+  bool _saving = false;
+  String? _saveError;
+
+  bool get _realMode => widget.repository?.isNotificationsBacked ?? false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    widget.repository?.addListener(_onRepositoryChanged);
+    if (!_realMode) _load();
+  }
+
+  @override
+  void dispose() {
+    widget.repository?.removeListener(_onRepositoryChanged);
+    super.dispose();
+  }
+
+  void _onRepositoryChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -10993,49 +11517,131 @@ class _BuyerNotificationPreferencesPageState
     await preferences.setBool(key, value);
   }
 
+  /// Saves one server-side change at the carried revision. The switches follow
+  /// the authoritative record; a failed write keeps the previous values and
+  /// reports the error.
+  Future<void> _updateRemote(NotificationPreferences next) async {
+    final repository = widget.repository;
+    if (repository == null || _saving) return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    final result = await repository.updateNotificationPreferences(next);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _saveError = result.isSuccess ? null : result.error;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final record = widget.repository?.notificationPreferences;
+    final preferences = record?.preferences ?? NotificationPreferences.defaults;
+    final waiting = _realMode && record == null;
+    final loadError = waiting
+        ? widget.repository!.notificationPreferencesError
+        : null;
     return _BuyerSubpageBlock(
       title: 'Notification Preferences',
-      subtitle:
-          'Choose the Buyer updates you want. These preferences are saved on this device.',
+      subtitle: _realMode
+          ? 'Choose the Buyer updates you want. These preferences are saved to your account.'
+          : 'Choose the Buyer updates you want. These preferences are saved on this device.',
       children: [
         _BuyerSubpageSection(
           title: 'Buyer notifications',
           children: [
-            _BuyerPreferenceSwitch(
-              icon: Icons.local_offer_outlined,
-              title: 'Offers',
-              body: 'New offers, offer changes, and seller-selection updates.',
-              value: offers,
-              onChanged: (value) =>
-                  _update(_offersKey, value, () => offers = value),
-            ),
-            _BuyerPreferenceSwitch(
-              icon: Icons.chat_bubble_outline,
-              title: 'Messages & chats',
-              body: 'Messages from sellers and selected-seller chat updates.',
-              value: messages,
-              onChanged: (value) =>
-                  _update(_messagesKey, value, () => messages = value),
-            ),
-            _BuyerPreferenceSwitch(
-              icon: Icons.event_available_outlined,
-              title: 'Meetings & deal updates',
-              body: 'Meeting reminders, changes, and deal-status updates.',
-              value: deals,
-              onChanged: (value) =>
-                  _update(_dealsKey, value, () => deals = value),
-            ),
-            _BuyerPreferenceSwitch(
-              icon: Icons.health_and_safety_outlined,
-              title: 'Account & safety alerts',
-              body:
-                  'Security, reporting, and important account safety notices.',
-              value: safety,
-              onChanged: (value) =>
-                  _update(_safetyKey, value, () => safety = value),
-            ),
+            if (_realMode) const DevicePushSettings(),
+            if (waiting && loadError == null)
+              const Padding(
+                key: Key('buyerNotificationPreferencesLoading'),
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                ),
+              )
+            else if (waiting && loadError != null)
+              Padding(
+                key: const Key('buyerNotificationPreferencesError'),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  children: [
+                    Text(loadError, textAlign: TextAlign.center),
+                    TextButton(
+                      key: const Key('buyerNotificationPreferencesRetry'),
+                      onPressed: () => unawaited(
+                        widget.repository!.refreshNotificationPreferences(),
+                      ),
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              _BuyerPreferenceSwitch(
+                icon: Icons.local_offer_outlined,
+                title: 'Offers',
+                body:
+                    'New offers, offer changes, and seller-selection updates.',
+                value: _realMode ? preferences.offers : offers,
+                enabled: !_saving,
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(offers: value)),
+                      )
+                    : unawaited(
+                        _update(_offersKey, value, () => offers = value),
+                      ),
+              ),
+              _BuyerPreferenceSwitch(
+                icon: Icons.chat_bubble_outline,
+                title: 'Messages & chats',
+                body: 'Messages from sellers and selected-seller chat updates.',
+                value: _realMode ? preferences.messages : messages,
+                enabled: !_saving,
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(messages: value)),
+                      )
+                    : unawaited(
+                        _update(_messagesKey, value, () => messages = value),
+                      ),
+              ),
+              _BuyerPreferenceSwitch(
+                icon: Icons.event_available_outlined,
+                title: 'Meetings & deal updates',
+                body: 'Meeting reminders, changes, and deal-status updates.',
+                value: _realMode ? preferences.deals : deals,
+                enabled: !_saving,
+                onChanged: (value) => _realMode
+                    ? unawaited(
+                        _updateRemote(preferences.copyWith(deals: value)),
+                      )
+                    : unawaited(_update(_dealsKey, value, () => deals = value)),
+              ),
+              _BuyerPreferenceSwitch(
+                icon: Icons.health_and_safety_outlined,
+                title: 'Account & safety alerts',
+                body: _realMode
+                    ? 'Security, reporting, and important account safety notices. Always on.'
+                    : 'Security, reporting, and important account safety notices.',
+                value: _realMode ? true : safety,
+                enabled: !_saving && !_realMode,
+                onChanged: (value) =>
+                    unawaited(_update(_safetyKey, value, () => safety = value)),
+              ),
+              if (_saveError != null)
+                Padding(
+                  key: const Key('buyerNotificationPreferencesSaveError'),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(_saveError!, textAlign: TextAlign.center),
+                ),
+            ],
           ],
         ),
         const _BuyerSubpageSection(
@@ -11062,6 +11668,11 @@ class BuyerSettingsPage extends StatelessWidget {
     required this.onEditProfile,
     required this.onThemeChanged,
     this.onAccessibility,
+    this.onSecurity,
+    this.securityContent,
+    this.securityStatus,
+    this.pendingEmailChange,
+    this.onAccountLifecycle,
     super.key,
   });
 
@@ -11071,6 +11682,17 @@ class BuyerSettingsPage extends StatelessWidget {
   final ValueChanged<bool> onThemeChanged;
   final VoidCallback? onAccessibility;
 
+  /// Password/email-change entry when the real account provider is wired.
+  final Widget? securityContent;
+  final VoidCallback? onSecurity;
+  final String? securityStatus;
+
+  /// Provider-reported email change awaiting confirmation.
+  final String? pendingEmailChange;
+
+  /// Consent, export and deletion-request entry.
+  final VoidCallback? onAccountLifecycle;
+
   @override
   Widget build(BuildContext context) {
     return _BuyerAccountSettingsPage(
@@ -11079,6 +11701,11 @@ class BuyerSettingsPage extends StatelessWidget {
       onEditProfile: onEditProfile,
       onThemeChanged: onThemeChanged,
       onAccessibility: onAccessibility,
+      onSecurity: onSecurity,
+      securityContent: securityContent,
+      securityStatus: securityStatus,
+      pendingEmailChange: pendingEmailChange,
+      onAccountLifecycle: onAccountLifecycle,
     );
   }
 }
@@ -11089,6 +11716,14 @@ class BuyerProfileEditPage extends StatelessWidget {
     required this.onNameChanged,
     required this.onDone,
     this.onProfilePhotoAction,
+    this.avatarMediaId,
+    this.avatarPending = false,
+    this.onRetryAvatar,
+    this.onDiscardAvatar,
+    this.realEmail,
+    this.contactEditor,
+    this.profileDetailsEditor,
+    this.visibilityEditor,
     super.key,
   });
 
@@ -11096,6 +11731,16 @@ class BuyerProfileEditPage extends StatelessWidget {
   final ValueChanged<String> onNameChanged;
   final VoidCallback onDone;
   final ValueChanged<BuyerProfilePhotoAction>? onProfilePhotoAction;
+
+  /// Real avatar reference for the selected membership, when loaded.
+  final String? avatarMediaId;
+  final bool avatarPending;
+  final VoidCallback? onRetryAvatar;
+  final VoidCallback? onDiscardAvatar;
+  final String? realEmail;
+  final Widget? contactEditor;
+  final Widget? profileDetailsEditor;
+  final Widget? visibilityEditor;
 
   @override
   Widget build(BuildContext context) {
@@ -11108,6 +11753,10 @@ class BuyerProfileEditPage extends StatelessWidget {
           children: [
             _BuyerProfilePhotoEditor(
               onProfilePhotoAction: onProfilePhotoAction,
+              avatarMediaId: avatarMediaId,
+              avatarPending: avatarPending,
+              onRetryAvatar: onRetryAvatar,
+              onDiscardAvatar: onDiscardAvatar,
             ),
           ],
         ),
@@ -11133,9 +11782,11 @@ class BuyerProfileEditPage extends StatelessWidget {
                           HocalistInputTokens.relatedFieldSpacing,
                         ),
                       ),
-                      const _BuyerProfileField(
+                      _BuyerProfileField(
                         label: 'Email',
-                        initialValue: 'maya.chen@example.com',
+                        initialValue: contactEditor == null
+                            ? 'maya.chen@example.com'
+                            : realEmail ?? 'No email linked',
                         readOnly: true,
                         helperText:
                             'Email changes require account verification.',
@@ -11145,23 +11796,25 @@ class BuyerProfileEditPage extends StatelessWidget {
                           HocalistInputTokens.relatedFieldSpacing,
                         ),
                       ),
-                      const _BuyerProfileField(
-                        label: 'Phone number',
-                        initialValue: '(914) 555-0182',
-                        helperText:
-                            'Used for important account and meetup alerts.',
-                      ),
+                      if (contactEditor == null)
+                        const _BuyerProfileField(
+                          label: 'Phone number',
+                          initialValue: '(914) 555-0182',
+                          helperText:
+                              'Used for important account and meetup alerts.',
+                        ),
                       SizedBox(
                         height: metrics.spacing(
                           HocalistInputTokens.relatedFieldSpacing,
                         ),
                       ),
-                      const _BuyerProfileField(
-                        label: 'Home area',
-                        initialValue: 'Yonkers, NY',
-                        helperText:
-                            'Your exact address stays private until you choose to share it.',
-                      ),
+                      if (contactEditor == null)
+                        const _BuyerProfileField(
+                          label: 'Home area',
+                          initialValue: 'Yonkers, NY',
+                          helperText:
+                              'Your exact address stays private until you choose to share it.',
+                        ),
                     ],
                   ),
                 );
@@ -11169,47 +11822,52 @@ class BuyerProfileEditPage extends StatelessWidget {
             ),
           ],
         ),
-        _BuyerSubpageSection(
-          title: 'Buying preferences',
-          children: [
-            Builder(
-              builder: (context) {
-                final metrics = ApprovedReplicaScope.of(context);
-                return Padding(
-                  padding: EdgeInsets.all(metrics.spacing(14)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _BuyerProfileField(
-                        label: 'Preferred meetup type',
-                        initialValue: 'Public safe-meet location',
-                      ),
-                      SizedBox(
-                        height: metrics.spacing(
-                          HocalistInputTokens.relatedFieldSpacing,
+        ?profileDetailsEditor,
+        ?contactEditor,
+        ?visibilityEditor,
+        if (contactEditor == null)
+          _BuyerSubpageSection(
+            title: 'Buying preferences',
+            children: [
+              Builder(
+                builder: (context) {
+                  final metrics = ApprovedReplicaScope.of(context);
+                  return Padding(
+                    padding: EdgeInsets.all(metrics.spacing(14)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _BuyerProfileField(
+                          label: 'Preferred meetup type',
+                          initialValue: 'Public safe-meet location',
                         ),
-                      ),
-                      const _BuyerProfileField(
-                        label: 'Profile note',
-                        initialValue:
-                            'Usually available on weekday evenings and Saturday afternoons.',
-                        maxLines: 2,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-        BuyerPrimaryButton(
-          label: 'Save profile',
-          onPressed: onDone,
-          leading: const BuyerGlyphIcon(
-            icon: Icons.check_circle_outline,
-            slotSize: BuyerIconTokens.inline,
+                        SizedBox(
+                          height: metrics.spacing(
+                            HocalistInputTokens.relatedFieldSpacing,
+                          ),
+                        ),
+                        const _BuyerProfileField(
+                          label: 'Profile note',
+                          initialValue:
+                              'Usually available on weekday evenings and Saturday afternoons.',
+                          maxLines: 2,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ),
+        if (profileDetailsEditor == null)
+          BuyerPrimaryButton(
+            label: 'Save profile',
+            onPressed: onDone,
+            leading: const BuyerGlyphIcon(
+              icon: Icons.check_circle_outline,
+              slotSize: BuyerIconTokens.inline,
+            ),
+          ),
       ],
     );
   }
@@ -11306,6 +11964,7 @@ class BuyerNotificationsPage extends StatelessWidget {
   void _showNotificationDetail(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -11457,13 +12116,176 @@ class BuyerNotificationsPage extends StatelessWidget {
   }
 }
 
-class SavedItemsPage extends StatelessWidget {
-  const SavedItemsPage({required this.accent, super.key});
+class SavedItemsPage extends StatefulWidget {
+  const SavedItemsPage({
+    required this.accent,
+    this.realMode = false,
+    this.load,
+    this.remove,
+    super.key,
+  });
 
   final Color accent;
+  final bool realMode;
+  final Future<List<SavedContent>> Function()? load;
+  final Future<void> Function(SavedItemReference, String)? remove;
+
+  @override
+  State<SavedItemsPage> createState() => _SavedItemsPageState();
+}
+
+class _SavedItemsPageState extends State<SavedItemsPage> {
+  List<SavedContent> _items = const [];
+  bool _loading = false;
+  String? _error;
+  int _generation = 0;
+  final Map<String, String> _removeKeys = {};
+  String? _removing;
+  String? _removeError;
+
+  Future<void> _remove(SavedItemReference reference) async {
+    if (_removing != null || widget.remove == null) return;
+    final id = '${reference.type}:${reference.id}';
+    final key = _removeKeys.putIfAbsent(
+      id,
+      () => LocalMarketplaceRepository.newStoreOperationKey('saved-remove'),
+    );
+    setState(() {
+      _removing = id;
+      _removeError = null;
+    });
+    try {
+      await widget.remove!(reference, key);
+      if (!mounted) return;
+      _removeKeys.remove(id);
+      await _refresh();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _removeError =
+              'Removal could not be confirmed. Retry Remove to check it safely.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _removing = null);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.realMode) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final generation = ++_generation;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final load = widget.load;
+      if (load == null) throw StateError('not_configured');
+      final items = await load();
+      if (mounted && generation == _generation) {
+        setState(() => _items = items);
+      }
+    } catch (_) {
+      if (mounted && generation == _generation) {
+        setState(() => _error = 'Could not load saved items. Try again.');
+      }
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() => _loading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.realMode) {
+      return _BuyerSubpageBlock(
+        title: 'Saved',
+        subtitle: 'Your saved requests and Store listings.',
+        children: [
+          if (_removeError != null)
+            BuyerStateNotice(
+              icon: Icons.bookmark_remove_outlined,
+              title: 'Removal not confirmed',
+              body: _removeError,
+              tone: BuyerNoticeTone.error,
+            ),
+          if (_loading)
+            BuyerProgressStrip(
+              label: _items.isEmpty
+                  ? 'Loading your saved content…'
+                  : 'Updating your saved content…',
+            ),
+          if (_error != null)
+            BuyerStateNotice(
+              icon: Icons.cloud_off_outlined,
+              title: 'Saved content could not be updated',
+              body: _error,
+              tone: BuyerNoticeTone.error,
+            ),
+          HocalistReloadLink(
+            description: _loading
+                ? 'Checking saved content…'
+                : _error == null
+                ? 'Reload'
+                : 'Retry',
+            onPressed: _loading ? null : _refresh,
+            loading: _loading,
+          ),
+          _BuyerSubpageSection(
+            title: 'Saved content',
+            children: [
+              if (_items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: BuyerStateNotice(
+                    icon: Icons.bookmarks_outlined,
+                    title: _loading
+                        ? 'Finding your saved content'
+                        : _error != null
+                        ? 'Your saved content is not available'
+                        : 'Nothing saved yet',
+                    body: _loading
+                        ? 'Your requests and Store listings will appear here.'
+                        : _error != null
+                        ? 'Retry above to check your saved requests and Store listings.'
+                        : 'Save a request or Store listing to keep it close. Your saved content will appear here.',
+                    tone: BuyerNoticeTone.brand,
+                  ),
+                ),
+              for (final item in _items) ...[
+                _BuyerSubpageRow(
+                  icon: item.unavailable
+                      ? Icons.lock_outline
+                      : Icons.bookmark_outline,
+                  title: item.title,
+                  body: '${item.kind}\n${item.description}',
+                ),
+                if (item.reference != null && widget.remove != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: BuyerSecondaryButton(
+                      label:
+                          _removing ==
+                              '${item.reference!.type}:${item.reference!.id}'
+                          ? 'Removing…'
+                          : 'Remove',
+                      onPressed: _removing == null && !_loading
+                          ? () => _remove(item.reference!)
+                          : null,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ],
+      );
+    }
     return const _BuyerSubpageBlock(
       title: 'Saved',
       subtitle: 'Buyer items, requests, and sellers you save will appear here.',
@@ -11640,12 +12462,17 @@ class HelpSupportPage extends StatelessWidget {
     required this.accent,
     required this.onReport,
     required this.onContactSupport,
+    this.connected = false,
     super.key,
   });
 
   final Color accent;
   final VoidCallback onReport;
   final VoidCallback onContactSupport;
+
+  /// Configured accounts use the real support-case route, so the legacy
+  /// on-device delivery notice must not be shown to them.
+  final bool connected;
 
   @override
   Widget build(BuildContext context) {
@@ -11687,17 +12514,29 @@ class HelpSupportPage extends StatelessWidget {
             ),
           ],
         ),
-        const _BuyerSubpageSection(
-          title: 'Availability',
-          children: [
-            _BuyerSubpageRow(
-              icon: Icons.cloud_off_outlined,
-              title: 'Support delivery status',
-              body:
-                  'On-device request status is available. Online ticket delivery is not connected yet.',
-            ),
-          ],
-        ),
+        connected
+            ? const _BuyerSubpageSection(
+                title: 'Availability',
+                children: [
+                  _BuyerSubpageRow(
+                    icon: Icons.cloud_done_outlined,
+                    title: 'Support delivery status',
+                    body:
+                        'Support requests are delivered to Hocalist support. Open your cases to view status and replies.',
+                  ),
+                ],
+              )
+            : const _BuyerSubpageSection(
+                title: 'Availability',
+                children: [
+                  _BuyerSubpageRow(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'Support delivery status',
+                    body:
+                        'On-device request status is available. Online ticket delivery is not connected yet.',
+                  ),
+                ],
+              ),
       ],
     );
   }

@@ -1,5 +1,8 @@
+import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../data/phase2/meetings/meeting_codecs.dart';
+import '../../data/phase2/maps/meeting_directions.dart';
 
 import '../../theme/control_foundation.dart';
 import '../../theme/seller_ui_foundation.dart';
@@ -10,12 +13,35 @@ class ApprovedSellerMeetsPage extends StatefulWidget {
     required this.onOpenChat,
     this.dealCompleted = false,
     this.onPinVerified,
+    this.meetings,
+    this.loading = false,
+    this.error,
+    this.onRefresh,
+    this.onOpenMeeting,
+    this.onMessageMeeting,
+    this.onDirectionsMeeting,
+    this.hasMore = false,
+    this.onLoadMore,
+    this.completedMeetingIds,
     super.key,
   });
 
   final VoidCallback onOpenChat;
   final bool dealCompleted;
   final VoidCallback? onPinVerified;
+  final List<MeetingView>? meetings;
+  final bool loading;
+  final String? error;
+  final Future<void> Function()? onRefresh;
+  final ValueChanged<MeetingView>? onOpenMeeting;
+  final ValueChanged<MeetingView>? onMessageMeeting;
+  final ValueChanged<MeetingView>? onDirectionsMeeting;
+  final bool hasMore;
+  final VoidCallback? onLoadMore;
+
+  /// Meeting ids with a confirmed purchase outcome. Null means the outcome
+  /// projection is not connected, so the completed tab stays honestly empty.
+  final Set<String>? completedMeetingIds;
 
   @override
   State<ApprovedSellerMeetsPage> createState() =>
@@ -63,6 +89,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
     var draft = _selectedFilter;
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -125,6 +152,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
   Future<void> _openReschedule(_Appointment appointment) async {
     final submitted = await showDialog<bool>(
       context: context,
+      animationStyle: HocalistMotion.dialogStyle(context),
       barrierColor: const Color(0xB30B1231),
       builder: (context) => ApprovedSellerRescheduleDialog(
         customerName: appointment.name,
@@ -146,6 +174,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
   Future<void> _openPinEntry(_Appointment appointment) async {
     final verified = await showModalBottomSheet<bool>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -177,6 +206,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
   }) async {
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -231,6 +261,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.meetings != null) return _buildRealMeetings(context);
     final visibleAppointments = _appointments.where(_matchesFilter).toList();
     final upcomingCount = _appointments
         .where(
@@ -294,6 +325,166 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildRealMeetings(BuildContext context) {
+    final rows = widget.meetings!;
+    final now = DateTime.now();
+    final completedIds = widget.completedMeetingIds ?? const <String>{};
+    bool active(MeetingView meeting) =>
+        meeting.status == 'proposed' ||
+        meeting.status == 'accepted' ||
+        meeting.status == 'reschedule_proposed';
+    bool canceled(MeetingView meeting) =>
+        meeting.status == 'cancelled' || meeting.status == 'rejected';
+    DateTime? start(MeetingView meeting) =>
+        (meeting.acceptedSchedule ?? meeting.pendingSchedule)?.instant;
+    bool upcoming(MeetingView meeting) =>
+        active(meeting) &&
+        !completedIds.contains(meeting.meetingId) &&
+        (meeting.meetingExpiresAt == null ||
+            meeting.meetingExpiresAt!.isAfter(now));
+    bool today(MeetingView meeting) {
+      if (!active(meeting) || completedIds.contains(meeting.meetingId)) {
+        return false;
+      }
+      final instant = start(meeting);
+      if (instant == null) return false;
+      final local = instant.toLocal();
+      return local.year == now.year &&
+          local.month == now.month &&
+          local.day == now.day;
+    }
+
+    final upcomingCount = rows.where(upcoming).length;
+    final todayCount = rows.where(today).length;
+    // Completed comes only from confirmed purchase outcomes; an unconnected
+    // outcome projection keeps the tab honestly at zero.
+    bool completed(MeetingView meeting) =>
+        completedIds.contains(meeting.meetingId);
+    final pastUnresolved = rows
+        .where(
+          (meeting) =>
+              active(meeting) && !completed(meeting) && !upcoming(meeting),
+        )
+        .toList(growable: false);
+    final completedCount = rows.where(completed).length;
+    final canceledCount = rows.where(canceled).length;
+    final visible = rows
+        .where(
+          (meeting) => switch (_selectedFilter) {
+            _MeetFilter.upcoming => upcoming(meeting),
+            _MeetFilter.today => today(meeting),
+            _MeetFilter.completed => completed(meeting),
+            _MeetFilter.canceled => canceled(meeting),
+          },
+        )
+        .toList(growable: false);
+
+    return SellerResponsivePage(
+      builder: (context, metrics) => RefreshIndicator(
+        onRefresh: widget.onRefresh ?? () async {},
+        child: ListView(
+          key: const Key('sellerRealMeets'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(metrics.pageHorizontalPadding(14)),
+          children: [
+            _MeetsHeader(onFilter: _openMeetFilters),
+            SizedBox(height: metrics.spacing(12)),
+            _MeetStatusTabs(
+              selected: _selectedFilter,
+              upcomingCount: upcomingCount,
+              todayCount: todayCount,
+              completedCount: completedCount,
+              canceledCount: canceledCount,
+              onSelected: _selectFilter,
+            ),
+            SizedBox(height: metrics.spacing(14)),
+            if (widget.loading && rows.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: LinearProgressIndicator(
+                  key: Key('sellerMeetingsLoading'),
+                ),
+              ),
+            if (widget.error != null) ...[
+              Container(
+                key: const Key('sellerMeetingsError'),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: SellerUiColors.lavender,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.error!, style: sellerText(metrics, 12)),
+                    TextButton(
+                      onPressed: widget.onRefresh,
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: metrics.spacing(10)),
+            ],
+            if (!widget.loading && widget.error == null && visible.isEmpty)
+              _EmptyAppointments(filter: _selectedFilter, realMode: true)
+            else
+              for (final meeting in visible) ...[
+                _RealMeetingCard(
+                  meeting: meeting,
+                  completed: completed(meeting),
+                  onOpen: widget.onOpenMeeting == null
+                      ? null
+                      : () => widget.onOpenMeeting!(meeting),
+                  onMessage: widget.onMessageMeeting == null
+                      ? null
+                      : () => widget.onMessageMeeting!(meeting),
+                  onDirections: widget.onDirectionsMeeting == null
+                      ? null
+                      : () => widget.onDirectionsMeeting!(meeting),
+                ),
+                SizedBox(height: metrics.spacing(12)),
+              ],
+            if (_selectedFilter == _MeetFilter.upcoming &&
+                pastUnresolved.isNotEmpty) ...[
+              const SellerSectionHeading(
+                title: 'Past meetings · needs attention',
+              ),
+              const SellerStateNotice(
+                icon: Icons.event_busy_outlined,
+                title: 'These meetings are still unresolved',
+                body:
+                    'Their meeting day has ended. Open the details or message the buyer to agree on the next step. They are not confirmed purchases.',
+              ),
+              SizedBox(height: metrics.spacing(12)),
+              for (final meeting in pastUnresolved) ...[
+                _RealMeetingCard(
+                  meeting: meeting,
+                  completed: false,
+                  onOpen: widget.onOpenMeeting == null
+                      ? null
+                      : () => widget.onOpenMeeting!(meeting),
+                  onMessage: widget.onMessageMeeting == null
+                      ? null
+                      : () => widget.onMessageMeeting!(meeting),
+                  onDirections: widget.onDirectionsMeeting == null
+                      ? null
+                      : () => widget.onDirectionsMeeting!(meeting),
+                ),
+                SizedBox(height: metrics.spacing(12)),
+              ],
+            ],
+            if (widget.hasMore)
+              TextButton(
+                onPressed: widget.loading ? null : widget.onLoadMore,
+                child: const Text('Load more meetings'),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -444,7 +635,8 @@ class _StatusTab extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(metrics.geometry(9)),
-          child: Container(
+          child: AnimatedContainer(
+            duration: HocalistMotion.duration(context, 180),
             constraints: BoxConstraints(
               minHeight: compact ? 44 : metrics.geometry(48),
             ),
@@ -571,9 +763,10 @@ class _StatusCount extends StatelessWidget {
 }
 
 class _EmptyAppointments extends StatelessWidget {
-  const _EmptyAppointments({required this.filter});
+  const _EmptyAppointments({required this.filter, this.realMode = false});
 
   final _MeetFilter filter;
+  final bool realMode;
 
   @override
   Widget build(BuildContext context) {
@@ -585,11 +778,15 @@ class _EmptyAppointments extends StatelessWidget {
       ),
       _MeetFilter.today => (
         'No appointments today',
-        'Your meetings scheduled for today will appear here.',
+        realMode
+            ? 'Meetings scheduled for today on this device will appear here.'
+            : 'Your meetings scheduled for today will appear here.',
       ),
       _MeetFilter.completed => (
         'No completed appointments',
-        'PIN-verified meetings will appear here.',
+        realMode
+            ? 'A meeting is completed after a verified purchase PIN outcome.'
+            : 'PIN-verified meetings will appear here.',
       ),
       _MeetFilter.canceled => (
         'No canceled appointments',
@@ -661,346 +858,638 @@ class _AppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Container(
-      padding: EdgeInsets.all(metrics.spacing(11)),
-      decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
-        borderRadius: BorderRadius.circular(metrics.geometry(12)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D0B1231),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  CircleAvatar(
-                    radius: metrics.artSize(26),
-                    backgroundColor: appointment.avatarColor,
-                    child: Text(
-                      appointment.initials,
-                      style: sellerText(
-                        metrics,
-                        20,
-                        weight: FontWeight.w800,
-                        color: appointment.initialColor,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: -1,
-                    bottom: 0,
-                    child: Container(
-                      width: metrics.geometry(11),
-                      height: metrics.geometry(11),
-                      decoration: BoxDecoration(
-                        color: SellerUiColors.green,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(width: metrics.spacing(9)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      appointment.name,
-                      style: sellerText(metrics, 18, weight: FontWeight.w800),
-                    ),
-                    Text(
-                      'Buyer appointment',
-                      style: sellerText(
-                        metrics,
-                        12,
-                        weight: FontWeight.w700,
-                        color: SellerUiColors.body,
-                      ),
-                    ),
-                    Text(
-                      '${appointment.city}  •  ${appointment.distance}',
-                      style: sellerText(
-                        metrics,
-                        11,
-                        color: SellerUiColors.body,
-                      ),
-                    ),
-                  ],
+    return HocalistExpand(
+      child: HocalistEntrance(
+        child: HocalistPressFeedback(
+          child: Container(
+            padding: EdgeInsets.all(metrics.spacing(11)),
+            decoration: BoxDecoration(
+              color: SellerUiColors.white,
+              border: Border.all(color: SellerUiColors.line),
+              borderRadius: BorderRadius.circular(metrics.geometry(12)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D0B1231),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: metrics.geometry(7),
-                      vertical: metrics.geometry(5),
-                    ),
-                    decoration: BoxDecoration(
-                      color: SellerUiColors.greenSurface,
-                      borderRadius: BorderRadius.circular(metrics.geometry(7)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        if (completed) ...[
-                          Icon(
-                            Icons.check_circle_outline,
-                            size: metrics.artSize(13),
-                            color: SellerUiColors.green,
+                        CircleAvatar(
+                          radius: metrics.artSize(26),
+                          backgroundColor: appointment.avatarColor,
+                          child: Text(
+                            appointment.initials,
+                            style: sellerText(
+                              metrics,
+                              20,
+                              weight: FontWeight.w800,
+                              color: appointment.initialColor,
+                            ),
                           ),
-                          SizedBox(width: metrics.geometry(3)),
-                        ],
-                        Text(
-                          completed ? 'Completed' : appointment.date,
-                          style: sellerText(
-                            metrics,
-                            10,
-                            weight: FontWeight.w800,
-                            color: SellerUiColors.green,
+                        ),
+                        Positioned(
+                          right: -1,
+                          bottom: 0,
+                          child: Container(
+                            width: metrics.geometry(11),
+                            height: metrics.geometry(11),
+                            decoration: BoxDecoration(
+                              color: SellerUiColors.green,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  SizedBox(height: metrics.geometry(3)),
-                  Text(
-                    completed ? 'PIN verified' : appointment.time,
-                    style: sellerText(
-                      metrics,
-                      11,
-                      weight: FontWeight.w800,
-                      color: completed
-                          ? SellerUiColors.green
-                          : SellerUiColors.primaryBright,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const Divider(height: 24, color: SellerUiColors.line),
-          Semantics(
-            container: true,
-            button: true,
-            onTap: onToggle,
-            label: expanded
-                ? 'Hide deal and meeting details for ${appointment.name}'
-                : 'View deal and meeting details for ${appointment.name}',
-            excludeSemantics: true,
-            child: InkWell(
-              key: Key('sellerMeetProduct${appointment.initials}'),
-              onTap: onToggle,
-              excludeFromSemantics: true,
-              borderRadius: BorderRadius.circular(metrics.geometry(8)),
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: metrics.geometry(5)),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: metrics.artSize(18),
-                      color: SellerUiColors.primaryBright,
-                    ),
-                    SizedBox(width: metrics.geometry(7)),
+                    SizedBox(width: metrics.spacing(9)),
                     Expanded(
-                      child: Text(
-                        expanded
-                            ? 'Hide deal & meeting details'
-                            : 'View deal & meeting details',
-                        style: sellerText(
-                          metrics,
-                          12,
-                          weight: FontWeight.w800,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            appointment.name,
+                            style: sellerText(
+                              metrics,
+                              18,
+                              weight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            'Buyer appointment',
+                            style: sellerText(
+                              metrics,
+                              12,
+                              weight: FontWeight.w700,
+                              color: SellerUiColors.body,
+                            ),
+                          ),
+                          Text(
+                            '${appointment.city}  •  ${appointment.distance}',
+                            style: sellerText(
+                              metrics,
+                              11,
+                              color: SellerUiColors.body,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: metrics.geometry(7),
+                            vertical: metrics.geometry(5),
+                          ),
+                          decoration: BoxDecoration(
+                            color: SellerUiColors.greenSurface,
+                            borderRadius: BorderRadius.circular(
+                              metrics.geometry(7),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (completed) ...[
+                                Icon(
+                                  Icons.check_circle_outline,
+                                  size: metrics.artSize(13),
+                                  color: SellerUiColors.green,
+                                ),
+                                SizedBox(width: metrics.geometry(3)),
+                              ],
+                              Text(
+                                completed ? 'Completed' : appointment.date,
+                                style: sellerText(
+                                  metrics,
+                                  10,
+                                  weight: FontWeight.w800,
+                                  color: SellerUiColors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: metrics.geometry(3)),
+                        Text(
+                          completed ? 'PIN verified' : appointment.time,
+                          style: sellerText(
+                            metrics,
+                            11,
+                            weight: FontWeight.w800,
+                            color: completed
+                                ? SellerUiColors.green
+                                : SellerUiColors.primaryBright,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(height: 24, color: SellerUiColors.line),
+                Semantics(
+                  container: true,
+                  button: true,
+                  onTap: onToggle,
+                  label: expanded
+                      ? 'Hide deal and meeting details for ${appointment.name}'
+                      : 'View deal and meeting details for ${appointment.name}',
+                  excludeSemantics: true,
+                  child: InkWell(
+                    key: Key('sellerMeetProduct${appointment.initials}'),
+                    onTap: onToggle,
+                    excludeFromSemantics: true,
+                    borderRadius: BorderRadius.circular(metrics.geometry(8)),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: metrics.geometry(5),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: metrics.artSize(18),
+                            color: SellerUiColors.primaryBright,
+                          ),
+                          SizedBox(width: metrics.geometry(7)),
+                          Expanded(
+                            child: Text(
+                              expanded
+                                  ? 'Hide deal & meeting details'
+                                  : 'View deal & meeting details',
+                              style: sellerText(
+                                metrics,
+                                12,
+                                weight: FontWeight.w800,
+                                color: SellerUiColors.primaryBright,
+                              ),
+                            ),
+                          ),
+                          AnimatedRotation(
+                            duration: HocalistMotion.duration(context, 180),
+                            turns: expanded ? 0.5 : 0,
+                            child: Icon(
+                              Icons.keyboard_arrow_down,
+                              size: metrics.artSize(22),
+                              color: SellerUiColors.primaryBright,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (expanded) ...[
+                  const Divider(height: 24, color: SellerUiColors.line),
+                  Row(
+                    children: [
+                      Container(
+                        width: metrics.artSize(52),
+                        height: metrics.artSize(52),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: SellerUiColors.lavender,
+                          borderRadius: BorderRadius.circular(
+                            metrics.geometry(8),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.tablet_mac_outlined,
+                          size: metrics.artSize(28),
                           color: SellerUiColors.primaryBright,
                         ),
                       ),
-                    ),
-                    AnimatedRotation(
-                      duration: const Duration(milliseconds: 180),
-                      turns: expanded ? 0.5 : 0,
-                      child: Icon(
-                        Icons.keyboard_arrow_down,
-                        size: metrics.artSize(22),
+                      SizedBox(width: metrics.spacing(9)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Deal details',
+                              style: sellerText(
+                                metrics,
+                                9,
+                                color: SellerUiColors.body,
+                              ),
+                            ),
+                            Text(
+                              appointment.product,
+                              style: sellerText(
+                                metrics,
+                                14,
+                                weight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              appointment.details,
+                              style: sellerText(
+                                metrics,
+                                10,
+                                color: SellerUiColors.body,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: metrics.geometry(8)),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Agreed Price',
+                            style: sellerText(
+                              metrics,
+                              9,
+                              color: SellerUiColors.body,
+                            ),
+                          ),
+                          Text(
+                            appointment.price,
+                            style: sellerText(
+                              metrics,
+                              17,
+                              weight: FontWeight.w800,
+                              color: SellerUiColors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24, color: SellerUiColors.line),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
                         color: SellerUiColors.primaryBright,
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      SizedBox(width: metrics.geometry(7)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Meeting location',
+                              style: sellerText(
+                                metrics,
+                                9,
+                                color: SellerUiColors.body,
+                              ),
+                            ),
+                            Text(
+                              appointment.location,
+                              style: sellerText(
+                                metrics,
+                                13,
+                                weight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              appointment.city,
+                              style: sellerText(
+                                metrics,
+                                10,
+                                color: SellerUiColors.body,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        key: ValueKey('sellerMeetMap-${appointment.initials}'),
+                        tooltip: 'Open map',
+                        onPressed: onOpenMap,
+                        icon: const Icon(Icons.map_outlined),
+                        color: SellerUiColors.primaryBright,
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: metrics.spacing(8)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MeetAction(
+                          key: ValueKey(
+                            'sellerMeetCall-${appointment.initials}',
+                          ),
+                          icon: completed
+                              ? Icons.check_circle_outline
+                              : Icons.lock_outline,
+                          label: completed ? 'PIN verified' : 'Enter PIN',
+                          color: completed
+                              ? SellerUiColors.green
+                              : SellerUiColors.primaryBright,
+                          onTap: completed ? null : onEnterPin,
+                        ),
+                      ),
+                      SizedBox(width: metrics.geometry(6)),
+                      Expanded(
+                        child: _MeetAction(
+                          icon: Icons.call_outlined,
+                          label: 'Call',
+                          color: SellerUiColors.green,
+                          onTap: onCall,
+                        ),
+                      ),
+                      SizedBox(width: metrics.geometry(6)),
+                      Expanded(
+                        child: _MeetAction(
+                          icon: Icons.chat_bubble_outline,
+                          label: 'Message',
+                          color: SellerUiColors.primaryBright,
+                          onTap: onMessage,
+                        ),
+                      ),
+                      SizedBox(width: metrics.geometry(6)),
+                      Expanded(
+                        child: _MeetAction(
+                          icon: Icons.history,
+                          label: 'Reschedule',
+                          color: SellerUiColors.amber,
+                          onTap: onReschedule,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
-          if (expanded) ...[
-            const Divider(height: 24, color: SellerUiColors.line),
-            Row(
+        ),
+      ),
+    );
+  }
+}
+
+/// Real meeting card that keeps the approved appointment-card geometry while
+/// showing only server-provided title, price, status, schedule and place.
+class _RealMeetingCard extends StatelessWidget {
+  const _RealMeetingCard({
+    required this.meeting,
+    required this.onOpen,
+    required this.onMessage,
+    this.onDirections,
+    this.completed = false,
+  });
+
+  final MeetingView meeting;
+  final VoidCallback? onOpen;
+  final VoidCallback? onMessage;
+  final VoidCallback? onDirections;
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    final schedule = meeting.acceptedSchedule ?? meeting.pendingSchedule;
+    final statusLabel = completed
+        ? 'PIN verified'
+        : switch (meeting.status) {
+            'accepted' => 'Confirmed',
+            'proposed' => 'Proposed',
+            'reschedule_proposed' => 'Reschedule requested',
+            'cancelled' => 'Cancelled',
+            'rejected' => 'Declined',
+            _ => 'Awaiting update',
+          };
+    final statusColor = completed
+        ? SellerUiColors.green
+        : switch (meeting.status) {
+            'accepted' => SellerUiColors.green,
+            'cancelled' || 'rejected' => SellerUiColors.red,
+            'reschedule_proposed' => SellerUiColors.amber,
+            _ => SellerUiColors.primaryBright,
+          };
+    final title = meeting.offerSummary?.title ?? 'Meeting';
+    final price = meeting.offerSummary?.priceLabel;
+    final place = schedule?.placeLabel ?? schedule?.placeAddress;
+    final accepted = meeting.acceptedSchedule;
+    final directionsAvailable =
+        !completed &&
+        (meeting.status == 'accepted' ||
+            meeting.status == 'reschedule_proposed') &&
+        onDirections != null &&
+        hasConfirmedMeetingDestination(
+          address: accepted?.placeAddress,
+          label: accepted?.placeLabel,
+          placeId: accepted?.placeId,
+        );
+    return HocalistExpand(
+      child: HocalistEntrance(
+        child: HocalistPressFeedback(
+          child: Container(
+            key: ValueKey('sellerRealMeeting-${meeting.meetingId}'),
+            padding: EdgeInsets.all(metrics.spacing(11)),
+            decoration: BoxDecoration(
+              color: SellerUiColors.white,
+              border: Border.all(color: SellerUiColors.line),
+              borderRadius: BorderRadius.circular(metrics.geometry(12)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D0B1231),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: metrics.artSize(52),
-                  height: metrics.artSize(52),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: SellerUiColors.lavender,
-                    borderRadius: BorderRadius.circular(metrics.geometry(8)),
-                  ),
-                  child: Icon(
-                    Icons.tablet_mac_outlined,
-                    size: metrics.artSize(28),
-                    color: SellerUiColors.primaryBright,
-                  ),
-                ),
-                SizedBox(width: metrics.spacing(9)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Deal details',
-                        style: sellerText(
-                          metrics,
-                          9,
-                          color: SellerUiColors.body,
-                        ),
-                      ),
-                      Text(
-                        appointment.product,
-                        style: sellerText(metrics, 14, weight: FontWeight.w800),
-                      ),
-                      Text(
-                        appointment.details,
-                        style: sellerText(
-                          metrics,
-                          10,
-                          color: SellerUiColors.body,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: metrics.geometry(8)),
-                Column(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Agreed Price',
-                      style: sellerText(metrics, 9, color: SellerUiColors.body),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: sellerText(
+                              metrics,
+                              16,
+                              weight: FontWeight.w800,
+                            ),
+                          ),
+                          if (price != null) ...[
+                            SizedBox(height: metrics.geometry(2)),
+                            Text(
+                              price,
+                              style: sellerText(
+                                metrics,
+                                14,
+                                weight: FontWeight.w800,
+                                color: SellerUiColors.green,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    Text(
-                      appointment.price,
-                      style: sellerText(
-                        metrics,
-                        17,
-                        weight: FontWeight.w800,
-                        color: SellerUiColors.green,
+                    SizedBox(width: metrics.geometry(8)),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: metrics.geometry(7),
+                        vertical: metrics.geometry(4),
+                      ),
+                      decoration: BoxDecoration(
+                        color: SellerUiColors.lavender,
+                        borderRadius: BorderRadius.circular(
+                          metrics.geometry(7),
+                        ),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: sellerText(
+                          metrics,
+                          9.5,
+                          weight: FontWeight.w800,
+                          color: statusColor,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            const Divider(height: 24, color: SellerUiColors.line),
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on_outlined,
-                  color: SellerUiColors.primaryBright,
-                ),
-                SizedBox(width: metrics.geometry(7)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Meeting location',
-                        style: sellerText(
-                          metrics,
-                          9,
-                          color: SellerUiColors.body,
+                if (schedule != null) ...[
+                  const Divider(height: 22, color: SellerUiColors.line),
+                  _RealMeetingFact(
+                    icon: Icons.event_outlined,
+                    label: 'Meeting time',
+                    value: '${schedule.date} · ${schedule.startTime}',
+                    detail: schedule.timezoneId,
+                  ),
+                  if (place != null && place.trim().isNotEmpty) ...[
+                    SizedBox(height: metrics.geometry(8)),
+                    _RealMeetingFact(
+                      icon: Icons.location_on_outlined,
+                      label: 'Meeting place',
+                      value: place,
+                    ),
+                  ],
+                ],
+                SizedBox(height: metrics.spacing(8)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MeetAction(
+                        key: ValueKey(
+                          'sellerRealMeetMessage-${meeting.meetingId}',
                         ),
+                        icon: Icons.chat_bubble_outline,
+                        label: 'Message',
+                        color: SellerUiColors.primaryBright,
+                        onTap: onMessage,
                       ),
-                      Text(
-                        appointment.location,
-                        style: sellerText(metrics, 13, weight: FontWeight.w800),
-                      ),
-                      Text(
-                        appointment.city,
-                        style: sellerText(
-                          metrics,
-                          10,
-                          color: SellerUiColors.body,
+                    ),
+                    SizedBox(width: metrics.geometry(6)),
+                    Expanded(
+                      child: _MeetAction(
+                        key: ValueKey(
+                          'sellerRealMeetDirections-${meeting.meetingId}',
                         ),
+                        icon: Icons.map_outlined,
+                        label: 'Directions',
+                        color: directionsAvailable
+                            ? SellerUiColors.primaryBright
+                            : SellerUiColors.muted,
+                        onTap: directionsAvailable ? onDirections : null,
                       ),
-                    ],
+                    ),
+                    SizedBox(width: metrics.geometry(6)),
+                    Expanded(
+                      child: _MeetAction(
+                        key: ValueKey(
+                          'sellerRealMeetCall-${meeting.meetingId}',
+                        ),
+                        icon: Icons.call_outlined,
+                        label: 'Call',
+                        color: SellerUiColors.muted,
+                        onTap: null,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: metrics.geometry(6)),
+                Text(
+                  directionsAvailable
+                      ? 'Video calling is not enabled.'
+                      : 'Directions need a confirmed meeting destination. Video calling is not enabled.',
+                  style: sellerText(
+                    metrics,
+                    9.5,
+                    color: SellerUiColors.muted,
+                    height: 1.3,
                   ),
                 ),
-                IconButton(
-                  key: ValueKey('sellerMeetMap-${appointment.initials}'),
-                  tooltip: 'Open map',
-                  onPressed: onOpenMap,
-                  icon: const Icon(Icons.map_outlined),
-                  color: SellerUiColors.primaryBright,
-                ),
+                SizedBox(height: metrics.spacing(8)),
+                SellerPrimaryButton(label: 'View meeting', onPressed: onOpen),
               ],
             ),
-            SizedBox(height: metrics.spacing(8)),
-            Row(
-              children: [
-                Expanded(
-                  child: _MeetAction(
-                    key: ValueKey('sellerMeetCall-${appointment.initials}'),
-                    icon: completed
-                        ? Icons.check_circle_outline
-                        : Icons.lock_outline,
-                    label: completed ? 'PIN verified' : 'Enter PIN',
-                    color: completed
-                        ? SellerUiColors.green
-                        : SellerUiColors.primaryBright,
-                    onTap: completed ? null : onEnterPin,
-                  ),
-                ),
-                SizedBox(width: metrics.geometry(6)),
-                Expanded(
-                  child: _MeetAction(
-                    icon: Icons.call_outlined,
-                    label: 'Call',
-                    color: SellerUiColors.green,
-                    onTap: onCall,
-                  ),
-                ),
-                SizedBox(width: metrics.geometry(6)),
-                Expanded(
-                  child: _MeetAction(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Message',
-                    color: SellerUiColors.primaryBright,
-                    onTap: onMessage,
-                  ),
-                ),
-                SizedBox(width: metrics.geometry(6)),
-                Expanded(
-                  child: _MeetAction(
-                    icon: Icons.history,
-                    label: 'Reschedule',
-                    color: SellerUiColors.amber,
-                    onTap: onReschedule,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _RealMeetingFact extends StatelessWidget {
+  const _RealMeetingFact({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.detail,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: metrics.artSize(18),
+          color: SellerUiColors.primaryBright,
+        ),
+        SizedBox(width: metrics.geometry(7)),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: sellerText(metrics, 9, color: SellerUiColors.body),
+              ),
+              Text(
+                value,
+                style: sellerText(metrics, 12.5, weight: FontWeight.w700),
+              ),
+              if (detail != null)
+                Text(
+                  detail!,
+                  style: sellerText(metrics, 10, color: SellerUiColors.body),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1098,7 +1587,7 @@ class _SellerPinSheetState extends State<_SellerPinSheet> {
     return ApprovedReplicaScope(
       metrics: metrics,
       child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
+        duration: HocalistMotion.duration(context, 180),
         curve: Curves.easeOut,
         padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
         child: Align(

@@ -1,6 +1,13 @@
+import '../../components/hocalist_motion.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/local_marketplace_repository.dart';
+import '../../data/phase2/chat/chat_safety_coordinator.dart';
+import '../../domain/phase2/common.dart';
+import '../../domain/phase2/conversations.dart';
+import '../../features/approved/offers_chat_pages.dart' show ChatThreadView;
 import '../../theme/seller_ui_foundation.dart';
 
 class ApprovedSellerChatsPage extends StatefulWidget {
@@ -8,12 +15,31 @@ class ApprovedSellerChatsPage extends StatefulWidget {
     required this.onOpenConversation,
     this.latestOffer,
     this.latestMessagePreview,
+    this.realThreads,
+    this.threadsLoading = false,
+    this.threadsError,
+    this.onRefreshThreads,
+    this.onOpenThread,
+    this.onSearchConversations,
     super.key,
   });
 
   final VoidCallback onOpenConversation;
   final LocalOfferRecord? latestOffer;
   final String? latestMessagePreview;
+
+  /// Real participant inbox rows. Null keeps the approved prototype list.
+  final List<ChatThreadView>? realThreads;
+  final bool threadsLoading;
+  final String? threadsError;
+  final VoidCallback? onRefreshThreads;
+  final ValueChanged<ChatThreadView>? onOpenThread;
+
+  /// Server-side paged conversation search. Null keeps the loaded-list filter.
+  final Future<PageSlice<ConversationSummary>> Function(String query)?
+  onSearchConversations;
+
+  bool get usesRealThreads => realThreads != null;
 
   @override
   State<ApprovedSellerChatsPage> createState() =>
@@ -23,8 +49,78 @@ class ApprovedSellerChatsPage extends StatefulWidget {
 class _ApprovedSellerChatsPageState extends State<ApprovedSellerChatsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
+  Timer? _searchDebounce;
+  bool _serverSearching = false;
+  String? _serverError;
+  List<ConversationSummary> _serverResults = const [];
+  String _serverQuery = '';
+
+  bool get _usesServerSearch => widget.onSearchConversations != null;
+
+  void _onQueryChanged(String value) {
+    setState(() => _query = value);
+    final search = widget.onSearchConversations;
+    if (search == null) return;
+    _searchDebounce?.cancel();
+    final query = value.trim();
+    if (query.length < 2) {
+      setState(() {
+        _serverSearching = false;
+        _serverError = null;
+        _serverResults = const [];
+        _serverQuery = '';
+      });
+      return;
+    }
+    setState(() {
+      _serverSearching = true;
+      _serverError = null;
+    });
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_runServerSearch(query));
+    });
+  }
+
+  Future<void> _runServerSearch(String query) async {
+    final search = widget.onSearchConversations;
+    if (search == null || !mounted) return;
+    try {
+      final page = await search(query);
+      if (!mounted || _query.trim() != query) return;
+      setState(() {
+        _serverResults = page.items;
+        _serverQuery = query;
+        _serverSearching = false;
+      });
+    } catch (error) {
+      if (!mounted || _query.trim() != query) return;
+      setState(() {
+        _serverSearching = false;
+        _serverError = error is ChatSafetyException
+            ? error.message
+            : 'Search is unavailable right now. Try again.';
+      });
+    }
+  }
 
   List<_SellerChat> get _allChats {
+    final realThreads = widget.realThreads;
+    if (realThreads != null) {
+      return [
+        for (final thread in realThreads)
+          _SellerChat(
+            name: thread.counterpartName,
+            initials: thread.initials,
+            request: '',
+            preview: thread.preview,
+            time: thread.timeLabel,
+            avatarColor: const Color(0xFFF0EDFF),
+            initialColor: SellerUiColors.primaryBright,
+            unread: thread.unreadCount,
+            online: thread.unreadCount > 0,
+          ),
+      ];
+    }
     final offer = widget.latestOffer;
     final firstName = offer?.buyerName ?? 'Maya R.';
     final initials = firstName
@@ -54,6 +150,26 @@ class _ApprovedSellerChatsPageState extends State<ApprovedSellerChatsPage> {
 
   List<_SellerChat> get _visibleChats {
     final query = _query.trim().toLowerCase();
+    if (_usesServerSearch && query.length >= 2 && _serverQuery == query) {
+      return [
+        for (final summary in _serverResults)
+          _SellerChat(
+            name: summary.counterpartDisplayName,
+            initials: summary.counterpartDisplayName
+                .split(RegExp(r'\s+'))
+                .where((part) => part.isNotEmpty)
+                .take(2)
+                .map((part) => part[0].toUpperCase())
+                .join(),
+            request: '',
+            preview: summary.latestMessage?.text ?? '',
+            time: '',
+            avatarColor: const Color(0xFFF0EDFF),
+            initialColor: SellerUiColors.primaryBright,
+            unread: summary.unreadCount,
+          ),
+      ];
+    }
     if (query.isEmpty) return _allChats;
     return _allChats
         .where(
@@ -66,6 +182,7 @@ class _ApprovedSellerChatsPageState extends State<ApprovedSellerChatsPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -99,7 +216,7 @@ class _ApprovedSellerChatsPageState extends State<ApprovedSellerChatsPage> {
               key: const Key('sellerChatsSearch'),
               controller: _searchController,
               style: sellerInputText(metrics),
-              onChanged: (value) => setState(() => _query = value),
+              onChanged: _onQueryChanged,
               decoration: InputDecoration(
                 hintText: 'Search conversations',
                 hintStyle: sellerInputPlaceholder(metrics),
@@ -113,21 +230,185 @@ class _ApprovedSellerChatsPageState extends State<ApprovedSellerChatsPage> {
               ),
             ),
             SizedBox(height: metrics.spacing(12)),
+            if (widget.usesRealThreads) ...[
+              if (widget.threadsLoading)
+                _SellerChatsNotice(
+                  key: const Key('sellerChatsLoading'),
+                  message: 'Loading conversations…',
+                )
+              else if (widget.threadsError != null)
+                _SellerChatsNotice(
+                  key: const Key('sellerChatsError'),
+                  message: widget.threadsError!,
+                  onRetry: widget.onRefreshThreads,
+                ),
+            ],
+            if (_usesServerSearch && _query.trim().length >= 2) ...[
+              if (_serverSearching)
+                _SellerChatsNotice(
+                  key: const Key('sellerChatsSearchLoading'),
+                  message: 'Searching conversations…',
+                )
+              else if (_serverError != null)
+                _SellerChatsNotice(
+                  key: const Key('sellerChatsSearchError'),
+                  message: _serverError!,
+                  onRetry: () => unawaited(_runServerSearch(_query.trim())),
+                ),
+            ],
             if (_visibleChats.isEmpty)
-              _SellerChatsEmptyState(
-                onClear: () {
-                  _searchController.clear();
-                  setState(() => _query = '');
-                },
-              )
+              widget.usesRealThreads || _usesServerSearch
+                  ? (widget.threadsLoading ||
+                            widget.threadsError != null ||
+                            _serverSearching ||
+                            _serverError != null
+                        ? const SizedBox.shrink()
+                        : _SellerChatsEmptyCard(
+                            key: const Key('sellerChatsEmpty'),
+                            filtered: _query.trim().isNotEmpty,
+                            onClear: _query.trim().isEmpty
+                                ? null
+                                : () {
+                                    _searchController.clear();
+                                    _onQueryChanged('');
+                                  },
+                          ))
+                  : _SellerChatsEmptyState(
+                      onClear: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                    )
             else
-              for (final chat in _visibleChats) ...[
-                _SellerChatCard(chat: chat, onTap: widget.onOpenConversation),
+              for (var index = 0; index < _visibleChats.length; index++) ...[
+                _SellerChatCard(
+                  chat: _visibleChats[index],
+                  onTap: () {
+                    final open = widget.onOpenThread;
+                    final threads = widget.realThreads;
+                    if (open != null && threads != null) {
+                      open(threads[index]);
+                    } else {
+                      widget.onOpenConversation();
+                    }
+                  },
+                ),
                 SizedBox(height: metrics.spacing(9)),
               ],
           ],
         );
       },
+    );
+  }
+}
+
+/// Designed zero-conversation card for the Seller inbox. `filtered` keeps the
+/// no-match state honest inside an existing inbox.
+class _SellerChatsEmptyCard extends StatelessWidget {
+  const _SellerChatsEmptyCard({this.filtered = false, this.onClear, super.key});
+
+  final bool filtered;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Container(
+      padding: EdgeInsets.all(metrics.spacing(16)),
+      decoration: BoxDecoration(
+        color: SellerUiColors.white,
+        border: Border.all(color: SellerUiColors.line),
+        borderRadius: BorderRadius.circular(metrics.geometry(12)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: metrics.artSize(48),
+            height: metrics.artSize(48),
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: SellerUiColors.lavender,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              filtered ? Icons.search_off_rounded : Icons.forum_outlined,
+              size: metrics.artSize(24),
+              color: SellerUiColors.primaryBright,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(10)),
+          Text(
+            filtered ? 'No matching conversations' : 'No conversations yet',
+            textAlign: TextAlign.center,
+            style: sellerText(metrics, 13.5, weight: FontWeight.w800),
+          ),
+          SizedBox(height: metrics.spacing(4)),
+          Text(
+            filtered
+                ? 'Try another name or clear the search. Chats appear after a buyer selects your offer.'
+                : 'Buyer chats appear here after a buyer selects your offer.',
+            textAlign: TextAlign.center,
+            style: sellerText(
+              metrics,
+              11,
+              color: SellerUiColors.body,
+              height: 1.35,
+            ),
+          ),
+          if (onClear != null)
+            TextButton(
+              key: const Key('sellerChatsClearSearch'),
+              onPressed: onClear,
+              child: const Text('Clear search'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SellerChatsNotice extends StatelessWidget {
+  const _SellerChatsNotice({required this.message, this.onRetry, super.key});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    return Container(
+      padding: EdgeInsets.all(metrics.spacing(12)),
+      decoration: BoxDecoration(
+        color: SellerUiColors.lavender,
+        borderRadius: BorderRadius.circular(metrics.geometry(11)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: sellerText(
+              metrics,
+              11.5,
+              weight: FontWeight.w700,
+              color: SellerUiColors.body,
+            ),
+          ),
+          if (onRetry != null) ...[
+            SizedBox(height: metrics.spacing(4)),
+            TextButton(
+              key: const Key('sellerChatsRetry'),
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                minimumSize: Size(0, metrics.geometry(34)),
+                padding: EdgeInsets.zero,
+                foregroundColor: SellerUiColors.primaryBright,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -174,120 +455,124 @@ class _SellerChatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    return Material(
-      color: SellerUiColors.white,
-      shape: RoundedRectangleBorder(
-        side: const BorderSide(color: SellerUiColors.line),
-        borderRadius: BorderRadius.circular(metrics.geometry(11)),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(metrics.geometry(11)),
-        child: Padding(
-          padding: EdgeInsets.all(metrics.spacing(11)),
-          child: Row(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
+    return HocalistEntrance(
+      child: HocalistPressFeedback(
+        child: Material(
+          color: SellerUiColors.white,
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(color: SellerUiColors.line),
+            borderRadius: BorderRadius.circular(metrics.geometry(11)),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(metrics.geometry(11)),
+            child: Padding(
+              padding: EdgeInsets.all(metrics.spacing(11)),
+              child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: metrics.artSize(25),
-                    backgroundColor: chat.avatarColor,
-                    child: Text(
-                      chat.initials,
-                      style: sellerText(
-                        metrics,
-                        18,
-                        weight: FontWeight.w800,
-                        color: chat.initialColor,
-                      ),
-                    ),
-                  ),
-                  if (chat.online)
-                    Positioned(
-                      right: -1,
-                      bottom: 0,
-                      child: Container(
-                        width: metrics.geometry(11),
-                        height: metrics.geometry(11),
-                        decoration: BoxDecoration(
-                          color: SellerUiColors.green,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      CircleAvatar(
+                        radius: metrics.artSize(25),
+                        backgroundColor: chat.avatarColor,
+                        child: Text(
+                          chat.initials,
+                          style: sellerText(
+                            metrics,
+                            18,
+                            weight: FontWeight.w800,
+                            color: chat.initialColor,
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-              SizedBox(width: metrics.spacing(9)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            chat.name,
-                            style: sellerText(
-                              metrics,
-                              15,
-                              weight: FontWeight.w800,
+                      if (chat.online)
+                        Positioned(
+                          right: -1,
+                          bottom: 0,
+                          child: Container(
+                            width: metrics.geometry(11),
+                            height: metrics.geometry(11),
+                            decoration: BoxDecoration(
+                              color: SellerUiColors.green,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
                             ),
                           ),
                         ),
+                    ],
+                  ),
+                  SizedBox(width: metrics.spacing(9)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                chat.name,
+                                style: sellerText(
+                                  metrics,
+                                  15,
+                                  weight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              chat.time,
+                              style: sellerText(
+                                metrics,
+                                9,
+                                color: SellerUiColors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
                         Text(
-                          chat.time,
+                          chat.request,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: sellerText(
                             metrics,
-                            9,
-                            color: SellerUiColors.muted,
+                            10,
+                            weight: FontWeight.w700,
+                            color: SellerUiColors.primaryBright,
+                          ),
+                        ),
+                        SizedBox(height: metrics.geometry(2)),
+                        Text(
+                          chat.preview,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: sellerText(
+                            metrics,
+                            11,
+                            color: SellerUiColors.body,
                           ),
                         ),
                       ],
                     ),
-                    Text(
-                      chat.request,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: sellerText(
-                        metrics,
-                        10,
-                        weight: FontWeight.w700,
-                        color: SellerUiColors.primaryBright,
-                      ),
-                    ),
-                    SizedBox(height: metrics.geometry(2)),
-                    Text(
-                      chat.preview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: sellerText(
-                        metrics,
-                        11,
-                        color: SellerUiColors.body,
+                  ),
+                  if (chat.unread > 0) ...[
+                    SizedBox(width: metrics.geometry(7)),
+                    CircleAvatar(
+                      radius: metrics.geometry(10),
+                      backgroundColor: SellerUiColors.primaryBright,
+                      child: Text(
+                        '${chat.unread}',
+                        style: sellerText(
+                          metrics,
+                          9,
+                          weight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              if (chat.unread > 0) ...[
-                SizedBox(width: metrics.geometry(7)),
-                CircleAvatar(
-                  radius: metrics.geometry(10),
-                  backgroundColor: SellerUiColors.primaryBright,
-                  child: Text(
-                    '${chat.unread}',
-                    style: sellerText(
-                      metrics,
-                      9,
-                      weight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),

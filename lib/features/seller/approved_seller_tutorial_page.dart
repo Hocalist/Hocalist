@@ -1,3 +1,4 @@
+import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
@@ -166,7 +167,7 @@ class _ApprovedSellerTutorialPageState
                   child: AnimatedOpacity(
                     key: const Key('sellerTutorialScrollCueOpacity'),
                     opacity: _showScrollCue ? 1 : 0,
-                    duration: const Duration(milliseconds: 180),
+                    duration: HocalistMotion.duration(context, 180),
                     child: const _SellerTutorialScrollCue(),
                   ),
                 ),
@@ -227,7 +228,7 @@ class _ApprovedSellerTutorialPageState
                         child: AnimatedOpacity(
                           key: const Key('sellerTutorialScrollCueOpacity'),
                           opacity: _showScrollCue ? 1 : 0,
-                          duration: const Duration(milliseconds: 180),
+                          duration: HocalistMotion.duration(context, 180),
                           child: const _SellerTutorialScrollCue(),
                         ),
                       ),

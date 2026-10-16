@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1069941498557",
+    "project_id": "hocalist",
+    "storage_bucket": "hocalist.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1069941498557:android:4e8b948ea8824efcc2cdd4",
+        "android_client_info": {
+          "package_name": "com.hocalist.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1069941498557-ceo7vfsopp8q7cjoc6f459s96qvrb456.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_hNsPf5BLiaEBxZ8Q3IMdR9zPa2OHqIA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1069941498557-ceo7vfsopp8q7cjoc6f459s96qvrb456.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

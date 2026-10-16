@@ -713,7 +713,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('saving an active request warns sellers before updating', (
+  testWidgets('saving an active request explains the updated terms', (
     tester,
   ) async {
     var saved = false;
@@ -739,9 +739,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Your active sellers will be notified'),
+      find.textContaining('Updating changes the terms sellers see'),
       findsOneWidget,
     );
+    expect(find.textContaining('will be notified'), findsNothing);
     final updateLabel = tester.widget<Text>(find.text('Update request'));
     expect(updateLabel.maxLines, 1);
     expect(updateLabel.softWrap, isFalse);

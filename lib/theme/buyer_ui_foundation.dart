@@ -1,4 +1,7 @@
+import '../components/hocalist_reload_link.dart';
 import 'package:flutter/material.dart';
+import '../components/notification_indicator.dart';
+import '../components/hocalist_motion.dart';
 
 import '../features/approved/approved_replica_metrics.dart';
 import 'accessibility_visuals.dart';
@@ -14,6 +17,7 @@ abstract final class BuyerUiTokens {
   static const softSurface = Color(0xfff1f0ff);
   static const activeSurface = Color(0xffeeedff);
   static const success = Color(0xff109b4e);
+  static const successText = Color(0xff087b3b);
   static const rewardGold = Color(0xffffad00);
 
   static const action = Color(0xff1400c8);
@@ -291,12 +295,14 @@ class BuyerTopLevelHeader extends StatelessWidget {
               width: metrics.artSize(44),
               height: metrics.artSize(44),
               child: Center(
-                child: BuyerAssetIcon(
-                  asset: 'assets/approved_onboarding_home/notification.png',
-                  // Keep the 44px touch target, but match the Seller header's
-                  // approved 27px visible bell instead of scaling the raster
-                  // artwork to the whole target.
-                  slotSize: metrics.artSize(32),
+                child: NotificationArtwork(
+                  child: BuyerAssetIcon(
+                    asset: 'assets/approved_onboarding_home/notification.png',
+                    // Keep the 44px touch target, but match the Seller header's
+                    // approved 27px visible bell instead of scaling the raster
+                    // artwork to the whole target.
+                    slotSize: metrics.artSize(32),
+                  ),
                 ),
               ),
             ),
@@ -377,65 +383,72 @@ class BuyerPrimaryButton extends StatelessWidget {
     final approvedRadius = metrics.geometry(13);
     final radius = accessibility.radiusOr(approvedRadius);
     final highContrast = accessibility.usesHighContrastButton;
-    return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: resolvedMinimumHeight),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: highContrast
-              ? accessibility.backgroundOr(BuyerUiTokens.action)
-              : null,
-          gradient: highContrast
-              ? null
-              : LinearGradient(
-                  colors: onPressed == null
-                      ? const [Color(0xff9ca3af), Color(0xffb6bcc7)]
-                      : colors ??
-                            const [
-                              BuyerUiTokens.action,
-                              BuyerUiTokens.requestAction,
-                            ],
-                ),
-          borderRadius: BorderRadius.circular(radius),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(radius),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: metrics.geometry(compact ? 6 : 18),
-                vertical: metrics.geometry(compact ? 7 : 9),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (leading != null) ...[
-                    leading!,
-                    SizedBox(width: metrics.geometry(compact ? 4 : 10)),
-                  ],
-                  Flexible(
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: BuyerTypography.style(
-                        context,
-                        metrics,
-                        BuyerTextRole.buttonLabel,
-                        color: accessibility.foregroundOr(Colors.white),
-                        weight: FontWeight.w600,
-                      ).copyWith(fontSize: metrics.fontSize(fontSize)),
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      child: HocalistPressFeedback(
+        enabled: onPressed != null,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: resolvedMinimumHeight),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: highContrast
+                  ? accessibility.backgroundOr(BuyerUiTokens.action)
+                  : null,
+              gradient: highContrast
+                  ? null
+                  : LinearGradient(
+                      colors: onPressed == null
+                          ? const [Color(0xff9ca3af), Color(0xffb6bcc7)]
+                          : colors ??
+                                const [
+                                  BuyerUiTokens.action,
+                                  BuyerUiTokens.requestAction,
+                                ],
                     ),
+              borderRadius: BorderRadius.circular(radius),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: BorderRadius.circular(radius),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: metrics.geometry(compact ? 6 : 18),
+                    vertical: metrics.geometry(compact ? 7 : 9),
                   ),
-                  if (trailing != null) ...[
-                    SizedBox(width: metrics.geometry(compact ? 2 : 10)),
-                    trailing!,
-                  ],
-                ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (leading != null) ...[
+                        leading!,
+                        SizedBox(width: metrics.geometry(compact ? 4 : 10)),
+                      ],
+                      Flexible(
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: BuyerTypography.style(
+                            context,
+                            metrics,
+                            BuyerTextRole.buttonLabel,
+                            color: accessibility.foregroundOr(Colors.white),
+                            weight: FontWeight.w600,
+                          ).copyWith(fontSize: metrics.fontSize(fontSize)),
+                        ),
+                      ),
+                      if (trailing != null) ...[
+                        SizedBox(width: metrics.geometry(compact ? 2 : 10)),
+                        trailing!,
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -463,6 +476,16 @@ class BuyerSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (label.startsWith('Refresh ') || label.startsWith('Reload ')) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: HocalistReloadLink(
+          description: label,
+          onPressed: onPressed,
+          color: color,
+        ),
+      );
+    }
     final media = MediaQuery.of(context);
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
@@ -472,36 +495,43 @@ class BuyerSecondaryButton extends StatelessWidget {
         );
     final accessibility = hocalistAccessibilityVisualsOf(context);
     final approvedRadius = metrics.geometry(13);
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: color,
-        minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
-        padding: EdgeInsets.symmetric(
-          horizontal: metrics.geometry(compact ? 6 : 18),
-          vertical: metrics.geometry(compact ? 7 : 9),
-        ),
-        side: BorderSide(
-          color: accessibility.usesHighContrastButton
-              ? accessibility.buttonBackground
-              : color,
-          width: accessibility.usesHighContrastButton
-              ? accessibility.buttonBorderWidth
-              : 1,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            accessibility.radiusOr(approvedRadius),
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      child: HocalistPressFeedback(
+        enabled: onPressed != null,
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: color,
+            minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
+            padding: EdgeInsets.symmetric(
+              horizontal: metrics.geometry(compact ? 6 : 18),
+              vertical: metrics.geometry(compact ? 7 : 9),
+            ),
+            side: BorderSide(
+              color: accessibility.usesHighContrastButton
+                  ? accessibility.buttonBackground
+                  : color,
+              width: accessibility.usesHighContrastButton
+                  ? accessibility.buttonBorderWidth
+                  : 1,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                accessibility.radiusOr(approvedRadius),
+              ),
+            ),
+            textStyle: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.buttonLabel,
+              weight: FontWeight.w600,
+            ).copyWith(fontSize: metrics.fontSize(fontSize)),
           ),
+          child: Text(label, textAlign: TextAlign.center),
         ),
-        textStyle: BuyerTypography.style(
-          context,
-          metrics,
-          BuyerTextRole.buttonLabel,
-          weight: FontWeight.w600,
-        ).copyWith(fontSize: metrics.fontSize(fontSize)),
       ),
-      child: Text(label, textAlign: TextAlign.center),
     );
   }
 }
@@ -750,9 +780,10 @@ class BuyerModalSheet extends StatelessWidget {
 }
 
 class BuyerFieldLabel extends StatelessWidget {
-  const BuyerFieldLabel(this.label, {super.key});
+  const BuyerFieldLabel(this.label, {this.uppercase = false, super.key});
 
   final String label;
+  final bool uppercase;
 
   @override
   Widget build(BuildContext context) {
@@ -764,7 +795,7 @@ class BuyerFieldLabel extends StatelessWidget {
           textScaler: media.textScaler,
         );
     return Text(
-      label.toUpperCase(),
+      uppercase ? label.toUpperCase() : label,
       style: BuyerTypography.style(
         context,
         metrics,
@@ -949,4 +980,453 @@ class _BuyerTextSpec {
   final FontWeight weight;
   final double height;
   final Color color;
+}
+
+/// Tones for supplemental Buyer state cards (empty, loading, error, success).
+enum BuyerNoticeTone { brand, neutral, warning, error, success }
+
+/// Designed Buyer state card for loading, empty, unavailable, error and
+/// success states.
+///
+/// Later-added Buyer panels must use this instead of a bare text stack so every
+/// supplemental surface keeps one hierarchy: icon, title, supporting copy and
+/// one clear action.
+class BuyerStateNotice extends StatelessWidget {
+  const BuyerStateNotice({
+    required this.icon,
+    required this.title,
+    this.body,
+    this.tone = BuyerNoticeTone.neutral,
+    this.actionLabel,
+    this.onAction,
+    this.actionKey,
+    this.trailing,
+    this.detail,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? body;
+  final BuyerNoticeTone tone;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final Key? actionKey;
+  final Widget? trailing;
+  final Widget? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    final (background, border, foreground) = switch (tone) {
+      BuyerNoticeTone.brand => (
+        BuyerUiTokens.softSurface,
+        const Color(0xffd9d5ff),
+        BuyerUiTokens.action,
+      ),
+      BuyerNoticeTone.neutral => (
+        Colors.white,
+        BuyerUiTokens.border,
+        BuyerUiTokens.action,
+      ),
+      BuyerNoticeTone.warning => (
+        const Color(0xfffff6e5),
+        const Color(0xffffe0a3),
+        const Color(0xffb56200),
+      ),
+      BuyerNoticeTone.error => (
+        const Color(0xffffeef0),
+        const Color(0xffffc9cf),
+        const Color(0xffc62828),
+      ),
+      BuyerNoticeTone.success => (
+        const Color(0xffecf8ee),
+        const Color(0xffbfe6c8),
+        BuyerUiTokens.successText,
+      ),
+    };
+    final narrow = metrics.availableWidth < 340;
+    return HocalistStateTransition(
+      stateKey: (title, body, tone, actionLabel),
+      child: AnimatedContainer(
+        duration: HocalistMotion.duration(context, 160),
+        curve: Curves.easeOutCubic,
+        width: double.infinity,
+        padding: metrics.geometryInsets(EdgeInsets.all(narrow ? 12 : 14)),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(metrics.geometry(16)),
+          border: Border.all(color: border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: metrics.artSize(34),
+                  height: metrics.artSize(34),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: border),
+                  ),
+                  child: Center(
+                    child: BuyerGlyphIcon(
+                      icon: icon,
+                      slotSize: metrics.artSize(18),
+                      glyphSize: metrics.artSize(18),
+                      color: foreground,
+                    ),
+                  ),
+                ),
+                SizedBox(width: metrics.spacing(10)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.cardTitle,
+                          weight: FontWeight.w800,
+                        ).copyWith(fontSize: metrics.fontSize(13.5)),
+                      ),
+                      if (body != null) ...[
+                        SizedBox(height: metrics.spacing(4)),
+                        Text(
+                          body!,
+                          style: BuyerTypography.style(
+                            context,
+                            metrics,
+                            BuyerTextRole.secondaryBody,
+                            color: BuyerUiTokens.muted,
+                          ),
+                        ),
+                      ],
+                      if (detail != null) ...[
+                        SizedBox(height: metrics.spacing(8)),
+                        detail!,
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[
+                  SizedBox(width: metrics.spacing(8)),
+                  trailing!,
+                ],
+              ],
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              SizedBox(height: metrics.spacing(10)),
+              BuyerSecondaryButton(
+                key: actionKey,
+                label: actionLabel!,
+                onPressed: onAction,
+                compact: true,
+                color: foreground,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small designed status/selection pill for supplemental Buyer surfaces.
+class BuyerStatusChip extends StatelessWidget {
+  const BuyerStatusChip({
+    required this.label,
+    this.icon,
+    this.tone = BuyerNoticeTone.neutral,
+    this.selected = false,
+    super.key,
+  });
+
+  final String label;
+  final IconData? icon;
+  final BuyerNoticeTone tone;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    final (background, border, foreground) = switch (tone) {
+      BuyerNoticeTone.brand => (
+        BuyerUiTokens.activeSurface,
+        const Color(0xffd9d5ff),
+        BuyerUiTokens.action,
+      ),
+      BuyerNoticeTone.neutral => (
+        const Color(0xfff7f7fb),
+        BuyerUiTokens.border,
+        BuyerUiTokens.muted,
+      ),
+      BuyerNoticeTone.warning => (
+        const Color(0xfffff6e5),
+        const Color(0xffffe0a3),
+        const Color(0xffb56200),
+      ),
+      BuyerNoticeTone.error => (
+        const Color(0xffffeef0),
+        const Color(0xffffc9cf),
+        const Color(0xffc62828),
+      ),
+      BuyerNoticeTone.success => (
+        const Color(0xffecf8ee),
+        const Color(0xffbfe6c8),
+        BuyerUiTokens.successText,
+      ),
+    };
+    return Semantics(
+      label: label,
+      container: true,
+      excludeSemantics: true,
+      child: AnimatedContainer(
+        duration: HocalistMotion.duration(context, 160),
+        curve: Curves.easeOutCubic,
+        constraints: BoxConstraints(minHeight: metrics.geometry(24)),
+        padding: EdgeInsets.symmetric(
+          horizontal: metrics.spacing(9),
+          vertical: metrics.spacing(4),
+        ),
+        decoration: BoxDecoration(
+          color: selected ? BuyerUiTokens.activeSurface : background,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(
+            color: selected ? BuyerUiTokens.action : border,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: metrics.artSize(13),
+                color: selected ? BuyerUiTokens.action : foreground,
+              ),
+              SizedBox(width: metrics.spacing(4)),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: BuyerTypography.style(
+                  context,
+                  metrics,
+                  BuyerTextRole.badgeStatus,
+                  color: selected ? BuyerUiTokens.action : foreground,
+                  weight: FontWeight.w800,
+                ).copyWith(fontSize: metrics.fontSize(10.5)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Label/value tile used by Buyer balance and summary cards.
+class BuyerMetricTile extends StatelessWidget {
+  const BuyerMetricTile({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+    this.valueKey,
+    this.tone = BuyerNoticeTone.neutral,
+    super.key,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+  final Key? valueKey;
+  final BuyerNoticeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    final valueColor = switch (tone) {
+      BuyerNoticeTone.error => const Color(0xffc62828),
+      BuyerNoticeTone.warning => const Color(0xffb56200),
+      BuyerNoticeTone.success => BuyerUiTokens.successText,
+      _ => BuyerUiTokens.text,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: BuyerTypography.style(
+            context,
+            metrics,
+            BuyerTextRole.metadata,
+            color: BuyerUiTokens.muted,
+            weight: FontWeight.w800,
+            letterSpacing: .6,
+          ).copyWith(fontSize: metrics.fontSize(9.5)),
+        ),
+        SizedBox(height: metrics.spacing(2)),
+        Text(
+          value,
+          key: valueKey,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style:
+              BuyerTypography.style(
+                context,
+                metrics,
+                emphasized
+                    ? BuyerTextRole.numericEmphasis
+                    : BuyerTextRole.cardTitle,
+                color: valueColor,
+              ).copyWith(
+                fontSize: metrics.fontSize(emphasized ? 20 : 13),
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Section heading with optional trailing action for supplemental panels.
+class BuyerSectionHeading extends StatelessWidget {
+  const BuyerSectionHeading({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+    this.actionKey,
+    super.key,
+  });
+
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final Key? actionKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    return Padding(
+      padding: EdgeInsets.only(bottom: metrics.spacing(8)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: BuyerTypography.style(
+                context,
+                metrics,
+                BuyerTextRole.sectionHeading,
+                weight: FontWeight.w900,
+              ).copyWith(fontSize: metrics.fontSize(14.5)),
+            ),
+          ),
+          if (actionLabel != null && onAction != null)
+            TextButton(
+              key: actionKey,
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: BuyerUiTokens.action,
+                padding: EdgeInsets.symmetric(horizontal: metrics.spacing(8)),
+                minimumSize: const Size(48, 48),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                textStyle: BuyerTypography.style(
+                  context,
+                  metrics,
+                  BuyerTextRole.buttonLabel,
+                  color: BuyerUiTokens.action,
+                ).copyWith(fontSize: metrics.fontSize(12)),
+              ),
+              child: Text(actionLabel!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Designed busy strip for supplemental Buyer panels.
+class BuyerProgressStrip extends StatelessWidget {
+  const BuyerProgressStrip({this.label, super.key});
+
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (label != null) ...[
+          Text(
+            label!,
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.metadata,
+              color: BuyerUiTokens.action,
+              weight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(6)),
+        ],
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: Semantics(
+            container: true,
+            label: 'Loading',
+            child: LinearProgressIndicator(
+              minHeight: metrics.geometry(5),
+              backgroundColor: BuyerUiTokens.softSurface,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                BuyerUiTokens.action,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

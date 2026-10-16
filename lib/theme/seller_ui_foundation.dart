@@ -1,6 +1,8 @@
+import '../components/hocalist_reload_link.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../components/hocalist_motion.dart';
 
 import '../features/approved/approved_replica_metrics.dart';
 import 'accessibility_visuals.dart';
@@ -20,6 +22,7 @@ abstract final class SellerUiColors {
   static const lavender = Color(0xFFF4F2FF);
   static const lavenderBorder = Color(0xFFE0DEFF);
   static const green = Color(0xFF119527);
+  static const greenText = Color(0xFF087A20);
   static const greenSurface = Color(0xFFECF8EE);
   static const amber = Color(0xFFFF9D00);
   static const amberSurface = Color(0xFFFFF6E5);
@@ -90,6 +93,54 @@ TextStyle sellerInputPlaceholder(
   double size = 13,
 }) {
   return sellerText(metrics, size, color: SellerUiColors.muted, height: 1.35);
+}
+
+/// Input decoration for supplemental Seller forms and sheets.
+InputDecoration sellerInputDecoration(
+  BuildContext context, {
+  String? hintText,
+  Widget? prefixIcon,
+  String? labelText,
+}) {
+  final media = MediaQuery.of(context);
+  final metrics =
+      ApprovedReplicaScope.maybeOf(context) ??
+      ApprovedReplicaMetrics.resolve(
+        availableWidth: media.size.width,
+        textScaler: media.textScaler,
+      );
+  final border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(metrics.geometry(12)),
+    borderSide: const BorderSide(color: SellerUiColors.lavenderBorder),
+  );
+  return InputDecoration(
+    isDense: true,
+    constraints: BoxConstraints(minHeight: metrics.geometry(44)),
+    hintText: hintText,
+    labelText: labelText,
+    prefixIcon: prefixIcon,
+    filled: true,
+    fillColor: SellerUiColors.lavender,
+    contentPadding: metrics.geometryInsets(
+      const EdgeInsets.fromLTRB(14, 12, 14, 12),
+    ),
+    hintStyle: sellerInputPlaceholder(metrics),
+    labelStyle: sellerText(
+      metrics,
+      12.5,
+      weight: FontWeight.w600,
+      color: SellerUiColors.body,
+    ),
+    enabledBorder: border,
+    border: border,
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(metrics.geometry(12)),
+      borderSide: BorderSide(
+        color: SellerUiColors.primaryBright,
+        width: metrics.geometry(1.5),
+      ),
+    ),
+  );
 }
 
 class SellerResponsivePage extends StatelessWidget {
@@ -177,61 +228,70 @@ class SellerPrimaryButton extends StatelessWidget {
     final approvedRadius = metrics.geometry(13);
     final radius = accessibility.radiusOr(approvedRadius);
     final highContrast = accessibility.usesHighContrastButton;
-    return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: resolvedMinimumHeight),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: highContrast
-              ? accessibility.backgroundOr(SellerUiColors.primary)
-              : null,
-          gradient: highContrast
-              ? null
-              : LinearGradient(
-                  colors: onPressed == null
-                      ? const [Color(0xFF9CA3AF), Color(0xFFB6BCC7)]
-                      : colors ??
-                            const [
-                              SellerUiColors.primary,
-                              SellerUiColors.primaryBright,
-                            ],
-                ),
-          borderRadius: BorderRadius.circular(radius),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(radius),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: metrics.geometry(compact ? 6 : 18),
-                vertical: verticalPadding,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (leading != null) ...[
-                    leading!,
-                    SizedBox(width: metrics.geometry(compact ? 4 : 10)),
-                  ],
-                  Flexible(
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: sellerText(
-                        metrics,
-                        fontSize,
-                        weight: FontWeight.w600,
-                        color: accessibility.foregroundOr(SellerUiColors.white),
-                      ),
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      child: HocalistPressFeedback(
+        enabled: onPressed != null,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: resolvedMinimumHeight),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: highContrast
+                  ? accessibility.backgroundOr(SellerUiColors.primary)
+                  : null,
+              gradient: highContrast
+                  ? null
+                  : LinearGradient(
+                      colors: onPressed == null
+                          ? const [Color(0xFF9CA3AF), Color(0xFFB6BCC7)]
+                          : colors ??
+                                const [
+                                  SellerUiColors.primary,
+                                  SellerUiColors.primaryBright,
+                                ],
                     ),
+              borderRadius: BorderRadius.circular(radius),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: BorderRadius.circular(radius),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: metrics.geometry(compact ? 6 : 18),
+                    vertical: verticalPadding,
                   ),
-                  if (trailing != null) ...[
-                    SizedBox(width: metrics.geometry(compact ? 2 : 10)),
-                    trailing!,
-                  ],
-                ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (leading != null) ...[
+                        leading!,
+                        SizedBox(width: metrics.geometry(compact ? 4 : 10)),
+                      ],
+                      Flexible(
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          style: sellerText(
+                            metrics,
+                            fontSize,
+                            weight: FontWeight.w600,
+                            color: accessibility.foregroundOr(
+                              SellerUiColors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (trailing != null) ...[
+                        SizedBox(width: metrics.geometry(compact ? 2 : 10)),
+                        trailing!,
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -255,6 +315,16 @@ class SellerSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (label.startsWith('Refresh ') || label.startsWith('Reload ')) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: HocalistReloadLink(
+          description: label,
+          onPressed: onPressed,
+          color: SellerUiColors.primaryBright,
+        ),
+      );
+    }
     final media = MediaQuery.of(context);
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
@@ -264,31 +334,43 @@ class SellerSecondaryButton extends StatelessWidget {
         );
     final accessibility = hocalistAccessibilityVisualsOf(context);
     final approvedRadius = metrics.geometry(13);
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: SellerUiColors.primaryBright,
-        minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
-        padding: EdgeInsets.symmetric(
-          horizontal: metrics.geometry(compact ? 6 : 18),
-          vertical: metrics.geometry(compact ? 7 : 9),
-        ),
-        side: BorderSide(
-          color: accessibility.usesHighContrastButton
-              ? accessibility.buttonBackground
-              : SellerUiColors.primaryBright,
-          width: accessibility.usesHighContrastButton
-              ? accessibility.buttonBorderWidth
-              : 1,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            accessibility.radiusOr(approvedRadius),
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      child: HocalistPressFeedback(
+        enabled: onPressed != null,
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: SellerUiColors.primaryBright,
+            minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
+            padding: EdgeInsets.symmetric(
+              horizontal: metrics.geometry(compact ? 6 : 18),
+              vertical: metrics.geometry(compact ? 7 : 9),
+            ),
+            side: BorderSide(
+              color: accessibility.usesHighContrastButton
+                  ? accessibility.buttonBackground
+                  : SellerUiColors.primaryBright,
+              width: accessibility.usesHighContrastButton
+                  ? accessibility.buttonBorderWidth
+                  : 1,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                accessibility.radiusOr(approvedRadius),
+              ),
+            ),
+            textStyle:
+                (Theme.of(context).textTheme.labelLarge ?? const TextStyle())
+                    .copyWith(
+                      fontSize: metrics.fontSize(14),
+                      fontWeight: FontWeight.w600,
+                    ),
           ),
+          child: Text(label),
         ),
-        textStyle: sellerText(metrics, 14, weight: FontWeight.w600),
       ),
-      child: Text(label),
     );
   }
 }
@@ -426,6 +508,452 @@ class SellerModalSheet extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Tones for supplemental Seller state cards (empty, loading, error, success).
+enum SellerNoticeTone { brand, neutral, warning, error, success }
+
+/// Designed Seller state card for loading, empty, unavailable, error and
+/// success states.
+///
+/// Later-added Seller panels must use this instead of a bare text stack so every
+/// supplemental surface keeps one hierarchy: icon, title, supporting copy and
+/// one clear action.
+class SellerStateNotice extends StatelessWidget {
+  const SellerStateNotice({
+    required this.icon,
+    required this.title,
+    this.body,
+    this.tone = SellerNoticeTone.neutral,
+    this.actionLabel,
+    this.onAction,
+    this.actionKey,
+    this.trailing,
+    this.detail,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? body;
+  final SellerNoticeTone tone;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final Key? actionKey;
+  final Widget? trailing;
+  final Widget? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    final (background, border, foreground) = switch (tone) {
+      SellerNoticeTone.brand => (
+        SellerUiColors.lavender,
+        SellerUiColors.lavenderBorder,
+        SellerUiColors.primary,
+      ),
+      SellerNoticeTone.neutral => (
+        SellerUiColors.white,
+        SellerUiColors.line,
+        SellerUiColors.primary,
+      ),
+      SellerNoticeTone.warning => (
+        SellerUiColors.amberSurface,
+        SellerUiColors.amber,
+        SellerUiColors.ink,
+      ),
+      SellerNoticeTone.error => (
+        SellerUiColors.redSurface,
+        SellerUiColors.red,
+        SellerUiColors.red,
+      ),
+      SellerNoticeTone.success => (
+        SellerUiColors.greenSurface,
+        SellerUiColors.green,
+        SellerUiColors.greenText,
+      ),
+    };
+    final narrow = metrics.availableWidth < 340;
+    return HocalistStateTransition(
+      stateKey: (title, body, tone, actionLabel),
+      child: AnimatedContainer(
+        duration: HocalistMotion.duration(context, 160),
+        curve: Curves.easeOutCubic,
+        width: double.infinity,
+        padding: metrics.geometryInsets(EdgeInsets.all(narrow ? 12 : 14)),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(metrics.geometry(14)),
+          border: Border.all(color: border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: metrics.artSize(32),
+                  height: metrics.artSize(32),
+                  decoration: BoxDecoration(
+                    color: SellerUiColors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: border),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      size: metrics.artSize(17),
+                      color: foreground,
+                    ),
+                  ),
+                ),
+                SizedBox(width: metrics.spacing(10)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: sellerText(
+                          metrics,
+                          13.5,
+                          weight: FontWeight.w800,
+                          color: SellerUiColors.ink,
+                        ),
+                      ),
+                      if (body != null) ...[
+                        SizedBox(height: metrics.spacing(4)),
+                        Text(
+                          body!,
+                          style: sellerText(
+                            metrics,
+                            12,
+                            color: SellerUiColors.body,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                      if (detail != null) ...[
+                        SizedBox(height: metrics.spacing(8)),
+                        detail!,
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[
+                  SizedBox(width: metrics.spacing(8)),
+                  trailing!,
+                ],
+              ],
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              SizedBox(height: metrics.spacing(10)),
+              SellerSecondaryButton(
+                key: actionKey,
+                label: actionLabel!,
+                onPressed: onAction,
+                compact: true,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small designed status/selection pill for supplemental Seller surfaces.
+class SellerStatusChip extends StatelessWidget {
+  const SellerStatusChip({
+    required this.label,
+    this.icon,
+    this.tone = SellerNoticeTone.neutral,
+    this.selected = false,
+    super.key,
+  });
+
+  final String label;
+  final IconData? icon;
+  final SellerNoticeTone tone;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    final (background, border, foreground) = switch (tone) {
+      SellerNoticeTone.brand => (
+        SellerUiColors.lavender,
+        SellerUiColors.lavenderBorder,
+        SellerUiColors.primary,
+      ),
+      SellerNoticeTone.neutral => (
+        SellerUiColors.white,
+        SellerUiColors.line,
+        SellerUiColors.muted,
+      ),
+      SellerNoticeTone.warning => (
+        SellerUiColors.amberSurface,
+        SellerUiColors.amber,
+        SellerUiColors.ink,
+      ),
+      SellerNoticeTone.error => (
+        SellerUiColors.redSurface,
+        SellerUiColors.red,
+        SellerUiColors.red,
+      ),
+      SellerNoticeTone.success => (
+        SellerUiColors.greenSurface,
+        SellerUiColors.green,
+        SellerUiColors.greenText,
+      ),
+    };
+    return Semantics(
+      label: label,
+      container: true,
+      excludeSemantics: true,
+      child: AnimatedContainer(
+        duration: HocalistMotion.duration(context, 160),
+        curve: Curves.easeOutCubic,
+        constraints: BoxConstraints(minHeight: metrics.geometry(24)),
+        padding: EdgeInsets.symmetric(
+          horizontal: metrics.spacing(9),
+          vertical: metrics.spacing(4),
+        ),
+        decoration: BoxDecoration(
+          color: selected ? SellerUiColors.lavender : background,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(
+            color: selected ? SellerUiColors.primaryBright : border,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: metrics.artSize(13),
+                color: selected ? SellerUiColors.primaryBright : foreground,
+              ),
+              SizedBox(width: metrics.spacing(4)),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sellerText(
+                  metrics,
+                  10.5,
+                  weight: FontWeight.w800,
+                  color: selected ? SellerUiColors.primaryBright : foreground,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Label/value tile used by Seller balance and summary cards.
+class SellerMetricTile extends StatelessWidget {
+  const SellerMetricTile({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+    this.valueKey,
+    this.tone = SellerNoticeTone.neutral,
+    super.key,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+  final Key? valueKey;
+  final SellerNoticeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    final valueColor = switch (tone) {
+      SellerNoticeTone.error => SellerUiColors.red,
+      SellerNoticeTone.success => SellerUiColors.greenText,
+      SellerNoticeTone.warning => SellerUiColors.ink,
+      _ => SellerUiColors.ink,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: sellerText(
+            metrics,
+            9.5,
+            weight: FontWeight.w800,
+            color: SellerUiColors.muted,
+            letterSpacing: .6,
+          ),
+        ),
+        SizedBox(height: metrics.spacing(2)),
+        Text(
+          value,
+          key: valueKey,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: sellerText(
+            metrics,
+            emphasized ? 20 : 13,
+            weight: FontWeight.w800,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Section heading with optional trailing action for supplemental panels.
+class SellerSectionHeading extends StatelessWidget {
+  const SellerSectionHeading({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+    this.actionKey,
+    super.key,
+  });
+
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final Key? actionKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    return Padding(
+      padding: EdgeInsets.only(bottom: metrics.spacing(8)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: sellerText(
+                metrics,
+                14.5,
+                weight: FontWeight.w900,
+                color: SellerUiColors.ink,
+              ),
+            ),
+          ),
+          if (actionLabel != null && onAction != null)
+            TextButton(
+              key: actionKey,
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: SellerUiColors.primaryBright,
+                padding: EdgeInsets.symmetric(horizontal: metrics.spacing(8)),
+                minimumSize: const Size(48, 48),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                textStyle: sellerText(
+                  metrics,
+                  12,
+                  weight: FontWeight.w800,
+                  color: SellerUiColors.primaryBright,
+                ).copyWith(fontFamily: 'Nunito'),
+              ),
+              child: Text(
+                actionLabel!,
+                style: sellerText(
+                  metrics,
+                  12,
+                  weight: FontWeight.w800,
+                  color: SellerUiColors.primaryBright,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Designed busy strip for supplemental Seller panels.
+class SellerProgressStrip extends StatelessWidget {
+  const SellerProgressStrip({this.label, super.key});
+
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: media.size.width,
+          textScaler: media.textScaler,
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (label != null) ...[
+          Text(
+            label!,
+            style: sellerText(
+              metrics,
+              11,
+              weight: FontWeight.w700,
+              color: SellerUiColors.primary,
+            ),
+          ),
+          SizedBox(height: metrics.spacing(6)),
+        ],
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: Semantics(
+            container: true,
+            label: 'Loading',
+            child: LinearProgressIndicator(
+              minHeight: metrics.geometry(5),
+              backgroundColor: SellerUiColors.lavender,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                SellerUiColors.primaryBright,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

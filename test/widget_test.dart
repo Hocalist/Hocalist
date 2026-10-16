@@ -579,8 +579,8 @@ void main() {
     expect(find.text('Seller selected. Chatroom opened.'), findsOneWidget);
     await tester.tap(find.byKey(const Key('active-deal-ipad')));
     await tester.pumpAndSettle();
-    expect(find.text('Accept to meet'), findsOneWidget);
-    await tapVisible(tester, 'Accept to meet');
+    expect(find.text('Accept To Meet'), findsOneWidget);
+    await tapVisible(tester, 'Accept To Meet');
     await tester.pumpAndSettle();
     expect(find.text('Upcoming meetings'), findsOneWidget);
     expect(find.text('On schedule'), findsWidgets);
@@ -664,15 +664,16 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('Your active sellers will be notified'),
+      find.textContaining('Updating changes the terms sellers see'),
       findsOneWidget,
     );
     await tester.tap(find.text('Update request'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('Your active sellers will be notified'),
+      find.textContaining('Updating changes the terms sellers see'),
       findsNothing,
     );
+    expect(find.textContaining('will be notified'), findsNothing);
 
     final deleteButton = find.byKey(const Key('delete-request'));
     await tester.drag(find.byType(ListView).first, const Offset(0, 2200));
@@ -700,6 +701,11 @@ void main() {
     expect(find.text('Northside Tech'), findsOneWidget);
 
     await tapVisible(tester, 'Filter');
+    expect(
+      find.byKey(const Key('approved-offers-filter-sheet')),
+      findsOneWidget,
+    );
+    await tapVisible(tester, 'Apply filters');
     expect(find.text('Offer filters opened.'), findsOneWidget);
 
     final offerDetails = find.byKey(const Key('approved-view-offer-NT'));
@@ -795,7 +801,7 @@ void main() {
     expect(find.text('John D.'), findsOneWidget);
     await tester.tap(find.byKey(const Key('active-deal-ipad')));
     await tester.pumpAndSettle();
-    expect(find.text('Accept to meet'), findsOneWidget);
+    expect(find.text('Accept To Meet'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -906,7 +912,7 @@ void main() {
     await tapVisible(tester, 'Northside Tech');
     await tester.tap(find.byKey(const Key('active-deal-ipad')));
     await tester.pumpAndSettle();
-    expect(find.text('Accept to meet'), findsOneWidget);
+    expect(find.text('Accept To Meet'), findsOneWidget);
     expect(find.byTooltip('Back'), findsOneWidget);
   });
 
@@ -926,7 +932,7 @@ void main() {
     await tester.tap(find.byTooltip('Call seller'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Calling is available after confirmation.'),
+      find.text('Open an eligible conversation before calling.'),
       findsOneWidget,
     );
 
@@ -1073,12 +1079,17 @@ void main() {
     await tapVisible(tester, 'Account Settings');
 
     expect(find.text('ACCOUNT'), findsOneWidget);
-    expect(find.text('Personal information'), findsOneWidget);
+    expect(find.text('Personal information'), findsNothing);
+    expect(find.byKey(const ValueKey('section-tab-Security')), findsOneWidget);
     expect(find.text('Password & security'), findsOneWidget);
-    expect(find.text('PREFERENCES'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('section-tab-Privacy')));
+    await tester.pumpAndSettle();
     expect(find.text('PRIVACY'), findsOneWidget);
     expect(find.text('Request & location privacy'), findsOneWidget);
     expect(find.text('ACCOUNT MANAGEMENT'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
+    await tester.pumpAndSettle();
+    expect(find.text('PREFERENCES'), findsOneWidget);
     expect(find.text('Account removal needs backend'), findsNothing);
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Accessibility'), findsOneWidget);
@@ -1093,6 +1104,8 @@ void main() {
     await tester.tap(find.byKey(const Key('accessibility-back')));
     await tester.pumpAndSettle();
     expect(find.text('Account Settings'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
+    await tester.pumpAndSettle();
     await tapVisible(tester, 'Accessibility');
 
     await tester.tap(find.byKey(const Key('text-size-extraLarge')));
@@ -1146,7 +1159,10 @@ void main() {
     await tapVisible(tester, 'Account settings');
 
     expect(find.text('Account Settings'), findsOneWidget);
-    expect(find.text('Seller information'), findsOneWidget);
+    expect(find.text('Seller information'), findsNothing);
+    expect(find.byKey(const ValueKey('section-tab-Security')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
+    await tester.pumpAndSettle();
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Accessibility'), findsOneWidget);
   });

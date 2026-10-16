@@ -52,6 +52,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
     }
     final discard = await showDialog<bool>(
       context: context,
+      animationStyle: HocalistMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: const Text('Discard accessibility changes?'),
         content: const Text(
@@ -96,6 +97,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
     final previewScale = math.max(systemScale, draft.textSize.scale);
     final applied = await showDialog<bool>(
       context: context,
+      animationStyle: HocalistMotion.dialogStyle(context),
       useSafeArea: false,
       builder: (dialogContext) {
         final media = MediaQuery.of(dialogContext);

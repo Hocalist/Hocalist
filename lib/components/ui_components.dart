@@ -176,18 +176,19 @@ class HocalistGlobalHeader extends StatelessWidget {
                         size: 30,
                       ),
                     ),
-                    Positioned(
-                      top: 9,
-                      right: 10,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xffff1616),
-                          shape: BoxShape.circle,
+                    if (NotificationIndicatorScope.showDot(context))
+                      Positioned(
+                        top: 9,
+                        right: 10,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xffff1616),
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -1675,6 +1676,7 @@ class MapOptionsButton extends StatelessWidget {
       onPressed: () {
         showModalBottomSheet<void>(
           context: context,
+          sheetAnimationStyle: HocalistMotion.sheetStyle(context),
           showDragHandle: true,
           builder: (context) {
             return SafeArea(

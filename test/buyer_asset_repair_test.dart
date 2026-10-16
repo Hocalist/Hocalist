@@ -254,7 +254,7 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -700));
     await tester.pumpAndSettle();
     expect(
-      tester.state<ScrollableState>(find.byType(ListView)).position.pixels,
+      tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
       greaterThan(0),
     );
 
@@ -262,7 +262,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.state<ScrollableState>(find.byType(ListView)).position.pixels,
+      tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
       0,
     );
     expect(find.text('Second page'), findsOneWidget);
