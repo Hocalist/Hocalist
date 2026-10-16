@@ -1,0 +1,21 @@
+BEGIN READ ONLY;
+DO $guard$ BEGIN
+IF to_regclass('hocalist.profiles') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.profiles'; END IF;
+IF to_regclass('hocalist.stripe_test_plans') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.stripe_test_plans'; END IF;
+IF to_regclass('hocalist.stripe_test_customers') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.stripe_test_customers'; END IF;
+IF to_regclass('hocalist.stripe_test_checkouts') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.stripe_test_checkouts'; END IF;
+IF to_regclass('hocalist.stripe_test_subscriptions') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.stripe_test_subscriptions'; END IF;
+IF to_regclass('hocalist.credit_deposit_options') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.credit_deposit_options'; END IF;
+IF to_regclass('hocalist.credit_batches') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite relation: hocalist.credit_batches'; END IF;
+IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='hocalist' AND table_name='stripe_test_checkouts' AND column_name='kind') THEN RAISE EXCEPTION 'Missing prerequisite column: stripe_test_checkouts.kind'; END IF;
+IF to_regclass('hocalist.website_waitlist_signups') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: website_waitlist_signups'; END IF;
+IF to_regclass('hocalist.website_waitlist_admissions') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: website_waitlist_admissions'; END IF;
+IF to_regclass('hocalist.website_waitlist_config') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: website_waitlist_config'; END IF;
+IF to_regprocedure('hocalist.website_waitlist_join(text,text,text,text,text)') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: hocalist.website_waitlist_join(text,text,text,text,text)'; END IF;
+IF to_regprocedure('hocalist.website_purchase_status(uuid)') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: hocalist.website_purchase_status(uuid)'; END IF;
+IF to_regprocedure('hocalist.stripe_test_portal_access(uuid)') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: hocalist.stripe_test_portal_access(uuid)'; END IF;
+IF to_regprocedure('hocalist.website_waitlist_configure(text)') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: hocalist.website_waitlist_configure(text)'; END IF;
+IF to_regprocedure('hocalist.website_waitlist_set_caps(integer,integer)') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: hocalist.website_waitlist_set_caps(integer,integer)'; END IF;
+IF to_regprocedure('hocalist.website_checkout_context(text)') IS NOT NULL THEN RAISE EXCEPTION 'Already installed or partial installation: hocalist.website_checkout_context(text)'; END IF;
+END $guard$;
+ROLLBACK;

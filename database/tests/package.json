@@ -1,0 +1,14 @@
+{
+  "name": "hocalist-database-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test foundation.test.mjs account_regression.test.mjs rollout.test.mjs harness_guard.test.mjs",
+    "test:concurrency": "node --test concurrency.test.mjs ../chat/tests/chat_concurrency.test.mjs ../marketplace/tests/marketplace_concurrency.test.mjs",
+    "test:acceptance": "node --test acceptance.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "^8.23.0"
+  }
+}

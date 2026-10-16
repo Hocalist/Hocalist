@@ -1,0 +1,985 @@
+-- Additive migration over reviewed 021: multiple accepted negotiations with a
+-- single purchase, the first-acceptance seven-day countdown, discovery closure
+-- on request expiry and buyer designation of the final purchase seller.
+--
+-- Prerequisites: 020 foundation + 021 request coordinates already applied.
+-- This file never reaches a live database; it is applied by the reviewed
+-- upgrade bundle only after the coordinator's separate authorization.
+--
+-- Local decisions implemented here (DECISIONS.md 2026-09-26):
+--   1. acceptance_expires_at is set once at the first acceptance and never
+--      reset by later acceptances;
+--   2. several offers may be selected for one request, each keeping its own
+--      conversation and meeting history;
+--   4. request expiry closes discovery and new offers only. Accepted meetings
+--      survive to their own next-local-midnight PIN cutoff.
+--
+-- Credit reservation/settlement is invoked through optional internal hooks so
+-- this migration stays applicable without the commercial module (dynamic
+-- dispatch only when the reviewed helper exists).
+BEGIN;
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='30s';
+
+DO $guard$ BEGIN
+  IF to_regprocedure('hocalist.marketplace_command(text,text,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'marketplace 020 prerequisite missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='hocalist' AND table_name='requests' AND column_name='latitude'
+  ) THEN
+    RAISE EXCEPTION 'request coordinates 021 prerequisite missing';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='hocalist' AND table_name='requests' AND column_name='first_accepted_at'
+  ) THEN
+    RAISE EXCEPTION 'multi-negotiation already installed';
+  END IF;
+END; $guard$;
+
+-- ---------------------------------------------------------------------------
+-- Countdown and final-purchase designation
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE hocalist.requests
+  ADD COLUMN first_accepted_at timestamptz,
+  ADD COLUMN acceptance_expires_at timestamptz,
+  ADD COLUMN purchase_offer_id uuid REFERENCES hocalist.offers(id),
+  ADD COLUMN purchase_selected_at timestamptz,
+  ADD CONSTRAINT request_acceptance_window CHECK (
+    (first_accepted_at IS NULL AND acceptance_expires_at IS NULL)
+    OR (first_accepted_at IS NOT NULL AND acceptance_expires_at IS NOT NULL
+        AND acceptance_expires_at > first_accepted_at));
+
+-- Settled weekly customer-target capacity. One targeted customer consumes one
+-- slot; a winning adjustment never consumes another slot.
+ALTER TABLE hocalist.marketplace_plan_limits
+  ADD COLUMN weekly_target_limit integer;
+UPDATE hocalist.marketplace_plan_limits SET weekly_target_limit = CASE plan_code
+  WHEN 'free' THEN 10 WHEN 'pro' THEN 50 WHEN 'elite' THEN 100 END;
+ALTER TABLE hocalist.marketplace_plan_limits
+  ALTER COLUMN weekly_target_limit SET NOT NULL,
+  ADD CONSTRAINT plan_weekly_target_limit_valid CHECK (weekly_target_limit >= 0);
+
+CREATE FUNCTION hocalist.marketplace_weekly_target_limit(p_user uuid)
+RETURNS integer
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT l.weekly_target_limit
+  FROM hocalist.marketplace_plan_limits l
+  WHERE l.plan_code = hocalist.marketplace_seller_plan(p_user);
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Projections now carry the authoritative countdown and designation
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hocalist.marketplace_request_json(p_request uuid)
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT jsonb_build_object(
+    'id', r.id,
+    'buyer_user_id', r.buyer_user_id,
+    'buyer_profile_id', r.buyer_profile_id,
+    'kind', r.kind,
+    'title', r.title,
+    'description', r.description,
+    'condition', r.condition,
+    'service_type', r.service_type,
+    'quantity', r.quantity,
+    'budget', jsonb_build_object(
+      'minimum_minor', r.budget_min_minor,
+      'maximum_minor', r.budget_max_minor,
+      'currency', r.currency_code),
+    'accepts_higher_offers', r.accepts_higher_offers,
+    'category_id', r.category_id,
+    'location', jsonb_build_object(
+      'use_home_address', r.use_home_address,
+      'latitude', r.latitude, 'longitude', r.longitude,
+      'address_line1', r.address_line1,
+      'address_line2', r.address_line2,
+      'city', r.city,
+      'region', r.region,
+      'postal_code', r.postal_code,
+      'country_code', r.country_code),
+    'first_accepted_at', r.first_accepted_at,
+    'acceptance_expires_at', r.acceptance_expires_at,
+    'purchase_offer_id', r.purchase_offer_id,
+    'purchase_selected_at', r.purchase_selected_at,
+    'discovery_open', r.status = 'active'
+      AND (r.acceptance_expires_at IS NULL OR now() < r.acceptance_expires_at),
+    'status', r.status,
+    'revision', r.revision,
+    'created_at', r.created_at,
+    'updated_at', r.updated_at)
+  FROM hocalist.requests r WHERE r.id = p_request;
+$$;
+
+-- Seller-visible projection: no address, no contacts, no other offers. The
+-- accepted seller sees the same authoritative request window as the buyer.
+CREATE OR REPLACE FUNCTION hocalist.marketplace_lead_json(p_request uuid)
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT jsonb_build_object(
+    'request_id', r.id,
+    'kind', r.kind,
+    'title', r.title,
+    'description', r.description,
+    'condition', r.condition,
+    'service_type', r.service_type,
+    'quantity', r.quantity,
+    'budget', jsonb_build_object(
+      'minimum_minor', r.budget_min_minor,
+      'maximum_minor', r.budget_max_minor,
+      'currency', r.currency_code),
+    'accepts_higher_offers', r.accepts_higher_offers,
+    'category_id', r.category_id,
+    'buyer_profile_id', r.buyer_profile_id,
+    'buyer_display_name', coalesce(nullif(btrim(rp.display_name), ''), 'Hocalist member'),
+    'area_label', coalesce(rp.area_label, r.city, r.region),
+    'request_revision', r.revision,
+    'acceptance_expires_at', r.acceptance_expires_at,
+    'discovery_open', r.status = 'active'
+      AND (r.acceptance_expires_at IS NULL OR now() < r.acceptance_expires_at),
+    'published_at', r.created_at)
+  FROM hocalist.requests r
+  LEFT JOIN hocalist.role_profiles rp ON rp.membership_id = r.buyer_profile_id
+  WHERE r.id = p_request;
+$$;
+
+CREATE OR REPLACE FUNCTION hocalist.marketplace_offer_json(p_offer uuid)
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT jsonb_build_object(
+    'id', o.id,
+    'request_id', o.request_id,
+    'buyer_user_id', o.buyer_user_id,
+    'seller_user_id', o.seller_user_id,
+    'seller_profile_id', o.seller_profile_id,
+    'seller_display_name', coalesce(nullif(btrim(rp.display_name), ''), 'Hocalist member'),
+    'status', o.status,
+    'accepted_revision_id', o.accepted_revision_id,
+    'conversation_id', o.conversation_id,
+    'purchase_selected', o.id = q.purchase_offer_id,
+    'request_acceptance_expires_at', q.acceptance_expires_at,
+    'request_first_accepted_at', q.first_accepted_at,
+    'revision', o.revision,
+    'created_at', o.created_at,
+    'updated_at', o.updated_at,
+    'revisions', coalesce((
+      SELECT jsonb_agg(hocalist.marketplace_revision_json(v.id) ORDER BY v.sequence)
+      FROM hocalist.offer_revisions v WHERE v.offer_id = o.id
+    ), '[]'::jsonb))
+  FROM hocalist.offers o
+  JOIN hocalist.requests q ON q.id = o.request_id
+  LEFT JOIN hocalist.role_profiles rp ON rp.membership_id = o.seller_profile_id
+  WHERE o.id = p_offer;
+$$;
+
+-- Discovery closes at the request's acceptance window even before a lazy
+-- status flip; accepted negotiations and their meetings are unaffected.
+CREATE OR REPLACE FUNCTION hocalist.marketplace_request(p_request uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_owner uuid;
+  v_status text;
+  v_expires timestamptz;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'authentication_required' USING ERRCODE='42501'; END IF;
+  SELECT buyer_user_id, status, acceptance_expires_at
+    INTO v_owner, v_status, v_expires
+    FROM hocalist.requests WHERE id = p_request;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'request_not_found' USING ERRCODE='P0002';
+  END IF;
+  IF v_owner = v_user THEN
+    RETURN hocalist.marketplace_request_json(p_request);
+  END IF;
+  IF EXISTS (SELECT 1 FROM hocalist.memberships
+             WHERE user_id = v_user AND role = 'seller' AND status = 'active')
+     AND v_status = 'active'
+     AND (v_expires IS NULL OR now() < v_expires) THEN
+    RETURN hocalist.marketplace_lead_json(p_request);
+  END IF;
+  RAISE EXCEPTION 'request_access_denied' USING ERRCODE='42501';
+END; $$;
+
+CREATE OR REPLACE FUNCTION hocalist.marketplace_seller_leads(
+  p_kind text DEFAULT NULL,
+  p_category uuid DEFAULT NULL,
+  p_area text DEFAULT NULL,
+  p_limit integer DEFAULT 50,
+  p_cursor text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_size integer;
+  v_cursor_micros bigint;
+  v_cursor_id uuid;
+  v_items jsonb;
+  v_next text;
+  v_last_micros bigint;
+  v_last_id uuid;
+BEGIN
+  PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+  IF p_kind IS NOT NULL AND p_kind NOT IN ('product','service') THEN
+    RAISE EXCEPTION 'invalid_field: kind' USING ERRCODE='22023';
+  END IF;
+  IF p_area IS NOT NULL AND length(btrim(p_area)) NOT BETWEEN 1 AND 150 THEN
+    RAISE EXCEPTION 'invalid_field: area' USING ERRCODE='22023';
+  END IF;
+  v_size := greatest(1, least(coalesce(p_limit, 50), 100));
+  IF p_cursor IS NOT NULL THEN
+    BEGIN
+      v_cursor_micros := split_part(p_cursor, '|', 1)::bigint;
+      v_cursor_id := split_part(p_cursor, '|', 2)::uuid;
+    EXCEPTION WHEN others THEN
+      RAISE EXCEPTION 'invalid_cursor' USING ERRCODE='22023';
+    END;
+  END IF;
+  SELECT coalesce(jsonb_agg(row_json ORDER BY row_micros DESC, row_id DESC), '[]'::jsonb)
+  INTO v_items
+  FROM (
+    SELECT r.id AS row_id,
+           (extract(epoch FROM r.created_at) * 1000000)::bigint AS row_micros,
+           hocalist.marketplace_lead_json(r.id) AS row_json
+    FROM hocalist.requests r
+    LEFT JOIN hocalist.role_profiles rp ON rp.membership_id = r.buyer_profile_id
+    WHERE r.status = 'active'
+      AND (r.acceptance_expires_at IS NULL OR now() < r.acceptance_expires_at)
+      AND r.buyer_user_id <> v_user
+      AND (p_kind IS NULL OR r.kind = p_kind)
+      AND (p_category IS NULL OR r.category_id = p_category)
+      AND (p_area IS NULL OR rp.area_label ILIKE '%' || btrim(p_area) || '%'
+           OR r.city ILIKE '%' || btrim(p_area) || '%'
+           OR r.region ILIKE '%' || btrim(p_area) || '%')
+      AND (p_cursor IS NULL OR
+           ((extract(epoch FROM r.created_at) * 1000000)::bigint, r.id) < (v_cursor_micros, v_cursor_id))
+    ORDER BY r.created_at DESC, r.id DESC
+    LIMIT v_size
+  ) rows;
+  v_next := NULL;
+  IF jsonb_array_length(v_items) = v_size THEN
+    SELECT (extract(epoch FROM r.created_at) * 1000000)::bigint, r.id
+      INTO v_last_micros, v_last_id
+      FROM hocalist.requests r WHERE r.id = (v_items->-1->>'request_id')::uuid;
+    IF EXISTS (
+      SELECT 1 FROM hocalist.requests r
+      LEFT JOIN hocalist.role_profiles rp ON rp.membership_id = r.buyer_profile_id
+      WHERE r.status = 'active'
+        AND (r.acceptance_expires_at IS NULL OR now() < r.acceptance_expires_at)
+        AND r.buyer_user_id <> v_user
+        AND (p_kind IS NULL OR r.kind = p_kind)
+        AND (p_category IS NULL OR r.category_id = p_category)
+        AND (p_area IS NULL OR rp.area_label ILIKE '%' || btrim(p_area) || '%'
+             OR r.city ILIKE '%' || btrim(p_area) || '%'
+             OR r.region ILIKE '%' || btrim(p_area) || '%')
+        AND ((extract(epoch FROM r.created_at) * 1000000)::bigint, r.id) < (v_last_micros, v_last_id)
+    ) THEN
+      v_next := v_last_micros::text || '|' || v_last_id::text;
+    END IF;
+  END IF;
+  RETURN jsonb_build_object('items', v_items, 'next_cursor', v_next);
+END; $$;
+
+-- ---------------------------------------------------------------------------
+-- Command surface: multiple acceptances, countdown, purchase designation
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hocalist.marketplace_command(p_operation text, p_key text, p_input jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_hash text;
+  v_receipt hocalist.marketplace_receipts%ROWTYPE;
+  v_result jsonb;
+  v_id uuid;
+  v_expected bigint;
+  v_norm jsonb;
+  v_request hocalist.requests%ROWTYPE;
+  v_offer hocalist.offers%ROWTYPE;
+  v_listing hocalist.store_listings%ROWTYPE;
+  v_count integer;
+  v_limit integer;
+  v_sequence integer;
+  v_participants jsonb;
+  v_conversation uuid;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'authentication_required' USING ERRCODE='42501'; END IF;
+  IF p_operation IS NULL OR p_operation NOT IN (
+    'request.create','request.update','request.close','request.reopen',
+    'offer.submit','offer.revise','offer.withdraw','offer.select','purchase.select',
+    'store.create','store.update','store.publish','store.archive','store.duplicate',
+    'saved.toggle','conversation.open_offer') THEN
+    RAISE EXCEPTION 'invalid_operation' USING ERRCODE='22023';
+  END IF;
+  IF p_key IS NULL OR length(btrim(p_key)) NOT BETWEEN 1 AND 128
+     OR p_input IS NULL OR jsonb_typeof(p_input) <> 'object'
+     OR octet_length(p_input::text) > 32768 THEN
+    RAISE EXCEPTION 'invalid_command' USING ERRCODE='22023';
+  END IF;
+  IF EXISTS (SELECT 1 FROM hocalist.memberships
+             WHERE user_id = v_user AND status IN ('restricted','disabled')) THEN
+    RAISE EXCEPTION 'account_restricted' USING ERRCODE='42501';
+  END IF;
+  IF p_operation IN ('offer.revise','offer.withdraw','offer.select','purchase.select')
+     AND (jsonb_typeof(p_input->'expected_offer_revision') <> 'number'
+          OR (p_input->>'expected_offer_revision') !~ '^[1-9][0-9]{0,17}$') THEN
+    RAISE EXCEPTION 'invalid_field: expected_offer_revision' USING ERRCODE='22023';
+  END IF;
+  IF p_operation IN ('request.update','request.close','request.reopen',
+                     'store.update','store.publish','store.archive')
+     AND (jsonb_typeof(p_input->'expected_revision') <> 'number'
+          OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$') THEN
+    RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+  END IF;
+  -- Serialize identical retries for one (user, operation, key) so a concurrent
+  -- duplicate submission waits, then replays the committed receipt instead of
+  -- racing the receipt insert or duplicating a create.
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(v_user::text || ':' || p_operation || ':' || p_key, 0));
+
+  v_hash := encode(sha256(convert_to(p_input::text,'UTF8')),'hex');
+  SELECT * INTO v_receipt FROM hocalist.marketplace_receipts
+    WHERE user_id = v_user AND operation = p_operation AND idempotency_key = p_key;
+  IF FOUND THEN
+    IF v_receipt.request_hash <> v_hash THEN
+      RAISE EXCEPTION 'idempotency_conflict' USING ERRCODE='P0001';
+    END IF;
+    RETURN v_receipt.result;
+  END IF;
+
+  IF p_operation = 'request.create' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'buyer');
+    v_norm := hocalist.marketplace_normalize_request(p_input);
+    INSERT INTO hocalist.requests(
+      buyer_user_id, buyer_profile_id, kind, title, description, condition, service_type,
+      quantity, budget_min_minor, budget_max_minor, currency_code, accepts_higher_offers,
+      category_id, use_home_address, address_line1, address_line2, city, region, postal_code, country_code, latitude, longitude)
+    VALUES (
+      v_user, hocalist.marketplace_assert_role(v_user, 'buyer'),
+      v_norm->>'kind', v_norm->>'title', v_norm->>'description',
+      v_norm->>'condition', v_norm->>'service_type',
+      (v_norm->>'quantity')::integer,
+      (v_norm->>'budget_minimum_minor')::bigint,
+      (v_norm->>'budget_maximum_minor')::bigint,
+      v_norm->>'currency_code',
+      (v_norm->>'accepts_higher_offers')::boolean,
+      (v_norm->>'category_id')::uuid,
+      (v_norm->>'use_home_address')::boolean,
+      v_norm->>'address_line1', v_norm->>'address_line2',
+      v_norm->>'city', v_norm->>'region', v_norm->>'postal_code', v_norm->>'country_code',
+      (v_norm->>'latitude')::double precision, (v_norm->>'longitude')::double precision)
+    RETURNING id INTO v_id;
+    v_result := hocalist.marketplace_request_json(v_id);
+
+  ELSIF p_operation = 'request.update' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'buyer');
+    IF NOT (p_input ? 'request_id') OR jsonb_typeof(p_input->'request_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: request_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'request_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_revision') <> 'number'
+       OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_revision')::bigint;
+    v_norm := hocalist.marketplace_normalize_request(p_input);
+    SELECT * INTO v_request FROM hocalist.requests
+      WHERE id = v_id AND buyer_user_id = v_user FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'request_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_request.status NOT IN ('draft','active') THEN
+      RAISE EXCEPTION 'request_not_editable' USING ERRCODE='P0001';
+    END IF;
+    UPDATE hocalist.requests SET
+      kind = v_norm->>'kind',
+      title = v_norm->>'title',
+      description = v_norm->>'description',
+      condition = v_norm->>'condition',
+      service_type = v_norm->>'service_type',
+      quantity = (v_norm->>'quantity')::integer,
+      budget_min_minor = (v_norm->>'budget_minimum_minor')::bigint,
+      budget_max_minor = (v_norm->>'budget_maximum_minor')::bigint,
+      currency_code = v_norm->>'currency_code',
+      accepts_higher_offers = (v_norm->>'accepts_higher_offers')::boolean,
+      category_id = (v_norm->>'category_id')::uuid,
+      use_home_address = (v_norm->>'use_home_address')::boolean,
+      address_line1 = v_norm->>'address_line1',
+      address_line2 = v_norm->>'address_line2',
+      city = v_norm->>'city',
+      region = v_norm->>'region',
+      postal_code = v_norm->>'postal_code',
+      country_code = v_norm->>'country_code',
+      latitude = (v_norm->>'latitude')::double precision,
+      longitude = (v_norm->>'longitude')::double precision,
+      revision = revision + 1, updated_at = now()
+    WHERE id = v_id AND buyer_user_id = v_user AND revision = v_expected
+    RETURNING id INTO v_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    v_result := hocalist.marketplace_request_json(v_id);
+
+  ELSIF p_operation = 'request.close' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'buyer');
+    IF NOT (p_input ? 'request_id') OR jsonb_typeof(p_input->'request_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: request_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'request_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_revision') <> 'number'
+       OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_revision')::bigint;
+    SELECT * INTO v_request FROM hocalist.requests
+      WHERE id = v_id AND buyer_user_id = v_user FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'request_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_request.status = 'closed' THEN
+      v_result := hocalist.marketplace_request_json(v_id);
+    ELSE
+      IF v_request.status NOT IN ('draft','active') THEN
+        RAISE EXCEPTION 'request_not_editable' USING ERRCODE='P0001';
+      END IF;
+      UPDATE hocalist.requests SET status = 'closed', revision = revision + 1, updated_at = now()
+        WHERE id = v_id AND buyer_user_id = v_user AND revision = v_expected
+        RETURNING id INTO v_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+      END IF;
+      v_result := hocalist.marketplace_request_json(v_id);
+    END IF;
+
+  ELSIF p_operation = 'request.reopen' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'buyer');
+    IF NOT (p_input ? 'request_id') OR jsonb_typeof(p_input->'request_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: request_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'request_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_revision') <> 'number'
+       OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_revision')::bigint;
+    SELECT * INTO v_request FROM hocalist.requests
+      WHERE id = v_id AND buyer_user_id = v_user FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'request_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_request.status NOT IN ('closed','expired','cancelled') THEN
+      RAISE EXCEPTION 'request_not_reopenable' USING ERRCODE='P0001';
+    END IF;
+    -- Reopening never clears the first-acceptance window. An already expired
+    -- window stays expired for discovery; accepted meetings keep their own
+    -- valid outcome path.
+    UPDATE hocalist.requests SET status = 'active', revision = revision + 1, updated_at = now()
+      WHERE id = v_id AND buyer_user_id = v_user AND revision = v_expected
+      RETURNING id INTO v_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    v_result := hocalist.marketplace_request_json(v_id);
+
+  ELSIF p_operation = 'offer.submit' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'request_id') OR jsonb_typeof(p_input->'request_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: request_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'request_id')::uuid;
+    v_norm := hocalist.marketplace_normalize_offer(p_input);
+    SELECT * INTO v_request FROM hocalist.requests WHERE id = v_id FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'request_not_found' USING ERRCODE='P0002';
+    END IF;
+    IF v_request.status <> 'active' THEN
+      RAISE EXCEPTION 'request_not_open' USING ERRCODE='P0001';
+    END IF;
+    IF v_request.acceptance_expires_at IS NOT NULL
+       AND now() >= v_request.acceptance_expires_at THEN
+      RAISE EXCEPTION 'request_expired' USING ERRCODE='P0001';
+    END IF;
+    IF v_request.buyer_user_id = v_user THEN
+      RAISE EXCEPTION 'offer_access_denied' USING ERRCODE='42501';
+    END IF;
+    BEGIN
+      INSERT INTO hocalist.offers(request_id, buyer_user_id, seller_user_id, seller_profile_id)
+      VALUES (v_id, v_request.buyer_user_id, v_user, hocalist.marketplace_assert_role(v_user, 'seller'))
+      RETURNING id INTO v_id;
+    EXCEPTION WHEN unique_violation THEN
+      RAISE EXCEPTION 'offer_exists' USING ERRCODE='P0001';
+    END;
+    INSERT INTO hocalist.offer_revisions(
+      offer_id, sequence, price_minor, currency_code, message, image_media_ids,
+      schedule_date, schedule_time, schedule_timezone, schedule_occurrence,
+      schedule_offset_minutes, schedule_instant, place_choice,
+      place_label, place_address, place_id, proposed_by_user_id)
+    VALUES (
+      v_id, 1,
+      (v_norm->>'price_minor')::bigint, v_norm->>'currency_code', v_norm->>'message',
+      v_norm->'image_media_ids',
+      (v_norm->>'schedule_date')::date, (v_norm->>'schedule_time')::time,
+      v_norm->>'schedule_timezone', v_norm->>'schedule_occurrence',
+      (v_norm->>'schedule_offset_minutes')::integer,
+      (v_norm->>'schedule_instant')::timestamptz, v_norm->>'place_choice',
+      v_norm->>'place_label', v_norm->>'place_address', v_norm->>'place_id', v_user);
+    -- Full winning-fee reservation before the targeting interaction is
+    -- permitted, from the oldest eligible single batch. Absent commercial
+    -- module or absent rate policy leaves the offer usable without a charge.
+    IF to_regprocedure('hocalist.credit_authorize_target(uuid,uuid,uuid)') IS NOT NULL THEN
+      PERFORM hocalist.credit_authorize_target(v_user, v_request.id, v_id);
+    END IF;
+    v_result := hocalist.marketplace_offer_json(v_id);
+
+  ELSIF p_operation = 'offer.revise' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'offer_id') OR jsonb_typeof(p_input->'offer_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: offer_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'offer_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_offer_revision') <> 'number'
+       OR (p_input->>'expected_offer_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_offer_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_offer_revision')::bigint;
+    v_norm := hocalist.marketplace_normalize_offer(p_input);
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id AND seller_user_id = v_user FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'offer_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_offer.status <> 'submitted' THEN
+      RAISE EXCEPTION 'offer_not_open' USING ERRCODE='P0001';
+    END IF;
+    IF v_offer.revision <> v_expected THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    UPDATE hocalist.offer_revisions SET status = 'superseded'
+      WHERE offer_id = v_id AND status = 'proposed';
+    SELECT coalesce(max(sequence), 0) + 1 INTO v_sequence
+      FROM hocalist.offer_revisions WHERE offer_id = v_id;
+    INSERT INTO hocalist.offer_revisions(
+      offer_id, sequence, price_minor, currency_code, message, image_media_ids,
+      schedule_date, schedule_time, schedule_timezone, schedule_occurrence,
+      schedule_offset_minutes, schedule_instant, place_choice,
+      place_label, place_address, place_id, proposed_by_user_id)
+    VALUES (
+      v_id, v_sequence,
+      (v_norm->>'price_minor')::bigint, v_norm->>'currency_code', v_norm->>'message',
+      v_norm->'image_media_ids',
+      (v_norm->>'schedule_date')::date, (v_norm->>'schedule_time')::time,
+      v_norm->>'schedule_timezone', v_norm->>'schedule_occurrence',
+      (v_norm->>'schedule_offset_minutes')::integer,
+      (v_norm->>'schedule_instant')::timestamptz, v_norm->>'place_choice',
+      v_norm->>'place_label', v_norm->>'place_address', v_norm->>'place_id', v_user);
+    UPDATE hocalist.offers SET revision = revision + 1, updated_at = now()
+      WHERE id = v_id AND revision = v_expected;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    v_result := hocalist.marketplace_offer_json(v_id);
+
+  ELSIF p_operation = 'offer.withdraw' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'offer_id') OR jsonb_typeof(p_input->'offer_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: offer_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'offer_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_offer_revision') <> 'number'
+       OR (p_input->>'expected_offer_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_offer_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_offer_revision')::bigint;
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id AND seller_user_id = v_user FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'offer_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_offer.status = 'withdrawn' THEN
+      v_result := hocalist.marketplace_offer_json(v_id);
+    ELSE
+      IF v_offer.status <> 'submitted' THEN
+        RAISE EXCEPTION 'offer_not_open' USING ERRCODE='P0001';
+      END IF;
+      UPDATE hocalist.offer_revisions SET status = 'withdrawn'
+        WHERE offer_id = v_id AND status = 'proposed';
+      UPDATE hocalist.offers SET status = 'withdrawn', revision = revision + 1, updated_at = now()
+        WHERE id = v_id AND seller_user_id = v_user AND revision = v_expected
+        RETURNING id INTO v_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+      END IF;
+      -- A withdrawn negotiation never charged the initial fee unless both
+      -- parties had already sent a qualifying message; settlement preserves
+      -- the already-charged initial amount and returns the unused reserve.
+      IF to_regprocedure('hocalist.credit_release_offer(uuid)') IS NOT NULL THEN
+        PERFORM hocalist.credit_release_offer(v_id);
+      END IF;
+      v_result := hocalist.marketplace_offer_json(v_id);
+    END IF;
+
+  ELSIF p_operation = 'offer.select' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'buyer');
+    IF NOT (p_input ? 'offer_id') OR jsonb_typeof(p_input->'offer_id') <> 'string'
+       OR NOT (p_input ? 'revision_id') OR jsonb_typeof(p_input->'revision_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: offer_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'offer_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_offer_revision') <> 'number'
+       OR (p_input->>'expected_offer_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_offer_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_offer_revision')::bigint;
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id AND buyer_user_id = v_user;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'offer_access_denied' USING ERRCODE='42501';
+    END IF;
+    -- Serialize every acceptance decision for one request: the request row is
+    -- the lock target so two buyer sessions cannot race the countdown stamp.
+    SELECT * INTO v_request FROM hocalist.requests WHERE id = v_offer.request_id FOR UPDATE;
+    IF v_request.status <> 'active' THEN
+      RAISE EXCEPTION 'request_not_open' USING ERRCODE='P0001';
+    END IF;
+    IF v_request.acceptance_expires_at IS NOT NULL
+       AND now() >= v_request.acceptance_expires_at THEN
+      UPDATE hocalist.requests SET status = 'expired', updated_at = now()
+        WHERE id = v_request.id AND status = 'active';
+      RAISE EXCEPTION 'request_expired' USING ERRCODE='P0001';
+    END IF;
+    -- Re-read the offer under the request lock so the decision uses the
+    -- committed state after any concurrent writer released the lock.
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id FOR UPDATE;
+    IF v_offer.status = 'selected' THEN
+      IF v_offer.accepted_revision_id = (p_input->>'revision_id')::uuid THEN
+        v_result := hocalist.marketplace_offer_json(v_id);
+      ELSE
+        RAISE EXCEPTION 'offer_revision_conflict' USING ERRCODE='P0001';
+      END IF;
+    ELSE
+      IF v_offer.status <> 'submitted' THEN
+        RAISE EXCEPTION 'offer_not_open' USING ERRCODE='P0001';
+      END IF;
+      IF v_offer.revision <> v_expected THEN
+        RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM hocalist.offer_revisions
+        WHERE id = (p_input->>'revision_id')::uuid AND offer_id = v_id AND status = 'proposed'
+      ) THEN
+        RAISE EXCEPTION 'offer_revision_conflict' USING ERRCODE='P0001';
+      END IF;
+      UPDATE hocalist.offer_revisions SET status = 'superseded'
+        WHERE offer_id = v_id AND status = 'proposed';
+      UPDATE hocalist.offer_revisions SET status = 'accepted'
+        WHERE id = (p_input->>'revision_id')::uuid AND offer_id = v_id;
+      UPDATE hocalist.offers
+        SET status = 'selected', accepted_revision_id = (p_input->>'revision_id')::uuid,
+            revision = revision + 1, updated_at = now()
+        WHERE id = v_id AND revision = v_expected
+        RETURNING id INTO v_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+      END IF;
+      -- First acceptance starts the seven-day window once; later acceptances
+      -- never move it.
+      UPDATE hocalist.requests
+        SET first_accepted_at = coalesce(first_accepted_at, now()),
+            acceptance_expires_at = coalesce(acceptance_expires_at, now() + interval '7 days')
+        WHERE id = v_request.id;
+      v_result := hocalist.marketplace_offer_json(v_id);
+    END IF;
+
+  ELSIF p_operation = 'purchase.select' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'buyer');
+    IF NOT (p_input ? 'offer_id') OR jsonb_typeof(p_input->'offer_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: offer_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'offer_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_offer_revision') <> 'number'
+       OR (p_input->>'expected_offer_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_offer_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_offer_revision')::bigint;
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id AND buyer_user_id = v_user;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'offer_access_denied' USING ERRCODE='42501';
+    END IF;
+    SELECT * INTO v_request FROM hocalist.requests WHERE id = v_offer.request_id FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'request_not_found' USING ERRCODE='P0002';
+    END IF;
+    IF to_regclass('hocalist.sale_confirmations') IS NOT NULL
+       AND EXISTS (SELECT 1 FROM hocalist.sale_confirmations WHERE request_id = v_request.id) THEN
+      RAISE EXCEPTION 'sale_already_confirmed' USING ERRCODE='P0001';
+    END IF;
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id FOR UPDATE;
+    IF v_offer.status <> 'selected' OR v_offer.accepted_revision_id IS NULL THEN
+      RAISE EXCEPTION 'offer_not_selected' USING ERRCODE='P0001';
+    END IF;
+    IF v_offer.revision <> v_expected THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    -- The buyer may change the designated seller until a purchase is
+    -- confirmed; only the designated seller can complete the PIN.
+    UPDATE hocalist.requests
+      SET purchase_offer_id = v_offer.id,
+          purchase_selected_at = now(),
+          updated_at = now()
+      WHERE id = v_request.id;
+    v_result := hocalist.marketplace_offer_json(v_offer.id);
+
+  ELSIF p_operation = 'store.create' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    v_norm := hocalist.marketplace_normalize_listing(p_input);
+    -- Serialize this seller's capacity changes so two parallel creates cannot
+    -- both pass at the last remaining slot. The settled 3/15/50 allowances are
+    -- unchanged; counting/downgrade policy beyond this lock is still open.
+    PERFORM 1 FROM hocalist.profiles WHERE id = v_user FOR UPDATE;
+    v_limit := hocalist.marketplace_store_limit(v_user);
+    SELECT count(*)::integer INTO v_count FROM hocalist.store_listings
+      WHERE seller_user_id = v_user AND status <> 'archived';
+    IF v_count >= v_limit THEN
+      RAISE EXCEPTION 'store_limit_exceeded' USING ERRCODE='P0001';
+    END IF;
+    INSERT INTO hocalist.store_listings(
+      seller_user_id, seller_profile_id, kind, title, description, category_id,
+      category_label, price_label, service_area, availability, image_media_ids,
+      status, moderation_status, published_at)
+    VALUES (
+      v_user, hocalist.marketplace_assert_role(v_user, 'seller'),
+      v_norm->>'kind', v_norm->>'title', v_norm->>'description',
+      (v_norm->>'category_id')::uuid, v_norm->>'category_label',
+      v_norm->>'price_label', v_norm->>'service_area', v_norm->>'availability',
+      v_norm->'image_media_ids',
+      CASE WHEN v_norm->>'publish_intent' = 'publish' THEN 'active' ELSE 'draft' END,
+      'pending_review',
+      CASE WHEN v_norm->>'publish_intent' = 'publish' THEN now() ELSE NULL END)
+    RETURNING id INTO v_id;
+    v_result := hocalist.marketplace_listing_json(v_id);
+
+  ELSIF p_operation = 'store.update' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'listing_id') OR jsonb_typeof(p_input->'listing_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: listing_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'listing_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_revision') <> 'number'
+       OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_revision')::bigint;
+    v_norm := hocalist.marketplace_normalize_listing(p_input);
+    SELECT * INTO v_listing FROM hocalist.store_listings
+      WHERE id = v_id AND seller_user_id = v_user;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'listing_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_listing.status = 'archived' THEN
+      RAISE EXCEPTION 'listing_not_editable' USING ERRCODE='P0001';
+    END IF;
+    UPDATE hocalist.store_listings SET
+      title = v_norm->>'title',
+      description = v_norm->>'description',
+      category_id = (v_norm->>'category_id')::uuid,
+      category_label = v_norm->>'category_label',
+      price_label = v_norm->>'price_label',
+      service_area = v_norm->>'service_area',
+      availability = v_norm->>'availability',
+      image_media_ids = v_norm->'image_media_ids',
+      moderation_status = 'pending_review',
+      revision = revision + 1, updated_at = now()
+    WHERE id = v_id AND seller_user_id = v_user AND revision = v_expected
+    RETURNING id INTO v_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    v_result := hocalist.marketplace_listing_json(v_id);
+
+  ELSIF p_operation = 'store.publish' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'listing_id') OR jsonb_typeof(p_input->'listing_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: listing_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'listing_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_revision') <> 'number'
+       OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_revision')::bigint;
+    IF jsonb_typeof(p_input->'publish') <> 'boolean' THEN
+      RAISE EXCEPTION 'invalid_field: publish' USING ERRCODE='22023';
+    END IF;
+    SELECT * INTO v_listing FROM hocalist.store_listings
+      WHERE id = v_id AND seller_user_id = v_user;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'listing_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_listing.status = 'archived' THEN
+      RAISE EXCEPTION 'listing_not_editable' USING ERRCODE='P0001';
+    END IF;
+    IF (p_input->>'publish')::boolean THEN
+      PERFORM 1 FROM hocalist.profiles WHERE id = v_user FOR UPDATE;
+      v_limit := hocalist.marketplace_store_limit(v_user);
+      SELECT count(*)::integer INTO v_count FROM hocalist.store_listings
+        WHERE seller_user_id = v_user AND status <> 'archived' AND id <> v_id;
+      IF v_count >= v_limit THEN
+        RAISE EXCEPTION 'store_limit_exceeded' USING ERRCODE='P0001';
+      END IF;
+      UPDATE hocalist.store_listings
+        SET status = 'active', published_at = coalesce(published_at, now()),
+            revision = revision + 1, updated_at = now()
+        WHERE id = v_id AND seller_user_id = v_user AND revision = v_expected
+        RETURNING id INTO v_id;
+    ELSE
+      UPDATE hocalist.store_listings
+        SET status = 'paused', revision = revision + 1, updated_at = now()
+        WHERE id = v_id AND seller_user_id = v_user AND revision = v_expected
+        RETURNING id INTO v_id;
+    END IF;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+    END IF;
+    v_result := hocalist.marketplace_listing_json(v_id);
+
+  ELSIF p_operation = 'store.archive' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'listing_id') OR jsonb_typeof(p_input->'listing_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: listing_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'listing_id')::uuid;
+    IF jsonb_typeof(p_input->'expected_revision') <> 'number'
+       OR (p_input->>'expected_revision') !~ '^[1-9][0-9]{0,17}$' THEN
+      RAISE EXCEPTION 'invalid_field: expected_revision' USING ERRCODE='22023';
+    END IF;
+    v_expected := (p_input->>'expected_revision')::bigint;
+    SELECT * INTO v_listing FROM hocalist.store_listings
+      WHERE id = v_id AND seller_user_id = v_user;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'listing_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_listing.status = 'archived' THEN
+      v_result := hocalist.marketplace_listing_json(v_id);
+    ELSE
+      PERFORM 1 FROM hocalist.profiles WHERE id = v_user FOR UPDATE;
+      UPDATE hocalist.store_listings
+        SET status = 'archived', revision = revision + 1, updated_at = now()
+        WHERE id = v_id AND seller_user_id = v_user AND revision = v_expected
+        RETURNING id INTO v_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'revision_conflict' USING ERRCODE='P0001';
+      END IF;
+      v_result := hocalist.marketplace_listing_json(v_id);
+    END IF;
+
+  ELSIF p_operation = 'store.duplicate' THEN
+    PERFORM hocalist.marketplace_assert_role(v_user, 'seller');
+    IF NOT (p_input ? 'listing_id') OR jsonb_typeof(p_input->'listing_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: listing_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'listing_id')::uuid;
+    PERFORM 1 FROM hocalist.profiles WHERE id = v_user FOR UPDATE;
+    v_limit := hocalist.marketplace_store_limit(v_user);
+    SELECT count(*)::integer INTO v_count FROM hocalist.store_listings
+      WHERE seller_user_id = v_user AND status <> 'archived';
+    IF v_count >= v_limit THEN
+      RAISE EXCEPTION 'store_limit_exceeded' USING ERRCODE='P0001';
+    END IF;
+    INSERT INTO hocalist.store_listings(
+      seller_user_id, seller_profile_id, kind, title, description, category_id,
+      category_label, price_label, service_area, availability, image_media_ids,
+      status, moderation_status)
+    SELECT l.seller_user_id, l.seller_profile_id, l.kind, left(l.title || ' copy', 160),
+           l.description, l.category_id, l.category_label, l.price_label,
+           l.service_area, l.availability, l.image_media_ids, 'draft', 'pending_review'
+    FROM hocalist.store_listings l
+    WHERE l.id = v_id AND l.seller_user_id = v_user
+    RETURNING id INTO v_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'listing_access_denied' USING ERRCODE='42501';
+    END IF;
+    v_result := hocalist.marketplace_listing_json(v_id);
+
+  ELSIF p_operation = 'saved.toggle' THEN
+    IF NOT (p_input ? 'item_type') OR (p_input->>'item_type') NOT IN ('request','store_listing')
+       OR NOT (p_input ? 'item_id') OR jsonb_typeof(p_input->'item_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: item_type' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'item_id')::uuid;
+    IF EXISTS (SELECT 1 FROM hocalist.saved_items
+               WHERE user_id = v_user AND item_type = p_input->>'item_type' AND item_id = v_id) THEN
+      DELETE FROM hocalist.saved_items
+        WHERE user_id = v_user AND item_type = p_input->>'item_type' AND item_id = v_id;
+      v_result := jsonb_build_object('saved', false, 'item_type', p_input->>'item_type', 'item_id', v_id);
+    ELSE
+      INSERT INTO hocalist.saved_items(user_id, item_type, item_id)
+        VALUES (v_user, p_input->>'item_type', v_id);
+      v_result := jsonb_build_object('saved', true, 'item_type', p_input->>'item_type', 'item_id', v_id);
+    END IF;
+
+  ELSE -- conversation.open_offer
+    IF NOT (p_input ? 'offer_id') OR jsonb_typeof(p_input->'offer_id') <> 'string' THEN
+      RAISE EXCEPTION 'invalid_field: offer_id' USING ERRCODE='22023';
+    END IF;
+    v_id := (p_input->>'offer_id')::uuid;
+    SELECT * INTO v_offer FROM hocalist.offers WHERE id = v_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'offer_not_found' USING ERRCODE='P0002';
+    END IF;
+    IF v_offer.buyer_user_id <> v_user AND v_offer.seller_user_id <> v_user THEN
+      RAISE EXCEPTION 'offer_access_denied' USING ERRCODE='42501';
+    END IF;
+    IF v_offer.status <> 'selected' OR v_offer.accepted_revision_id IS NULL THEN
+      RAISE EXCEPTION 'conversation_not_eligible' USING ERRCODE='P0001';
+    END IF;
+    IF v_offer.conversation_id IS NOT NULL THEN
+      v_result := jsonb_build_object('conversation_id', v_offer.conversation_id);
+    ELSE
+      IF to_regprocedure('hocalist.chat_open_internal(text,uuid,uuid,uuid,uuid,jsonb)') IS NULL THEN
+        RAISE EXCEPTION 'chat_foundation_missing' USING ERRCODE='P0001';
+      END IF;
+      PERFORM hocalist.marketplace_assert_role(v_user,
+        CASE WHEN v_user = v_offer.buyer_user_id THEN 'buyer' ELSE 'seller' END);
+      -- The participant list is derived from the accepted offer and the two
+      -- active memberships, never from the caller.
+      SELECT hocalist.chat_open_internal(
+        'targeted_request', v_offer.request_id, v_offer.id, NULL, NULL,
+        jsonb_build_array(
+          jsonb_build_object(
+            'user_id', v_offer.buyer_user_id,
+            'profile_id', (SELECT buyer_profile_id FROM hocalist.requests WHERE id = v_offer.request_id),
+            'role', 'buyer'),
+          jsonb_build_object(
+            'user_id', v_offer.seller_user_id,
+            'profile_id', v_offer.seller_profile_id,
+            'role', 'seller')))
+      INTO v_conversation;
+      UPDATE hocalist.offers SET conversation_id = v_conversation, updated_at = now()
+        WHERE id = v_offer.id AND conversation_id IS NULL;
+      v_result := jsonb_build_object('conversation_id', v_conversation);
+    END IF;
+  END IF;
+
+  INSERT INTO hocalist.marketplace_receipts(user_id, operation, idempotency_key, request_hash, result)
+    VALUES (v_user, p_operation, p_key, v_hash, v_result);
+  RETURN v_result;
+END; $$;
+
+-- ---------------------------------------------------------------------------
+-- Privileges
+-- ---------------------------------------------------------------------------
+
+REVOKE ALL ON FUNCTION hocalist.marketplace_weekly_target_limit(uuid),
+  hocalist.marketplace_request_json(uuid), hocalist.marketplace_lead_json(uuid),
+  hocalist.marketplace_offer_json(uuid), hocalist.marketplace_request(uuid),
+  hocalist.marketplace_seller_leads(text,uuid,text,integer,text),
+  hocalist.marketplace_command(text,text,jsonb)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION hocalist.marketplace_request(uuid),
+  hocalist.marketplace_seller_leads(text,uuid,text,integer,text),
+  hocalist.marketplace_command(text,text,jsonb) TO authenticated;
+COMMIT;

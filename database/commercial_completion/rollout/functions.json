@@ -1,0 +1,89 @@
+{
+  "hocalist.account_entitlement()": {
+    "hash": "d450c9edba2157fd2ddd4c6384073911"
+  },
+  "hocalist.entitlement_plan_preview(text)": {
+    "hash": "407096aaae03273706eb5ec5b5e4d5e6"
+  },
+  "hocalist.entitlement_admin_command(text,text,jsonb)": {
+    "hash": "087a5fe51cf6f5196405dfff871872ae"
+  },
+  "hocalist.reconciliation_admin_command(text,jsonb)": {
+    "hash": "bc0267d3180894673297ed4444cd3bdd"
+  },
+  "hocalist.admin_reconciliation_overview(integer)": {
+    "hash": "e2bda02bd8af9dfd6dd649ddef188082"
+  },
+  "hocalist.reversal_admin_command(text,text,jsonb)": {
+    "hash": "51f17edd3e667eedc6bb0b0143d1d13b"
+  },
+  "hocalist.commercial_reversal_status()": {
+    "hash": "5f6257f419f9ad9076717a52531f9ae0"
+  },
+  "hocalist.admin_reversal_queue(integer,uuid)": {
+    "hash": "f52c48105d3dfbc809a5ba9eaf3fa712"
+  },
+  "hocalist.payout_admin_command(text,jsonb)": {
+    "hash": "527e2bd679863e0e172f78a80fdc3ce2"
+  },
+  "hocalist.admin_payout_reconciliation_queue(integer)": {
+    "hash": "52f36b6c1d1a95dfacf18f0a4ad2aca0"
+  },
+  "hocalist.commercial_credit_wallet()": {
+    "hash": "12c2ea1d41670ef89445acaac6f37813"
+  },
+  "hocalist.commercial_reward_wallet()": {
+    "hash": "542748f5266ebda37c3c7a845782cc3f"
+  },
+  "hocalist.commercial_sale_history(timestamptz,uuid)": {
+    "hash": "18cf345be2ca3b942fe1958153a021c2"
+  },
+  "hocalist.commercial_sale_detail(uuid)": {
+    "hash": "aa5ac9478d4bfdae5803781e6e54d28f"
+  },
+  "hocalist.commercial_reconcile_sweep(integer,text)": {
+    "hash": "50c1634201d09ef1c9db2a6b6f789cfa"
+  },
+  "hocalist.reversal_open_internal(text,text,text,text,bigint,uuid,uuid,uuid,text)": {
+    "hash": "b4206f02e311e75cbf1bd1e5d379e682"
+  },
+  "hocalist.payout_claim_internal(integer,text)": {
+    "hash": "568078d6d661ec42ba0e6ac522f8d1ae"
+  },
+  "hocalist.payout_lease_expire_internal(integer)": {
+    "hash": "c0ff76a842e3fca86a8de52d80845b11"
+  },
+  "hocalist.payout_reconcile_batch_internal(integer)": {
+    "hash": "2191ab2731b500d072a06192e4550a69"
+  },
+  "hocalist.payout_settle_internal(uuid,text,text,text)": {
+    "hash": "cd84d7526efebb5f0dc0fb821e286c49"
+  },
+  "hocalist.payout_poll_batch_internal(integer)": {
+    "hash": "a0bc9258fb22d17036dd27082dfb8fdd"
+  },
+  "hocalist.entitlement_readings_internal(uuid)": {
+    "hash": "c896e9ddafc32452ec0785933f0f4549"
+  },
+  "hocalist.entitlement_resolve_internal(uuid)": {
+    "hash": "ee68dc39b4738e2114af75b53823db78"
+  },
+  "hocalist.credit_reconcile_target_internal(uuid)": {
+    "hash": "9237c1b055eabdec4735430d07f3e99f"
+  },
+  "hocalist.withdrawal_available_minor(uuid)": {
+    "hash": "b2256f979f94bc7a55347ee9777cb725"
+  },
+  "hocalist.commercial_reward_hold_minor(uuid)": {
+    "hash": "709399b963fee7b45077d7fd636f0996"
+  },
+  "hocalist.reward_causal_unspent_internal(uuid)": {
+    "hash": "a839fa2373b394f3ef7d90ff728af487"
+  },
+  "hocalist.reward_identity_free_internal(uuid)": {
+    "hash": "9ba80b02aa1c8411ed2e23220d5a1cc8"
+  },
+  "hocalist.reward_disputed_pool_free_internal(uuid)": {
+    "hash": "8c3efe6ac214bac90fe3137b082aeb70"
+  }
+}
