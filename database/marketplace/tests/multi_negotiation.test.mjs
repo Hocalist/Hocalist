@@ -415,6 +415,10 @@ test('multi-negotiation, countdown, purchase and batch-owned credit settlement',
         'insufficient_single_batch',
         'P0001',
       );
+      const visibleWithoutCredits = (await callAs(db, 'authenticated', F,
+        'SELECT hocalist.marketplace_seller_leads(NULL,NULL,NULL,50,NULL) AS data'))[0].data;
+      assert.ok(visibleWithoutCredits.items.some(row => row.request_id === requestF.id),
+        'an unfunded seller can still see the request after offer submission is refused');
     });
 
     let mixedTarget;
