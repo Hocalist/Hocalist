@@ -500,7 +500,7 @@ export default function BillingPortal({
       <div className="billing-card">
         <h2>HocaCredits</h2>
         {!view.data.credit_purchase_allowed ? (
-          <p className="billing-message info">An active paid seller subscription is required before buying credits. <a href="#seller-plans">Choose a seller plan</a>.</p>
+          <p className="billing-message info">Credit purchases are unavailable while this billing account is under review.</p>
         ) : null}
         <p className="billing-note">
           Credits cover eligible targeting fees and are separate from weekly target limits. Each
@@ -531,7 +531,7 @@ export default function BillingPortal({
                   disabled={action.busy !== null || !view.data.credit_purchase_allowed}
                   onClick={() => void startCheckout('credit_deposit', option.id)}
                 >
-                  {action.busy === `credit_deposit:${option.id}` ? 'Opening checkout…' : view.data.credit_purchase_allowed ? 'Buy credits' : 'Subscribe first'}
+                  {action.busy === `credit_deposit:${option.id}` ? 'Opening checkout…' : view.data.credit_purchase_allowed ? 'Buy credits' : 'Unavailable'}
                 </button>
               </article>
             ))}
