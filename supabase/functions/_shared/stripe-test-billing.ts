@@ -34,6 +34,7 @@ export class BillingError extends Error {
   }
 }
 export function backend() {
+  const verifiedEmails = new WeakMap<Request, string>();
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const key = Deno.env.get("HOCALIST_STRIPE_TEST_API_KEY") ?? "";
   if (
@@ -55,7 +56,13 @@ export function backend() {
       if (typeof user.id !== "string" || user.is_anonymous === true) {
         throw new BillingError("authentication_required", 401);
       }
+      if (typeof user.email === "string" && user.email_confirmed_at) {
+        verifiedEmails.set(request, user.email);
+      }
       return user.id;
+    },
+    userEmail(request: Request): string | undefined {
+      return verifiedEmails.get(request);
     },
     async rpc(name: string, body: ObjectMap = {}): Promise<unknown> {
       const response = await fetch(`${PROJECT}/rest/v1/rpc/${name}`, {

@@ -2,7 +2,8 @@ import { strict as assert } from "node:assert";
 import { ACCOUNT, backend, PROJECT } from "../_shared/stripe-test-billing.ts";
 import { createCheckoutHandler } from "./handler.ts";
 
-Deno.test("checkout continues after PostgREST void binding acknowledgements", async () => {
+for (const knownCustomer of [false, true]) {
+Deno.test(`checkout prefills the verified email for ${knownCustomer ? 'existing' : 'new'} customers and accepts void acknowledgements`, async () => {
   const names = [
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
@@ -21,19 +22,20 @@ Deno.test("checkout continues after PostgREST void binding acknowledgements", as
       const path = new URL(url).pathname;
       calls.push(path);
       const reply = (body: unknown) => Promise.resolve(Response.json(body));
-      if (path === "/auth/v1/user") return reply({ id: "test-user" });
+      if (path === "/auth/v1/user") return reply({ id: "test-user", email: "seller@example.test", email_confirmed_at: "2026-10-17T00:00:00Z" });
       if (path === "/v1/account") return reply({ id: ACCOUNT });
       if (path === "/rest/v1/rpc/stripe_test_deposit_begin") {
         return reply({
           checkout_id: checkout,
           membership_id: "test-membership",
-          customer_id: null,
+          customer_id: knownCustomer ? "cus_test1" : null,
           amount_minor: 2000,
           expires_at: 1900000000,
           session_id: null,
         });
       }
-      if (path === "/v1/customers") {
+      if (path === (knownCustomer ? "/v1/customers/cus_test1" : "/v1/customers")) {
+        assert.equal(new URLSearchParams(String((init as { body?: unknown })?.body)).get("email"), "seller@example.test");
         return reply({ id: "cus_test1", livemode: false });
       }
       if (path === "/rest/v1/rpc/stripe_test_deposit_bind") {
@@ -68,13 +70,14 @@ Deno.test("checkout continues after PostgREST void binding acknowledgements", as
       }),
     );
     assert.equal(response.status, 200);
+    assert.equal(calls.filter((path) => path === "/auth/v1/user").length, 1);
     assert.deepEqual(await response.json(), {
       checkout_id: checkout,
       url: "https://checkout.stripe.com/c/pay/test",
     });
     assert.equal(
       calls.filter((path) => path.endsWith("stripe_test_deposit_bind")).length,
-      2,
+      knownCustomer ? 1 : 2,
     );
     assert.equal(
       calls.filter((path) => path === "/v1/checkout/sessions").length,
@@ -89,3 +92,4 @@ Deno.test("checkout continues after PostgREST void binding acknowledgements", as
     );
   }
 });
+}

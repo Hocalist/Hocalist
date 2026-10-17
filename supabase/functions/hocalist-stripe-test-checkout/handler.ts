@@ -55,14 +55,17 @@ async function ensureCustomer(
   api: Backend,
   checkout: Record<string, unknown>,
   bind: string,
+  email?: string,
 ): Promise<string> {
   let customer = typeof checkout.customer_id === "string" ? checkout.customer_id : "";
   if (customer) {
     if (!/^cus_[A-Za-z0-9]+$/.test(customer)) throw new Error("review_required");
+    if (email) await api.stripe(`customers/${customer}`, { email });
     return customer;
   }
   customer = id(
     await api.stripe("customers", {
+      ...(email ? { email } : {}),
       "metadata[app]": "hocalist",
       "metadata[membership_id]": String(checkout.membership_id),
     }, `hocalist-customer-${checkout.membership_id}`),
@@ -128,7 +131,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
             p_key: input.key,
           }),
         );
-        const customer = await ensureCustomer(api, checkout, "stripe_test_deposit_bind");
+        const customer = await ensureCustomer(api, checkout, "stripe_test_deposit_bind", api.userEmail(request));
         const recovered = await recoverSession(api, checkout, customer);
         if (recovered) return json({ checkout_id: checkout.checkout_id, url: recovered });
         const amount = positiveMinor(checkout.amount_minor);
@@ -177,7 +180,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
         "metadata[membership_id]": String(checkout.membership_id),
         "metadata[checkout_id]": String(checkout.checkout_id),
       };
-      const customer = await ensureCustomer(api, checkout, "stripe_test_checkout_bind");
+      const customer = await ensureCustomer(api, checkout, "stripe_test_checkout_bind", api.userEmail(request));
       const recovered = await recoverSession(api, checkout, customer);
       if (recovered) return json({ checkout_id: checkout.checkout_id, url: recovered });
       const subscriptions = rows(
