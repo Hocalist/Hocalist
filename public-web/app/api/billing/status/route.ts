@@ -89,6 +89,7 @@ export async function GET(request: Request) {
       plans: Array.isArray(data.plans) ? data.plans : [],
       options: Array.isArray(data.options) ? data.options : [],
       subscription: data.subscription ?? null,
+      credit_purchase_allowed: data.credit_purchase_allowed === true,
       deposits: Array.isArray(data.deposits) ? data.deposits : [],
       selected: data.selected ?? null,
       requires_review: data.requires_review === true,
