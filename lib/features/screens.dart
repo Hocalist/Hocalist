@@ -76,9 +76,9 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
+            Icon(
               Icons.play_circle_outline,
-              color: HocalistTheme.actionBlue,
+              color: HocalistPalette.text(context, HocalistTheme.actionBlue),
               size: 23,
             ),
           ],
@@ -86,9 +86,9 @@ class _WelcomePageState extends State<WelcomePage> {
         const SizedBox(height: 6),
         Text(
           'Watch a quick 60-second overview',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: HocalistTheme.muted),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: HocalistPalette.text(context, HocalistTheme.muted),
+          ),
         ),
         const SizedBox(height: 18),
         const HocalistVideoPreview(),
@@ -200,8 +200,8 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
     return Container(
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -210,7 +210,7 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
             width: 58,
             height: 5,
             decoration: BoxDecoration(
-              color: const Color(0xffc8c9d9),
+              color: HocalistPalette.surface(context, const Color(0xffc8c9d9)),
               borderRadius: BorderRadius.circular(999),
             ),
           ),
@@ -219,9 +219,9 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
             child: IconButton(
               tooltip: 'Close',
               onPressed: widget.onClose,
-              icon: const Icon(
+              icon: Icon(
                 Icons.close,
-                color: HocalistTheme.muted,
+                color: HocalistPalette.text(context, HocalistTheme.muted),
                 size: 32,
               ),
             ),
@@ -238,16 +238,16 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
               fontSize: 30,
-              color: HocalistTheme.text,
+              color: HocalistPalette.text(context, HocalistTheme.text),
             ),
           ),
           const SizedBox(height: 10),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: HocalistTheme.muted),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: HocalistPalette.text(context, HocalistTheme.muted),
+            ),
           ),
           const SizedBox(height: 34),
           _AccountRoleToggle(
@@ -316,8 +316,11 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: HocalistTheme.actionBlue,
-                foregroundColor: Colors.white,
+                backgroundColor: HocalistPalette.surface(
+                  context,
+                  HocalistTheme.actionBlue,
+                ),
+                foregroundColor: HocalistPalette.text(context, Colors.white),
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -327,7 +330,7 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
               child: Text(
                 primaryLabel,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
+                  color: HocalistPalette.text(context, Colors.white),
                   fontSize: 17,
                 ),
               ),
@@ -359,12 +362,12 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
                 loginMode
                     ? 'Don\'t have an account? '
                     : 'Already have an account? ',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: HocalistTheme.muted),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
               Material(
-                color: Colors.transparent,
+                color: HocalistPalette.surface(context, Colors.transparent),
                 borderRadius: BorderRadius.circular(8),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
@@ -379,7 +382,10 @@ class _AccountAccessPageState extends State<AccountAccessPage> {
                     child: Text(
                       loginMode ? 'Sign up' : 'Log in',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: HocalistTheme.actionBlue,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.actionBlue,
+                        ),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -406,7 +412,7 @@ class _AccountHeroIcon extends StatelessWidget {
       button: true,
       label: uploaded ? 'Profile image added' : 'Upload profile image',
       child: Material(
-        color: Colors.transparent,
+        color: HocalistPalette.surface(context, Colors.transparent),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -426,14 +432,20 @@ class _AccountHeroIcon extends StatelessWidget {
                           filterQuality: FilterQuality.high,
                         )
                       : Container(
-                          decoration: const BoxDecoration(
-                            color: HocalistTheme.roleSurface,
+                          decoration: BoxDecoration(
+                            color: HocalistPalette.surface(
+                              context,
+                              HocalistTheme.roleSurface,
+                            ),
                             shape: BoxShape.circle,
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Icon(
                               Icons.person_outline,
-                              color: HocalistTheme.actionBlue,
+                              color: HocalistPalette.text(
+                                context,
+                                HocalistTheme.actionBlue,
+                              ),
                               size: 74,
                             ),
                           ),
@@ -445,11 +457,18 @@ class _AccountHeroIcon extends StatelessWidget {
                   child: Container(
                     width: 40,
                     height: 40,
-                    decoration: const BoxDecoration(
-                      color: HocalistTheme.actionBlue,
+                    decoration: BoxDecoration(
+                      color: HocalistPalette.surface(
+                        context,
+                        HocalistTheme.actionBlue,
+                      ),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 28),
+                    child: Icon(
+                      Icons.add,
+                      color: HocalistPalette.text(context, Colors.white),
+                      size: 28,
+                    ),
                   ),
                 ),
               ],
@@ -510,7 +529,10 @@ class _AccountRoleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? HocalistTheme.actionBlue : HocalistTheme.muted;
     return Material(
-      color: selected ? HocalistTheme.roleSurface : Colors.white,
+      color: HocalistPalette.surface(
+        context,
+        selected ? HocalistTheme.roleSurface : Colors.white,
+      ),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -520,25 +542,27 @@ class _AccountRoleButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? const Color(0xffaaa6ff)
-                  : const Color(0xffdfe3ee),
+              color: HocalistPalette.border(
+                context,
+                selected ? const Color(0xffaaa6ff) : const Color(0xffdfe3ee),
+              ),
               width: 1.3,
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 28),
+              Icon(icon, color: HocalistPalette.text(context, color), size: 28),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: selected
-                        ? HocalistTheme.actionBlue
-                        : HocalistTheme.text,
+                    color: HocalistPalette.text(
+                      context,
+                      selected ? HocalistTheme.actionBlue : HocalistTheme.text,
+                    ),
                     fontSize: 16,
                   ),
                 ),
@@ -580,21 +604,29 @@ class _AccountInput extends StatelessWidget {
       style: Theme.of(context).textTheme.bodyLarge,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: HocalistTheme.muted, size: 28),
+        prefixIcon: Icon(
+          icon,
+          color: HocalistPalette.text(context, HocalistTheme.muted),
+          size: 28,
+        ),
         suffixIcon: suffix,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: HocalistPalette.surface(context, Colors.white),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 22,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xffdfe3ee)),
+          borderSide: BorderSide(
+            color: HocalistPalette.border(context, Color(0xffdfe3ee)),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: HocalistTheme.actionBlue),
+          borderSide: BorderSide(
+            color: HocalistPalette.border(context, HocalistTheme.actionBlue),
+          ),
         ),
       ),
     );
@@ -617,9 +649,9 @@ class _AccountDivider extends StatelessWidget {
             child: Text(
               'or continue with',
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: HocalistTheme.muted),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: HocalistPalette.text(context, HocalistTheme.muted),
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -634,9 +666,9 @@ class _AccountDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
             'or continue with',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: HocalistTheme.muted),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: HocalistPalette.text(context, HocalistTheme.muted),
+            ),
           ),
         ),
         const Expanded(child: Divider(color: Color(0xffdfe3ee))),
@@ -657,8 +689,10 @@ class _SocialAuthButton extends StatelessWidget {
       width: double.infinity,
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
-          foregroundColor: HocalistTheme.text,
-          side: const BorderSide(color: Color(0xffdfe3ee)),
+          foregroundColor: HocalistPalette.text(context, HocalistTheme.text),
+          side: BorderSide(
+            color: HocalistPalette.border(context, Color(0xffdfe3ee)),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(999),
@@ -787,7 +821,7 @@ class _BuyerBenefitOnboardingPageState
         ? 'Jonathan'
         : widget.name.trim().split(RegExp(r'\s+')).first;
     return Container(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
       child: Column(
         children: [
@@ -796,9 +830,9 @@ class _BuyerBenefitOnboardingPageState
             child: IconButton(
               tooltip: 'Close',
               onPressed: widget.onClose,
-              icon: const Icon(
+              icon: Icon(
                 Icons.close,
-                color: HocalistTheme.muted,
+                color: HocalistPalette.text(context, HocalistTheme.muted),
                 size: 31,
               ),
             ),
@@ -822,7 +856,10 @@ class _BuyerBenefitOnboardingPageState
                         'As a buyer, you will:',
                         style: Theme.of(context).textTheme.headlineLarge
                             ?.copyWith(
-                              color: HocalistTheme.primary,
+                              color: HocalistPalette.text(
+                                context,
+                                HocalistTheme.primary,
+                              ),
                               fontSize: 22,
                             ),
                       ),
@@ -837,8 +874,14 @@ class _BuyerBenefitOnboardingPageState
                         width: double.infinity,
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: HocalistTheme.actionBlue,
-                            foregroundColor: Colors.white,
+                            backgroundColor: HocalistPalette.surface(
+                              context,
+                              HocalistTheme.actionBlue,
+                            ),
+                            foregroundColor: HocalistPalette.text(
+                              context,
+                              Colors.white,
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -848,7 +891,13 @@ class _BuyerBenefitOnboardingPageState
                           child: Text(
                             'Jump to dashboard',
                             style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(color: Colors.white, fontSize: 17),
+                                ?.copyWith(
+                                  color: HocalistPalette.text(
+                                    context,
+                                    Colors.white,
+                                  ),
+                                  fontSize: 17,
+                                ),
                           ),
                         ),
                       ),
@@ -897,7 +946,7 @@ class _BenefitScrollCue extends StatelessWidget {
         height: 34,
         margin: const EdgeInsets.only(bottom: 4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: HocalistPalette.surface(context, Colors.white),
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
@@ -907,9 +956,9 @@ class _BenefitScrollCue extends StatelessWidget {
             ),
           ],
         ),
-        child: const Icon(
+        child: Icon(
           Icons.keyboard_arrow_down_rounded,
-          color: HocalistTheme.actionBlue,
+          color: HocalistPalette.text(context, HocalistTheme.actionBlue),
           size: 28,
           semanticLabel: 'More buyer benefits below',
         ),
@@ -947,7 +996,7 @@ class _BuyerWelcomeHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: HocalistTheme.text,
+                  color: HocalistPalette.text(context, HocalistTheme.text),
                   fontSize: 22,
                 ),
               ),
@@ -955,7 +1004,7 @@ class _BuyerWelcomeHeader extends StatelessWidget {
               Text(
                 'With your Hocalist buyer account, you get paid to buy and enjoy the best offers.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: HocalistTheme.muted,
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
                   height: 1.28,
                 ),
               ),
@@ -1000,8 +1049,10 @@ class _BuyerBenefitCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xffe2e3f3)),
+        color: HocalistPalette.surface(context, Colors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffe2e3f3)),
+        ),
         borderRadius: BorderRadius.circular(11),
       ),
       child: Row(
@@ -1016,7 +1067,7 @@ class _BuyerBenefitCard extends StatelessWidget {
                 Text(
                   data.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: 16,
                   ),
                 ),
@@ -1026,7 +1077,7 @@ class _BuyerBenefitCard extends StatelessWidget {
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: HocalistTheme.muted,
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
                     height: 1.2,
                   ),
                 ),
@@ -1047,7 +1098,7 @@ class _BuyerFairnessBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
       decoration: BoxDecoration(
-        color: const Color(0xffeef7f1),
+        color: HocalistPalette.surface(context, const Color(0xffeef7f1)),
         borderRadius: BorderRadius.circular(9),
       ),
       child: Row(
@@ -1065,16 +1116,16 @@ class _BuyerFairnessBanner extends StatelessWidget {
                 Text(
                   'Fair, transparent, and built for you.',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: 16,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'We\'re here to give you more value every time you buy.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: HocalistTheme.muted),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
+                  ),
                 ),
               ],
             ),
@@ -1205,7 +1256,10 @@ class BuyerDashboard extends StatelessWidget {
               infoBody:
                   'This is the total reward amount you have earned from completed purchases in this preview account.',
               icon: Icons.emoji_events_outlined,
-              iconColor: HocalistTheme.actionBlue,
+              iconColor: HocalistPalette.text(
+                context,
+                HocalistTheme.actionBlue,
+              ),
               actionLabel: 'View all rewards',
               onTap: onWallet,
             );
@@ -1285,11 +1339,14 @@ class _BuyerDashboardHero extends StatelessWidget {
                     TextSpan(
                       children: [
                         TextSpan(text: 'Good morning, $name! '),
-                        const WidgetSpan(
+                        WidgetSpan(
                           alignment: PlaceholderAlignment.middle,
                           child: Icon(
                             Icons.waving_hand_outlined,
-                            color: Color(0xffffb300),
+                            color: HocalistPalette.text(
+                              context,
+                              Color(0xffffb300),
+                            ),
                             size: 25,
                           ),
                         ),
@@ -1298,7 +1355,10 @@ class _BuyerDashboardHero extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       height: 1.18,
                     ),
                   ),
@@ -1306,7 +1366,7 @@ class _BuyerDashboardHero extends StatelessWidget {
                   Text(
                     'You\'re earning rewards while sellers compete for your business.',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                       height: 1.45,
                     ),
                   ),
@@ -1372,7 +1432,10 @@ class _RewardSummaryCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.visible,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: HocalistTheme.primary,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.primary,
+                        ),
                         fontSize: HocalistTheme.smallSize,
                         height: 1.15,
                       ),
@@ -1397,7 +1460,10 @@ class _RewardSummaryCard extends StatelessWidget {
                         amount,
                         style: Theme.of(context).textTheme.displaySmall
                             ?.copyWith(
-                              color: HocalistTheme.actionBlue,
+                              color: HocalistPalette.text(
+                                context,
+                                HocalistTheme.actionBlue,
+                              ),
                               fontSize: HocalistTheme.metricSize,
                             ),
                       ),
@@ -1405,7 +1471,7 @@ class _RewardSummaryCard extends StatelessWidget {
                   ),
                   _DashboardCircleIcon(
                     icon: icon,
-                    color: iconColor,
+                    color: HocalistPalette.text(context, iconColor),
                     background: HocalistTheme.roleSurface,
                     size: iconSize,
                   ),
@@ -1414,9 +1480,9 @@ class _RewardSummaryCard extends StatelessWidget {
               const SizedBox(height: 14),
               Text(
                 detail,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: HocalistTheme.muted),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
               if (actionLabel != null) ...[
                 const SizedBox(height: 12),
@@ -1452,7 +1518,10 @@ class _PendingRewardsCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.visible,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: HocalistTheme.primary,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.primary,
+                        ),
                         fontSize: HocalistTheme.smallSize,
                         height: 1.15,
                       ),
@@ -1478,7 +1547,10 @@ class _PendingRewardsCard extends StatelessWidget {
                         '\$24.80',
                         style: Theme.of(context).textTheme.displaySmall
                             ?.copyWith(
-                              color: HocalistTheme.primary,
+                              color: HocalistPalette.text(
+                                context,
+                                HocalistTheme.primary,
+                              ),
                               fontSize: HocalistTheme.metricSize,
                             ),
                       ),
@@ -1486,7 +1558,10 @@ class _PendingRewardsCard extends StatelessWidget {
                   ),
                   _DashboardCircleIcon(
                     icon: Icons.calendar_month_outlined,
-                    color: HocalistTheme.sellerGreen,
+                    color: HocalistPalette.text(
+                      context,
+                      HocalistTheme.sellerGreen,
+                    ),
                     background: Color(0xffdbf4e9),
                     size: iconSize,
                   ),
@@ -1495,9 +1570,9 @@ class _PendingRewardsCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Pay date: May 20, 2025',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: HocalistTheme.muted),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
               const SizedBox(height: 12),
               ClipRRect(
@@ -1505,7 +1580,10 @@ class _PendingRewardsCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   minHeight: 7,
                   value: 0.992,
-                  backgroundColor: HocalistTheme.roleSurface,
+                  backgroundColor: HocalistPalette.surface(
+                    context,
+                    HocalistTheme.roleSurface,
+                  ),
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     HocalistTheme.actionBlue,
                   ),
@@ -1515,16 +1593,16 @@ class _PendingRewardsCard extends StatelessWidget {
               Text(
                 '\$24.80 of \$25.00',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.smallSize,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 '\$0.20 until next payout',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: HocalistTheme.muted),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
             ],
           ),
@@ -1558,19 +1636,20 @@ class _RewardInfoButton extends StatelessWidget {
           sheetAnimationStyle: HocalistMotion.sheetStyle(context),
           isScrollControlled: true,
           useSafeArea: true,
-          backgroundColor: Colors.transparent,
+          backgroundColor: HocalistPalette.surface(context, Colors.transparent),
           barrierColor: const Color(0x990B1231),
           builder: (sheetContext) {
             final media = MediaQuery.of(sheetContext);
             final metrics =
                 ApprovedReplicaScope.maybeOf(sheetContext) ??
                 ApprovedReplicaMetrics.resolve(
+                  brightness: Theme.of(context).brightness,
                   availableWidth: media.size.width,
                   textScaler: media.textScaler,
                 );
             return BuyerModalSheet(
               icon: Icons.info_outline_rounded,
-              iconColor: color,
+              iconColor: HocalistPalette.text(context, color),
               title: title,
               subtitle: 'Reward information',
               onClose: () => Navigator.pop(sheetContext),
@@ -1598,7 +1677,11 @@ class _RewardInfoButton extends StatelessWidget {
           },
         );
       },
-      icon: Icon(Icons.info_outline, color: color, size: 17),
+      icon: Icon(
+        Icons.info_outline,
+        color: HocalistPalette.text(context, color),
+        size: 17,
+      ),
     );
   }
 }
@@ -1611,7 +1694,7 @@ class _PostNewRequestPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xfffbfaff),
+      color: HocalistPalette.surface(context, const Color(0xfffbfaff)),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -1620,14 +1703,17 @@ class _PostNewRequestPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xffa997ff), width: 1.2),
-            color: const Color(0xfffdfcff),
+            border: Border.all(
+              color: HocalistPalette.border(context, const Color(0xffa997ff)),
+              width: 1.2,
+            ),
+            color: HocalistPalette.surface(context, const Color(0xfffdfcff)),
           ),
           child: Row(
             children: [
-              const _DashboardCircleIcon(
+              _DashboardCircleIcon(
                 icon: Icons.add,
-                color: Colors.white,
+                color: HocalistPalette.text(context, Colors.white),
                 background: HocalistTheme.actionBlue,
                 size: 50,
               ),
@@ -1639,7 +1725,10 @@ class _PostNewRequestPanel extends StatelessWidget {
                     Text(
                       'Post a new request',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: HocalistTheme.actionBlue,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.actionBlue,
+                        ),
                         fontSize: 17,
                       ),
                     ),
@@ -1647,15 +1736,18 @@ class _PostNewRequestPanel extends StatelessWidget {
                     Text(
                       'Need something else? Post another product or service.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: HocalistTheme.muted,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.muted,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: HocalistTheme.actionBlue,
+                color: HocalistPalette.text(context, HocalistTheme.actionBlue),
                 size: 27,
               ),
             ],
@@ -1697,7 +1789,10 @@ class _ActiveRequestCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: HocalistTheme.sellerGreen,
+                    color: HocalistPalette.text(
+                      context,
+                      HocalistTheme.sellerGreen,
+                    ),
                     height: 1.12,
                   ),
                 ),
@@ -1707,7 +1802,7 @@ class _ActiveRequestCard extends StatelessWidget {
                   maxLines: tight ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: tight
                         ? HocalistTheme.prominentTitleSize
                         : HocalistTheme.sectionTitleSize,
@@ -1719,9 +1814,9 @@ class _ActiveRequestCard extends StatelessWidget {
                   data.date,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: HocalistTheme.muted),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
+                  ),
                 ),
               ],
             );
@@ -1742,7 +1837,7 @@ class _ActiveRequestCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1763,7 +1858,10 @@ class _ActiveRequestCard extends StatelessWidget {
                     children: [
                       _DashboardCircleIcon(
                         icon: Icons.assignment_outlined,
-                        color: HocalistTheme.sellerGreen,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.sellerGreen,
+                        ),
                         background: const Color(0xffe5f7ea),
                         size: iconSize,
                       ),
@@ -1792,7 +1890,10 @@ class _ActiveRequestCard extends StatelessWidget {
               children: [
                 _DashboardCircleIcon(
                   icon: Icons.assignment_outlined,
-                  color: HocalistTheme.sellerGreen,
+                  color: HocalistPalette.text(
+                    context,
+                    HocalistTheme.sellerGreen,
+                  ),
                   background: const Color(0xffe5f7ea),
                   size: iconSize,
                 ),
@@ -1838,7 +1939,7 @@ class _DashboardSectionHeader extends StatelessWidget {
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: HocalistTheme.primary,
+              color: HocalistPalette.text(context, HocalistTheme.primary),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1926,7 +2027,7 @@ class _ActivityRow extends StatelessWidget {
           children: [
             _DashboardCircleIcon(
               icon: data.icon,
-              color: data.iconColor,
+              color: HocalistPalette.text(context, data.iconColor),
               background: data.background,
               size: 48,
             ),
@@ -1940,14 +2041,17 @@ class _ActivityRow extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     data.time,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                     ),
                   ),
                 ],
@@ -1957,14 +2061,14 @@ class _ActivityRow extends StatelessWidget {
             Text(
               data.trailing,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: data.trailingColor,
+                color: HocalistPalette.text(context, data.trailingColor),
                 fontSize: data.trailing.contains('★') ? 18 : 17,
               ),
             ),
             const SizedBox(width: 10),
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: HocalistTheme.muted,
+              color: HocalistPalette.text(context, HocalistTheme.muted),
               size: 24,
             ),
           ],
@@ -2110,9 +2214,9 @@ class _RecentActivityHeader extends StatelessWidget {
           onPressed: onBack,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints.tightFor(width: 42, height: 42),
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back,
-            color: HocalistTheme.primary,
+            color: HocalistPalette.text(context, HocalistTheme.primary),
             size: 28,
           ),
         ),
@@ -2121,7 +2225,7 @@ class _RecentActivityHeader extends StatelessWidget {
           child: Text(
             'Recent activity',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: HocalistTheme.primary,
+              color: HocalistPalette.text(context, HocalistTheme.primary),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -2156,8 +2260,13 @@ class _RecentActivityTabs extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xffdddff0)),
+                    color: HocalistPalette.surface(context, Colors.white),
+                    border: Border.all(
+                      color: HocalistPalette.border(
+                        context,
+                        const Color(0xffdddff0),
+                      ),
+                    ),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
@@ -2183,13 +2292,24 @@ class _RecentActivityTabs extends StatelessWidget {
                       height: 32,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
+                        color: HocalistPalette.surface(
+                          context,
+                          Colors.white.withValues(alpha: 0.92),
+                        ),
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xffdddff0)),
+                        border: Border.all(
+                          color: HocalistPalette.border(
+                            context,
+                            const Color(0xffdddff0),
+                          ),
+                        ),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.chevron_right,
-                        color: HocalistTheme.muted,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.muted,
+                        ),
                         size: 22,
                       ),
                     ),
@@ -2224,13 +2344,19 @@ class _RecentActivityTab extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? HocalistTheme.actionBlue : Colors.transparent,
+          color: HocalistPalette.surface(
+            context,
+            selected ? HocalistTheme.actionBlue : Colors.transparent,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: selected ? Colors.white : HocalistTheme.muted,
+            color: HocalistPalette.text(
+              context,
+              selected ? Colors.white : HocalistTheme.muted,
+            ),
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -2259,7 +2385,7 @@ class _RecentActivityListRow extends StatelessWidget {
               maxLines: tight ? 3 : 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: HocalistTheme.primary,
+                color: HocalistPalette.text(context, HocalistTheme.primary),
                 fontWeight: FontWeight.w800,
                 height: 1.28,
               ),
@@ -2268,7 +2394,7 @@ class _RecentActivityListRow extends StatelessWidget {
             Text(
               data.time,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: HocalistTheme.muted,
+                color: HocalistPalette.text(context, HocalistTheme.muted),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -2281,7 +2407,7 @@ class _RecentActivityListRow extends StatelessWidget {
           children: [
             _DashboardCircleIcon(
               icon: data.icon,
-              color: data.iconColor,
+              color: HocalistPalette.text(context, data.iconColor),
               background: data.background,
               size: iconSize,
             ),
@@ -2316,7 +2442,7 @@ class _RecentActivityTrailing extends StatelessWidget {
           for (var index = 0; index < data.starRating!; index++)
             Icon(
               Icons.star,
-              color: const Color(0xffffb300),
+              color: HocalistPalette.text(context, const Color(0xffffb300)),
               size: compact ? 17 : 20,
             ),
         ],
@@ -2329,7 +2455,10 @@ class _RecentActivityTrailing extends StatelessWidget {
         data.value ?? '',
         maxLines: 1,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: data.valueColor ?? HocalistTheme.primary,
+          color: HocalistPalette.text(
+            context,
+            data.valueColor ?? HocalistTheme.primary,
+          ),
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -2386,7 +2515,7 @@ class _KeepEarningBanner extends StatelessWidget {
             Text(
               'Keep earning more rewards',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: HocalistTheme.actionBlue,
+                color: HocalistPalette.text(context, HocalistTheme.actionBlue),
                 height: 1.18,
               ),
             ),
@@ -2394,7 +2523,7 @@ class _KeepEarningBanner extends StatelessWidget {
             Text(
               'Sellers pay to reach you. Buy from any seller within 5 days to earn rewards from all of them.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: HocalistTheme.muted,
+                color: HocalistPalette.text(context, HocalistTheme.muted),
                 height: 1.35,
               ),
             ),
@@ -2404,7 +2533,7 @@ class _KeepEarningBanner extends StatelessWidget {
         return Container(
           padding: EdgeInsets.fromLTRB(18, 18, stackContent ? 18 : 12, 18),
           decoration: BoxDecoration(
-            color: HocalistTheme.roleSurface,
+            color: HocalistPalette.surface(context, HocalistTheme.roleSurface),
             borderRadius: BorderRadius.circular(12),
           ),
           child: stackContent
@@ -2416,7 +2545,10 @@ class _KeepEarningBanner extends StatelessWidget {
                       children: [
                         _DashboardCircleIcon(
                           icon: Icons.workspace_premium_outlined,
-                          color: HocalistTheme.actionBlue,
+                          color: HocalistPalette.text(
+                            context,
+                            HocalistTheme.actionBlue,
+                          ),
                           background: const Color(0xffe6e3ff),
                           size: badgeSize,
                         ),
@@ -2432,7 +2564,10 @@ class _KeepEarningBanner extends StatelessWidget {
                   children: [
                     _DashboardCircleIcon(
                       icon: Icons.workspace_premium_outlined,
-                      color: HocalistTheme.actionBlue,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.actionBlue,
+                      ),
                       background: const Color(0xffe6e3ff),
                       size: badgeSize,
                     ),
@@ -2460,11 +2595,13 @@ class _DashboardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       elevation: 3,
       shadowColor: HocalistTheme.primary.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
-        side: const BorderSide(color: Color(0xffe5e6f2)),
+        side: BorderSide(
+          color: HocalistPalette.border(context, Color(0xffe5e6f2)),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       clipBehavior: Clip.antiAlias,
@@ -2491,8 +2628,15 @@ class _DashboardCircleIcon extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      child: Icon(icon, color: color, size: size * 0.52),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, background),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        color: HocalistPalette.text(context, color),
+        size: size * 0.52,
+      ),
     );
   }
 }
@@ -2506,7 +2650,7 @@ class _DashboardPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: HocalistTheme.roleSurface,
+      color: HocalistPalette.surface(context, HocalistTheme.roleSurface),
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -2522,15 +2666,18 @@ class _DashboardPillButton extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.visible,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: HocalistTheme.actionBlue,
+                    color: HocalistPalette.text(
+                      context,
+                      HocalistTheme.actionBlue,
+                    ),
                     fontSize: 12.5,
                   ),
                 ),
               ),
               const SizedBox(width: 6),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: HocalistTheme.actionBlue,
+                color: HocalistPalette.text(context, HocalistTheme.actionBlue),
                 size: 18,
               ),
             ],
@@ -2654,7 +2801,7 @@ class _HocatrendsHero extends StatelessWidget {
                 Text(
                   'Saving',
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: titleSize,
                     height: 1.05,
                     fontWeight: FontWeight.w900,
@@ -2663,7 +2810,10 @@ class _HocatrendsHero extends StatelessWidget {
                 Text(
                   'Opportunities',
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    color: HocalistTheme.actionBlue,
+                    color: HocalistPalette.text(
+                      context,
+                      HocalistTheme.actionBlue,
+                    ),
                     fontSize: titleSize,
                     height: 1.05,
                     fontWeight: FontWeight.w900,
@@ -2671,7 +2821,10 @@ class _HocatrendsHero extends StatelessWidget {
                 ),
                 Icon(
                   Icons.trending_up,
-                  color: HocalistTheme.actionBlue,
+                  color: HocalistPalette.text(
+                    context,
+                    HocalistTheme.actionBlue,
+                  ),
                   size: compact ? 22 : 30,
                 ),
               ],
@@ -2680,7 +2833,7 @@ class _HocatrendsHero extends StatelessWidget {
             Text(
               'Explore verified sellers offering\ndiscounts on products & services.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: HocalistTheme.muted,
+                color: HocalistPalette.text(context, HocalistTheme.muted),
                 fontSize: bodySize,
                 height: compact ? 1.42 : 1.5,
                 fontWeight: FontWeight.w500,
@@ -2719,7 +2872,7 @@ class _HocatrendsSavingsNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xfff2f0ff),
+        color: HocalistPalette.surface(context, const Color(0xfff2f0ff)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -2728,13 +2881,13 @@ class _HocatrendsSavingsNotice extends StatelessWidget {
           Container(
             width: 58,
             height: 58,
-            decoration: const BoxDecoration(
-              color: Color(0xffe2dcff),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Color(0xffe2dcff)),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.verified_user_outlined,
-              color: HocalistTheme.actionBlue,
+              color: HocalistPalette.text(context, HocalistTheme.actionBlue),
               size: 34,
             ),
           ),
@@ -2746,7 +2899,7 @@ class _HocatrendsSavingsNotice extends StatelessWidget {
                 Text(
                   'Skip the Rewards & save on current offers',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -2754,7 +2907,7 @@ class _HocatrendsSavingsNotice extends StatelessWidget {
                 Text(
                   'Hocatrends shows exclusive offers and discounts created by sellers for other buyers.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: HocalistTheme.muted,
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
                     height: 1.45,
                   ),
                 ),
@@ -2776,9 +2929,12 @@ class _HocatrendsSearchBar extends StatelessWidget {
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xffdddaf3), width: 1.4),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdddaf3)),
+          width: 1.4,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1000036c),
@@ -2789,7 +2945,11 @@ class _HocatrendsSearchBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, color: HocalistTheme.muted, size: 34),
+          Icon(
+            Icons.search,
+            color: HocalistPalette.text(context, HocalistTheme.muted),
+            size: 34,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -2797,13 +2957,17 @@ class _HocatrendsSearchBar extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: HocalistTheme.muted,
+                color: HocalistPalette.text(context, HocalistTheme.muted),
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           const SizedBox(width: 12),
-          const Icon(Icons.tune, color: HocalistTheme.actionBlue, size: 31),
+          Icon(
+            Icons.tune,
+            color: HocalistPalette.text(context, HocalistTheme.actionBlue),
+            size: 31,
+          ),
         ],
       ),
     );
@@ -2819,7 +2983,7 @@ class _HocatrendsSectionHeader extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 390;
         final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: HocalistTheme.primary,
+          color: HocalistPalette.text(context, HocalistTheme.primary),
           fontWeight: FontWeight.w800,
           height: 1.12,
         );
@@ -2841,15 +3005,23 @@ class _HocatrendsSectionHeader extends StatelessWidget {
                     const TextSpan(text: 'Most Competitive Categories\n'),
                     TextSpan(
                       text: 'Today',
-                      style: titleStyle?.copyWith(color: HocalistTheme.primary),
+                      style: titleStyle?.copyWith(
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.primary,
+                        ),
+                      ),
                     ),
-                    const WidgetSpan(
+                    WidgetSpan(
                       alignment: PlaceholderAlignment.middle,
                       child: Padding(
                         padding: EdgeInsets.only(left: 5),
                         child: Icon(
                           Icons.info_outline,
-                          color: HocalistTheme.muted,
+                          color: HocalistPalette.text(
+                            context,
+                            HocalistTheme.muted,
+                          ),
                           size: 16,
                         ),
                       ),
@@ -2870,11 +3042,14 @@ class _HocatrendsSectionHeader extends StatelessWidget {
             onTap: () {},
             borderRadius: BorderRadius.circular(999),
             child: compact
-                ? const Padding(
+                ? Padding(
                     padding: EdgeInsets.all(8),
                     child: Icon(
                       Icons.help_outline,
-                      color: HocalistTheme.actionBlue,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.actionBlue,
+                      ),
                       size: 22,
                     ),
                   )
@@ -2889,12 +3064,20 @@ class _HocatrendsSectionHeader extends StatelessWidget {
                         Text(
                           'How it works',
                           style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(color: HocalistTheme.actionBlue),
+                              ?.copyWith(
+                                color: HocalistPalette.text(
+                                  context,
+                                  HocalistTheme.actionBlue,
+                                ),
+                              ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right,
-                          color: HocalistTheme.actionBlue,
+                          color: HocalistPalette.text(
+                            context,
+                            HocalistTheme.actionBlue,
+                          ),
                           size: 17,
                         ),
                       ],
@@ -3009,9 +3192,11 @@ class _HocatrendsCategoryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xffeeeef7)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffeeeef7)),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0f00036c),
@@ -3096,7 +3281,7 @@ class _HocatrendsCategoryCopy extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: HocalistTheme.primary,
+                color: HocalistPalette.text(context, HocalistTheme.primary),
                 fontSize: compact ? 18 : null,
                 fontWeight: FontWeight.w900,
                 height: 1.12,
@@ -3111,7 +3296,7 @@ class _HocatrendsCategoryCopy extends StatelessWidget {
                 Text(
                   'Competition: ${data.competition}',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: compact ? 12 : null,
                     fontWeight: FontWeight.w800,
                   ),
@@ -3129,7 +3314,10 @@ class _HocatrendsCategoryCopy extends StatelessWidget {
                       value: data.percent,
                       minHeight: compact ? 8 : 9,
                       color: data.progressColor,
-                      backgroundColor: const Color(0xffe6e6ef),
+                      backgroundColor: HocalistPalette.surface(
+                        context,
+                        const Color(0xffe6e6ef),
+                      ),
                     ),
                   ),
                 ),
@@ -3140,7 +3328,10 @@ class _HocatrendsCategoryCopy extends StatelessWidget {
                     data.percentLabel,
                     maxLines: 1,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: HocalistTheme.actionBlue,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.actionBlue,
+                      ),
                       fontSize: compact ? 12 : null,
                       fontWeight: FontWeight.w900,
                     ),
@@ -3174,13 +3365,16 @@ class _HocatrendsRankBadge extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: data.rankColor,
+        color: HocalistPalette.surface(context, data.rankColor),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         '${data.rank}',
         style: TextStyle(
-          color: darkText ? HocalistTheme.primary : const Color(0xff252a5f),
+          color: HocalistPalette.text(
+            context,
+            darkText ? HocalistTheme.primary : const Color(0xff252a5f),
+          ),
           fontSize: compact ? 17 : 18,
           fontWeight: FontWeight.w900,
         ),
@@ -3223,7 +3417,11 @@ class _HocatrendsSellerCount extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.people_outline, color: HocalistTheme.muted, size: 17),
+        Icon(
+          Icons.people_outline,
+          color: HocalistPalette.text(context, HocalistTheme.muted),
+          size: 17,
+        ),
         const SizedBox(width: 5),
         Expanded(
           child: Text(
@@ -3231,7 +3429,7 @@ class _HocatrendsSellerCount extends StatelessWidget {
             maxLines: compact ? 3 : 3,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: HocalistTheme.muted,
+              color: HocalistPalette.text(context, HocalistTheme.muted),
               fontSize: compact ? 12 : null,
               fontWeight: FontWeight.w600,
             ),
@@ -3259,7 +3457,11 @@ class _HocatrendsCompetitionIcon extends StatelessWidget {
       );
     }
 
-    return Icon(Icons.bar_chart, color: data.progressColor, size: 18);
+    return Icon(
+      Icons.bar_chart,
+      color: HocalistPalette.text(context, data.progressColor),
+      size: 18,
+    );
   }
 }
 
@@ -3276,8 +3478,11 @@ class _HocatrendsSellerButton extends StatelessWidget {
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: HocalistTheme.actionBlue,
-          foregroundColor: Colors.white,
+          backgroundColor: HocalistPalette.surface(
+            context,
+            HocalistTheme.actionBlue,
+          ),
+          foregroundColor: HocalistPalette.text(context, Colors.white),
           padding: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(13),
@@ -3512,9 +3717,9 @@ class _HocatrendsSellersHeader extends StatelessWidget {
         IconButton(
           tooltip: 'Back to Hocatrends',
           onPressed: onBack,
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back,
-            color: HocalistTheme.primary,
+            color: HocalistPalette.text(context, HocalistTheme.primary),
             size: 30,
           ),
         ),
@@ -3526,7 +3731,7 @@ class _HocatrendsSellersHeader extends StatelessWidget {
                 'iPad Air Sellers',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -3535,7 +3740,7 @@ class _HocatrendsSellersHeader extends StatelessWidget {
                 '23 sellers are offering deals',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: HocalistTheme.muted,
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -3579,7 +3784,10 @@ class _HocatrendsSellersProductSummary extends StatelessWidget {
                   Text(
                     'iPad Air',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -3587,7 +3795,7 @@ class _HocatrendsSellersProductSummary extends StatelessWidget {
                   Text(
                     'Category: Tablets',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -3611,15 +3819,15 @@ class _HocatrendsCompetitionPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: HocalistTheme.roleSurface,
+        color: HocalistPalette.surface(context, HocalistTheme.roleSurface),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.local_fire_department,
-            color: Color(0xffff3028),
+            color: HocalistPalette.text(context, Color(0xffff3028)),
             size: 19,
           ),
           const SizedBox(width: 6),
@@ -3629,7 +3837,7 @@ class _HocatrendsCompetitionPill extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: HocalistTheme.actionBlue,
+                color: HocalistPalette.text(context, HocalistTheme.actionBlue),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -3742,9 +3950,14 @@ class _HocatrendsControlButton extends StatelessWidget {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(112, 56),
-        foregroundColor: HocalistTheme.primary,
-        backgroundColor: selected ? HocalistTheme.roleSurface : Colors.white,
-        side: const BorderSide(color: Color(0xffdddff0)),
+        foregroundColor: HocalistPalette.text(context, HocalistTheme.primary),
+        backgroundColor: HocalistPalette.surface(
+          context,
+          selected ? HocalistTheme.roleSurface : Colors.white,
+        ),
+        side: BorderSide(
+          color: HocalistPalette.border(context, Color(0xffdddff0)),
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(fontWeight: FontWeight.w900),
       ),
@@ -3765,14 +3978,16 @@ class _HocatrendsSortIconButton extends StatelessWidget {
         width: 56,
         height: 56,
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xffdddff0)),
+          color: HocalistPalette.surface(context, Colors.white),
+          border: Border.all(
+            color: HocalistPalette.border(context, const Color(0xffdddff0)),
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         alignment: Alignment.center,
-        child: const Icon(
+        child: Icon(
           Icons.sort,
-          color: HocalistTheme.actionBlue,
+          color: HocalistPalette.text(context, HocalistTheme.actionBlue),
           size: 27,
         ),
       ),
@@ -3792,8 +4007,10 @@ class _HocatrendsSortButton extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 168, minHeight: 56),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xffdddff0)),
+        color: HocalistPalette.surface(context, Colors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdddff0)),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -3805,13 +4022,16 @@ class _HocatrendsSortButton extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: HocalistTheme.primary,
+                color: HocalistPalette.text(context, HocalistTheme.primary),
                 fontWeight: FontWeight.w900,
               ),
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(Icons.keyboard_arrow_down, color: HocalistTheme.primary),
+          Icon(
+            Icons.keyboard_arrow_down,
+            color: HocalistPalette.text(context, HocalistTheme.primary),
+          ),
         ],
       ),
     );
@@ -3832,8 +4052,10 @@ class _HocatrendsViewToggle extends StatelessWidget {
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xffdddff0)),
+        color: HocalistPalette.surface(context, Colors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdddff0)),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -3876,10 +4098,17 @@ class _HocatrendsViewButton extends StatelessWidget {
         height: 54,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? HocalistTheme.roleSurface : Colors.transparent,
+          color: HocalistPalette.surface(
+            context,
+            selected ? HocalistTheme.roleSurface : Colors.transparent,
+          ),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, color: HocalistTheme.actionBlue, size: 26),
+        child: Icon(
+          icon,
+          color: HocalistPalette.text(context, HocalistTheme.actionBlue),
+          size: 26,
+        ),
       ),
     );
   }
@@ -3925,9 +4154,11 @@ class _HocatrendsSellerCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xffe7e9f4)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffe7e9f4)),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1000036c),
@@ -4026,16 +4257,22 @@ class _HocatrendsSellerIdentity extends StatelessWidget {
                       maxLines: compact ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: HocalistTheme.primary,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.primary,
+                        ),
                         fontWeight: FontWeight.w900,
                         height: 1.12,
                       ),
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Icon(
+                  Icon(
                     Icons.verified,
-                    color: HocalistTheme.actionBlue,
+                    color: HocalistPalette.text(
+                      context,
+                      HocalistTheme.actionBlue,
+                    ),
                     size: 20,
                   ),
                 ],
@@ -4046,11 +4283,18 @@ class _HocatrendsSellerIdentity extends StatelessWidget {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Icon(Icons.star, color: Color(0xffffb000), size: 18),
+                  Icon(
+                    Icons.star,
+                    color: HocalistPalette.text(context, Color(0xffffb000)),
+                    size: 18,
+                  ),
                   Text(
                     seller.rating,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -4064,14 +4308,14 @@ class _HocatrendsSellerIdentity extends StatelessWidget {
                   Text(
                     seller.location,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
                     seller.distance,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -4098,9 +4342,12 @@ class _HocatrendsSellerAvatar extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(
-              color: const Color(0xff2c1648),
+              color: HocalistPalette.surface(context, const Color(0xff2c1648)),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xffefe9ff), width: 1),
+              border: Border.all(
+                color: HocalistPalette.border(context, const Color(0xffefe9ff)),
+                width: 1,
+              ),
             ),
             alignment: Alignment.center,
             child: Column(
@@ -4109,7 +4356,7 @@ class _HocatrendsSellerAvatar extends StatelessWidget {
                 Text(
                   seller.initials,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: HocalistPalette.text(context, Colors.white),
                     fontSize: size >= 70
                         ? HocalistTheme.sectionTitleSize
                         : HocalistTheme.prominentTitleSize,
@@ -4126,7 +4373,10 @@ class _HocatrendsSellerAvatar extends StatelessWidget {
                       'GADGET HUB',
                       maxLines: 1,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.86),
+                        color: HocalistPalette.text(
+                          context,
+                          Colors.white.withValues(alpha: 0.86),
+                        ),
                         fontSize: HocalistTheme.smallSize,
                         fontWeight: FontWeight.w800,
                         height: 1,
@@ -4159,9 +4409,15 @@ class _HocatrendsSellerAvatar extends StatelessWidget {
               width: 18,
               height: 18,
               decoration: BoxDecoration(
-                color: const Color(0xff20b42e),
+                color: HocalistPalette.surface(
+                  context,
+                  const Color(0xff20b42e),
+                ),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
+                border: Border.all(
+                  color: HocalistPalette.border(context, Colors.white),
+                  width: 3,
+                ),
               ),
             ),
           ),
@@ -4185,7 +4441,10 @@ class _HocatrendsSellerBadge extends StatelessWidget {
         vertical: compact ? 7 : 9,
       ),
       decoration: BoxDecoration(
-        color: seller.badgeColor.withValues(alpha: 0.1),
+        color: HocalistPalette.surface(
+          context,
+          seller.badgeColor.withValues(alpha: 0.1),
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -4193,7 +4452,7 @@ class _HocatrendsSellerBadge extends StatelessWidget {
         children: [
           Icon(
             seller.badgeIcon,
-            color: seller.badgeColor,
+            color: HocalistPalette.text(context, seller.badgeColor),
             size: compact ? 17 : 19,
           ),
           const SizedBox(width: 6),
@@ -4203,7 +4462,7 @@ class _HocatrendsSellerBadge extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: seller.badgeColor,
+                color: HocalistPalette.text(context, seller.badgeColor),
                 fontWeight: FontWeight.w900,
                 fontSize: compact ? HocalistTheme.smallSize : null,
               ),
@@ -4230,7 +4489,7 @@ class _HocatrendsSellerPrice extends StatelessWidget {
           Text(
             seller.price,
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: HocalistTheme.primary,
+              color: HocalistPalette.text(context, HocalistTheme.primary),
               fontSize: HocalistTheme.pageTitleSize,
               fontWeight: FontWeight.w900,
               height: 1,
@@ -4240,13 +4499,13 @@ class _HocatrendsSellerPrice extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xffe8f7ed),
+              color: HocalistPalette.surface(context, const Color(0xffe8f7ed)),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               seller.savings,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: HocalistTheme.sellerGreen,
+                color: HocalistPalette.text(context, HocalistTheme.sellerGreen),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -4261,7 +4520,7 @@ class _HocatrendsSellerPrice extends StatelessWidget {
         Text(
           seller.price,
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-            color: HocalistTheme.primary,
+            color: HocalistPalette.text(context, HocalistTheme.primary),
             fontSize: HocalistTheme.metricSize,
             fontWeight: FontWeight.w900,
             height: 1,
@@ -4271,7 +4530,7 @@ class _HocatrendsSellerPrice extends StatelessWidget {
         Text(
           seller.savings,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: HocalistTheme.sellerGreen,
+            color: HocalistPalette.text(context, HocalistTheme.sellerGreen),
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -4299,8 +4558,11 @@ class _HocatrendsChatButton extends StatelessWidget {
         icon: const Icon(Icons.chat_bubble_outline, size: 22),
         label: const Text('Chat Seller'),
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xff2716ff),
-          foregroundColor: Colors.white,
+          backgroundColor: HocalistPalette.surface(
+            context,
+            const Color(0xff2716ff),
+          ),
+          foregroundColor: HocalistPalette.text(context, Colors.white),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -4358,7 +4620,11 @@ class _HocatrendsSellerStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: HocalistTheme.muted, size: 21),
+        Icon(
+          icon,
+          color: HocalistPalette.text(context, HocalistTheme.muted),
+          size: 21,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -4366,7 +4632,7 @@ class _HocatrendsSellerStat extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: HocalistTheme.muted,
+              color: HocalistPalette.text(context, HocalistTheme.muted),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -4387,9 +4653,11 @@ class _HocatrendsSellerGridCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xffe7e9f4)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffe7e9f4)),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0d00036c),
@@ -4411,7 +4679,7 @@ class _HocatrendsSellerGridCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w900,
                     height: 1.12,
                   ),
@@ -4528,9 +4796,12 @@ class _CreateRequestPageState extends State<CreateRequestPage> {
                       width: 42,
                       height: 42,
                     ),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.arrow_back,
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       size: 28,
                     ),
                   ),
@@ -4540,7 +4811,10 @@ class _CreateRequestPageState extends State<CreateRequestPage> {
                       'Post a new request',
                       style: Theme.of(context).textTheme.headlineLarge
                           ?.copyWith(
-                            color: HocalistTheme.primary,
+                            color: HocalistPalette.text(
+                              context,
+                              HocalistTheme.primary,
+                            ),
                             fontWeight: FontWeight.w900,
                           ),
                     ),
@@ -4664,7 +4938,7 @@ class _PostRequestImageIcon extends StatelessWidget {
       return Icon(
         Icons.send_rounded,
         size: size,
-        color: Colors.white,
+        color: HocalistPalette.text(context, Colors.white),
         semanticLabel: semanticLabel,
       );
     }
@@ -4673,7 +4947,7 @@ class _PostRequestImageIcon extends StatelessWidget {
       return Icon(
         Icons.home_repair_service_rounded,
         size: size,
-        color: _postRequestBlue,
+        color: HocalistPalette.text(context, _postRequestBlue),
         semanticLabel: semanticLabel,
       );
     }
@@ -4682,7 +4956,7 @@ class _PostRequestImageIcon extends StatelessWidget {
       return Icon(
         Icons.home_rounded,
         size: size,
-        color: _postRequestBlue,
+        color: HocalistPalette.text(context, _postRequestBlue),
         semanticLabel: semanticLabel,
       );
     }
@@ -4716,7 +4990,10 @@ class _RequestKindCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? HocalistTheme.roleSurface : Colors.white,
+      color: HocalistPalette.surface(
+        context,
+        selected ? HocalistTheme.roleSurface : Colors.white,
+      ),
       borderRadius: BorderRadius.circular(9),
       child: InkWell(
         borderRadius: BorderRadius.circular(9),
@@ -4727,7 +5004,10 @@ class _RequestKindCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(9),
             border: Border.all(
-              color: selected ? _postRequestBlue : _postRequestBorder,
+              color: HocalistPalette.border(
+                context,
+                selected ? _postRequestBlue : _postRequestBorder,
+              ),
               width: selected ? 1.5 : 1,
             ),
             boxShadow: selected
@@ -4757,7 +5037,13 @@ class _RequestKindCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(color: _postRequestText, fontSize: 21),
+                          ?.copyWith(
+                            color: HocalistPalette.text(
+                              context,
+                              _postRequestText,
+                            ),
+                            fontSize: 21,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -4765,7 +5051,10 @@ class _RequestKindCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: selected ? _postRequestBlue : _postRequestText,
+                        color: HocalistPalette.text(
+                          context,
+                          selected ? _postRequestBlue : _postRequestText,
+                        ),
                       ),
                     ),
                   ],
@@ -4805,7 +5094,10 @@ class _RequestStepProgress extends StatelessWidget {
                     Container(
                       height: 6,
                       decoration: BoxDecoration(
-                        color: _postRequestProgressTrack,
+                        color: HocalistPalette.surface(
+                          context,
+                          _postRequestProgressTrack,
+                        ),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -4813,7 +5105,10 @@ class _RequestStepProgress extends StatelessWidget {
                       width: activeWidth,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: _postRequestBlue,
+                        color: HocalistPalette.surface(
+                          context,
+                          _postRequestBlue,
+                        ),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -4851,19 +5146,26 @@ class _StepDot extends StatelessWidget {
           width: 48,
           height: 48,
           alignment: Alignment.center,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: HocalistPalette.surface(context, color),
+            shape: BoxShape.circle,
+          ),
           child: Text(
             number,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: textColor, fontSize: 18),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: HocalistPalette.text(context, textColor),
+              fontSize: 18,
+            ),
           ),
         ),
         const SizedBox(height: 9),
         Text(
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: active ? _postRequestBlue : _postRequestMuted,
+            color: HocalistPalette.text(
+              context,
+              active ? _postRequestBlue : _postRequestMuted,
+            ),
           ),
         ),
       ],
@@ -4924,7 +5226,7 @@ class _DetailsRequestStep extends StatelessWidget {
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
             fontSize: 24,
-            color: _postRequestText,
+            color: HocalistPalette.text(context, _postRequestText),
           ),
         ),
         const SizedBox(height: 10),
@@ -4932,7 +5234,7 @@ class _DetailsRequestStep extends StatelessWidget {
           'The more details you provide, the better\nmatches you will receive.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: _postRequestText,
+            color: HocalistPalette.text(context, _postRequestText),
             height: 1.45,
             fontWeight: FontWeight.w700,
           ),
@@ -5041,16 +5343,16 @@ class _RequestFieldCard extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: _postRequestText,
+              color: HocalistPalette.text(context, _postRequestText),
               fontSize: 19,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             helper,
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: _postRequestText),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: HocalistPalette.text(context, _postRequestText),
+            ),
           ),
           const SizedBox(height: 14),
           TextFormField(
@@ -5059,15 +5361,19 @@ class _RequestFieldCard extends StatelessWidget {
             minLines: maxLines,
             maxLines: maxLines,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: _postRequestText,
+              color: HocalistPalette.text(context, _postRequestText),
               fontWeight: FontWeight.w700,
             ),
             decoration: InputDecoration(
               prefixIcon: Container(
                 width: 62,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  border: Border(right: BorderSide(color: Color(0xffedf0f8))),
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(
+                      color: HocalistPalette.border(context, Color(0xffedf0f8)),
+                    ),
+                  ),
                 ),
                 child: _PostRequestImageIcon(asset: iconAsset, size: 27),
               ),
@@ -5077,7 +5383,9 @@ class _RequestFieldCard extends StatelessWidget {
               contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _postRequestBorder),
+                borderSide: BorderSide(
+                  color: HocalistPalette.border(context, _postRequestBorder),
+                ),
               ),
             ),
           ),
@@ -5119,9 +5427,9 @@ class _ChoicePanel extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Select your preference',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _postRequestText),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: HocalistPalette.text(context, _postRequestText),
+            ),
           ),
           const SizedBox(height: 22),
           Row(
@@ -5174,9 +5482,9 @@ class _BudgetPanel extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Select your preference',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _postRequestText),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: HocalistPalette.text(context, _postRequestText),
+            ),
           ),
           const SizedBox(height: 22),
           Row(
@@ -5232,9 +5540,9 @@ class _PriceInput extends StatelessWidget {
       onChanged: onChanged,
       keyboardType: TextInputType.number,
       textAlign: TextAlign.center,
-      style: Theme.of(
-        context,
-      ).textTheme.titleMedium?.copyWith(color: _postRequestText),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        color: HocalistPalette.text(context, _postRequestText),
+      ),
       decoration: InputDecoration(
         prefixIcon: Padding(
           padding: const EdgeInsets.all(12),
@@ -5244,7 +5552,9 @@ class _PriceInput extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(vertical: 17),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: _postRequestBorder),
+          borderSide: BorderSide(
+            color: HocalistPalette.border(context, _postRequestBorder),
+          ),
         ),
       ),
     );
@@ -5267,9 +5577,9 @@ class _QuantityPanel extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'How many do you need?',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _postRequestText),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: HocalistPalette.text(context, _postRequestText),
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -5284,15 +5594,20 @@ class _QuantityPanel extends StatelessWidget {
                 width: 102,
                 height: 52,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border.symmetric(
-                    horizontal: BorderSide(color: _postRequestBorder),
+                    horizontal: BorderSide(
+                      color: HocalistPalette.border(
+                        context,
+                        _postRequestBorder,
+                      ),
+                    ),
                   ),
                 ),
                 child: Text(
                   '$quantity',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: _postRequestText,
+                    color: HocalistPalette.text(context, _postRequestText),
                     fontSize: 18,
                   ),
                 ),
@@ -5327,16 +5642,18 @@ class _CategoryPanel extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Select this if you do not want mismatch',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _postRequestText),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: HocalistPalette.text(context, _postRequestText),
+            ),
           ),
           const SizedBox(height: 22),
           Container(
             height: 58,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              border: Border.all(color: _postRequestBorder),
+              border: Border.all(
+                color: HocalistPalette.border(context, _postRequestBorder),
+              ),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -5350,7 +5667,7 @@ class _CategoryPanel extends StatelessWidget {
                   child: Text(
                     'Select a category',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: HocalistTheme.muted,
+                      color: HocalistPalette.text(context, HocalistTheme.muted),
                     ),
                   ),
                 ),
@@ -5387,7 +5704,7 @@ class _HigherOffersPanel extends StatelessWidget {
           Text(
             'Allow sellers to offer above\nyour budget.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: _postRequestText,
+              color: HocalistPalette.text(context, _postRequestText),
               height: 1.35,
             ),
           ),
@@ -5420,7 +5737,7 @@ class _HigherOffersPanel extends StatelessWidget {
                 child: Text(
                   'You can still choose any offer you like.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _postRequestText,
+                    color: HocalistPalette.text(context, _postRequestText),
                     fontSize: 12,
                   ),
                 ),
@@ -5463,7 +5780,7 @@ class _PanelTitle extends StatelessWidget {
               ],
             ),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: _postRequestText,
+              color: HocalistPalette.text(context, _postRequestText),
               fontSize: 18,
             ),
           ),
@@ -5490,7 +5807,10 @@ class _MiniChoiceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? _postRequestBlue : _postRequestText;
     return Material(
-      color: selected ? HocalistTheme.roleSurface : Colors.white,
+      color: HocalistPalette.surface(
+        context,
+        selected ? HocalistTheme.roleSurface : Colors.white,
+      ),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -5500,7 +5820,10 @@ class _MiniChoiceButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             border: Border.all(
-              color: selected ? _postRequestBlue : _postRequestBorder,
+              color: HocalistPalette.border(
+                context,
+                selected ? _postRequestBlue : _postRequestBorder,
+              ),
               width: selected ? 1.3 : 1,
             ),
             borderRadius: BorderRadius.circular(8),
@@ -5514,9 +5837,9 @@ class _MiniChoiceButton extends StatelessWidget {
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: color),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: HocalistPalette.text(context, color),
+                  ),
                 ),
               ),
             ],
@@ -5542,9 +5865,15 @@ class _ToggleChoiceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        foregroundColor: selected ? _postRequestBlue : _postRequestText,
+        foregroundColor: HocalistPalette.text(
+          context,
+          selected ? _postRequestBlue : _postRequestText,
+        ),
         side: BorderSide(
-          color: selected ? _postRequestBlue : _postRequestBorder,
+          color: HocalistPalette.border(
+            context,
+            selected ? _postRequestBlue : _postRequestBorder,
+          ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -5580,7 +5909,9 @@ class _QuantityButton extends StatelessWidget {
         height: 52,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          border: Border.all(color: _postRequestBorder),
+          border: Border.all(
+            color: HocalistPalette.border(context, _postRequestBorder),
+          ),
           borderRadius: BorderRadius.horizontal(
             left: leading ? const Radius.circular(8) : Radius.zero,
             right: leading ? Radius.zero : const Radius.circular(8),
@@ -5589,7 +5920,7 @@ class _QuantityButton extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: _postRequestBlue,
+            color: HocalistPalette.text(context, _postRequestBlue),
             fontSize: 24,
             fontWeight: FontWeight.w500,
           ),
@@ -5622,7 +5953,7 @@ class _LocationRequestStep extends StatelessWidget {
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
             fontSize: 24,
-            color: _postRequestText,
+            color: HocalistPalette.text(context, _postRequestText),
           ),
         ),
         const SizedBox(height: 8),
@@ -5630,7 +5961,7 @@ class _LocationRequestStep extends StatelessWidget {
           'Sellers will be able to only see your\nlocation once you close the deal.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: _postRequestMuted,
+            color: HocalistPalette.text(context, _postRequestMuted),
             height: 1.45,
             fontWeight: FontWeight.w700,
           ),
@@ -5642,16 +5973,16 @@ class _LocationRequestStep extends StatelessWidget {
             children: [
               Text(
                 'Use my home address',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: _postRequestText),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: HocalistPalette.text(context, _postRequestText),
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 'This is your default address in settings.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: _postRequestMuted),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: HocalistPalette.text(context, _postRequestMuted),
+                ),
               ),
               const SizedBox(height: 14),
               InkWell(
@@ -5660,8 +5991,14 @@ class _LocationRequestStep extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: HocalistTheme.roleSurface,
-                    border: Border.all(color: _postRequestBlue, width: 1.2),
+                    color: HocalistPalette.surface(
+                      context,
+                      HocalistTheme.roleSurface,
+                    ),
+                    border: Border.all(
+                      color: HocalistPalette.border(context, _postRequestBlue),
+                      width: 1.2,
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: LayoutBuilder(
@@ -5676,7 +6013,10 @@ class _LocationRequestStep extends StatelessWidget {
                               height: 24,
                               decoration: BoxDecoration(
                                 border: Border.all(
-                                  color: _postRequestBlue,
+                                  color: HocalistPalette.border(
+                                    context,
+                                    _postRequestBlue,
+                                  ),
                                   width: 2,
                                 ),
                                 shape: BoxShape.circle,
@@ -5688,12 +6028,22 @@ class _LocationRequestStep extends StatelessWidget {
                           Text(
                             '123 Main Street',
                             style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(color: _postRequestText),
+                                ?.copyWith(
+                                  color: HocalistPalette.text(
+                                    context,
+                                    _postRequestText,
+                                  ),
+                                ),
                           ),
                           Text(
                             'Miami, FL 33101, USA',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: _postRequestMuted),
+                                ?.copyWith(
+                                  color: HocalistPalette.text(
+                                    context,
+                                    _postRequestMuted,
+                                  ),
+                                ),
                           ),
                         ],
                       );
@@ -5754,9 +6104,9 @@ class _LocationRequestStep extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Text(
                 'OR',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(color: HocalistTheme.muted),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
             ),
             const Expanded(child: Divider(color: Color(0xffe5e7f1))),
@@ -5769,16 +6119,16 @@ class _LocationRequestStep extends StatelessWidget {
             children: [
               Text(
                 'Enter a different address',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: HocalistTheme.primary),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Fill in the address where you need the service.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: HocalistTheme.muted),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
               const SizedBox(height: 18),
               const _AddressFields(),
@@ -5944,8 +6294,8 @@ class _PostRequestPrimaryButton extends StatelessWidget {
       width: double.infinity,
       child: FilledButton.icon(
         style: FilledButton.styleFrom(
-          backgroundColor: _postRequestBlue,
-          foregroundColor: Colors.white,
+          backgroundColor: HocalistPalette.surface(context, _postRequestBlue),
+          foregroundColor: HocalistPalette.text(context, Colors.white),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
@@ -5957,9 +6307,10 @@ class _PostRequestPrimaryButton extends StatelessWidget {
         ),
         label: Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: Colors.white, fontSize: 17),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: HocalistPalette.text(context, Colors.white),
+            fontSize: 17,
+          ),
         ),
       ),
     );
@@ -6101,9 +6452,12 @@ class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
                       width: 42,
                       height: 42,
                     ),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.arrow_back,
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       size: 28,
                     ),
                   ),
@@ -6113,7 +6467,10 @@ class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
                       'Request details',
                       style: Theme.of(context).textTheme.headlineLarge
                           ?.copyWith(
-                            color: HocalistTheme.primary,
+                            color: HocalistPalette.text(
+                              context,
+                              HocalistTheme.primary,
+                            ),
                             fontWeight: FontWeight.w900,
                           ),
                     ),
@@ -6123,9 +6480,9 @@ class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
               const SizedBox(height: 5),
               Text(
                 'Review and edit your request information.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: HocalistTheme.primary),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
+                ),
               ),
               const SizedBox(height: 20),
               _RequestSummaryCard(onDelete: _confirmDelete),
@@ -6133,7 +6490,7 @@ class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
               Text(
                 'Edit your request',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -6312,7 +6669,10 @@ class _OffersPageState extends State<OffersPage> {
                               'Offers received',
                               style: Theme.of(context).textTheme.headlineLarge
                                   ?.copyWith(
-                                    color: HocalistTheme.primary,
+                                    color: HocalistPalette.text(
+                                      context,
+                                      HocalistTheme.primary,
+                                    ),
                                     fontWeight: FontWeight.w900,
                                   ),
                             ),
@@ -6321,7 +6681,10 @@ class _OffersPageState extends State<OffersPage> {
                               'Compare offers and choose the best seller for you.',
                               style: Theme.of(context).textTheme.bodyLarge
                                   ?.copyWith(
-                                    color: HocalistTheme.muted,
+                                    color: HocalistPalette.text(
+                                      context,
+                                      HocalistTheme.muted,
+                                    ),
                                     height: 1.35,
                                   ),
                             ),
@@ -6411,9 +6774,11 @@ class _ReplicaSurface extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xffe7e8f4)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffe7e8f4)),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0a101054),
@@ -6454,7 +6819,7 @@ class _RequestSummaryCard extends StatelessWidget {
               Text(
                 'iPad Air, 5th gen or newer',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -6484,7 +6849,7 @@ class _RequestSummaryCard extends StatelessWidget {
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('Delete'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
+                  foregroundColor: HocalistPalette.text(context, Colors.red),
                   minimumSize: const Size(108, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -6546,7 +6911,11 @@ class _SummaryFact extends StatelessWidget {
         Row(
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 20, color: HocalistTheme.primary),
+              Icon(
+                icon,
+                size: 20,
+                color: HocalistPalette.text(context, HocalistTheme.primary),
+              ),
               const SizedBox(width: 5),
             ],
             Flexible(
@@ -6555,7 +6924,7 @@ class _SummaryFact extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xff1616d8),
+                  color: HocalistPalette.text(context, const Color(0xff1616d8)),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -6574,18 +6943,22 @@ class _ActiveBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
       decoration: BoxDecoration(
-        color: const Color(0xffe8f8ed),
+        color: HocalistPalette.surface(context, const Color(0xffe8f8ed)),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle, size: 10, color: Color(0xff0ca64a)),
+          Icon(
+            Icons.circle,
+            size: 10,
+            color: HocalistPalette.text(context, Color(0xff0ca64a)),
+          ),
           SizedBox(width: 7),
           Text(
             'Active',
             style: TextStyle(
-              color: Color(0xff07933e),
+              color: HocalistPalette.text(context, Color(0xff07933e)),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -6631,7 +7004,10 @@ class _ReplicaEditPanel extends StatelessWidget {
                         title,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
-                              color: HocalistTheme.primary,
+                              color: HocalistPalette.text(
+                                context,
+                                HocalistTheme.primary,
+                              ),
                               fontWeight: FontWeight.w900,
                             ),
                       ),
@@ -6651,9 +7027,9 @@ class _ReplicaEditPanel extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   helper,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: HocalistTheme.primary),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 child,
@@ -6675,8 +7051,8 @@ class _ReplicaIconCircle extends StatelessWidget {
       width: 48,
       height: 48,
       padding: const EdgeInsets.all(11),
-      decoration: const BoxDecoration(
-        color: Color(0xfff1efff),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, Color(0xfff1efff)),
         shape: BoxShape.circle,
       ),
       child: Image.asset(asset, fit: BoxFit.contain),
@@ -6697,8 +7073,11 @@ class _ReplicaEditButton extends StatelessWidget {
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
       style: IconButton.styleFrom(
-        foregroundColor: const Color(0xff1515df),
-        backgroundColor: const Color(0xfff1efff),
+        foregroundColor: HocalistPalette.text(context, const Color(0xff1515df)),
+        backgroundColor: HocalistPalette.surface(
+          context,
+          const Color(0xfff1efff),
+        ),
         minimumSize: const Size(36, 36),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -6788,7 +7167,9 @@ class _RequestQuantityPanel extends StatelessWidget {
       child: Container(
         height: 52,
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xffe0e2f1)),
+          border: Border.all(
+            color: HocalistPalette.border(context, const Color(0xffe0e2f1)),
+          ),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
@@ -6893,14 +7274,20 @@ class _ReplicaChoicePanel extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w900,
-                                color: HocalistTheme.primary,
+                                color: HocalistPalette.text(
+                                  context,
+                                  HocalistTheme.primary,
+                                ),
                               ),
                         ),
                         if (optional)
-                          const Text(
+                          Text(
                             '(optional)',
                             style: TextStyle(
-                              color: Color(0xff1515df),
+                              color: HocalistPalette.text(
+                                context,
+                                Color(0xff1515df),
+                              ),
                               fontSize: HocalistTheme.smallSize,
                               fontWeight: FontWeight.w700,
                             ),
@@ -6911,7 +7298,10 @@ class _ReplicaChoicePanel extends StatelessWidget {
                     Text(
                       helper,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: const Color(0xff1515df),
+                        color: HocalistPalette.text(
+                          context,
+                          const Color(0xff1515df),
+                        ),
                       ),
                     ),
                   ],
@@ -6945,11 +7335,14 @@ class _ChoiceButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        foregroundColor: HocalistTheme.primary,
+        foregroundColor: HocalistPalette.text(context, HocalistTheme.primary),
         minimumSize: const Size(0, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         side: BorderSide(
-          color: selected ? const Color(0xff1515df) : const Color(0xffdfe1ef),
+          color: HocalistPalette.border(
+            context,
+            selected ? const Color(0xff1515df) : const Color(0xffdfe1ef),
+          ),
           width: selected ? 1.8 : 1,
         ),
       ),
@@ -6974,14 +7367,16 @@ class _ValueBox extends StatelessWidget {
       height: 52,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xffdfe1ef)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdfe1ef)),
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         value,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.w800,
-          color: HocalistTheme.primary,
+          color: HocalistPalette.text(context, HocalistTheme.primary),
         ),
       ),
     );
@@ -6997,14 +7392,14 @@ class _EditLocationCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: const Padding(
+        child: Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
               Icon(
                 Icons.location_on_outlined,
                 size: 46,
-                color: HocalistTheme.primary,
+                color: HocalistPalette.text(context, HocalistTheme.primary),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -7016,7 +7411,10 @@ class _EditLocationCard extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 17,
-                        color: HocalistTheme.primary,
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.primary,
+                        ),
                       ),
                     ),
                     SizedBox(height: 5),
@@ -7024,14 +7422,17 @@ class _EditLocationCard extends StatelessWidget {
                     Text(
                       'Chicago, IL',
                       style: TextStyle(
-                        color: Color(0xff1515df),
+                        color: HocalistPalette.text(context, Color(0xff1515df)),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: HocalistTheme.primary),
+              Icon(
+                Icons.chevron_right,
+                color: HocalistPalette.text(context, HocalistTheme.primary),
+              ),
             ],
           ),
         ),
@@ -7050,14 +7451,18 @@ class _EstimatedRewardsPanel extends StatelessWidget {
           Container(
             width: 50,
             height: 50,
-            decoration: const BoxDecoration(
-              color: Color(0xffffb21c),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Color(0xffffb21c)),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.star, color: Colors.white, size: 30),
+            child: Icon(
+              Icons.star,
+              color: HocalistPalette.text(context, Colors.white),
+              size: 30,
+            ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -7065,7 +7470,7 @@ class _EstimatedRewardsPanel extends StatelessWidget {
                   'Current estimated rewards',
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                   ),
                 ),
                 SizedBox(height: 4),
@@ -7077,14 +7482,17 @@ class _EstimatedRewardsPanel extends StatelessWidget {
                     Text(
                       '\$6.40',
                       style: TextStyle(
-                        color: Color(0xff0ca64a),
+                        color: HocalistPalette.text(context, Color(0xff0ca64a)),
                         fontSize: 30,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Color(0xffe3f7e9),
+                        color: HocalistPalette.surface(
+                          context,
+                          Color(0xffe3f7e9),
+                        ),
                         borderRadius: BorderRadius.all(Radius.circular(12)),
                       ),
                       child: Padding(
@@ -7095,7 +7503,10 @@ class _EstimatedRewardsPanel extends StatelessWidget {
                         child: Text(
                           '32 offers',
                           style: TextStyle(
-                            color: Color(0xff0c9845),
+                            color: HocalistPalette.text(
+                              context,
+                              Color(0xff0c9845),
+                            ),
                             fontSize: HocalistTheme.smallSize,
                             fontWeight: FontWeight.w800,
                           ),
@@ -7108,13 +7519,16 @@ class _EstimatedRewardsPanel extends StatelessWidget {
                   'Mock estimate based on current offers.',
                   style: TextStyle(
                     fontSize: HocalistTheme.smallSize,
-                    color: HocalistTheme.muted,
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
                   ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.info_outline, color: Color(0xff1515df)),
+          Icon(
+            Icons.info_outline,
+            color: HocalistPalette.text(context, Color(0xff1515df)),
+          ),
         ],
       ),
     );
@@ -7131,14 +7545,14 @@ class _SaveChangesPanel extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 520;
-          final copy = const Column(
+          final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Save changes',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: 17,
                 ),
               ),
@@ -7167,7 +7581,10 @@ class _SaveChangesPanel extends StatelessWidget {
                 icon: const Icon(Icons.save_outlined),
                 label: const Text('Save changes'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xff1515df),
+                  backgroundColor: HocalistPalette.surface(
+                    context,
+                    const Color(0xff1515df),
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -7202,9 +7619,11 @@ class _OffersRewardsSummary extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xfff7f6ff),
+        color: HocalistPalette.surface(context, const Color(0xfff7f6ff)),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xffdfdef5)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdfdef5)),
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -7218,7 +7637,7 @@ class _OffersRewardsSummary extends StatelessWidget {
                 fit: BoxFit.contain,
               ),
               SizedBox(width: compact ? 8 : 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -7231,13 +7650,19 @@ class _OffersRewardsSummary extends StatelessWidget {
                           'Your total rewards',
                           style: TextStyle(
                             fontWeight: FontWeight.w900,
-                            color: HocalistTheme.primary,
+                            color: HocalistPalette.text(
+                              context,
+                              HocalistTheme.primary,
+                            ),
                           ),
                         ),
                         Icon(
                           Icons.info_outline,
                           size: 18,
-                          color: Color(0xff1515df),
+                          color: HocalistPalette.text(
+                            context,
+                            Color(0xff1515df),
+                          ),
                         ),
                       ],
                     ),
@@ -7252,12 +7677,18 @@ class _OffersRewardsSummary extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 40,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xff1515bd),
+                            color: HocalistPalette.text(
+                              context,
+                              Color(0xff1515bd),
+                            ),
                           ),
                         ),
                         DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Color(0xffe9e5ff),
+                            color: HocalistPalette.surface(
+                              context,
+                              Color(0xffe9e5ff),
+                            ),
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                           child: Padding(
@@ -7268,7 +7699,10 @@ class _OffersRewardsSummary extends StatelessWidget {
                             child: Text(
                               'From 2 sellers',
                               style: TextStyle(
-                                color: HocalistTheme.primary,
+                                color: HocalistPalette.text(
+                                  context,
+                                  HocalistTheme.primary,
+                                ),
                                 fontSize: HocalistTheme.smallSize,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -7279,12 +7713,20 @@ class _OffersRewardsSummary extends StatelessWidget {
                     ),
                     Text(
                       '\$0.20 from each seller',
-                      style: TextStyle(color: HocalistTheme.muted),
+                      style: TextStyle(
+                        color: HocalistPalette.text(
+                          context,
+                          HocalistTheme.muted,
+                        ),
+                      ),
                     ),
                     SizedBox(height: 8),
                     DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Color(0xffeeeaff),
+                        color: HocalistPalette.surface(
+                          context,
+                          Color(0xffeeeaff),
+                        ),
                         borderRadius: BorderRadius.all(Radius.circular(12)),
                       ),
                       child: Padding(
@@ -7298,7 +7740,10 @@ class _OffersRewardsSummary extends StatelessWidget {
                             Icon(
                               Icons.favorite,
                               size: 15,
-                              color: Color(0xff1515df),
+                              color: HocalistPalette.text(
+                                context,
+                                Color(0xff1515df),
+                              ),
                             ),
                             SizedBox(width: 5),
                             Flexible(
@@ -7308,7 +7753,10 @@ class _OffersRewardsSummary extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: HocalistTheme.smallSize,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xff1515df),
+                                  color: HocalistPalette.text(
+                                    context,
+                                    Color(0xff1515df),
+                                  ),
                                 ),
                               ),
                             ),
@@ -7375,11 +7823,14 @@ class _RewardRule extends StatelessWidget {
         Container(
           width: 44,
           height: 44,
-          decoration: const BoxDecoration(
-            color: Color(0xffeeecff),
+          decoration: BoxDecoration(
+            color: HocalistPalette.surface(context, Color(0xffeeecff)),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Color(0xff2020e8)),
+          child: Icon(
+            icon,
+            color: HocalistPalette.text(context, Color(0xff2020e8)),
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -7388,9 +7839,9 @@ class _RewardRule extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                 ),
               ),
               const SizedBox(height: 3),
@@ -7400,14 +7851,16 @@ class _RewardRule extends StatelessWidget {
                     TextSpan(text: bodyLead),
                     TextSpan(
                       text: bodyEmphasis,
-                      style: const TextStyle(
-                        color: Color(0xff1515df),
+                      style: TextStyle(
+                        color: HocalistPalette.text(context, Color(0xff1515df)),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
-                style: const TextStyle(color: HocalistTheme.muted),
+                style: TextStyle(
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
+                ),
               ),
             ],
           ),
@@ -7436,8 +7889,10 @@ class _OfferToolbar extends StatelessWidget {
     );
     final menu = DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xffdfe1ef)),
+        color: HocalistPalette.surface(context, Colors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdfe1ef)),
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Padding(
@@ -7549,17 +8004,17 @@ class _DetailedOfferCard extends StatelessWidget {
           if (topMatch)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: const BoxDecoration(
-                color: Color(0xffe7f7ee),
+              decoration: BoxDecoration(
+                color: HocalistPalette.surface(context, Color(0xffe7f7ee)),
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(20),
                   bottomRight: Radius.circular(14),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 '★  Top match',
                 style: TextStyle(
-                  color: Color(0xff189a55),
+                  color: HocalistPalette.text(context, Color(0xff189a55)),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -7578,14 +8033,20 @@ class _DetailedOfferCard extends StatelessWidget {
                           width: 58,
                           height: 58,
                           alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: Colors.black,
+                          decoration: BoxDecoration(
+                            color: HocalistPalette.surface(
+                              context,
+                              Colors.black,
+                            ),
                             shape: BoxShape.circle,
                           ),
                           child: Text(
                             initials,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: HocalistPalette.text(
+                                context,
+                                Colors.white,
+                              ),
                               fontSize: 23,
                               fontWeight: FontWeight.w800,
                             ),
@@ -7603,19 +8064,25 @@ class _DetailedOfferCard extends StatelessWidget {
                                       seller,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 20,
                                         height: 1.12,
                                         fontWeight: FontWeight.w900,
-                                        color: HocalistTheme.primary,
+                                        color: HocalistPalette.text(
+                                          context,
+                                          HocalistTheme.primary,
+                                        ),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  const Icon(
+                                  Icon(
                                     Icons.verified,
                                     size: 20,
-                                    color: Color(0xff1515a8),
+                                    color: HocalistPalette.text(
+                                      context,
+                                      Color(0xff1515a8),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -7623,15 +8090,23 @@ class _DetailedOfferCard extends StatelessWidget {
                               Wrap(
                                 spacing: 8,
                                 children: [
-                                  const Text(
+                                  Text(
                                     '★',
-                                    style: TextStyle(color: Color(0xffffb000)),
+                                    style: TextStyle(
+                                      color: HocalistPalette.text(
+                                        context,
+                                        Color(0xffffb000),
+                                      ),
+                                    ),
                                   ),
                                   Text(reviews),
                                   Text(
                                     '•  $sellerStatus',
-                                    style: const TextStyle(
-                                      color: Color(0xff159954),
+                                    style: TextStyle(
+                                      color: HocalistPalette.text(
+                                        context,
+                                        Color(0xff159954),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -7640,15 +8115,23 @@ class _DetailedOfferCard extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 Text(
                                   price,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.w900,
-                                    color: Color(0xff1515a8),
+                                    color: HocalistPalette.text(
+                                      context,
+                                      Color(0xff1515a8),
+                                    ),
                                   ),
                                 ),
-                                const Text(
+                                Text(
                                   'Total price',
-                                  style: TextStyle(color: HocalistTheme.muted),
+                                  style: TextStyle(
+                                    color: HocalistPalette.text(
+                                      context,
+                                      HocalistTheme.muted,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ],
@@ -7666,16 +8149,22 @@ class _DetailedOfferCard extends StatelessWidget {
                                 children: [
                                   Text(
                                     price,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.w900,
-                                      color: Color(0xff1515a8),
+                                      color: HocalistPalette.text(
+                                        context,
+                                        Color(0xff1515a8),
+                                      ),
                                     ),
                                   ),
-                                  const Text(
+                                  Text(
                                     'Total price',
                                     style: TextStyle(
-                                      color: HocalistTheme.muted,
+                                      color: HocalistPalette.text(
+                                        context,
+                                        HocalistTheme.muted,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -7703,9 +8192,12 @@ class _DetailedOfferCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         description,
-                        style: const TextStyle(
+                        style: TextStyle(
                           height: 1.35,
-                          color: HocalistTheme.primary,
+                          color: HocalistPalette.text(
+                            context,
+                            HocalistTheme.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -7752,7 +8244,10 @@ class _DetailedOfferCard extends StatelessWidget {
                       onPressed: onDetails,
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, 48),
-                        backgroundColor: const Color(0xff14149e),
+                        backgroundColor: HocalistPalette.surface(
+                          context,
+                          const Color(0xff14149e),
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -7822,11 +8317,14 @@ class _OfferFact extends StatelessWidget {
         Container(
           width: 42,
           height: 42,
-          decoration: const BoxDecoration(
-            color: Color(0xfff0efff),
+          decoration: BoxDecoration(
+            color: HocalistPalette.surface(context, Color(0xfff0efff)),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Color(0xff7060ff)),
+          child: Icon(
+            icon,
+            color: HocalistPalette.text(context, Color(0xff7060ff)),
+          ),
         ),
         const SizedBox(width: 9),
         Expanded(
@@ -7835,17 +8333,17 @@ class _OfferFact extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                 ),
               ),
               Text(
                 body,
                 maxLines: 2,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: HocalistTheme.smallSize,
-                  color: HocalistTheme.muted,
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
                 ),
               ),
             ],
@@ -7864,12 +8362,16 @@ class _SecurePrivateNotice extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xffeffaf4),
+        color: HocalistPalette.surface(context, const Color(0xffeffaf4)),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.lock_outline, size: 34, color: Color(0xff0b9d58)),
+          Icon(
+            Icons.lock_outline,
+            size: 34,
+            color: HocalistPalette.text(context, Color(0xff0b9d58)),
+          ),
           SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -7878,14 +8380,16 @@ class _SecurePrivateNotice extends StatelessWidget {
                 Text(
                   'Secure & private',
                   style: TextStyle(
-                    color: Color(0xff0b9d58),
+                    color: HocalistPalette.text(context, Color(0xff0b9d58)),
                     fontWeight: FontWeight.w900,
                     fontSize: 17,
                   ),
                 ),
                 Text(
                   'Your information is safe. Chat opens only after you select a seller.',
-                  style: TextStyle(color: HocalistTheme.muted),
+                  style: TextStyle(
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
+                  ),
                 ),
               ],
             ),
@@ -7926,9 +8430,9 @@ class SellerPublicProfilePage extends StatelessWidget {
                     width: 42,
                     height: 42,
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back,
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     size: 28,
                   ),
                 ),
@@ -7936,7 +8440,10 @@ class SellerPublicProfilePage extends StatelessWidget {
                   child: Text(
                     'Offer details',
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -8080,6 +8587,7 @@ class _BuyerChatsPageState extends State<BuyerChatsPage> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -8172,7 +8680,10 @@ class _BuyerChatsPageState extends State<BuyerChatsPage> {
                     padding: EdgeInsets.symmetric(
                       horizontal: metrics.geometry(8),
                     ),
-                    foregroundColor: BuyerUiTokens.action,
+                    foregroundColor: HocalistPalette.text(
+                      context,
+                      BuyerUiTokens.action,
+                    ),
                   ),
                   icon: Icon(Icons.sell_outlined, size: metrics.artSize(17)),
                   label: Text(
@@ -8192,14 +8703,17 @@ class _BuyerChatsPageState extends State<BuyerChatsPage> {
             Container(
               padding: EdgeInsets.all(metrics.spacing(11)),
               decoration: BoxDecoration(
-                color: BuyerUiTokens.softSurface,
+                color: HocalistPalette.surface(
+                  context,
+                  BuyerUiTokens.softSurface,
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.lock_outline,
-                    color: BuyerUiTokens.action,
+                    color: HocalistPalette.text(context, BuyerUiTokens.action),
                     size: metrics.artSize(18),
                   ),
                   SizedBox(width: metrics.spacing(8)),
@@ -8319,14 +8833,17 @@ class _BuyerChatsEmptyCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Container(
       padding: EdgeInsets.all(metrics.spacing(16)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
-        border: Border.all(color: BuyerUiTokens.border),
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -8335,14 +8852,17 @@ class _BuyerChatsEmptyCard extends StatelessWidget {
             width: metrics.artSize(48),
             height: metrics.artSize(48),
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: BuyerUiTokens.softSurface,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(
+                context,
+                BuyerUiTokens.softSurface,
+              ),
               shape: BoxShape.circle,
             ),
             child: Icon(
               filtered ? Icons.search_off_rounded : Icons.chat_bubble_outline,
               size: metrics.artSize(24),
-              color: BuyerUiTokens.action,
+              color: HocalistPalette.text(context, BuyerUiTokens.action),
             ),
           ),
           SizedBox(height: metrics.spacing(10)),
@@ -8389,13 +8909,14 @@ class _BuyerChatStateNotice extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Container(
       padding: EdgeInsets.all(metrics.spacing(11)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.softSurface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
         borderRadius: BorderRadius.circular(metrics.geometry(9)),
       ),
       child: Column(
@@ -8419,7 +8940,10 @@ class _BuyerChatStateNotice extends StatelessWidget {
               style: TextButton.styleFrom(
                 minimumSize: Size(0, metrics.geometry(34)),
                 padding: EdgeInsets.zero,
-                foregroundColor: BuyerUiTokens.action,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  BuyerUiTokens.action,
+                ),
               ),
               child: const Text('Retry'),
             ),
@@ -8441,14 +8965,17 @@ class _BuyerChatThreadCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        side: const BorderSide(color: BuyerUiTokens.border),
+        side: BorderSide(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: InkWell(
         key: ValueKey('buyer-chat-thread-${data.initials}'),
@@ -8461,12 +8988,14 @@ class _BuyerChatThreadCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: metrics.artSize(21),
-                backgroundColor: data.active
-                    ? Colors.black
-                    : BuyerUiTokens.softSurface,
-                foregroundColor: data.active
-                    ? Colors.white
-                    : BuyerUiTokens.text,
+                backgroundColor: HocalistPalette.surface(
+                  context,
+                  data.active ? Colors.black : BuyerUiTokens.softSurface,
+                ),
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  data.active ? Colors.white : BuyerUiTokens.text,
+                ),
                 child: Text(
                   data.initials,
                   style: BuyerTypography.style(
@@ -8594,6 +9123,7 @@ class _ChatThreadChip extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -8603,7 +9133,10 @@ class _ChatThreadChip extends StatelessWidget {
         vertical: metrics.geometry(4),
       ),
       decoration: BoxDecoration(
-        color: active ? BuyerUiTokens.softSurface : const Color(0xfff5f6fb),
+        color: HocalistPalette.surface(
+          context,
+          active ? BuyerUiTokens.softSurface : const Color(0xfff5f6fb),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(999)),
       ),
       child: Text(
@@ -8629,6 +9162,7 @@ class _ChatUnreadDot extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -8636,8 +9170,8 @@ class _ChatUnreadDot extends StatelessWidget {
       width: metrics.artSize(18),
       height: metrics.artSize(18),
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: BuyerUiTokens.action,
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, BuyerUiTokens.action),
         shape: BoxShape.circle,
       ),
       child: Text(
@@ -8710,37 +9244,52 @@ class _ApprovedOfferSellerCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.headlineSmall
                                 ?.copyWith(
-                                  color: HocalistTheme.primary,
+                                  color: HocalistPalette.text(
+                                    context,
+                                    HocalistTheme.primary,
+                                  ),
                                   fontWeight: FontWeight.w800,
                                   height: 1.12,
                                 ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Icon(
+                        Icon(
                           Icons.verified,
-                          color: Color(0xff1018ff),
+                          color: HocalistPalette.text(
+                            context,
+                            Color(0xff1018ff),
+                          ),
                           size: 24,
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Wrap(
+                    Wrap(
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 10,
                       runSpacing: 6,
                       children: [
                         _TinyIconLabel(
                           icon: Icons.star,
-                          iconColor: Color(0xffffa000),
+                          iconColor: HocalistPalette.text(
+                            context,
+                            Color(0xffffa000),
+                          ),
                           text: '4.9 (128 reviews)',
                         ),
                         SizedBox.shrink(),
                         _TinyIconLabel(
                           icon: Icons.verified_user_outlined,
-                          iconColor: Color(0xff0b8f31),
+                          iconColor: HocalistPalette.text(
+                            context,
+                            Color(0xff0b8f31),
+                          ),
                           text: 'Verified seller',
-                          textColor: Color(0xff0b8f31),
+                          textColor: HocalistPalette.text(
+                            context,
+                            Color(0xff0b8f31),
+                          ),
                         ),
                       ],
                     ),
@@ -8757,21 +9306,24 @@ class _ApprovedOfferSellerCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 4,
               children: [
-                const Text(
+                Text(
                   '\$420',
                   style: TextStyle(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                     height: 1,
                   ),
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(bottom: 2),
                   child: Text(
                     'Total price',
                     style: TextStyle(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -8836,14 +9388,14 @@ class _ApprovedInitialsAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: Colors.black,
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, Colors.black),
         shape: BoxShape.circle,
       ),
       child: Text(
         'NT',
         style: TextStyle(
-          color: Colors.white,
+          color: HocalistPalette.text(context, Colors.white),
           fontSize: size * 0.32,
           fontWeight: FontWeight.w900,
         ),
@@ -8869,14 +9421,17 @@ class _TinyIconLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: iconColor),
+        Icon(icon, size: 18, color: HocalistPalette.text(context, iconColor)),
         const SizedBox(width: 5),
         Flexible(
           child: Text(
             text,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: textColor, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: HocalistPalette.text(context, textColor),
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -8899,11 +9454,15 @@ class _OfferDetailFact extends StatelessWidget {
         Container(
           width: 52,
           height: 52,
-          decoration: const BoxDecoration(
-            color: Color(0xfff1efff),
+          decoration: BoxDecoration(
+            color: HocalistPalette.surface(context, Color(0xfff1efff)),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Color(0xff1520ff), size: 30),
+          child: Icon(
+            icon,
+            color: HocalistPalette.text(context, Color(0xff1520ff)),
+            size: 30,
+          ),
         ),
         const SizedBox(width: 10),
         Flexible(
@@ -8914,8 +9473,8 @@ class _OfferDetailFact extends StatelessWidget {
                 title,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: HocalistTheme.primary,
+                style: TextStyle(
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -8925,8 +9484,8 @@ class _OfferDetailFact extends StatelessWidget {
                   body!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HocalistTheme.primary,
+                  style: TextStyle(
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -8950,9 +9509,11 @@ class _OfferDetailFactTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xfffbfbff),
+        color: HocalistPalette.surface(context, const Color(0xfffbfbff)),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffe8e8f6)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffe8e8f6)),
+        ),
       ),
       child: child,
     );
@@ -8968,7 +9529,7 @@ class _VerticalDivider extends StatelessWidget {
       width: 1,
       height: 62,
       margin: const EdgeInsets.symmetric(horizontal: 10),
-      color: const Color(0xffe3e4f5),
+      color: HocalistPalette.surface(context, const Color(0xffe3e4f5)),
     );
   }
 }
@@ -8981,7 +9542,7 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xfffff6e6),
+        color: HocalistPalette.surface(context, const Color(0xfffff6e6)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: LayoutBuilder(
@@ -8989,23 +9550,23 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
           final gift = Container(
             width: 72,
             height: 72,
-            decoration: const BoxDecoration(
-              color: Color(0xffffedc2),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Color(0xffffedc2)),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.card_giftcard,
-              color: Color(0xffffa000),
+              color: HocalistPalette.text(context, Color(0xffffa000)),
               size: 44,
             ),
           );
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'You have 7 days left',
                 style: TextStyle(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.sectionTitleSize,
                   fontWeight: FontWeight.w900,
                 ),
@@ -9014,7 +9575,7 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
               Text(
                 'Buy from any seller within 7 days to get your rewards.',
                 style: TextStyle(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.bodySize,
                   height: 1.35,
                   fontWeight: FontWeight.w700,
@@ -9025,15 +9586,15 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
           final reward = Container(
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
             decoration: BoxDecoration(
-              color: const Color(0xffffedc2),
+              color: HocalistPalette.surface(context, const Color(0xffffedc2)),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Column(
+            child: Column(
               children: [
                 Text(
                   'Est. rewards',
                   style: TextStyle(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -9041,7 +9602,7 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
                 Text(
                   '\$12.40',
                   style: TextStyle(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: HocalistTheme.metricSize,
                     fontWeight: FontWeight.w900,
                   ),
@@ -9066,9 +9627,9 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
                   children: [
                     Expanded(child: reward),
                     const SizedBox(width: 10),
-                    const Icon(
+                    Icon(
                       Icons.info_outline,
-                      color: Color(0xff1520ff),
+                      color: HocalistPalette.text(context, Color(0xff1520ff)),
                       size: 30,
                     ),
                   ],
@@ -9084,9 +9645,9 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
               const SizedBox(width: 14),
               reward,
               const SizedBox(width: 10),
-              const Icon(
+              Icon(
                 Icons.info_outline,
-                color: Color(0xff1520ff),
+                color: HocalistPalette.text(context, Color(0xff1520ff)),
                 size: 30,
               ),
             ],
@@ -9107,7 +9668,7 @@ class _ApprovedOfferDescriptionSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               _SoftSquareIcon(icon: Icons.chat_bubble_outline),
               SizedBox(width: 12),
@@ -9115,7 +9676,7 @@ class _ApprovedOfferDescriptionSection extends StatelessWidget {
                 child: Text(
                   'Description Details',
                   style: TextStyle(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: HocalistTheme.sectionTitleSize,
                     fontWeight: FontWeight.w900,
                   ),
@@ -9189,17 +9750,19 @@ class _DescriptionCopyCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xfff7f6ff),
+        color: HocalistPalette.surface(context, const Color(0xfff7f6ff)),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffe6e5fb)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffe6e5fb)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: HocalistTheme.primary,
+            style: TextStyle(
+              color: HocalistPalette.text(context, HocalistTheme.primary),
               fontSize: HocalistTheme.bodySize,
               fontWeight: FontWeight.w900,
             ),
@@ -9207,8 +9770,8 @@ class _DescriptionCopyCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             body,
-            style: const TextStyle(
-              color: HocalistTheme.primary,
+            style: TextStyle(
+              color: HocalistPalette.text(context, HocalistTheme.primary),
               fontSize: HocalistTheme.bodySize,
               height: 1.55,
               fontWeight: FontWeight.w600,
@@ -9228,19 +9791,21 @@ class _ApprovedMeetPinCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xfff1edff),
+        color: HocalistPalette.surface(context, const Color(0xfff1edff)),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffdcd5ff)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdcd5ff)),
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          const copy = Column(
+          final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Seller PIN for your rewards',
                 style: TextStyle(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.titleSize,
                   fontWeight: FontWeight.w900,
                 ),
@@ -9249,7 +9814,7 @@ class _ApprovedMeetPinCard extends StatelessWidget {
               Text(
                 'When you meet the seller, show them your confirmation PIN to complete the transaction. If the PIN isn\'t verified, you won\'t receive your rewards. Your PIN expires 24 hours after accepting your seller\'s offer.',
                 style: TextStyle(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   height: 1.4,
                   fontWeight: FontWeight.w600,
                 ),
@@ -9260,17 +9825,17 @@ class _ApprovedMeetPinCard extends StatelessWidget {
             width: constraints.maxWidth < 520 ? double.infinity : 122,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
             decoration: BoxDecoration(
-              color: const Color(0xffe6ddff),
+              color: HocalistPalette.surface(context, const Color(0xffe6ddff)),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Column(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Confirmation PIN',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontSize: HocalistTheme.captionSize,
                     fontWeight: FontWeight.w800,
                   ),
@@ -9280,7 +9845,7 @@ class _ApprovedMeetPinCard extends StatelessWidget {
                   '15230',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xff1520ff),
+                    color: HocalistPalette.text(context, Color(0xff1520ff)),
                     fontSize: HocalistTheme.metricSize,
                     fontWeight: FontWeight.w900,
                   ),
@@ -9308,7 +9873,7 @@ class _ApprovedMeetPinCard extends StatelessWidget {
             children: [
               const _SoftSquareIcon(icon: Icons.admin_panel_settings_outlined),
               const SizedBox(width: 18),
-              const Expanded(child: copy),
+              Expanded(child: copy),
               const SizedBox(width: 16),
               pin,
             ],
@@ -9332,11 +9897,11 @@ class _ApprovedAboutSellerCard extends StatelessWidget {
         builder: (context, constraints) {
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'About the Seller',
                 style: TextStyle(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.sectionTitleSize,
                   fontWeight: FontWeight.w900,
                 ),
@@ -9345,7 +9910,7 @@ class _ApprovedAboutSellerCard extends StatelessWidget {
               Text(
                 'Local seller with 230+ successful deals. Usually responds in a few hours.',
                 style: TextStyle(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   height: 1.45,
                   fontWeight: FontWeight.w600,
                 ),
@@ -9359,8 +9924,14 @@ class _ApprovedAboutSellerCard extends StatelessWidget {
                 constraints.maxWidth < 480 ? double.infinity : 132,
                 52,
               ),
-              backgroundColor: const Color(0xfff1efff),
-              foregroundColor: const Color(0xff1520ff),
+              backgroundColor: HocalistPalette.surface(
+                context,
+                const Color(0xfff1efff),
+              ),
+              foregroundColor: HocalistPalette.text(
+                context,
+                const Color(0xff1520ff),
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -9412,10 +9983,10 @@ class _ApprovedChatNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xfff3f2ff),
+        color: HocalistPalette.surface(context, const Color(0xfff3f2ff)),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: const Row(
+      child: Row(
         children: [
           _SoftSquareIcon(icon: Icons.security_outlined),
           SizedBox(width: 16),
@@ -9426,7 +9997,7 @@ class _ApprovedChatNotice extends StatelessWidget {
                 Text(
                   'Chat opens only after you select this seller.',
                   style: TextStyle(
-                    color: Color(0xff1520ff),
+                    color: HocalistPalette.text(context, Color(0xff1520ff)),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -9434,7 +10005,7 @@ class _ApprovedChatNotice extends StatelessWidget {
                 Text(
                   'Your PIN protects reward completion during meetup.',
                   style: TextStyle(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -9464,7 +10035,10 @@ class _ApprovedSelectSellerBar extends StatelessWidget {
             onPressed: onSelect,
             style: FilledButton.styleFrom(
               minimumSize: const Size(double.infinity, 58),
-              backgroundColor: const Color(0xff0618ff),
+              backgroundColor: HocalistPalette.surface(
+                context,
+                const Color(0xff0618ff),
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -9478,11 +10052,11 @@ class _ApprovedSelectSellerBar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Selecting this seller will share your contact information.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: HocalistTheme.muted,
+              color: HocalistPalette.text(context, HocalistTheme.muted),
               fontSize: HocalistTheme.captionSize,
               fontWeight: FontWeight.w600,
             ),
@@ -9504,10 +10078,14 @@ class _SoftSquareIcon extends StatelessWidget {
       width: 50,
       height: 50,
       decoration: BoxDecoration(
-        color: const Color(0xfff1efff),
+        color: HocalistPalette.surface(context, const Color(0xfff1efff)),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(icon, color: const Color(0xff1520ff), size: 30),
+      child: Icon(
+        icon,
+        color: HocalistPalette.text(context, const Color(0xff1520ff)),
+        size: 30,
+      ),
     );
   }
 }
@@ -9544,7 +10122,10 @@ class FinalizeDealPage extends StatelessWidget {
               label: const Text('Add meeting details'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 58),
-                backgroundColor: const Color(0xff0618ff),
+                backgroundColor: HocalistPalette.surface(
+                  context,
+                  const Color(0xff0618ff),
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -9573,13 +10154,13 @@ class _MeetupAcceptedHero extends StatelessWidget {
           final icon = Container(
             width: tight ? 56 : 64,
             height: tight ? 56 : 64,
-            decoration: const BoxDecoration(
-              color: Color(0xffeeebff),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Color(0xffeeebff)),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_circle_outline,
-              color: Color(0xff0618ff),
+              color: HocalistPalette.text(context, Color(0xff0618ff)),
               size: 38,
             ),
           );
@@ -9589,7 +10170,7 @@ class _MeetupAcceptedHero extends StatelessWidget {
               Text(
                 'Meetup accepted',
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: HocalistTheme.primary,
+                  color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontWeight: FontWeight.w900,
                   height: 1.05,
                 ),
@@ -9598,7 +10179,7 @@ class _MeetupAcceptedHero extends StatelessWidget {
               Text(
                 'Northside Tech is selected. Set a public meetup before you inspect and pay offline.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: HocalistTheme.muted,
+                  color: HocalistPalette.text(context, HocalistTheme.muted),
                   height: 1.35,
                   fontWeight: FontWeight.w600,
                 ),
@@ -9608,7 +10189,7 @@ class _MeetupAcceptedHero extends StatelessWidget {
           final priceBadge = Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xfff1efff),
+              color: HocalistPalette.surface(context, const Color(0xfff1efff)),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(
@@ -9619,7 +10200,7 @@ class _MeetupAcceptedHero extends StatelessWidget {
                 Text(
                   price,
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w900,
                     height: 1,
                   ),
@@ -9628,7 +10209,7 @@ class _MeetupAcceptedHero extends StatelessWidget {
                 Text(
                   'Seller price',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: HocalistTheme.muted,
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -9684,7 +10265,7 @@ class _MeetupNextStepCard extends StatelessWidget {
                 Text(
                   'Next: choose where to meet',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -9692,7 +10273,7 @@ class _MeetupNextStepCard extends StatelessWidget {
                 Text(
                   'Use a public place, confirm the time, and keep item payment outside Hocalist after inspection.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: HocalistTheme.muted,
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
                     height: 1.4,
                     fontWeight: FontWeight.w600,
                   ),
@@ -9702,13 +10283,19 @@ class _MeetupNextStepCard extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xfff6f4ff),
+                    color: HocalistPalette.surface(
+                      context,
+                      const Color(0xfff6f4ff),
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     'Suggested: Wicker Park public pickup point',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: HocalistTheme.primary,
+                      color: HocalistPalette.text(
+                        context,
+                        HocalistTheme.primary,
+                      ),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -9790,10 +10377,17 @@ class _MeetupMiniCard extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
+              color: HocalistPalette.surface(
+                context,
+                color.withValues(alpha: 0.12),
+              ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 27),
+            child: Icon(
+              icon,
+              color: HocalistPalette.text(context, color),
+              size: 27,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -9803,7 +10397,7 @@ class _MeetupMiniCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HocalistTheme.primary,
+                    color: HocalistPalette.text(context, HocalistTheme.primary),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -9811,7 +10405,7 @@ class _MeetupMiniCard extends StatelessWidget {
                 Text(
                   body,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: HocalistTheme.muted,
+                    color: HocalistPalette.text(context, HocalistTheme.muted),
                     height: 1.35,
                     fontWeight: FontWeight.w600,
                   ),
@@ -10013,7 +10607,10 @@ class BuyerReviewPage extends StatelessWidget {
               Row(
                 children: List.generate(
                   5,
-                  (_) => Icon(Icons.star, color: accent),
+                  (_) => Icon(
+                    Icons.star,
+                    color: HocalistPalette.text(context, accent),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -10190,6 +10787,7 @@ class SupportPage extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -10263,8 +10861,13 @@ class SupportPage extends StatelessWidget {
             onPressed: onLogout,
             style: OutlinedButton.styleFrom(
               minimumSize: Size(0, metrics.geometry(46)),
-              foregroundColor: HocalistTheme.danger,
-              side: const BorderSide(color: HocalistTheme.danger),
+              foregroundColor: HocalistPalette.text(
+                context,
+                HocalistTheme.danger,
+              ),
+              side: BorderSide(
+                color: HocalistPalette.border(context, HocalistTheme.danger),
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(metrics.geometry(10)),
               ),
@@ -10344,7 +10947,7 @@ class _BuyerMoreProfileCard extends StatelessWidget {
       onPressed: onEditProfile,
       style: TextButton.styleFrom(
         minimumSize: Size(metrics.geometry(44), metrics.geometry(40)),
-        foregroundColor: BuyerUiTokens.action,
+        foregroundColor: HocalistPalette.text(context, BuyerUiTokens.action),
         padding: EdgeInsets.symmetric(horizontal: metrics.geometry(8)),
       ),
       child: Text(
@@ -10361,9 +10964,11 @@ class _BuyerMoreProfileCard extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(metrics.spacing(13)),
         decoration: BoxDecoration(
-          color: BuyerUiTokens.surface,
+          color: HocalistPalette.surface(context, BuyerUiTokens.surface),
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
-          border: Border.all(color: BuyerUiTokens.border),
+          border: Border.all(
+            color: HocalistPalette.border(context, BuyerUiTokens.border),
+          ),
           boxShadow: const [
             BoxShadow(
               color: Color(0x0a101054),
@@ -10440,8 +11045,14 @@ class _BuyerProfileAvatar extends StatelessWidget {
                 Positioned.fill(
                   child: avatarMediaId == null
                       ? CircleAvatar(
-                          backgroundColor: BuyerUiTokens.softSurface,
-                          foregroundColor: BuyerUiTokens.action,
+                          backgroundColor: HocalistPalette.surface(
+                            context,
+                            BuyerUiTokens.softSurface,
+                          ),
+                          foregroundColor: HocalistPalette.text(
+                            context,
+                            BuyerUiTokens.action,
+                          ),
                           child: Icon(
                             Icons.person_outline,
                             size: metrics.artSize(diameter >= 60 ? 31 : 23),
@@ -10459,7 +11070,10 @@ class _BuyerProfileAvatar extends StatelessWidget {
                   right: -metrics.spacing(2),
                   bottom: -metrics.spacing(2),
                   child: Material(
-                    color: BuyerUiTokens.action,
+                    color: HocalistPalette.surface(
+                      context,
+                      BuyerUiTokens.action,
+                    ),
                     shape: const CircleBorder(),
                     elevation: 1,
                     child: SizedBox(
@@ -10467,7 +11081,7 @@ class _BuyerProfileAvatar extends StatelessWidget {
                       height: actionDiameter,
                       child: Icon(
                         Icons.photo_camera_outlined,
-                        color: Colors.white,
+                        color: HocalistPalette.text(context, Colors.white),
                         size: metrics.artSize(diameter >= 60 ? 16 : 12),
                       ),
                     ),
@@ -10602,8 +11216,10 @@ class _BuyerAvatarPendingCard extends StatelessWidget {
       key: const Key('buyerAvatarPendingCard'),
       padding: EdgeInsets.all(metrics.spacing(10)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.softSurface,
-        border: Border.all(color: BuyerUiTokens.border),
+        color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
       ),
       child: Column(
@@ -10669,7 +11285,7 @@ Future<void> _showBuyerProfilePhotoOptions(
   await showModalBottomSheet<void>(
     context: context,
     sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-    backgroundColor: Colors.transparent,
+    backgroundColor: HocalistPalette.surface(context, Colors.transparent),
     isScrollControlled: true,
     builder: (sheetContext) => BuyerModalSheet(
       title: 'Change profile picture',
@@ -10736,9 +11352,12 @@ class _BuyerPhotoOption extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: metrics.spacing(8)),
       child: Material(
-        color: isDestructive
-            ? HocalistTheme.danger.withValues(alpha: 0.05)
-            : BuyerUiTokens.softSurface,
+        color: HocalistPalette.surface(
+          context,
+          isDestructive
+              ? HocalistTheme.danger.withValues(alpha: 0.05)
+              : BuyerUiTokens.softSurface,
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
         child: InkWell(
           key: optionKey,
@@ -10751,7 +11370,11 @@ class _BuyerPhotoOption extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(icon, color: color, size: metrics.artSize(22)),
+                Icon(
+                  icon,
+                  color: HocalistPalette.text(context, color),
+                  size: metrics.artSize(22),
+                ),
                 SizedBox(width: metrics.spacing(12)),
                 Expanded(
                   child: Column(
@@ -10781,7 +11404,7 @@ class _BuyerPhotoOption extends StatelessWidget {
                 ),
                 Icon(
                   Icons.chevron_right,
-                  color: color,
+                  color: HocalistPalette.text(context, color),
                   size: metrics.artSize(20),
                 ),
               ],
@@ -10826,9 +11449,11 @@ class _BuyerMoreMenuGroup extends StatelessWidget {
     return HocalistEntrance(
       child: Container(
         decoration: BoxDecoration(
-          color: BuyerUiTokens.surface,
+          color: HocalistPalette.surface(context, BuyerUiTokens.surface),
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
-          border: Border.all(color: BuyerUiTokens.border),
+          border: Border.all(
+            color: HocalistPalette.border(context, BuyerUiTokens.border),
+          ),
         ),
         child: Column(
           children: [
@@ -10871,14 +11496,17 @@ class _BuyerMoreMenuTile extends StatelessWidget {
                 width: metrics.artSize(34),
                 height: metrics.artSize(34),
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: BuyerUiTokens.softSurface,
+                decoration: BoxDecoration(
+                  color: HocalistPalette.surface(
+                    context,
+                    BuyerUiTokens.softSurface,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   item.icon,
                   size: metrics.artSize(19),
-                  color: BuyerUiTokens.action,
+                  color: HocalistPalette.text(context, BuyerUiTokens.action),
                 ),
               ),
               SizedBox(width: metrics.spacing(10)),
@@ -10896,7 +11524,7 @@ class _BuyerMoreMenuTile extends StatelessWidget {
               Icon(
                 Icons.chevron_right,
                 size: metrics.artSize(20),
-                color: BuyerUiTokens.muted,
+                color: HocalistPalette.text(context, BuyerUiTokens.muted),
               ),
             ],
           ),
@@ -10997,6 +11625,7 @@ class _BuyerSubpageBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -11018,9 +11647,12 @@ class _BuyerSubpageBlock extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   icon: Icon(
                     Icons.arrow_back,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Theme.of(context).colorScheme.onSurface
-                        : BuyerUiTokens.text,
+                    color: HocalistPalette.text(
+                      context,
+                      Theme.of(context).brightness == Brightness.dark
+                          ? Theme.of(context).colorScheme.onSurface
+                          : BuyerUiTokens.text,
+                    ),
                     size: metrics.artSize(23),
                   ),
                 ),
@@ -11140,9 +11772,11 @@ class _BuyerSubpageSection extends StatelessWidget {
           ),
           SizedBox(height: metrics.spacing(7)),
           Material(
-            color: Colors.white,
+            color: HocalistPalette.surface(context, Colors.white),
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: BuyerUiTokens.border),
+              side: BorderSide(
+                color: HocalistPalette.border(context, BuyerUiTokens.border),
+              ),
               borderRadius: BorderRadius.circular(metrics.geometry(11)),
             ),
             clipBehavior: Clip.antiAlias,
@@ -11204,13 +11838,16 @@ class _BuyerSubpageRow extends StatelessWidget {
                 Container(
                   width: metrics.artSize(34),
                   height: metrics.artSize(34),
-                  decoration: const BoxDecoration(
-                    color: BuyerUiTokens.softSurface,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      BuyerUiTokens.softSurface,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     icon,
-                    color: BuyerUiTokens.action,
+                    color: HocalistPalette.text(context, BuyerUiTokens.action),
                     size: metrics.artSize(18),
                   ),
                 ),
@@ -11260,7 +11897,7 @@ class _BuyerSubpageRow extends StatelessWidget {
                     padding: EdgeInsets.only(top: metrics.spacing(7)),
                     child: Icon(
                       Icons.chevron_right,
-                      color: BuyerUiTokens.muted,
+                      color: HocalistPalette.text(context, BuyerUiTokens.muted),
                       size: metrics.artSize(20),
                     ),
                   ),
@@ -11297,7 +11934,7 @@ class _BuyerPreferenceSwitch extends StatelessWidget {
     return SwitchListTile.adaptive(
       value: value,
       onChanged: enabled ? onChanged : null,
-      activeThumbColor: BuyerUiTokens.action,
+      activeThumbColor: HocalistPalette.text(context, BuyerUiTokens.action),
       contentPadding: EdgeInsets.symmetric(
         horizontal: metrics.spacing(12),
         vertical: metrics.spacing(4),
@@ -11305,13 +11942,13 @@ class _BuyerPreferenceSwitch extends StatelessWidget {
       secondary: Container(
         width: metrics.artSize(34),
         height: metrics.artSize(34),
-        decoration: const BoxDecoration(
-          color: BuyerUiTokens.softSurface,
+        decoration: BoxDecoration(
+          color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: BuyerUiTokens.action,
+          color: HocalistPalette.text(context, BuyerUiTokens.action),
           size: metrics.artSize(18),
         ),
       ),
@@ -11487,8 +12124,18 @@ class _BuyerNotificationPreferencesPageState
   bool messages = true;
   bool deals = true;
   bool safety = true;
-  bool _saving = false;
-  String? _saveError;
+  late final _edits = NotificationPreferenceEdits(
+    read: () => widget.repository!.notificationPreferences!.preferences,
+    save: (next) async {
+      final result = await widget.repository!.updateNotificationPreferences(
+        next,
+      );
+      return result.isSuccess ? null : result.error;
+    },
+    changed: () {
+      if (mounted) setState(() {});
+    },
+  );
 
   bool get _realMode => widget.repository?.isNotificationsBacked ?? false;
 
@@ -11501,6 +12148,7 @@ class _BuyerNotificationPreferencesPageState
 
   @override
   void dispose() {
+    _edits.dispose();
     widget.repository?.removeListener(_onRepositoryChanged);
     super.dispose();
   }
@@ -11529,20 +12177,6 @@ class _BuyerNotificationPreferencesPageState
   /// Saves one server-side change at the carried revision. The switches follow
   /// the authoritative record; a failed write keeps the previous values and
   /// reports the error.
-  Future<void> _updateRemote(NotificationPreferences next) async {
-    final repository = widget.repository;
-    if (repository == null || _saving) return;
-    setState(() {
-      _saving = true;
-      _saveError = null;
-    });
-    final result = await repository.updateNotificationPreferences(next);
-    if (!mounted) return;
-    setState(() {
-      _saving = false;
-      _saveError = result.isSuccess ? null : result.error;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -11597,12 +12231,12 @@ class _BuyerNotificationPreferencesPageState
                 title: 'Offers',
                 body:
                     'New offers, offer changes, and seller-selection updates.',
-                value: _realMode ? preferences.offers : offers,
-                enabled: !_saving,
+                value: _realMode
+                    ? _edits.value('offers', preferences.offers)
+                    : offers,
+                enabled: !_edits.pending('offers'),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(offers: value)),
-                      )
+                    ? unawaited(_edits.update('offers', value))
                     : unawaited(
                         _update(_offersKey, value, () => offers = value),
                       ),
@@ -11611,12 +12245,12 @@ class _BuyerNotificationPreferencesPageState
                 icon: Icons.chat_bubble_outline,
                 title: 'Messages & chats',
                 body: 'Messages from sellers and selected-seller chat updates.',
-                value: _realMode ? preferences.messages : messages,
-                enabled: !_saving,
+                value: _realMode
+                    ? _edits.value('messages', preferences.messages)
+                    : messages,
+                enabled: !_edits.pending('messages'),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(messages: value)),
-                      )
+                    ? unawaited(_edits.update('messages', value))
                     : unawaited(
                         _update(_messagesKey, value, () => messages = value),
                       ),
@@ -11625,12 +12259,12 @@ class _BuyerNotificationPreferencesPageState
                 icon: Icons.event_available_outlined,
                 title: 'Meetings & deal updates',
                 body: 'Meeting reminders, changes, and deal-status updates.',
-                value: _realMode ? preferences.deals : deals,
-                enabled: !_saving,
+                value: _realMode
+                    ? _edits.value('deals', preferences.deals)
+                    : deals,
+                enabled: !_edits.pending('deals'),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(deals: value)),
-                      )
+                    ? unawaited(_edits.update('deals', value))
                     : unawaited(_update(_dealsKey, value, () => deals = value)),
               ),
               _BuyerPreferenceSwitch(
@@ -11640,15 +12274,15 @@ class _BuyerNotificationPreferencesPageState
                     ? 'Security, reporting, and important account safety notices. Always on.'
                     : 'Security, reporting, and important account safety notices.',
                 value: _realMode ? true : safety,
-                enabled: !_saving && !_realMode,
+                enabled: !_realMode,
                 onChanged: (value) =>
                     unawaited(_update(_safetyKey, value, () => safety = value)),
               ),
-              if (_saveError != null)
+              if (_edits.error != null)
                 Padding(
                   key: const Key('buyerNotificationPreferencesSaveError'),
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(_saveError!, textAlign: TextAlign.center),
+                  child: Text(_edits.error!, textAlign: TextAlign.center),
                 ),
             ],
           ],
@@ -11980,13 +12614,14 @@ class BuyerNotificationsPage extends StatelessWidget {
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: HocalistPalette.surface(context, Colors.transparent),
       barrierColor: const Color(0x990B1231),
       builder: (sheetContext) {
         final media = MediaQuery.of(sheetContext);
         final metrics =
             ApprovedReplicaScope.maybeOf(sheetContext) ??
             ApprovedReplicaMetrics.resolve(
+              brightness: Theme.of(context).brightness,
               availableWidth: media.size.width,
               textScaler: media.textScaler,
             );
@@ -12459,10 +13094,10 @@ class ReportIssuePage extends StatelessWidget {
           label: 'Save report',
           onPressed: onSubmit,
           colors: const [HocalistTheme.danger, Color(0xffd62f29)],
-          leading: const BuyerGlyphIcon(
+          leading: BuyerGlyphIcon(
             icon: Icons.outgoing_mail,
             slotSize: BuyerIconTokens.inline,
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
           ),
         ),
       ],
@@ -12638,10 +13273,10 @@ class BuyerSupportStatusPage extends StatelessWidget {
         BuyerPrimaryButton(
           label: actionLabel,
           onPressed: onAction,
-          leading: const BuyerGlyphIcon(
+          leading: BuyerGlyphIcon(
             icon: Icons.arrow_back_rounded,
             slotSize: BuyerIconTokens.inline,
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
           ),
         ),
       ],
@@ -13201,7 +13836,13 @@ class ResultPage extends StatelessWidget {
       subtitle: body,
       children: [
         AppCard(
-          child: Center(child: Icon(icon, color: accent, size: 56)),
+          child: Center(
+            child: Icon(
+              icon,
+              color: HocalistPalette.text(context, accent),
+              size: 56,
+            ),
+          ),
         ),
         PrimaryButton(
           label: primaryLabel,

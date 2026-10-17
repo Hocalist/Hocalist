@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -552,9 +553,15 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                         tooltip: 'Store options',
                         onPressed: _showStoreMenu,
                         icon: const Icon(Icons.more_vert_rounded),
-                        color: SellerUiColors.ink,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.ink,
+                        ),
                         style: IconButton.styleFrom(
-                          backgroundColor: SellerUiColors.lavender,
+                          backgroundColor: HocalistPalette.surface(
+                            context,
+                            SellerUiColors.lavender,
+                          ),
                           minimumSize: Size.square(metrics.artSize(40)),
                         ),
                       ),
@@ -616,9 +623,15 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                           onPressed: _showFilters,
                           style: OutlinedButton.styleFrom(
                             padding: EdgeInsets.zero,
-                            foregroundColor: SellerUiColors.primaryBright,
-                            side: const BorderSide(
-                              color: SellerUiColors.lavenderBorder,
+                            foregroundColor: HocalistPalette.text(
+                              context,
+                              SellerUiColors.primaryBright,
+                            ),
+                            side: BorderSide(
+                              color: HocalistPalette.border(
+                                context,
+                                SellerUiColors.lavenderBorder,
+                              ),
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
@@ -719,7 +732,7 @@ class _StoreSummaryCard extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.all(metrics.geometry(12)),
           decoration: BoxDecoration(
-            color: SellerUiColors.lavender,
+            color: HocalistPalette.surface(context, SellerUiColors.lavender),
             borderRadius: BorderRadius.circular(metrics.geometry(13)),
           ),
           child: Row(
@@ -727,14 +740,17 @@ class _StoreSummaryCard extends StatelessWidget {
               Container(
                 width: metrics.artSize(42),
                 height: metrics.artSize(42),
-                decoration: const BoxDecoration(
-                  color: SellerUiColors.white,
+                decoration: BoxDecoration(
+                  color: HocalistPalette.surface(context, SellerUiColors.white),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.storefront_outlined,
                   size: metrics.artSize(23),
-                  color: SellerUiColors.primaryBright,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                 ),
               ),
               SizedBox(width: metrics.spacing(10)),
@@ -800,14 +816,14 @@ class _AddListingCard extends StatelessWidget {
           Container(
             width: metrics.artSize(38),
             height: metrics.artSize(38),
-            decoration: const BoxDecoration(
-              color: SellerUiColors.lavender,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, SellerUiColors.lavender),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.add_rounded,
               size: metrics.artSize(24),
-              color: accent,
+              color: HocalistPalette.text(context, accent),
             ),
           ),
           SizedBox(width: metrics.spacing(10)),
@@ -841,7 +857,7 @@ class _AddListingCard extends StatelessWidget {
           ),
           Icon(
             enabled ? Icons.chevron_right_rounded : Icons.lock_outline_rounded,
-            color: accent,
+            color: HocalistPalette.text(context, accent),
             size: metrics.artSize(22),
           ),
         ],
@@ -850,12 +866,16 @@ class _AddListingCard extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
-          color: enabled ? SellerUiColors.white : const Color(0xfff6f6fb),
+          color: HocalistPalette.surface(
+            context,
+            enabled ? SellerUiColors.white : const Color(0xfff6f6fb),
+          ),
           shape: RoundedRectangleBorder(
             side: BorderSide(
-              color: enabled
-                  ? SellerUiColors.primaryBright
-                  : SellerUiColors.line,
+              color: HocalistPalette.border(
+                context,
+                enabled ? SellerUiColors.primaryBright : SellerUiColors.line,
+              ),
             ),
             borderRadius: BorderRadius.circular(metrics.geometry(12)),
           ),
@@ -923,13 +943,19 @@ class _StoreFilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     return Material(
-      color: selected ? SellerUiColors.primaryBright : SellerUiColors.white,
+      color: HocalistPalette.surface(
+        context,
+        selected ? SellerUiColors.primaryBright : SellerUiColors.white,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
         side: BorderSide(
-          color: selected
-              ? SellerUiColors.primaryBright
-              : SellerUiColors.lavenderBorder,
+          color: HocalistPalette.border(
+            context,
+            selected
+                ? SellerUiColors.primaryBright
+                : SellerUiColors.lavenderBorder,
+          ),
         ),
       ),
       child: InkWell(
@@ -968,10 +994,12 @@ class _StoreListingCard extends StatelessWidget {
       child: HocalistEntrance(
         child: HocalistPressFeedback(
           child: Material(
-            color: SellerUiColors.white,
+            color: HocalistPalette.surface(context, SellerUiColors.white),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(metrics.geometry(13)),
-              side: const BorderSide(color: SellerUiColors.line),
+              side: BorderSide(
+                color: HocalistPalette.border(context, SellerUiColors.line),
+              ),
             ),
             child: InkWell(
               key: Key('sellerStoreListing-${listing.id}'),
@@ -1007,7 +1035,10 @@ class _StoreListingCard extends StatelessWidget {
                               Icon(
                                 Icons.more_vert_rounded,
                                 size: metrics.artSize(19),
-                                color: SellerUiColors.body,
+                                color: HocalistPalette.text(
+                                  context,
+                                  SellerUiColors.body,
+                                ),
                               ),
                             ],
                           ),
@@ -1078,7 +1109,7 @@ class _ListingImage extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(size * .16),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1090,7 +1121,10 @@ class _ListingImage extends StatelessWidget {
                   ? Icons.inventory_2_outlined
                   : Icons.design_services_outlined,
               size: size * .38,
-              color: SellerUiColors.primaryBright,
+              color: HocalistPalette.text(
+                context,
+                SellerUiColors.primaryBright,
+              ),
             )
           : Image.asset(
               listing.imageAsset!,
@@ -1100,7 +1134,10 @@ class _ListingImage extends StatelessWidget {
               errorBuilder: (_, _, _) => Icon(
                 Icons.image_outlined,
                 size: size * .38,
-                color: SellerUiColors.primaryBright,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
             ),
     );
@@ -1118,13 +1155,14 @@ class _StoreEmptyState extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Container(
       padding: EdgeInsets.all(metrics.geometry(18)),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(13)),
       ),
       child: Column(
@@ -1132,7 +1170,7 @@ class _StoreEmptyState extends StatelessWidget {
           Icon(
             Icons.storefront_outlined,
             size: metrics.artSize(30),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(height: metrics.spacing(8)),
           Text(
@@ -1166,6 +1204,7 @@ class _StoreIdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -1183,7 +1222,7 @@ class _StoreIdentityCard extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.all(metrics.geometry(12)),
           decoration: BoxDecoration(
-            color: SellerUiColors.lavender,
+            color: HocalistPalette.surface(context, SellerUiColors.lavender),
             borderRadius: BorderRadius.circular(metrics.geometry(13)),
           ),
           child: Row(
@@ -1193,8 +1232,11 @@ class _StoreIdentityCard extends StatelessWidget {
                   width: metrics.artSize(44),
                   height: metrics.artSize(44),
                   alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: SellerUiColors.white,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.white,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Text(
@@ -1252,15 +1294,18 @@ class _PublicListingPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
     return Container(
       padding: EdgeInsets.all(metrics.geometry(10)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
+        color: HocalistPalette.surface(context, SellerUiColors.white),
         borderRadius: BorderRadius.circular(metrics.geometry(13)),
-        border: Border.all(color: SellerUiColors.line),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1338,6 +1383,7 @@ class _StoreSheetAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -1349,7 +1395,11 @@ class _StoreSheetAction extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: effectiveColor, size: metrics.artSize(20)),
+          Icon(
+            icon,
+            color: HocalistPalette.text(context, effectiveColor),
+            size: metrics.artSize(20),
+          ),
           SizedBox(width: metrics.spacing(10)),
           Expanded(
             child: Column(
@@ -1382,17 +1432,22 @@ class _StoreSheetAction extends StatelessWidget {
           SizedBox(width: metrics.spacing(6)),
           Icon(
             enabled ? Icons.chevron_right_rounded : Icons.lock_outline_rounded,
-            color: effectiveColor,
+            color: HocalistPalette.text(context, effectiveColor),
             size: metrics.artSize(20),
           ),
         ],
       ),
     );
     return Material(
-      color: enabled ? const Color(0xfff8f8ff) : const Color(0xfff4f4f9),
+      color: HocalistPalette.surface(
+        context,
+        enabled ? const Color(0xfff8f8ff) : const Color(0xfff4f4f9),
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
-        side: const BorderSide(color: SellerUiColors.line),
+        side: BorderSide(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
       ),
       child: enabled
           ? InkWell(
@@ -1419,15 +1474,22 @@ class _StoreRadioOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
     return Material(
-      color: selected ? SellerUiColors.lavender : const Color(0xfff8f8ff),
+      color: HocalistPalette.surface(
+        context,
+        selected ? SellerUiColors.lavender : const Color(0xfff8f8ff),
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
         side: BorderSide(
-          color: selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+          color: HocalistPalette.border(
+            context,
+            selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+          ),
         ),
       ),
       child: InkWell(
@@ -1451,9 +1513,12 @@ class _StoreRadioOption extends StatelessWidget {
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_off_rounded,
                 size: metrics.artSize(20),
-                color: selected
-                    ? SellerUiColors.primaryBright
-                    : SellerUiColors.muted,
+                color: HocalistPalette.text(
+                  context,
+                  selected
+                      ? SellerUiColors.primaryBright
+                      : SellerUiColors.muted,
+                ),
               ),
             ],
           ),
@@ -2069,16 +2134,22 @@ class _ListingTypeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
-          color: const Color(0xfff8f8ff),
+          color: HocalistPalette.surface(context, const Color(0xfff8f8ff)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(metrics.geometry(13)),
-            side: const BorderSide(color: SellerUiColors.lavenderBorder),
+            side: BorderSide(
+              color: HocalistPalette.border(
+                context,
+                SellerUiColors.lavenderBorder,
+              ),
+            ),
           ),
           child: InkWell(
             onTap: onTap,
@@ -2090,14 +2161,20 @@ class _ListingTypeCard extends StatelessWidget {
                   Container(
                     width: metrics.artSize(42),
                     height: metrics.artSize(42),
-                    decoration: const BoxDecoration(
-                      color: SellerUiColors.lavender,
+                    decoration: BoxDecoration(
+                      color: HocalistPalette.surface(
+                        context,
+                        SellerUiColors.lavender,
+                      ),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       icon,
                       size: metrics.artSize(22),
-                      color: SellerUiColors.primaryBright,
+                      color: HocalistPalette.text(
+                        context,
+                        SellerUiColors.primaryBright,
+                      ),
                     ),
                   ),
                   SizedBox(width: metrics.spacing(11)),
@@ -2129,7 +2206,10 @@ class _ListingTypeCard extends StatelessWidget {
                   Icon(
                     Icons.chevron_right_rounded,
                     size: metrics.artSize(21),
-                    color: SellerUiColors.primaryBright,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
                   ),
                 ],
               ),
@@ -2161,6 +2241,7 @@ class _StoreFormField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -2280,6 +2361,7 @@ class _StoreStatusBadge extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -2289,7 +2371,7 @@ class _StoreStatusBadge extends StatelessWidget {
         vertical: metrics.geometry(3),
       ),
       decoration: BoxDecoration(
-        color: background,
+        color: HocalistPalette.surface(context, background),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
@@ -2353,6 +2435,7 @@ class _StoreCategoryPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -2361,7 +2444,7 @@ class _StoreCategoryPicker extends StatelessWidget {
         key: const Key('sellerStoreNoCategories'),
         padding: EdgeInsets.all(metrics.geometry(10)),
         decoration: BoxDecoration(
-          color: SellerUiColors.amberSurface,
+          color: HocalistPalette.surface(context, SellerUiColors.amberSurface),
           borderRadius: BorderRadius.circular(metrics.geometry(11)),
         ),
         child: Text(
@@ -2439,6 +2522,7 @@ class _StorePendingNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -2446,9 +2530,14 @@ class _StorePendingNotice extends StatelessWidget {
       key: const Key('sellerStorePendingNotice'),
       padding: EdgeInsets.all(metrics.geometry(10)),
       decoration: BoxDecoration(
-        color: SellerUiColors.amberSurface,
+        color: HocalistPalette.surface(context, SellerUiColors.amberSurface),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
-        border: Border.all(color: SellerUiColors.amber.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: HocalistPalette.border(
+            context,
+            SellerUiColors.amber.withValues(alpha: 0.3),
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

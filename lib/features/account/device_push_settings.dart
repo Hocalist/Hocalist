@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../data/phase2/providers/hocalist_push_service.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -97,6 +98,7 @@ class _DevicePushSettingsState extends State<DevicePushSettings>
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -115,9 +117,11 @@ class _DevicePushSettingsState extends State<DevicePushSettings>
       child: Container(
         padding: metrics.geometryInsets(const EdgeInsets.all(14)),
         decoration: BoxDecoration(
-          color: BuyerUiTokens.surface,
+          color: HocalistPalette.surface(context, BuyerUiTokens.surface),
           borderRadius: BorderRadius.circular(metrics.geometry(16)),
-          border: Border.all(color: BuyerUiTokens.border),
+          border: Border.all(
+            color: HocalistPalette.border(context, BuyerUiTokens.border),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -128,8 +132,11 @@ class _DevicePushSettingsState extends State<DevicePushSettings>
                 Container(
                   width: metrics.artSize(34),
                   height: metrics.artSize(34),
-                  decoration: const BoxDecoration(
-                    color: BuyerUiTokens.softSurface,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      BuyerUiTokens.softSurface,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -139,7 +146,10 @@ class _DevicePushSettingsState extends State<DevicePushSettings>
                           : Icons.notifications_off_outlined,
                       slotSize: metrics.artSize(18),
                       glyphSize: metrics.artSize(18),
-                      color: BuyerUiTokens.action,
+                      color: HocalistPalette.text(
+                        context,
+                        BuyerUiTokens.action,
+                      ),
                     ),
                   ),
                 ),
@@ -150,12 +160,11 @@ class _DevicePushSettingsState extends State<DevicePushSettings>
                     children: [
                       Text(
                         'Notifications on this phone',
-                        style:
-                            BuyerTypography.style(
-                              context,
-                              metrics,
-                              BuyerTextRole.cardTitle,
-                            ).copyWith(fontSize: metrics.fontSize(13.5)),
+                        style: BuyerTypography.style(
+                          context,
+                          metrics,
+                          BuyerTextRole.cardTitle,
+                        ).copyWith(fontSize: metrics.fontSize(13.5)),
                       ),
                       SizedBox(height: metrics.spacing(3)),
                       Text(

@@ -7,6 +7,8 @@
 /// of scope by design.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -394,7 +396,10 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                 : 'Latest export: ${status.latestExport!.status} '
                       '· requested ${status.latestExport!.requestedAt.toLocal()}',
             key: const ValueKey('lifecycle-export-status'),
-            style: const TextStyle(fontSize: 12.5, color: BuyerUiTokens.muted),
+            style: TextStyle(
+              fontSize: 12.5,
+              color: HocalistPalette.text(context, BuyerUiTokens.muted),
+            ),
           ),
           const SizedBox(height: 10),
           AccountActionButton(
@@ -418,7 +423,10 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
               key: const ValueKey('lifecycle-export-document'),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: BuyerUiTokens.softSurface,
+                color: HocalistPalette.surface(
+                  context,
+                  BuyerUiTokens.softSurface,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: SelectableText(
@@ -450,7 +458,10 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                         ? 'Re-enter your password to record the request.'
                         : 'Re-enter the password for ${widget.email} to record '
                               'the request.'),
-              style: const TextStyle(fontSize: 12, color: BuyerUiTokens.muted),
+              style: TextStyle(
+                fontSize: 12,
+                color: HocalistPalette.text(context, BuyerUiTokens.muted),
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -470,7 +481,12 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                 child: Text(
                   _deleteError!,
                   key: const ValueKey('lifecycle-delete-error'),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(
+                    color: HocalistPalette.text(
+                      context,
+                      Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
               ),
             const SizedBox(height: 10),
@@ -498,9 +514,9 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                   'Hold: ${hold.kind}'
                   '${hold.detail == null ? '' : ' (${hold.detail})'}',
                   key: ValueKey('lifecycle-hold-${hold.kind}'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
-                    color: BuyerUiTokens.muted,
+                    color: HocalistPalette.text(context, BuyerUiTokens.muted),
                   ),
                 ),
               ),
@@ -510,7 +526,12 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
                 child: Text(
                   _deleteError!,
                   key: const ValueKey('lifecycle-delete-error'),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(
+                    color: HocalistPalette.text(
+                      context,
+                      Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
               ),
             const SizedBox(height: 10),
@@ -546,6 +567,7 @@ class _LifecycleSection extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -553,9 +575,11 @@ class _LifecycleSection extends StatelessWidget {
       margin: EdgeInsets.only(bottom: metrics.spacing(16)),
       padding: metrics.geometryInsets(const EdgeInsets.all(16)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: BorderRadius.circular(metrics.geometry(16)),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -590,6 +614,7 @@ class _LifecycleNote extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );

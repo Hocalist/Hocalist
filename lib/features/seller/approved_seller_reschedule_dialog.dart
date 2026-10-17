@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../domain/phase2/schedule.dart';
@@ -112,6 +113,7 @@ class _ApprovedSellerRescheduleDialogState
     final media = MediaQuery.of(context);
     final dialogWidth = (media.size.width - 28).clamp(292.0, 620.0);
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: dialogWidth,
       textScaler: media.textScaler,
     );
@@ -120,7 +122,7 @@ class _ApprovedSellerRescheduleDialogState
       child: Dialog(
         key: const Key('sellerRescheduleDialog'),
         insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-        backgroundColor: SellerUiColors.white,
+        backgroundColor: HocalistPalette.surface(context, SellerUiColors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -138,12 +140,18 @@ class _ApprovedSellerRescheduleDialogState
                       width: metrics.artSize(44),
                       height: metrics.artSize(44),
                       decoration: BoxDecoration(
-                        color: SellerUiColors.lavender,
+                        color: HocalistPalette.surface(
+                          context,
+                          SellerUiColors.lavender,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.calendar_month_outlined,
-                        color: SellerUiColors.primaryBright,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.primaryBright,
+                        ),
                       ),
                     ),
                     const Spacer(),
@@ -266,15 +274,21 @@ class _ApprovedSellerRescheduleDialogState
                 Container(
                   padding: EdgeInsets.all(metrics.spacing(10)),
                   decoration: BoxDecoration(
-                    color: SellerUiColors.lavender,
+                    color: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.lavender,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
-                        color: SellerUiColors.primaryBright,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.primaryBright,
+                        ),
                       ),
                       SizedBox(width: metrics.geometry(8)),
                       Expanded(
@@ -311,7 +325,10 @@ class _ApprovedSellerRescheduleDialogState
                   key: const Key('sellerCancelMeeting'),
                   onPressed: () => Navigator.of(context).pop(false),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: SellerUiColors.red,
+                    foregroundColor: HocalistPalette.text(
+                      context,
+                      SellerUiColors.red,
+                    ),
                     minimumSize: Size(0, metrics.geometry(44)),
                     fixedSize: Size.fromHeight(metrics.geometry(44)),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -320,7 +337,12 @@ class _ApprovedSellerRescheduleDialogState
                       vertical: metrics.spacing(9),
                     ),
                     textStyle: sellerText(metrics, 14, weight: FontWeight.w700),
-                    side: const BorderSide(color: SellerUiColors.red),
+                    side: BorderSide(
+                      color: HocalistPalette.border(
+                        context,
+                        SellerUiColors.red,
+                      ),
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

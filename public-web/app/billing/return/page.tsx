@@ -1,5 +1,6 @@
 import { PageShell } from '../../site-content';
 import { CheckoutReturn } from '../CheckoutReturn';
+import { ReturnToApp } from '../ReturnToApp';
 
 export const metadata = {
   title: 'Checkout status',
@@ -16,6 +17,7 @@ export default async function BillingReturnPage({
   return (
     <PageShell>
       <main className="billing-page">
+        <ReturnToApp />
         <CheckoutReturn
           previewKind={typeof params.preview === 'string' ? params.preview : null}
           checkoutHint={typeof params.checkout === 'string' ? params.checkout : null}

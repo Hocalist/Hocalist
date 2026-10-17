@@ -3,7 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Refresh before pinning a Bearer token. Supabase's HTTP client deliberately
 /// keeps an explicit Authorization header, even when it refreshes the session.
 /// Cancel if the initiating identity leaves during the refresh.
-Future<String?> freshSessionToken(SupabaseClient client) async {
+Future<String?> freshSessionToken(
+  SupabaseClient client, {
+  Duration minimumValidity = Duration.zero,
+}) async {
   final initiating = client.auth.currentSession;
   if (initiating == null) return null;
   var replaced = false;
@@ -14,7 +17,15 @@ Future<String?> freshSessionToken(SupabaseClient client) async {
     onError: (_) {}, // getSession reports refresh failures to the caller.
   );
   try {
-    final session = await client.auth.getSession();
+    final needsLongerSession =
+        minimumValidity > Duration.zero &&
+        (initiating.expiresAt == null ||
+            initiating.expiresAt! <=
+                DateTime.now().millisecondsSinceEpoch ~/ 1000 +
+                    minimumValidity.inSeconds);
+    final session = needsLongerSession
+        ? (await client.auth.refreshSession()).session
+        : await client.auth.getSession();
     if (replaced ||
         session == null ||
         session.user.id != initiating.user.id ||

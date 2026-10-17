@@ -8,6 +8,8 @@ import 'components/hocalist_motion.dart';
 import 'components/hocalist_section_tabs.dart';
 import 'components/hocalist_reload_link.dart';
 import 'components/notification_indicator.dart';
+import 'components/notification_preference_edits.dart';
+import 'theme/adaptive_palette.dart';
 import 'dart:math' as math;
 import 'data/phase2/marketplace/marketplace_saved_backend.dart';
 import 'data/phase2/marketplace/saved_item_reference.dart';
@@ -102,6 +104,7 @@ import 'features/approved/place_capture_sheet.dart';
 import 'features/approved/request_flow_pages.dart';
 import 'features/approved/trends_notifications_pages.dart';
 import 'features/chat/conversation_deal_groups.dart';
+import 'features/chat/conversation_profile_identity.dart';
 import 'features/seller/approved_seller_home_page.dart';
 import 'features/seller/approved_seller_leads_page.dart';
 import 'features/seller/approved_seller_meets_page.dart';
@@ -490,6 +493,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   PublicSellerReputation? _sellerReputation;
   bool _sellerReputationLoading = false;
   String? _sellerReputationError;
+  String? _sellerReputationFor;
+  int _sellerReputationGeneration = 0;
+  bool _sellerProfileFromConversation = false;
   int _navigationEpoch = 0;
   late final ReopenFlowCoordinator _reopenFlow;
   SellerDiscoveryOrigin? _discoveryOrigin;
@@ -560,6 +566,19 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   /// Authoritative counterpart of the open conversation, when the server
   /// projected a public profile id for the other participant.
   ({String name, String? profileId})? _chatCounterpart;
+
+  ({String name, String? profileId})? get _currentChatCounterpart {
+    final id = _marketplace.activeConversationId;
+    final summary = _marketplace.chatInbox
+        .where((row) => row.conversation.id == id)
+        .firstOrNull;
+    return summary == null
+        ? null
+        : (
+            name: summary.counterpartDisplayName,
+            profileId: summary.counterpartProfileId,
+          );
+  }
 
   String? get _activeConversationName {
     if (!_marketplace.isChatBacked) return null;
@@ -974,18 +993,25 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   Future<void> _loadSellerReputation(String sellerProfileId) async {
     final backend = _reviewBackend;
     if (backend == null) return;
+    final generation = ++_sellerReputationGeneration;
+    final userId = widget.accountSession?.userId;
+    bool current() =>
+        mounted &&
+        generation == _sellerReputationGeneration &&
+        userId == widget.accountSession?.userId;
     setState(() {
+      _sellerReputationFor = sellerProfileId;
       _sellerReputation = null;
       _sellerReputationError = null;
       _sellerReputationLoading = true;
     });
     try {
       final reputation = await backend.loadReputation(sellerProfileId);
-      if (mounted) setState(() => _sellerReputation = reputation);
+      if (current()) setState(() => _sellerReputation = reputation);
     } on StoreBackendException catch (error) {
-      if (mounted) setState(() => _sellerReputationError = error.message);
+      if (current()) setState(() => _sellerReputationError = error.message);
     } finally {
-      if (mounted) setState(() => _sellerReputationLoading = false);
+      if (current()) setState(() => _sellerReputationLoading = false);
     }
   }
 
@@ -1215,29 +1241,60 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       _previousConversationDeals = null;
     });
     try {
+      // Direct entry from an accepted offer or meeting may bypass the inbox.
+      // Load the participant projection before exposing names/profile actions.
+      await _marketplace.refreshChatInbox();
+      if (!mounted ||
+          generation != _conversationDealsGeneration ||
+          _marketplace.activeConversationId != conversationId) {
+        return;
+      }
+      final summary = _marketplace.chatInbox
+          .where((row) => row.conversation.id == conversationId)
+          .firstOrNull;
+      if (summary != null) {
+        setState(
+          () => _chatCounterpart = (
+            name: summary.counterpartDisplayName,
+            profileId: summary.counterpartProfileId,
+          ),
+        );
+      }
       final result = await collectConversationMeetings(
         _marketplace,
         conversationId: conversationId,
       );
+      final selectedOffer =
+          result.matches.isEmpty && _marketplace.meetingsError == null
+          ? await _marketplace.loadActiveConversationOffer()
+          : null;
       if (!mounted ||
           _conversationDealsFor != conversationId ||
           generation != _conversationDealsGeneration) {
         return;
       }
       Set<String>? completed;
+      String? completionError;
       if (kCommercialReadsEnabled) {
-        if (role == UserRole.buyer) {
-          await _refreshConfirmedBuyerMeetings();
-          if (_buyerCompletionError != null) {
-            throw StateError('Completion read failed');
+        try {
+          if (role == UserRole.buyer) {
+            await _refreshConfirmedBuyerMeetings();
+            if (_buyerCompletionError != null) {
+              throw StateError('Completion read failed');
+            }
+            completed = Set.of(_confirmedPurchaseMeetings);
+          } else {
+            final backend =
+                _discoveryBackend ??
+                createConfiguredDiscoveryBackend(enabled: true);
+            if (backend == null) {
+              throw StateError('Completion read unavailable');
+            }
+            completed = await backend.loadConfirmedMeetingIds();
           }
-          completed = Set.of(_confirmedPurchaseMeetings);
-        } else {
-          final backend =
-              _discoveryBackend ??
-              createConfiguredDiscoveryBackend(enabled: true);
-          if (backend == null) throw StateError('Completion read unavailable');
-          completed = await backend.loadConfirmedMeetingIds();
+        } catch (_) {
+          completionError =
+              'Purchase history could not be verified. These meeting records may include completed deals. Retry to refresh their status.';
         }
       }
       if (!mounted ||
@@ -1247,11 +1304,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       }
       final groups = ConversationDealGroups(result.matches, completed);
       setState(() {
-        _conversationDealsError = _marketplace.meetingsError;
+        _conversationDealsError = _marketplace.meetingsError ?? completionError;
         _conversationDealsTruncated = result.truncated;
         _conversationDeals = groups.active
             .map((meeting) => _dealViewFor(meeting))
             .toList(growable: false);
+        if (selectedOffer != null &&
+            selectedOffer.status == OfferStatus.selected &&
+            selectedOffer.conversationId == conversationId) {
+          _conversationDeals = [
+            ApprovedDealView.fromSelectedOffer(selectedOffer),
+          ];
+        }
         _previousConversationDeals = groups.previous
             ?.map(
               (meeting) => _dealViewFor(
@@ -1277,6 +1341,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         setState(() => _conversationDealsLoading = false);
       }
     }
+  }
+
+  Future<void> _openConversationDeal(String id) async {
+    final deal = _conversationDeals?.where((row) => row.id == id).firstOrNull;
+    if (deal != null && deal.meetingId == null) {
+      await _openConversationMeeting();
+      return;
+    }
+    await _openMeetingById(id);
   }
 
   ApprovedDealView _dealViewFor(MeetingView meeting, {bool completed = false}) {
@@ -1854,7 +1927,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             AppPage.buyerPublicProfile,
             AppPage.sellerPublicProfile,
           }.contains(destination) &&
-          conversationId != null) {
+          conversationId != null &&
+          !(destination == AppPage.sellerPublicProfile &&
+              context['sellerProfileSource'] == 'offer')) {
         await _marketplace.openChatConversation(conversationId);
         if (!current() || _marketplace.chatMessagesError != null) return;
         await _marketplace.refreshChatInbox();
@@ -1872,7 +1947,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             profileId: thread.counterpartProfileId,
           );
         }
-        setState(() => page = destination);
+        setState(() {
+          _sellerProfileFromConversation =
+              destination == AppPage.sellerPublicProfile;
+          page = destination;
+        });
         unawaited(_loadConversationDeals(force: true));
       } else if ({
             AppPage.buyerRequestDetail,
@@ -1996,6 +2075,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       'request': _activeRequest?.id,
       'offer': _selectedBuyerOffer?.offerId,
       'meeting': _marketplace.meetingDetail?.meetingId,
+      'sellerProfileSource': _sellerProfileFromConversation
+          ? 'conversation'
+          : 'offer',
     });
     if (_realAccountMode && userId != null) {
       final prefs = await SharedPreferences.getInstance();
@@ -2750,16 +2832,32 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   /// Opens the public seller profile for the open conversation's counterpart.
   /// Configured sessions use the server-projected profile id; a missing
   /// projection is reported honestly instead of fabricating a profile.
-  void _openChatCounterpartProfile() {
+  Future<void> _openChatCounterpartProfile() async {
     if (!_marketplace.isChatBacked) {
       go(AppPage.sellerPublicProfile);
       return;
     }
-    final profileId = _chatCounterpart?.profileId;
+    var profileId = _currentChatCounterpart?.profileId;
+    if (profileId == null) {
+      final conversationId = _marketplace.activeConversationId;
+      final userId = widget.accountSession?.userId;
+      final epoch = _navigationEpoch;
+      await _marketplace.refreshChatInbox();
+      if (!mounted ||
+          _marketplace.activeConversationId != conversationId ||
+          widget.accountSession?.userId != userId ||
+          _navigationEpoch != epoch) {
+        return;
+      }
+      profileId = _currentChatCounterpart?.profileId;
+    }
     if (profileId == null || profileId.isEmpty) {
-      showMessage('This seller has not published a public profile yet.');
+      showMessage(
+        'Seller details could not be loaded. Refresh the conversation and try again.',
+      );
       return;
     }
+    _sellerProfileFromConversation = true;
     go(AppPage.sellerPublicProfile);
   }
 
@@ -4155,7 +4253,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           onBack: back,
           onNotifications: () => go(AppPage.notifications),
           onSelectSeller: _selectSelectedOffer,
-          onViewProfile: () => go(AppPage.sellerPublicProfile),
+          onViewProfile: () {
+            _sellerProfileFromConversation = false;
+            go(AppPage.sellerPublicProfile);
+          },
           navigation: _approvedBuyerNavigation,
           latestOffer: _marketplace.latestOffer,
           realOffer: _marketplace.isBuyerOffersBacked
@@ -4172,20 +4273,29 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           purchaseError: _purchaseSelectionError,
         );
       case AppPage.sellerPublicProfile:
-        final chatCounterpart = _chatCounterpart;
+        final chatCounterpart = _currentChatCounterpart;
         final selectedOffer = _selectedBuyerOffer;
-        final sellerProfileId =
-            selectedOffer?.sellerProfileId ?? chatCounterpart?.profileId;
-        final fromChat =
-            selectedOffer?.sellerProfileId == null &&
-            chatCounterpart?.profileId != null;
+        final identity = sellerProfileIdentity(
+          fromConversation: _sellerProfileFromConversation,
+          conversation: chatCounterpart,
+          offer: selectedOffer == null
+              ? null
+              : (
+                  profileId: selectedOffer.sellerProfileId,
+                  name: selectedOffer.sellerName,
+                ),
+        );
+        final sellerProfileId = identity.profileId;
+        final fromChat = _sellerProfileFromConversation;
         final publicStore = widget.accountSession?.userId == null
             ? null
             : createConfiguredSavedBackend(widget.accountSession!.userId!);
         if (sellerProfileId != null &&
             _reviewBackend != null &&
-            _sellerReputation == null &&
-            !_sellerReputationLoading) {
+            (_sellerReputationFor != sellerProfileId ||
+                (_sellerReputation == null &&
+                    !_sellerReputationLoading &&
+                    _sellerReputationError == null))) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) unawaited(_loadSellerReputation(sellerProfileId));
           });
@@ -4193,7 +4303,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         return ApprovedSellerPublicProfilePage(
           onBack: back,
           realMode: _realAccountMode,
-          realSellerName: selectedOffer?.sellerName ?? chatCounterpart?.name,
+          realSellerName: identity.name,
           subtitle: fromChat
               ? 'Seller details from this conversation.'
               : 'Seller details from the selected offer.',
@@ -4204,11 +4314,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   sellerProfileId: sellerProfileId,
                 )
               : null,
-          reputation: _sellerReputation,
-          reputationLoading: _sellerReputationLoading,
-          reputationError: _sellerReputationError,
-          selectionBusy: _offerSelectionBusy,
-          selectionError: _offerSelectionError,
+          reputation: _sellerReputationFor == sellerProfileId
+              ? _sellerReputation
+              : null,
+          reputationLoading:
+              _reviewBackend != null &&
+              (_sellerReputationFor != sellerProfileId ||
+                  _sellerReputationLoading),
+          reputationError: _sellerReputationFor == sellerProfileId
+              ? _sellerReputationError
+              : null,
+          selectionBusy: !fromChat && _offerSelectionBusy,
+          selectionError: fromChat ? null : _offerSelectionError,
           onSelect: fromChat
               ? null
               : _realAccountMode
@@ -4284,7 +4401,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ? () => unawaited(_loadConversationDeals(force: true))
                 : null,
             onOpenRealDeal: _marketplace.isMeetingsBacked
-                ? (meetingId) => unawaited(_openMeetingById(meetingId))
+                ? (meetingId) => unawaited(_openConversationDeal(meetingId))
                 : null,
             onBack: back,
             onPrimary: _marketplace.isMeetingsBacked
@@ -5362,7 +5479,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                     ? () => unawaited(_loadConversationDeals(force: true))
                     : null,
                 onOpenRealDeal: _marketplace.isMeetingsBacked
-                    ? (meetingId) => unawaited(_openMeetingById(meetingId))
+                    ? (meetingId) => unawaited(_openConversationDeal(meetingId))
                     : null,
                 onBack: back,
                 onPrimary: _marketplace.isMeetingsBacked

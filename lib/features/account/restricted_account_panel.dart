@@ -6,6 +6,8 @@
 /// which are authorized independently of marketplace access.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../data/phase2/trust/trust_backend.dart';
@@ -228,10 +230,10 @@ class _RestrictedAccountPanelState extends State<RestrictedAccountPanel> {
             _logoutError!,
             key: const ValueKey('real-account-gate-error'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xffb3261e),
+              color: HocalistPalette.text(context, Color(0xffb3261e)),
             ),
           ),
       ],
@@ -308,6 +310,7 @@ class _PanelCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -315,21 +318,22 @@ class _PanelCard extends StatelessWidget {
       margin: EdgeInsets.only(bottom: metrics.spacing(10)),
       padding: metrics.geometryInsets(const EdgeInsets.all(14)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: BorderRadius.circular(metrics.geometry(14)),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style:
-                BuyerTypography.style(
-                  context,
-                  metrics,
-                  BuyerTextRole.cardTitle,
-                ).copyWith(fontSize: metrics.fontSize(13.5)),
+            style: BuyerTypography.style(
+              context,
+              metrics,
+              BuyerTextRole.cardTitle,
+            ).copyWith(fontSize: metrics.fontSize(13.5)),
           ),
           for (final line in lines)
             Padding(
@@ -373,6 +377,7 @@ class _PanelNote extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );

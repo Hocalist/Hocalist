@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 import '../../theme/responsive_foundation.dart';
 
@@ -17,6 +17,7 @@ class ApprovedReplicaMetrics {
     required this.contentMaxWidth,
     required this.accessibilityLayout,
     required this.accessibilityReflow,
+    required this.brightness,
   });
 
   static const double referenceCanvasWidth = 390;
@@ -31,6 +32,7 @@ class ApprovedReplicaMetrics {
   factory ApprovedReplicaMetrics.resolve({
     required double availableWidth,
     required TextScaler textScaler,
+    Brightness brightness = Brightness.light,
   }) {
     assert(availableWidth >= 0);
     final textScale = textScaler.scale(1);
@@ -77,6 +79,7 @@ class ApprovedReplicaMetrics {
       contentMaxWidth: contentMaxWidth,
       accessibilityLayout: responsive.accessibilityLayout,
       accessibilityReflow: accessibilityReflow,
+      brightness: brightness,
     );
   }
 
@@ -88,6 +91,7 @@ class ApprovedReplicaMetrics {
   final double contentMaxWidth;
   final HocalistAccessibilityLayout accessibilityLayout;
   final bool accessibilityReflow;
+  final Brightness brightness;
 
   bool get usesAdaptiveLayout =>
       accessibilityLayout == HocalistAccessibilityLayout.adaptive;
@@ -207,6 +211,7 @@ class ApprovedReplicaScope extends InheritedWidget {
   bool updateShouldNotify(ApprovedReplicaScope oldWidget) {
     return metrics.availableWidth != oldWidget.metrics.availableWidth ||
         metrics.textScale != oldWidget.metrics.textScale ||
-        metrics.widthClass != oldWidget.metrics.widthClass;
+        metrics.widthClass != oldWidget.metrics.widthClass ||
+        metrics.brightness != oldWidget.metrics.brightness;
   }
 }

@@ -30,6 +30,17 @@ Set these server environment variables in the hosting project:
   omit it to use the configured Supabase project.
 - `HOCALIST_WAITLIST_INTAKE_SECRET`: only when the server-controlled waitlist
   intake has been configured with the matching secret.
+- `HOCALIST_BILLING_APP_ORIGINS`: optional comma-separated exact HTTPS app
+  origins allowed to establish a short-lived billing session and receive the
+  Return to app link. Omit this to keep app-session admission disabled; never
+  use wildcard domains. Loopback HTTP origins are supported for local testing.
+
+The Flutter web build must separately enable `HOCALIST_BILLING_APP_SESSION`
+after the app-session route is deployed and its exact origin is configured.
+This transfers only a verified access token by top-level POST, never by URL;
+it does not transfer or rotate an app refresh token. Website admission still
+requires the matching verified identity and the active-seller/restriction gate.
+Native builds continue to use the existing website sign-in path.
 
 Keep `HOCALIST_WEBSITE_PREVIEW` unset on the public deployment. Store download
 links use `NEXT_PUBLIC_APP_STORE_URL` and `NEXT_PUBLIC_PLAY_STORE_URL` only after

@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -77,6 +78,7 @@ class _SavedItemButtonState extends State<SavedItemButton> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -101,14 +103,21 @@ class _SavedItemButtonState extends State<SavedItemButton> {
           key: const Key('buyerSavedRequestButton'),
           onPressed: _busy ? null : _change,
           style: OutlinedButton.styleFrom(
-            foregroundColor: BuyerUiTokens.action,
-            backgroundColor: saved
-                ? BuyerUiTokens.activeSurface
-                : BuyerUiTokens.surface,
+            foregroundColor: HocalistPalette.text(
+              context,
+              BuyerUiTokens.action,
+            ),
+            backgroundColor: HocalistPalette.surface(
+              context,
+              saved ? BuyerUiTokens.activeSurface : BuyerUiTokens.surface,
+            ),
             minimumSize: Size.fromHeight(metrics.geometry(44)),
             padding: EdgeInsets.symmetric(horizontal: metrics.geometry(12)),
             side: BorderSide(
-              color: saved ? BuyerUiTokens.action : BuyerUiTokens.border,
+              color: HocalistPalette.border(
+                context,
+                saved ? BuyerUiTokens.action : BuyerUiTokens.border,
+              ),
               width: saved ? 1.5 : 1,
             ),
             shape: RoundedRectangleBorder(

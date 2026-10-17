@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/data/phase2/chat/chat_codecs.dart';
+import 'package:hocalist/data/phase2/marketplace/marketplace_codecs.dart';
 import 'package:hocalist/domain/phase2/common.dart';
 import 'package:hocalist/domain/phase2/conversations.dart';
 import 'package:hocalist/domain/phase2/media_reference.dart';
@@ -15,6 +16,7 @@ import 'package:hocalist/main.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 import 'test_fonts.dart';
+import 'phase2/marketplace/support/marketplace_fakes.dart' as marketplace;
 
 ChatThreadView _thread({
   String conversationId = '60000000-0000-4000-8000-000000000001',
@@ -189,6 +191,22 @@ Future<void> _pump(
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  test('selected offer has a deal identity before a meeting exists', () {
+    final offer = decodeOfferJson(
+      marketplace.offerJson(
+        status: 'selected',
+        acceptedRevisionId: marketplace.revisionId,
+        conversationId: 'conversation-a',
+      ),
+      'offer',
+    );
+    final view = ApprovedDealView.fromSelectedOffer(offer);
+    expect(view.id, offer.id);
+    expect(view.meetingId, isNull);
+    expect(view.offerId, offer.id);
+    expect(view.priceLabel, BuyerOfferView.fromOffer(offer).priceLabel);
+    expect(view.statusLabel, contains('arrange meeting'));
+  });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
       testWidgets('real chat name and avatar fit $width / $scale', (
@@ -226,6 +244,15 @@ void main() {
           find.byKey(const Key('prototype-message-presence')),
           findsNothing,
         );
+        final composer = find.byKey(const Key('approved-chat-message'));
+        final beforeScroll = tester.getRect(composer);
+        expect(beforeScroll.bottom, greaterThan(800));
+        await tester.drag(
+          find.byKey(const Key('approved-chat-scroll')),
+          const Offset(0, -400),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.getRect(composer), beforeScroll);
         expect(tester.takeException(), isNull);
       });
     }

@@ -1,6 +1,7 @@
 // Seller notification preference wiring: server record load/save, the mapped
 // meetings/deals field, the disabled lead switch and the local prototype
 // fallback.
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
@@ -26,6 +27,7 @@ class _FakeNotificationsBackend implements MarketplaceNotificationsBackend {
   NotificationPreferences? lastUpdate;
   bool? lastIncludeLeads;
   int? lastExpectedRevision;
+  Future<void>? updateGate;
 
   @override
   Future<NotificationInboxPage> loadInbox({
@@ -53,6 +55,9 @@ class _FakeNotificationsBackend implements MarketplaceNotificationsBackend {
     required int expectedRevision,
     bool includeLeads = false,
   }) async {
+    final gate = updateGate;
+    updateGate = null;
+    if (gate != null) await gate;
     if (failUpdate) {
       throw const StoreBackendException(
         'Could not save notification preferences.',
@@ -92,6 +97,45 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  testWidgets(
+    'saving one seller switch leaves other choices active and queues their revision',
+    (tester) async {
+      final backend = _FakeNotificationsBackend();
+      final repository = LocalMarketplaceRepository(
+        notificationsBackend: backend,
+      );
+      await repository.refreshNotificationPreferences();
+      await _pump(
+        tester,
+        ApprovedSellerNotificationPreferencesPage(
+          onBack: () {},
+          repository: repository,
+        ),
+      );
+      final gate = Completer<void>();
+      backend.updateGate = gate.future;
+      await tester.tap(find.text('Offer updates'));
+      await tester.pump();
+      SwitchListTile tile(String title) => tester.widget<SwitchListTile>(
+        find.ancestor(
+          of: find.text(title),
+          matching: find.byType(SwitchListTile),
+        ),
+      );
+      expect(tile('Offer updates').onChanged, isNull);
+      expect(tile('Messages & chats').onChanged, isNotNull);
+      expect(tile('Meetings').onChanged, isNotNull);
+      await tester.ensureVisible(find.text('Messages & chats'));
+      await tester.tap(find.text('Messages & chats'));
+      await tester.pump();
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(backend.preferences.offers, false);
+      expect(backend.preferences.messages, false);
+      expect(backend.preferences.deals, true);
+      expect(backend.lastExpectedRevision, 2);
+    },
+  );
 
   testWidgets('real seller preferences save offers and meetings', (
     tester,

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/seller_ui_foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../data/phase2/providers/provider_runtime.dart';
+import 'billing_session_navigation.dart';
 
 // Checkout returns to this hosted origin. Starting there as well preserves its
 // own authenticated website session, including from a localhost app preview.
@@ -26,6 +29,23 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
       _failed = false;
     });
     try {
+      if (widget.open == null &&
+          kIsWeb &&
+          const bool.fromEnvironment('HOCALIST_BILLING_APP_SESSION')) {
+        final client = Supabase.instance.client;
+        final userId = client.auth.currentUser?.id;
+        if (userId != null) {
+          final fence = ProviderSessionFence(client);
+          final token = await fence.freshToken(
+            minimumValidity: const Duration(minutes: 30),
+          );
+          fence.check();
+          if (!mounted) return;
+          if (submitBillingSession(sellerBillingWebsite(), token, userId)) {
+            return;
+          }
+        }
+      }
       final opened =
           await (widget.open ??
               (uri) => launchUrl(
@@ -62,7 +82,7 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
             : 'Manage payment methods securely',
         body: widget.creditPurchase
             ? 'Choose a configured credit pack on the Hocalist billing website. Credits are added only after Stripe confirms payment. This testing flow uses Stripe TEST mode.'
-            : 'Sign in on the Hocalist billing website to open Stripe’s payment-method portal. Card details stay with Stripe. This testing flow uses Stripe TEST mode.',
+            : 'Open your seller billing account to manage payment methods. Card details stay with Stripe. This testing flow uses Stripe TEST mode.',
       ),
       const SizedBox(height: 12),
       if (_failed)

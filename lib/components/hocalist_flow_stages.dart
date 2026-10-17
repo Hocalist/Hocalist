@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../theme/buyer_ui_foundation.dart';
 import 'hocalist_motion.dart';
@@ -26,14 +27,20 @@ class HocalistFlowStages extends StatelessWidget {
               duration: HocalistMotion.duration(context),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: index == active
-                    ? BuyerUiTokens.softSurface
-                    : const Color(0xfffafaff),
+                color: HocalistPalette.surface(
+                  context,
+                  index == active
+                      ? BuyerUiTokens.softSurface
+                      : const Color(0xfffafaff),
+                ),
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(
-                  color: index == active
-                      ? const Color(0xffd9d5ff)
-                      : BuyerUiTokens.border,
+                  color: HocalistPalette.border(
+                    context,
+                    index == active
+                        ? const Color(0xffd9d5ff)
+                        : BuyerUiTokens.border,
+                  ),
                 ),
               ),
               child: Row(
@@ -41,21 +48,27 @@ class HocalistFlowStages extends StatelessWidget {
                 children: [
                   Text(
                     '${index + 1}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
-                      color: BuyerUiTokens.action,
+                      color: HocalistPalette.text(
+                        context,
+                        BuyerUiTokens.action,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       labels[index],
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
                         height: 1.35,
                         fontWeight: FontWeight.w700,
-                        color: BuyerUiTokens.text,
+                        color: HocalistPalette.text(
+                          context,
+                          BuyerUiTokens.text,
+                        ),
                       ),
                     ),
                   ),

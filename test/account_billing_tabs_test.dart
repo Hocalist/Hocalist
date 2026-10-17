@@ -238,6 +238,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Appearance'), findsNothing);
+        expect(find.text('Account data & deletion'), findsOneWidget);
         expect(
           find.text(seller ? 'Seller information' : 'Personal information'),
           findsNothing,
@@ -250,7 +251,13 @@ void main() {
         expect(find.text('Password & security'), findsNothing);
         await tester.tap(find.byKey(const ValueKey('section-tab-Privacy')));
         await tester.pumpAndSettle();
-        expect(find.text('Account data & deletion'), findsOneWidget);
+        expect(find.text('Account data & deletion'), findsNothing);
+        expect(
+          find.text(
+            seller ? 'Public Seller visibility' : 'Request & location privacy',
+          ),
+          findsOneWidget,
+        );
         expect(find.text('Appearance'), findsNothing);
       },
     );

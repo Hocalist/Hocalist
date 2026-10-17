@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -162,6 +163,7 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -207,9 +209,12 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
                   buyerInputDecoration(
                     context,
                     hintText: 'Amount in cents',
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       Icons.payments_outlined,
-                      color: BuyerUiTokens.action,
+                      color: HocalistPalette.text(
+                        context,
+                        BuyerUiTokens.action,
+                      ),
                     ),
                   ).copyWith(
                     labelText: 'Withdrawal amount (cents)',
@@ -221,9 +226,17 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
               Container(
                 padding: metrics.geometryInsets(const EdgeInsets.all(12)),
                 decoration: BoxDecoration(
-                  color: BuyerUiTokens.softSurface,
+                  color: HocalistPalette.surface(
+                    context,
+                    BuyerUiTokens.softSurface,
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(13)),
-                  border: Border.all(color: const Color(0xffd9d5ff)),
+                  border: Border.all(
+                    color: HocalistPalette.border(
+                      context,
+                      const Color(0xffd9d5ff),
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -231,7 +244,10 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
                       icon: Icons.calculate_outlined,
                       slotSize: metrics.artSize(20),
                       glyphSize: metrics.artSize(20),
-                      color: BuyerUiTokens.action,
+                      color: HocalistPalette.text(
+                        context,
+                        BuyerUiTokens.action,
+                      ),
                     ),
                     SizedBox(width: metrics.spacing(8)),
                     Expanded(
@@ -285,9 +301,17 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
                 child: Container(
                   padding: metrics.geometryInsets(const EdgeInsets.all(13)),
                   decoration: BoxDecoration(
-                    color: BuyerUiTokens.surface,
+                    color: HocalistPalette.surface(
+                      context,
+                      BuyerUiTokens.surface,
+                    ),
                     borderRadius: BorderRadius.circular(metrics.geometry(14)),
-                    border: Border.all(color: BuyerUiTokens.border),
+                    border: Border.all(
+                      color: HocalistPalette.border(
+                        context,
+                        BuyerUiTokens.border,
+                      ),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,6 +391,7 @@ class _WithdrawalSummaryCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -380,7 +405,9 @@ class _WithdrawalSummaryCard extends StatelessWidget {
             colors: [Color(0xfff4f2ff), Color(0xffeeedff)],
           ),
           borderRadius: BorderRadius.circular(metrics.geometry(18)),
-          border: Border.all(color: const Color(0xffd9d5ff)),
+          border: Border.all(
+            color: HocalistPalette.border(context, const Color(0xffd9d5ff)),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,8 +417,8 @@ class _WithdrawalSummaryCard extends StatelessWidget {
                 Container(
                   width: metrics.artSize(34),
                   height: metrics.artSize(34),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(context, Colors.white),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -399,7 +426,10 @@ class _WithdrawalSummaryCard extends StatelessWidget {
                       icon: Icons.account_balance_rounded,
                       slotSize: metrics.artSize(19),
                       glyphSize: metrics.artSize(19),
-                      color: BuyerUiTokens.action,
+                      color: HocalistPalette.text(
+                        context,
+                        BuyerUiTokens.action,
+                      ),
                     ),
                   ),
                 ),

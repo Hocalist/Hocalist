@@ -6,6 +6,8 @@
 /// penalty.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../data/phase2/trust/trust_backend.dart';
@@ -94,6 +96,7 @@ class AccountHealthStatusCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -104,12 +107,15 @@ class AccountHealthStatusCard extends StatelessWidget {
       key: const ValueKey('accountHealthStatusCard'),
       padding: metrics.geometryInsets(const EdgeInsets.all(12)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: BorderRadius.circular(metrics.geometry(14)),
         border: Border.all(
-          color: projection.isRestricted
-              ? const Color(0xffffc9cf)
-              : BuyerUiTokens.border,
+          color: HocalistPalette.border(
+            context,
+            projection.isRestricted
+                ? const Color(0xffffc9cf)
+                : BuyerUiTokens.border,
+          ),
         ),
       ),
       child: Row(
@@ -119,9 +125,12 @@ class AccountHealthStatusCard extends StatelessWidget {
             width: metrics.artSize(32),
             height: metrics.artSize(32),
             decoration: BoxDecoration(
-              color: projection.isRestricted
-                  ? const Color(0xffffeef0)
-                  : BuyerUiTokens.softSurface,
+              color: HocalistPalette.surface(
+                context,
+                projection.isRestricted
+                    ? const Color(0xffffeef0)
+                    : BuyerUiTokens.softSurface,
+              ),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -131,7 +140,7 @@ class AccountHealthStatusCard extends StatelessWidget {
                     : Icons.health_and_safety_outlined,
                 slotSize: metrics.artSize(17),
                 glyphSize: metrics.artSize(17),
-                color: accent,
+                color: HocalistPalette.text(context, accent),
               ),
             ),
           ),
@@ -143,12 +152,11 @@ class AccountHealthStatusCard extends StatelessWidget {
                 Text(
                   projection.summary,
                   key: const ValueKey('accountHealthStatusSummary'),
-                  style:
-                      BuyerTypography.style(
-                        context,
-                        metrics,
-                        BuyerTextRole.cardTitle,
-                      ).copyWith(fontSize: metrics.fontSize(12.5)),
+                  style: BuyerTypography.style(
+                    context,
+                    metrics,
+                    BuyerTextRole.cardTitle,
+                  ).copyWith(fontSize: metrics.fontSize(12.5)),
                 ),
                 SizedBox(height: metrics.spacing(2)),
                 Text(

@@ -1,5 +1,6 @@
 import { OfflineNotice, PageShell } from '../site-content';
 import BillingPortal from './BillingPortal';
+import { ReturnToApp } from './ReturnToApp';
 
 export const metadata = {
   title: 'Seller billing and HocaCredits | Hocalist',
@@ -21,6 +22,7 @@ export default async function BillingPage({
   return (
     <PageShell>
       <main className="billing-page">
+        <ReturnToApp />
         <section className="subpage-hero reveal">
           <p className="eyebrow">Seller billing</p>
           <h1>Your seller account.</h1>

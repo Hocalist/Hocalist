@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -132,6 +133,7 @@ class _BuyerRewardsPanelState extends State<BuyerRewardsPanel> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -281,6 +283,7 @@ class _BalanceCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -294,7 +297,9 @@ class _BalanceCard extends StatelessWidget {
             colors: [Color(0xfff4f2ff), Color(0xffeeedff)],
           ),
           borderRadius: BorderRadius.circular(metrics.geometry(18)),
-          border: Border.all(color: const Color(0xffd9d5ff)),
+          border: Border.all(
+            color: HocalistPalette.border(context, const Color(0xffd9d5ff)),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,8 +309,8 @@ class _BalanceCard extends StatelessWidget {
                 Container(
                   width: metrics.artSize(34),
                   height: metrics.artSize(34),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(context, Colors.white),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -313,7 +318,10 @@ class _BalanceCard extends StatelessWidget {
                       icon: Icons.savings_rounded,
                       slotSize: metrics.artSize(19),
                       glyphSize: metrics.artSize(19),
-                      color: BuyerUiTokens.action,
+                      color: HocalistPalette.text(
+                        context,
+                        BuyerUiTokens.action,
+                      ),
                     ),
                   ),
                 ),
@@ -377,9 +385,17 @@ class _BalanceCard extends StatelessWidget {
               Container(
                 padding: metrics.geometryInsets(const EdgeInsets.all(10)),
                 decoration: BoxDecoration(
-                  color: const Color(0xfffff6e5),
+                  color: HocalistPalette.surface(
+                    context,
+                    const Color(0xfffff6e5),
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(12)),
-                  border: Border.all(color: const Color(0xffffe0a3)),
+                  border: Border.all(
+                    color: HocalistPalette.border(
+                      context,
+                      const Color(0xffffe0a3),
+                    ),
+                  ),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,7 +403,10 @@ class _BalanceCard extends StatelessWidget {
                     Icon(
                       Icons.info_outline_rounded,
                       size: metrics.artSize(18),
-                      color: const Color(0xffb56200),
+                      color: HocalistPalette.text(
+                        context,
+                        const Color(0xffb56200),
+                      ),
                     ),
                     SizedBox(width: metrics.spacing(8)),
                     Expanded(
@@ -434,15 +453,18 @@ class _RewardRow extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Container(
       padding: metrics.geometryInsets(const EdgeInsets.all(14)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: BorderRadius.circular(metrics.geometry(14)),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,8 +472,11 @@ class _RewardRow extends StatelessWidget {
           Container(
             width: metrics.artSize(32),
             height: metrics.artSize(32),
-            decoration: const BoxDecoration(
-              color: BuyerUiTokens.softSurface,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(
+                context,
+                BuyerUiTokens.softSurface,
+              ),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -459,7 +484,7 @@ class _RewardRow extends StatelessWidget {
                 icon: Icons.redeem_rounded,
                 slotSize: metrics.artSize(17),
                 glyphSize: metrics.artSize(17),
-                color: BuyerUiTokens.action,
+                color: HocalistPalette.text(context, BuyerUiTokens.action),
               ),
             ),
           ),

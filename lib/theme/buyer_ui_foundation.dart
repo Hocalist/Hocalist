@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../components/hocalist_reload_link.dart';
 import 'package:flutter/material.dart';
 import '../components/notification_indicator.dart';
@@ -142,7 +143,7 @@ class BuyerGlyphIcon extends StatelessWidget {
         child: Icon(
           icon,
           size: glyphSize ?? slotSize * .82,
-          color: color,
+          color: HocalistPalette.textOrNull(context, color),
           semanticLabel: semanticLabel,
         ),
       ),
@@ -183,7 +184,7 @@ class BuyerAssetIconSurface extends StatelessWidget {
       dimension: surfaceSize,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: backgroundColor,
+          color: HocalistPalette.surface(context, backgroundColor),
           shape: shape == BuyerIconSurfaceShape.circle
               ? BoxShape.circle
               : BoxShape.rectangle,
@@ -226,6 +227,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -242,6 +244,9 @@ class BuyerTopLevelHeader extends StatelessWidget {
             height: metrics.artSize(54),
             child: Image.asset(
               'assets/brand/hocalist-wordmark.png',
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xfff3f3ff)
+                  : null,
               fit: BoxFit.contain,
               alignment: Alignment.centerLeft,
               filterQuality: FilterQuality.high,
@@ -257,7 +262,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
             vertical: metrics.geometry(7),
           ),
           decoration: BoxDecoration(
-            color: BuyerUiTokens.softSurface,
+            color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
             borderRadius: BorderRadius.circular(metrics.geometry(99)),
           ),
           child: Row(
@@ -373,6 +378,7 @@ class BuyerPrimaryButton extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -392,9 +398,12 @@ class BuyerPrimaryButton extends StatelessWidget {
           constraints: BoxConstraints(minHeight: resolvedMinimumHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: highContrast
-                  ? accessibility.backgroundOr(BuyerUiTokens.action)
-                  : null,
+              color: HocalistPalette.surfaceOrNull(
+                context,
+                highContrast
+                    ? accessibility.backgroundOr(BuyerUiTokens.action)
+                    : null,
+              ),
               gradient: highContrast
                   ? null
                   : LinearGradient(
@@ -409,7 +418,7 @@ class BuyerPrimaryButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(radius),
             ),
             child: Material(
-              color: Colors.transparent,
+              color: HocalistPalette.surface(context, Colors.transparent),
               child: InkWell(
                 onTap: onPressed,
                 borderRadius: BorderRadius.circular(radius),
@@ -490,6 +499,7 @@ class BuyerSecondaryButton extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -503,16 +513,19 @@ class BuyerSecondaryButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
-            foregroundColor: color,
+            foregroundColor: HocalistPalette.textOrNull(context, color),
             minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
             padding: EdgeInsets.symmetric(
               horizontal: metrics.geometry(compact ? 6 : 18),
               vertical: metrics.geometry(compact ? 7 : 9),
             ),
             side: BorderSide(
-              color: accessibility.usesHighContrastButton
-                  ? accessibility.buttonBackground
-                  : color,
+              color: HocalistPalette.border(
+                context,
+                accessibility.usesHighContrastButton
+                    ? accessibility.buttonBackground
+                    : color,
+              ),
               width: accessibility.usesHighContrastButton
                   ? accessibility.buttonBorderWidth
                   : 1,
@@ -560,6 +573,7 @@ class BuyerNestedHeader extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -573,7 +587,7 @@ class BuyerNestedHeader extends StatelessWidget {
             tooltip: 'Back',
             onPressed: onBack,
             padding: EdgeInsets.zero,
-            color: BuyerUiTokens.text,
+            color: HocalistPalette.text(context, BuyerUiTokens.text),
             icon: BuyerGlyphIcon(
               icon: Icons.arrow_back_rounded,
               slotSize: metrics.artSize(BuyerIconTokens.control),
@@ -652,6 +666,7 @@ class BuyerModalSheet extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -661,7 +676,7 @@ class BuyerModalSheet extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
         child: Material(
-          color: Colors.white,
+          color: HocalistPalette.surface(context, Colors.white),
           borderRadius: BorderRadius.vertical(
             top: Radius.circular(metrics.geometry(24)),
           ),
@@ -684,7 +699,10 @@ class BuyerModalSheet extends StatelessWidget {
                       width: metrics.geometry(52),
                       height: metrics.geometry(5),
                       decoration: BoxDecoration(
-                        color: const Color(0xffc8c5d7),
+                        color: HocalistPalette.surface(
+                          context,
+                          const Color(0xffc8c5d7),
+                        ),
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
@@ -698,7 +716,10 @@ class BuyerModalSheet extends StatelessWidget {
                           width: metrics.artSize(34),
                           height: metrics.artSize(34),
                           decoration: BoxDecoration(
-                            color: iconSurface,
+                            color: HocalistPalette.surface(
+                              context,
+                              iconSurface,
+                            ),
                             shape: BoxShape.circle,
                           ),
                           child:
@@ -707,7 +728,7 @@ class BuyerModalSheet extends StatelessWidget {
                                 icon: icon!,
                                 slotSize: metrics.artSize(18),
                                 glyphSize: metrics.artSize(18),
-                                color: iconColor,
+                                color: HocalistPalette.text(context, iconColor),
                               ),
                         ),
                         SizedBox(width: metrics.spacing(10)),
@@ -791,6 +812,7 @@ class BuyerFieldLabel extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -819,12 +841,15 @@ InputDecoration buyerInputDecoration(
   final metrics =
       ApprovedReplicaScope.maybeOf(context) ??
       ApprovedReplicaMetrics.resolve(
+        brightness: Theme.of(context).brightness,
         availableWidth: media.size.width,
         textScaler: media.textScaler,
       );
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(metrics.geometry(12)),
-    borderSide: const BorderSide(color: BuyerUiTokens.border),
+    borderSide: BorderSide(
+      color: HocalistPalette.border(context, BuyerUiTokens.border),
+    ),
   );
   return InputDecoration(
     isDense: true,
@@ -835,7 +860,7 @@ InputDecoration buyerInputDecoration(
     prefixIcon: prefixIcon,
     prefixText: prefixText,
     filled: true,
-    fillColor: const Color(0xfffbfcff),
+    fillColor: HocalistPalette.surface(context, const Color(0xfffbfcff)),
     contentPadding: metrics.geometryInsets(HocalistInputTokens.contentPadding),
     hintStyle: BuyerTypography.style(
       context,
@@ -848,7 +873,7 @@ InputDecoration buyerInputDecoration(
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(12)),
       borderSide: BorderSide(
-        color: BuyerUiTokens.action,
+        color: HocalistPalette.border(context, BuyerUiTokens.action),
         width: metrics.geometry(1.5),
       ),
     ),
@@ -895,7 +920,7 @@ abstract final class BuyerTypography {
       BuyerTextRole.badgeStatus => theme.labelSmall,
     };
     return (base ?? const TextStyle()).copyWith(
-      color: color ?? spec.color,
+      color: HocalistPalette.text(context, color ?? spec.color),
       fontSize: metrics.fontSize(spec.size),
       fontWeight: weight ?? spec.weight,
       height: height ?? spec.height,
@@ -1021,6 +1046,7 @@ class BuyerStateNotice extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -1060,9 +1086,9 @@ class BuyerStateNotice extends StatelessWidget {
         width: double.infinity,
         padding: metrics.geometryInsets(EdgeInsets.all(narrow ? 12 : 14)),
         decoration: BoxDecoration(
-          color: background,
+          color: HocalistPalette.surface(context, background),
           borderRadius: BorderRadius.circular(metrics.geometry(16)),
-          border: Border.all(color: border),
+          border: Border.all(color: HocalistPalette.border(context, border)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1074,16 +1100,18 @@ class BuyerStateNotice extends StatelessWidget {
                   width: metrics.artSize(34),
                   height: metrics.artSize(34),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: HocalistPalette.surface(context, Colors.white),
                     shape: BoxShape.circle,
-                    border: Border.all(color: border),
+                    border: Border.all(
+                      color: HocalistPalette.border(context, border),
+                    ),
                   ),
                   child: Center(
                     child: BuyerGlyphIcon(
                       icon: icon,
                       slotSize: metrics.artSize(18),
                       glyphSize: metrics.artSize(18),
-                      color: foreground,
+                      color: HocalistPalette.text(context, foreground),
                     ),
                   ),
                 ),
@@ -1164,6 +1192,7 @@ class BuyerStatusChip extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -1207,10 +1236,16 @@ class BuyerStatusChip extends StatelessWidget {
           vertical: metrics.spacing(4),
         ),
         decoration: BoxDecoration(
-          color: selected ? BuyerUiTokens.activeSurface : background,
+          color: HocalistPalette.surface(
+            context,
+            selected ? BuyerUiTokens.activeSurface : background,
+          ),
           borderRadius: BorderRadius.circular(99),
           border: Border.all(
-            color: selected ? BuyerUiTokens.action : border,
+            color: HocalistPalette.border(
+              context,
+              selected ? BuyerUiTokens.action : border,
+            ),
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -1221,7 +1256,10 @@ class BuyerStatusChip extends StatelessWidget {
               Icon(
                 icon,
                 size: metrics.artSize(13),
-                color: selected ? BuyerUiTokens.action : foreground,
+                color: HocalistPalette.text(
+                  context,
+                  selected ? BuyerUiTokens.action : foreground,
+                ),
               ),
               SizedBox(width: metrics.spacing(4)),
             ],
@@ -1269,6 +1307,7 @@ class BuyerMetricTile extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -1338,6 +1377,7 @@ class BuyerSectionHeading extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -1362,7 +1402,10 @@ class BuyerSectionHeading extends StatelessWidget {
               key: actionKey,
               onPressed: onAction,
               style: TextButton.styleFrom(
-                foregroundColor: BuyerUiTokens.action,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  BuyerUiTokens.action,
+                ),
                 padding: EdgeInsets.symmetric(horizontal: metrics.spacing(8)),
                 minimumSize: const Size(48, 48),
                 tapTargetSize: MaterialTapTargetSize.padded,
@@ -1393,6 +1436,7 @@ class BuyerProgressStrip extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -1419,7 +1463,10 @@ class BuyerProgressStrip extends StatelessWidget {
             label: 'Loading',
             child: LinearProgressIndicator(
               minHeight: metrics.geometry(5),
-              backgroundColor: BuyerUiTokens.softSurface,
+              backgroundColor: HocalistPalette.surface(
+                context,
+                BuyerUiTokens.softSurface,
+              ),
               valueColor: const AlwaysStoppedAnimation<Color>(
                 BuyerUiTokens.action,
               ),

@@ -45,6 +45,12 @@ void main() {
         );
         final mode = find.textContaining('Buyer').first;
         expect(
+          tester.getSize(logo).width,
+          lessThanOrEqualTo(88),
+          reason:
+              'Request logo keeps the same bounded slot as other buyer pages',
+        );
+        expect(
           tester.getRect(logo).right,
           lessThanOrEqualTo(tester.getRect(mode).left),
           reason: '$width / $scale',

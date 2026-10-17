@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import '../../components/notification_indicator.dart';
 
@@ -33,6 +34,7 @@ Color _pageSurface(BuildContext context) =>
 ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
   return ApprovedReplicaScope.maybeOf(context) ??
       ApprovedReplicaMetrics.resolve(
+        brightness: Theme.of(context).brightness,
         availableWidth: MediaQuery.sizeOf(context).width,
         textScaler: MediaQuery.textScalerOf(context),
       );
@@ -71,6 +73,7 @@ class _ApprovedReplicaSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -152,11 +155,12 @@ class ApprovedPublicHocatrendsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
     return Material(
-      color: const Color(0xfffbfcff),
+      color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
       child: SafeArea(
         child: Column(
           children: [
@@ -386,7 +390,10 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
                   key: const Key('approvedTrendsError'),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xfff5f2ff),
+                    color: HocalistPalette.surface(
+                      context,
+                      const Color(0xfff5f2ff),
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -532,7 +539,7 @@ class _ApprovedTrendsHero extends StatelessWidget {
             Text(
               'Opportunities',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                color: _approvedAction,
+                color: HocalistPalette.text(context, _approvedAction),
                 fontSize: metrics.fontSize(20),
                 fontWeight: FontWeight.w800,
                 height: metrics.lineHeight(
@@ -572,7 +579,7 @@ class _ApprovedTrendsHero extends StatelessWidget {
               'Explore verified sellers offering\ndiscounts on products & services.',
               key: const ValueKey('approved-saving-opportunities-description'),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: _pageMuted(context),
+                color: HocalistPalette.text(context, _pageMuted(context)),
                 fontSize: metrics.fontSize(12),
                 fontWeight: FontWeight.w500,
                 height: metrics.lineHeight(
@@ -642,9 +649,12 @@ class _ApprovedSavingsNotice extends StatelessWidget {
     return Container(
       padding: metrics.geometryInsets(const EdgeInsets.fromLTRB(10, 9, 12, 9)),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : const Color(0xfff5f2ff),
+        color: HocalistPalette.surface(
+          context,
+          Theme.of(context).brightness == Brightness.dark
+              ? Theme.of(context).colorScheme.surfaceContainerHighest
+              : const Color(0xfff5f2ff),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: LayoutBuilder(
@@ -657,7 +667,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
               Text(
                 'Skip the Rewards & save on current offers',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: _pageText(context),
+                  color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: metrics.fontSize(12),
                   fontWeight: FontWeight.w800,
                   height: metrics.lineHeight(
@@ -670,7 +680,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
               Text(
                 'Hocatrends shows exclusive offers and discounts created by sellers for other buyers.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _pageMuted(context),
+                  color: HocalistPalette.text(context, _pageMuted(context)),
                   fontSize: metrics.fontSize(10.5),
                   height: metrics.lineHeight(
                     referenceFontSize: 10.5,
@@ -722,9 +732,12 @@ class _ApprovedTrendsPreviewNotice extends StatelessWidget {
       key: const Key('approvedTrendsPreviewNotice'),
       padding: metrics.geometryInsets(const EdgeInsets.fromLTRB(10, 9, 12, 9)),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : const Color(0xfffff7e8),
+        color: HocalistPalette.surface(
+          context,
+          Theme.of(context).brightness == Brightness.dark
+              ? Theme.of(context).colorScheme.surfaceContainerHighest
+              : const Color(0xfffff7e8),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: Row(
@@ -733,7 +746,7 @@ class _ApprovedTrendsPreviewNotice extends StatelessWidget {
           Icon(
             Icons.science_outlined,
             size: metrics.artSize(20),
-            color: _approvedGold,
+            color: HocalistPalette.text(context, _approvedGold),
           ),
           SizedBox(width: metrics.geometry(8)),
           Expanded(
@@ -742,7 +755,7 @@ class _ApprovedTrendsPreviewNotice extends StatelessWidget {
               'seller counts are not connected yet. See Sellers stays '
               'unavailable until an authorized trend projection exists.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: _pageText(context),
+                color: HocalistPalette.text(context, _pageText(context)),
                 fontSize: metrics.fontSize(10.5),
                 height: metrics.lineHeight(
                   referenceFontSize: 10.5,
@@ -788,10 +801,13 @@ class _ApprovedSearchField extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               ),
               decoration: BoxDecoration(
-                color: _pageSurface(context),
+                color: HocalistPalette.surface(context, _pageSurface(context)),
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
                 border: Border.all(
-                  color: const Color(0xffdedcef),
+                  color: HocalistPalette.border(
+                    context,
+                    const Color(0xffdedcef),
+                  ),
                   width: metrics.geometry(1),
                 ),
                 boxShadow: [
@@ -816,9 +832,12 @@ class _ApprovedSearchField extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: query.isEmpty
-                            ? _pageMuted(context)
-                            : _pageText(context),
+                        color: HocalistPalette.text(
+                          context,
+                          query.isEmpty
+                              ? _pageMuted(context)
+                              : _pageText(context),
+                        ),
                         fontSize: metrics.fontSize(13),
                         fontWeight: query.isEmpty
                             ? FontWeight.w500
@@ -865,8 +884,10 @@ class _ApprovedTrendsEmptyState extends StatelessWidget {
       key: const Key('approved-hocatrends-empty'),
       padding: EdgeInsets.all(metrics.spacing(18)),
       decoration: BoxDecoration(
-        color: _pageSurface(context),
-        border: Border.all(color: _approvedBorder),
+        color: HocalistPalette.surface(context, _pageSurface(context)),
+        border: Border.all(
+          color: HocalistPalette.border(context, _approvedBorder),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -874,13 +895,13 @@ class _ApprovedTrendsEmptyState extends StatelessWidget {
           Icon(
             Icons.search_off_rounded,
             size: metrics.artSize(32),
-            color: _approvedAction,
+            color: HocalistPalette.text(context, _approvedAction),
           ),
           SizedBox(height: metrics.spacing(7)),
           Text(
             'No matching opportunities',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: _pageText(context),
+              color: HocalistPalette.text(context, _pageText(context)),
               fontSize: metrics.fontSize(14),
               fontWeight: FontWeight.w800,
             ),
@@ -907,7 +928,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: HocalistPalette.surface(context, Colors.transparent),
       barrierColor: const Color(0x990B1231),
       builder: (sheetContext) => BuyerModalSheet(
         title: 'How Hocatrends works',
@@ -955,7 +976,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
               child: Text(
                 'Most Competitive Categories Today',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: _pageText(context),
+                  color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: metrics.fontSize(11.5),
                   fontWeight: FontWeight.w800,
                 ),
@@ -972,7 +993,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
         final action = TextButton(
           onPressed: () => _openHowItWorks(context),
           style: TextButton.styleFrom(
-            foregroundColor: accent,
+            foregroundColor: HocalistPalette.text(context, accent),
             minimumSize: Size(metrics.geometry(44), metrics.geometry(36)),
             padding: metrics.geometryInsets(
               const EdgeInsets.symmetric(horizontal: 3),
@@ -1015,7 +1036,11 @@ class _ApprovedHowItWorksPoint extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: metrics.artSize(20), color: _approvedAction),
+        Icon(
+          icon,
+          size: metrics.artSize(20),
+          color: HocalistPalette.text(context, _approvedAction),
+        ),
         SizedBox(width: metrics.spacing(9)),
         Expanded(
           child: Column(
@@ -1024,15 +1049,15 @@ class _ApprovedHowItWorksPoint extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: _pageText(context),
+                  color: HocalistPalette.text(context, _pageText(context)),
                   fontWeight: FontWeight.w800,
                 ),
               ),
               Text(
                 body,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: _pageMuted(context)),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: HocalistPalette.text(context, _pageMuted(context)),
+                ),
               ),
             ],
           ),
@@ -1068,10 +1093,10 @@ class _ApprovedTrendCard extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               ),
               decoration: BoxDecoration(
-                color: _pageSurface(context),
+                color: HocalistPalette.surface(context, _pageSurface(context)),
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
                 border: Border.all(
-                  color: _approvedBorder,
+                  color: HocalistPalette.border(context, _approvedBorder),
                   width: metrics.geometry(1),
                 ),
                 boxShadow: [
@@ -1193,17 +1218,20 @@ class _ApprovedTrendAction extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 8),
               ),
               decoration: BoxDecoration(
-                color: background,
+                color: HocalistPalette.surface(context, background),
                 borderRadius: BorderRadius.circular(radius),
                 border: borderWidth > 0
-                    ? Border.all(color: foreground, width: borderWidth)
+                    ? Border.all(
+                        color: HocalistPalette.border(context, foreground),
+                        width: borderWidth,
+                      )
                     : null,
               ),
               child: Text(
                 'See Sellers',
                 maxLines: 1,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: foreground,
+                  color: HocalistPalette.text(context, foreground),
                   fontSize: metrics.fontSize(11),
                   fontWeight: FontWeight.w800,
                 ),
@@ -1229,13 +1257,13 @@ class _ApprovedRankBadge extends StatelessWidget {
       height: metrics.geometry(24),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: item.rankColor,
+        color: HocalistPalette.surface(context, item.rankColor),
         borderRadius: BorderRadius.circular(metrics.geometry(6)),
       ),
       child: Text(
         '${item.rank}',
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: _approvedPrimary,
+          color: HocalistPalette.text(context, _approvedPrimary),
           fontSize: metrics.fontSize(12),
           fontWeight: FontWeight.w800,
         ),
@@ -1260,7 +1288,7 @@ class _ApprovedTrendDetails extends StatelessWidget {
         Text(
           item.title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: _pageText(context),
+            color: HocalistPalette.text(context, _pageText(context)),
             fontSize: metrics.fontSize(11),
             fontWeight: FontWeight.w800,
             height: metrics.lineHeight(
@@ -1276,7 +1304,7 @@ class _ApprovedTrendDetails extends StatelessWidget {
               child: Text(
                 'Competition: ${item.competition}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _pageText(context),
+                  color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: metrics.fontSize(8),
                   fontWeight: FontWeight.w600,
                   height: metrics.lineHeight(
@@ -1305,7 +1333,10 @@ class _ApprovedTrendDetails extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: item.percent / 100,
                   minHeight: metrics.geometry(3),
-                  backgroundColor: const Color(0xffe8e8ef),
+                  backgroundColor: HocalistPalette.surface(
+                    context,
+                    const Color(0xffe8e8ef),
+                  ),
                   valueColor: AlwaysStoppedAnimation(progressColor),
                 ),
               ),
@@ -1314,7 +1345,7 @@ class _ApprovedTrendDetails extends StatelessWidget {
             Text(
               '${item.percent}%',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: _approvedAction,
+                color: HocalistPalette.text(context, _approvedAction),
                 fontSize: metrics.fontSize(8),
                 fontWeight: FontWeight.w800,
                 height: metrics.lineHeight(
@@ -1339,7 +1370,7 @@ class _ApprovedTrendDetails extends StatelessWidget {
               child: Text(
                 item.sellerCopy,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _pageMuted(context),
+                  color: HocalistPalette.text(context, _pageMuted(context)),
                   fontSize: metrics.fontSize(9.5),
                   height: metrics.lineHeight(
                     referenceFontSize: 9.5,
@@ -1651,9 +1682,14 @@ class _ApprovedHocatrendsPickedSellersPageState
                 key: const Key('approvedHocatrendsSellersEmpty'),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _pageSurface(context),
+                  color: HocalistPalette.surface(
+                    context,
+                    _pageSurface(context),
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(8)),
-                  border: Border.all(color: _approvedBorder),
+                  border: Border.all(
+                    color: HocalistPalette.border(context, _approvedBorder),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1664,7 +1700,10 @@ class _ApprovedHocatrendsPickedSellersPageState
                           : widget.resultsError ??
                                 'No sellers currently match this trend.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _pageText(context),
+                        color: HocalistPalette.text(
+                          context,
+                          _pageText(context),
+                        ),
                       ),
                     ),
                     if (widget.resultsError != null &&
@@ -1810,7 +1849,7 @@ class _ApprovedSellerHeader extends StatelessWidget {
                 'iPad Air Sellers',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: _pageText(context),
+                  color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: _pickedSellerFontSize(metrics, 16),
                   fontWeight: FontWeight.w800,
                   height: metrics.lineHeight(
@@ -1824,7 +1863,7 @@ class _ApprovedSellerHeader extends StatelessWidget {
                 '23 sellers are offering deals',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _pageMuted(context),
+                  color: HocalistPalette.text(context, _pageMuted(context)),
                   fontSize: _pickedSellerFontSize(metrics, 12),
                   height: metrics.lineHeight(
                     referenceFontSize: 12,
@@ -1915,7 +1954,7 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
             Text(
               'iPad Air',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                color: _pageText(context),
+                color: HocalistPalette.text(context, _pageText(context)),
                 fontSize: _pickedSellerFontSize(metrics, 18),
                 fontWeight: FontWeight.w800,
                 height: metrics.lineHeight(
@@ -1928,7 +1967,7 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
             Text(
               'Category: Tablets',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: _pageMuted(context),
+                color: HocalistPalette.text(context, _pageMuted(context)),
                 fontSize: _pickedSellerFontSize(metrics, 13),
                 height: metrics.lineHeight(
                   referenceFontSize: 13,
@@ -1942,7 +1981,10 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
               ),
               decoration: BoxDecoration(
-                color: const Color(0xfff2efff),
+                color: HocalistPalette.surface(
+                  context,
+                  const Color(0xfff2efff),
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
               ),
               child: Wrap(
@@ -1958,7 +2000,7 @@ class _ApprovedSellerProductSummary extends StatelessWidget {
                   Text(
                     'Competition: Very High',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: _approvedAction,
+                      color: HocalistPalette.text(context, _approvedAction),
                       fontSize: _pickedSellerFontSize(metrics, 11),
                       fontWeight: FontWeight.w800,
                     ),
@@ -2007,7 +2049,7 @@ class _ApprovedSellerControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     final border = Border.all(
-      color: _approvedBorder,
+      color: HocalistPalette.border(context, _approvedBorder),
       width: metrics.geometry(1),
     );
     return LayoutBuilder(
@@ -2020,15 +2062,19 @@ class _ApprovedSellerControls extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onFilters,
             style: OutlinedButton.styleFrom(
-              foregroundColor: _pageText(context),
-              backgroundColor: filtersOn
-                  ? const Color(0xfff1efff)
-                  : _pageSurface(context),
+              foregroundColor: HocalistPalette.text(
+                context,
+                _pageText(context),
+              ),
+              backgroundColor: HocalistPalette.surface(
+                context,
+                filtersOn ? const Color(0xfff1efff) : _pageSurface(context),
+              ),
               padding: metrics.geometryInsets(
                 const EdgeInsets.symmetric(horizontal: 4),
               ),
               side: BorderSide(
-                color: _approvedBorder,
+                color: HocalistPalette.border(context, _approvedBorder),
                 width: metrics.geometry(1),
               ),
               shape: RoundedRectangleBorder(
@@ -2069,7 +2115,9 @@ class _ApprovedSellerControls extends StatelessWidget {
           surfaceTintColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(metrics.geometry(12)),
-            side: const BorderSide(color: _approvedBorder),
+            side: BorderSide(
+              color: HocalistPalette.border(context, _approvedBorder),
+            ),
           ),
           onSelected: onSort,
           itemBuilder: (context) => const [
@@ -2086,7 +2134,7 @@ class _ApprovedSellerControls extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 10),
             ),
             decoration: BoxDecoration(
-              color: _pageSurface(context),
+              color: HocalistPalette.surface(context, _pageSurface(context)),
               border: border,
               borderRadius: BorderRadius.circular(metrics.geometry(7)),
             ),
@@ -2098,7 +2146,7 @@ class _ApprovedSellerControls extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: _pageText(context),
+                      color: HocalistPalette.text(context, _pageText(context)),
                       fontSize: _pickedSellerFontSize(metrics, 11),
                       fontWeight: FontWeight.w800,
                     ),
@@ -2116,7 +2164,7 @@ class _ApprovedSellerControls extends StatelessWidget {
         final toggle = Container(
           height: _sellerDimension(metrics, 38, floor: 36),
           decoration: BoxDecoration(
-            color: _pageSurface(context),
+            color: HocalistPalette.surface(context, _pageSurface(context)),
             border: border,
             borderRadius: BorderRadius.circular(metrics.geometry(7)),
           ),
@@ -2197,7 +2245,10 @@ class _ApprovedViewChoice extends StatelessWidget {
           height: metrics.geometry(32),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? const Color(0xfff1efff) : Colors.transparent,
+            color: HocalistPalette.surface(
+              context,
+              selected ? const Color(0xfff1efff) : Colors.transparent,
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(6)),
           ),
           child: _approvedAsset(
@@ -2224,7 +2275,7 @@ class _ApprovedFilterChip extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       ),
       decoration: BoxDecoration(
-        color: const Color(0xfff1efff),
+        color: HocalistPalette.surface(context, const Color(0xfff1efff)),
         borderRadius: BorderRadius.circular(metrics.geometry(999)),
       ),
       child: Text(
@@ -2233,7 +2284,7 @@ class _ApprovedFilterChip extends StatelessWidget {
         softWrap: false,
         overflow: TextOverflow.fade,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: _approvedAction,
+          color: HocalistPalette.text(context, _approvedAction),
           fontSize: _pickedSellerFontSize(metrics, 11),
         ),
       ),
@@ -2253,8 +2304,10 @@ class _ApprovedSellerEmptyState extends StatelessWidget {
       key: const Key('approved-trends-sellers-empty'),
       padding: EdgeInsets.all(metrics.spacing(18)),
       decoration: BoxDecoration(
-        color: _pageSurface(context),
-        border: Border.all(color: _approvedBorder),
+        color: HocalistPalette.surface(context, _pageSurface(context)),
+        border: Border.all(
+          color: HocalistPalette.border(context, _approvedBorder),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -2262,14 +2315,14 @@ class _ApprovedSellerEmptyState extends StatelessWidget {
           Icon(
             Icons.storefront_outlined,
             size: metrics.artSize(32),
-            color: _approvedAction,
+            color: HocalistPalette.text(context, _approvedAction),
           ),
           SizedBox(height: metrics.spacing(7)),
           Text(
             'No sellers match these filters',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: _pageText(context),
+              color: HocalistPalette.text(context, _pageText(context)),
               fontSize: metrics.fontSize(14),
               fontWeight: FontWeight.w800,
             ),
@@ -2296,10 +2349,10 @@ class _ApprovedSellerCard extends StatelessWidget {
           key: ValueKey('approved-seller-card-${seller.name}'),
           padding: EdgeInsets.all(_sellerDimension(metrics, 8, floor: 8)),
           decoration: BoxDecoration(
-            color: _pageSurface(context),
+            color: HocalistPalette.surface(context, _pageSurface(context)),
             borderRadius: BorderRadius.circular(metrics.geometry(8)),
             border: Border.all(
-              color: _approvedBorder,
+              color: HocalistPalette.border(context, _approvedBorder),
               width: metrics.geometry(1),
             ),
             boxShadow: [
@@ -2390,13 +2443,13 @@ class _ApprovedSellerIdentity extends StatelessWidget {
             height: _sellerDimension(metrics, 52, floor: 47),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0xfff2efff),
+              color: HocalistPalette.surface(context, const Color(0xfff2efff)),
               borderRadius: BorderRadius.circular(metrics.geometry(7)),
             ),
             child: Text(
               _approvedSellerInitials(seller.name),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _approvedAction,
+                color: HocalistPalette.text(context, _approvedAction),
                 fontSize: _pickedSellerFontSize(metrics, 15),
                 fontWeight: FontWeight.w800,
               ),
@@ -2423,7 +2476,10 @@ class _ApprovedSellerIdentity extends StatelessWidget {
                       softWrap: metrics.accessibilityReflow,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _pageText(context),
+                        color: HocalistPalette.text(
+                          context,
+                          _pageText(context),
+                        ),
                         fontSize: _pickedSellerFontSize(metrics, 16),
                         fontWeight: FontWeight.w800,
                         height: metrics.lineHeight(
@@ -2456,7 +2512,10 @@ class _ApprovedSellerIdentity extends StatelessWidget {
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _pageMuted(context),
+                        color: HocalistPalette.text(
+                          context,
+                          _pageMuted(context),
+                        ),
                         fontSize: _pickedSellerFontSize(metrics, 11),
                       ),
                     ),
@@ -2470,7 +2529,7 @@ class _ApprovedSellerIdentity extends StatelessWidget {
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _pageMuted(context),
+                  color: HocalistPalette.text(context, _pageMuted(context)),
                   fontSize: _pickedSellerFontSize(metrics, 11),
                 ),
               ),
@@ -2496,7 +2555,10 @@ class _ApprovedSellerBadge extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       ),
       decoration: BoxDecoration(
-        color: seller.badgeColor.withValues(alpha: 0.09),
+        color: HocalistPalette.surface(
+          context,
+          seller.badgeColor.withValues(alpha: 0.09),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(6)),
       ),
       child: Row(
@@ -2517,7 +2579,7 @@ class _ApprovedSellerBadge extends StatelessWidget {
               softWrap: false,
               overflow: TextOverflow.fade,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: seller.badgeColor,
+                color: HocalistPalette.text(context, seller.badgeColor),
                 fontSize: _pickedSellerFontSize(metrics, 9),
                 fontWeight: FontWeight.w800,
               ),
@@ -2552,7 +2614,7 @@ class _ApprovedSellerCommerce extends StatelessWidget {
           maxLines: 1,
           softWrap: false,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: _pageText(context),
+            color: HocalistPalette.text(context, _pageText(context)),
             fontSize: _pickedSellerFontSize(metrics, 16),
             fontWeight: FontWeight.w800,
           ),
@@ -2562,7 +2624,7 @@ class _ApprovedSellerCommerce extends StatelessWidget {
           maxLines: 1,
           softWrap: false,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: _approvedGreen,
+            color: HocalistPalette.text(context, _approvedGreen),
             fontSize: _pickedSellerFontSize(metrics, 11),
             fontWeight: FontWeight.w700,
           ),
@@ -2574,8 +2636,14 @@ class _ApprovedSellerCommerce extends StatelessWidget {
       child: FilledButton(
         onPressed: onChat,
         style: FilledButton.styleFrom(
-          backgroundColor: accessibility.backgroundOr(_approvedAction),
-          foregroundColor: accessibility.foregroundOr(Colors.white),
+          backgroundColor: HocalistPalette.surface(
+            context,
+            accessibility.backgroundOr(_approvedAction),
+          ),
+          foregroundColor: HocalistPalette.text(
+            context,
+            accessibility.foregroundOr(Colors.white),
+          ),
           padding: metrics.geometryInsets(
             const EdgeInsets.symmetric(horizontal: 2),
           ),
@@ -2639,7 +2707,7 @@ class _ApprovedSellerStats extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: _pageMuted(context),
+      color: HocalistPalette.text(context, _pageMuted(context)),
       fontSize: _pickedSellerFontSize(metrics, 9.5),
       height: metrics.lineHeight(
         referenceFontSize: 10,
@@ -2974,7 +3042,10 @@ class _ApprovedBuyerNotificationsPageState
                       error,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _pageMuted(context),
+                        color: HocalistPalette.text(
+                          context,
+                          _pageMuted(context),
+                        ),
                         fontSize: metrics.fontSize(11),
                       ),
                     ),
@@ -3113,8 +3184,11 @@ class _ApprovedActivityEmptyCard extends StatelessWidget {
         vertical: metrics.geometry(26),
       ),
       decoration: BoxDecoration(
-        color: _pageSurface(context),
-        border: Border.all(color: _approvedBorder, width: metrics.geometry(1)),
+        color: HocalistPalette.surface(context, _pageSurface(context)),
+        border: Border.all(
+          color: HocalistPalette.border(context, _approvedBorder),
+          width: metrics.geometry(1),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -3129,7 +3203,7 @@ class _ApprovedActivityEmptyCard extends StatelessWidget {
             all ? 'No activity yet' : 'No $tab activity yet',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: _pageText(context),
+              color: HocalistPalette.text(context, _pageText(context)),
               fontSize: metrics.fontSize(12.5),
               fontWeight: FontWeight.w800,
             ),
@@ -3141,7 +3215,7 @@ class _ApprovedActivityEmptyCard extends StatelessWidget {
                 : 'New $tab updates appear here. Other activity may still appear under All.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: _pageMuted(context),
+              color: HocalistPalette.text(context, _pageMuted(context)),
               fontSize: metrics.fontSize(11),
               height: metrics.lineHeight(
                 referenceFontSize: 11,
@@ -3191,9 +3265,9 @@ class _ApprovedActivityTabs extends StatelessWidget {
         return Container(
           constraints: BoxConstraints(minHeight: metrics.geometry(29)),
           decoration: BoxDecoration(
-            color: _pageSurface(context),
+            color: HocalistPalette.surface(context, _pageSurface(context)),
             border: Border.all(
-              color: _approvedBorder,
+              color: HocalistPalette.border(context, _approvedBorder),
               width: metrics.geometry(1),
             ),
             borderRadius: BorderRadius.circular(metrics.geometry(7)),
@@ -3238,13 +3312,19 @@ class _ApprovedActivityTab extends StatelessWidget {
           ),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? _approvedAction : Colors.transparent,
+            color: HocalistPalette.surface(
+              context,
+              selected ? _approvedAction : Colors.transparent,
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(6)),
           ),
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? Colors.white : _pageMuted(context),
+              color: HocalistPalette.text(
+                context,
+                selected ? Colors.white : _pageMuted(context),
+              ),
               fontSize: metrics.fontSize(10.5),
               fontWeight: FontWeight.w800,
             ),
@@ -3284,7 +3364,7 @@ class _ApprovedActivityRow extends StatelessWidget {
                 item.value ?? '',
                 maxLines: 1,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: item.valueColor,
+                  color: HocalistPalette.text(context, item.valueColor),
                   fontSize: metrics.fontSize(16),
                   fontWeight: FontWeight.w800,
                 ),
@@ -3300,8 +3380,8 @@ class _ApprovedActivityRow extends StatelessWidget {
                     key: const Key('approvedActivityUnread'),
                     width: metrics.geometry(6),
                     height: metrics.geometry(6),
-                    decoration: const BoxDecoration(
-                      color: _approvedAction,
+                    decoration: BoxDecoration(
+                      color: HocalistPalette.surface(context, _approvedAction),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -3311,7 +3391,7 @@ class _ApprovedActivityRow extends StatelessWidget {
                   child: Text(
                     item.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: _pageText(context),
+                      color: HocalistPalette.text(context, _pageText(context)),
                       fontSize: metrics.fontSize(12.5),
                       fontWeight: FontWeight.w800,
                       height: metrics.lineHeight(
@@ -3328,7 +3408,7 @@ class _ApprovedActivityRow extends StatelessWidget {
               Text(
                 item.body,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _pageMuted(context),
+                  color: HocalistPalette.text(context, _pageMuted(context)),
                   fontSize: metrics.fontSize(11.5),
                 ),
               ),
@@ -3337,7 +3417,7 @@ class _ApprovedActivityRow extends StatelessWidget {
             Text(
               item.time,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: _pageMuted(context),
+                color: HocalistPalette.text(context, _pageMuted(context)),
                 fontSize: metrics.fontSize(10.5),
                 height: metrics.lineHeight(
                   referenceFontSize: 10.5,

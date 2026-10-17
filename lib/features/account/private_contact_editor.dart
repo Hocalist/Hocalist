@@ -135,6 +135,7 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
               context,
               ApprovedReplicaScope.maybeOf(context) ??
                   ApprovedReplicaMetrics.resolve(
+                    brightness: Theme.of(context).brightness,
                     availableWidth: MediaQuery.sizeOf(context).width,
                     textScaler: MediaQuery.textScalerOf(context),
                   ),

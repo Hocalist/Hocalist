@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
@@ -22,7 +23,7 @@ class SellerAppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: SellerUiColors.white,
+      color: HocalistPalette.surface(context, SellerUiColors.white),
       child: SafeArea(
         child: Column(
           children: [
@@ -53,6 +54,7 @@ class SellerAppHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: constraints.maxWidth.clamp(
             0,
             ApprovedReplicaMetrics.supportedViewportMaxWidth,
@@ -136,7 +138,7 @@ class _SellerNotificationButton extends StatelessWidget {
           icon: Icon(
             Icons.notifications_none_rounded,
             size: metrics.geometry(27),
-            color: SellerUiColors.ink,
+            color: HocalistPalette.text(context, SellerUiColors.ink),
           ),
         ),
         Positioned(
@@ -145,8 +147,8 @@ class _SellerNotificationButton extends StatelessWidget {
           child: Container(
             width: metrics.geometry(7),
             height: metrics.geometry(7),
-            decoration: const BoxDecoration(
-              color: SellerUiColors.red,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, SellerUiColors.red),
               shape: BoxShape.circle,
             ),
           ),
@@ -169,7 +171,7 @@ class _SellerModePill extends StatelessWidget {
         vertical: metrics.geometry(7),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -178,7 +180,7 @@ class _SellerModePill extends StatelessWidget {
           Icon(
             Icons.verified_user,
             size: metrics.geometry(17),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(width: metrics.geometry(6)),
           Text(

@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../features/approved/approved_replica_metrics.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -128,6 +129,7 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -142,9 +144,17 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
         Container(
           padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
-            color: widget.accent.withValues(alpha: .06),
+            color: HocalistPalette.surface(
+              context,
+              widget.accent.withValues(alpha: .06),
+            ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: widget.accent.withValues(alpha: .12)),
+            border: Border.all(
+              color: HocalistPalette.border(
+                context,
+                widget.accent.withValues(alpha: .12),
+              ),
+            ),
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -174,9 +184,12 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
                             child: AnimatedContainer(
                               duration: HocalistMotion.duration(context, 180),
                               decoration: BoxDecoration(
-                                color: selected == index
-                                    ? widget.accent
-                                    : Colors.transparent,
+                                color: HocalistPalette.surface(
+                                  context,
+                                  selected == index
+                                      ? widget.accent
+                                      : Colors.transparent,
+                                ),
                                 borderRadius: BorderRadius.circular(11),
                               ),
                               child: TextButton(
@@ -184,12 +197,17 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
                                 onPressed: () =>
                                     unawaited(_select(index, labels[index])),
                                 style: TextButton.styleFrom(
-                                  foregroundColor: selected == index
-                                      ? Colors.white
-                                      : Theme.of(context).brightness ==
-                                            Brightness.dark
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : widget.accent,
+                                  foregroundColor: HocalistPalette.text(
+                                    context,
+                                    selected == index
+                                        ? Colors.white
+                                        : Theme.of(context).brightness ==
+                                              Brightness.dark
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface
+                                        : widget.accent,
+                                  ),
                                   minimumSize: const Size(0, 48),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 6,

@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -524,7 +525,7 @@ class _HocalistCallPageState extends State<HocalistCallPage>
       return ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Container(
-          color: const Color(0xff0b1231),
+          color: HocalistPalette.surface(context, const Color(0xff0b1231)),
           child: Stack(
             children: [
               Positioned.fill(child: RTCVideoView(remote)),
@@ -589,15 +590,15 @@ class _HocalistCallPageState extends State<HocalistCallPage>
     final waitingIncoming = state == 'ringing' && !caller && !terminal;
     final inCall = state == 'accepted' && !permissionDenied && !terminal;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: HocalistPalette.surface(context, Colors.white),
         surfaceTintColor: Colors.white,
-        foregroundColor: BuyerUiTokens.text,
+        foregroundColor: HocalistPalette.text(context, BuyerUiTokens.text),
         title: Text(
           'Hocalist call',
           style: TextStyle(
-            color: BuyerUiTokens.text,
+            color: HocalistPalette.text(context, BuyerUiTokens.text),
             fontSize: 16,
             fontWeight: FontWeight.w800,
           ),

@@ -6,6 +6,8 @@
 /// there is no silent fallback to simulated authentication.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -500,7 +502,7 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
         ? 'seller'
         : 'buyer';
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
@@ -558,19 +560,25 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                           Text(
                             'Finish your $role account',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
-                              color: BuyerUiTokens.text,
+                              color: HocalistPalette.text(
+                                context,
+                                BuyerUiTokens.text,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Choose the name other people will see on Hocalist.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
-                              color: BuyerUiTokens.muted,
+                              color: HocalistPalette.text(
+                                context,
+                                BuyerUiTokens.muted,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 18),
@@ -590,14 +598,20 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xffddd8f2),
+                                borderSide: BorderSide(
+                                  color: HocalistPalette.border(
+                                    context,
+                                    Color(0xffddd8f2),
+                                  ),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xff3210ff),
+                                borderSide: BorderSide(
+                                  color: HocalistPalette.border(
+                                    context,
+                                    Color(0xff3210ff),
+                                  ),
                                   width: 1.5,
                                 ),
                               ),
@@ -611,10 +625,13 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                                 'real-account-onboarding-error',
                               ),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xffb3261e),
+                                color: HocalistPalette.text(
+                                  context,
+                                  Color(0xffb3261e),
+                                ),
                               ),
                             ),
                           ],
@@ -656,10 +673,13 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                               _logoutError!,
                               key: const ValueKey('real-account-gate-error'),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xffb3261e),
+                                color: HocalistPalette.text(
+                                  context,
+                                  Color(0xffb3261e),
+                                ),
                               ),
                             ),
                           ],
@@ -752,20 +772,20 @@ class _AccountGatePageState extends State<_AccountGatePage> {
                 Text(
                   widget.title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: BuyerUiTokens.text,
+                    color: HocalistPalette.text(context, BuyerUiTokens.text),
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   widget.body,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
-                    color: BuyerUiTokens.muted,
+                    color: HocalistPalette.text(context, BuyerUiTokens.muted),
                   ),
                 ),
                 if (widget.primaryLabel != null &&
@@ -790,10 +810,10 @@ class _AccountGatePageState extends State<_AccountGatePage> {
                     _actionError!,
                     key: const ValueKey('real-account-gate-error'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xffb3261e),
+                      color: HocalistPalette.text(context, Color(0xffb3261e)),
                     ),
                   ),
                 ],

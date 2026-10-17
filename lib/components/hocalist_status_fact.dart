@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/buyer_ui_foundation.dart';
@@ -26,10 +27,16 @@ class HocalistStatusFact extends StatelessWidget {
       duration: HocalistMotion.duration(context),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: confirmed ? const Color(0xfff1f0ff) : Colors.white,
+        color: HocalistPalette.surface(
+          context,
+          confirmed ? const Color(0xfff1f0ff) : Colors.white,
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: confirmed ? const Color(0xffd9d5ff) : BuyerUiTokens.border,
+          color: HocalistPalette.border(
+            context,
+            confirmed ? const Color(0xffd9d5ff) : BuyerUiTokens.border,
+          ),
         ),
       ),
       child: Column(
@@ -37,25 +44,32 @@ class HocalistStatusFact extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 21, color: accent),
+              Icon(
+                icon,
+                size: 21,
+                color: HocalistPalette.text(context, accent),
+              ),
               const Spacer(),
               Icon(
                 confirmed
                     ? Icons.check_circle_outline_rounded
                     : Icons.radio_button_unchecked,
                 size: 17,
-                color: confirmed ? accent : BuyerUiTokens.muted,
+                color: HocalistPalette.text(
+                  context,
+                  confirmed ? accent : BuyerUiTokens.muted,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               height: 1.35,
               fontWeight: FontWeight.w700,
-              color: BuyerUiTokens.text,
+              color: HocalistPalette.text(context, BuyerUiTokens.text),
             ),
           ),
         ],

@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 
@@ -67,6 +68,7 @@ class _SellerSchedulePickerDialogState
     final media = MediaQuery.of(context);
     final dialogWidth = (media.size.width - 28).clamp(292.0, 620.0);
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: dialogWidth,
       textScaler: media.textScaler,
     );
@@ -75,7 +77,7 @@ class _SellerSchedulePickerDialogState
       child: Dialog(
         key: const Key('sellerOfferScheduleDialog'),
         insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-        backgroundColor: SellerUiColors.white,
+        backgroundColor: HocalistPalette.surface(context, SellerUiColors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -209,7 +211,9 @@ class SellerScheduleCalendar extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(10)),
       decoration: BoxDecoration(
-        border: Border.all(color: SellerUiColors.line),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -223,9 +227,9 @@ class SellerScheduleCalendar extends StatelessWidget {
                 onPressed: () => onDisplayedMonthChanged(
                   DateTime(month.year, month.month - 1),
                 ),
-                icon: const Icon(
+                icon: Icon(
                   Icons.chevron_left,
-                  color: SellerUiColors.body,
+                  color: HocalistPalette.text(context, SellerUiColors.body),
                 ),
               ),
               Expanded(
@@ -242,9 +246,9 @@ class SellerScheduleCalendar extends StatelessWidget {
                 onPressed: () => onDisplayedMonthChanged(
                   DateTime(month.year, month.month + 1),
                 ),
-                icon: const Icon(
+                icon: Icon(
                   Icons.chevron_right,
-                  color: SellerUiColors.ink,
+                  color: HocalistPalette.text(context, SellerUiColors.ink),
                 ),
               ),
             ],
@@ -308,11 +312,14 @@ class SellerScheduleCalendar extends StatelessWidget {
                     margin: const EdgeInsets.all(2),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: selected
-                          ? SellerUiColors.primaryBright
-                          : highlighted
-                          ? SellerUiColors.lavenderBorder
-                          : Colors.transparent,
+                      color: HocalistPalette.surface(
+                        context,
+                        selected
+                            ? SellerUiColors.primaryBright
+                            : highlighted
+                            ? SellerUiColors.lavenderBorder
+                            : Colors.transparent,
+                      ),
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -440,16 +447,19 @@ class _SellerTimeButton extends StatelessWidget {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.symmetric(horizontal: metrics.geometry(5)),
-          foregroundColor: selected
-              ? SellerUiColors.primaryBright
-              : SellerUiColors.body,
-          backgroundColor: selected
-              ? SellerUiColors.lavender
-              : SellerUiColors.white,
+          foregroundColor: HocalistPalette.text(
+            context,
+            selected ? SellerUiColors.primaryBright : SellerUiColors.body,
+          ),
+          backgroundColor: HocalistPalette.surface(
+            context,
+            selected ? SellerUiColors.lavender : SellerUiColors.white,
+          ),
           side: BorderSide(
-            color: selected
-                ? SellerUiColors.primaryBright
-                : SellerUiColors.line,
+            color: HocalistPalette.border(
+              context,
+              selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+            ),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(metrics.geometry(9)),

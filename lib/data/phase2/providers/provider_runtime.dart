@@ -168,9 +168,12 @@ class ProviderSessionFence {
   }
   final SupabaseClient client;
   late final String userId;
-  Future<String> freshToken() async {
+  Future<String> freshToken({Duration minimumValidity = Duration.zero}) async {
     check();
-    final token = await freshSessionToken(client);
+    final token = await freshSessionToken(
+      client,
+      minimumValidity: minimumValidity,
+    );
     check();
     if (token == null) {
       throw const ProviderOperationException('session_changed');

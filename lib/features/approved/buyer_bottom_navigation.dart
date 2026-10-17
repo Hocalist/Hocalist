@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/buyer_ui_foundation.dart';
@@ -43,6 +44,7 @@ class BuyerBottomNavigation extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -87,9 +89,13 @@ class BuyerBottomNavigation extends StatelessWidget {
 
     return DecoratedBox(
       key: navigationKey,
-      decoration: const BoxDecoration(
-        color: BuyerUiTokens.surface,
-        border: Border(top: BorderSide(color: BuyerUiTokens.border)),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
+        border: Border(
+          top: BorderSide(
+            color: HocalistPalette.border(context, BuyerUiTokens.border),
+          ),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -155,9 +161,10 @@ class _BuyerBottomNavItem extends StatelessWidget {
                 height: metrics.artSize(29.5),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: selected
-                      ? BuyerUiTokens.activeSurface
-                      : Colors.transparent,
+                  color: HocalistPalette.surface(
+                    context,
+                    selected ? BuyerUiTokens.activeSurface : Colors.transparent,
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(8)),
                 ),
                 child: BuyerAssetIcon(
@@ -167,7 +174,7 @@ class _BuyerBottomNavItem extends StatelessWidget {
                         ? BuyerIconTokens.navigation
                         : BuyerIconTokens.navigation - 1,
                   ),
-                  color: color,
+                  color: HocalistPalette.text(context, color),
                 ),
               ),
               SizedBox(height: metrics.geometry(1.5)),

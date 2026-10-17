@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../data/phase2/media/image_gateway.dart';
@@ -305,6 +306,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                   style: sellerText(
                     ApprovedReplicaScope.maybeOf(context) ??
                         ApprovedReplicaMetrics.resolve(
+                          brightness: Theme.of(context).brightness,
                           availableWidth: MediaQuery.sizeOf(context).width,
                           textScaler: MediaQuery.textScalerOf(context),
                         ),
@@ -394,9 +396,14 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: SellerUiColors.redSurface,
+                color: HocalistPalette.surface(
+                  context,
+                  SellerUiColors.redSurface,
+                ),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: SellerUiColors.red),
+                border: Border.all(
+                  color: HocalistPalette.border(context, SellerUiColors.red),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,7 +414,10 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                       Icon(
                         Icons.block_rounded,
                         size: 18,
-                        color: SellerUiColors.red,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.red,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -416,6 +426,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                           style: sellerText(
                             ApprovedReplicaScope.maybeOf(context) ??
                                 ApprovedReplicaMetrics.resolve(
+                                  brightness: Theme.of(context).brightness,
                                   availableWidth: MediaQuery.sizeOf(
                                     context,
                                   ).width,
@@ -435,6 +446,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                     style: sellerText(
                       ApprovedReplicaScope.maybeOf(context) ??
                           ApprovedReplicaMetrics.resolve(
+                            brightness: Theme.of(context).brightness,
                             availableWidth: MediaQuery.sizeOf(context).width,
                             textScaler: MediaQuery.textScalerOf(context),
                           ),
@@ -452,6 +464,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                       style: sellerInputText(
                         ApprovedReplicaScope.maybeOf(context) ??
                             ApprovedReplicaMetrics.resolve(
+                              brightness: Theme.of(context).brightness,
                               availableWidth: MediaQuery.sizeOf(context).width,
                               textScaler: MediaQuery.textScalerOf(context),
                             ),
@@ -493,6 +506,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
               style: sellerInputText(
                 ApprovedReplicaScope.maybeOf(context) ??
                     ApprovedReplicaMetrics.resolve(
+                      brightness: Theme.of(context).brightness,
                       availableWidth: MediaQuery.sizeOf(context).width,
                       textScaler: MediaQuery.textScalerOf(context),
                     ),
@@ -518,6 +532,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
               style: sellerInputText(
                 ApprovedReplicaScope.maybeOf(context) ??
                     ApprovedReplicaMetrics.resolve(
+                      brightness: Theme.of(context).brightness,
                       availableWidth: MediaQuery.sizeOf(context).width,
                       textScaler: MediaQuery.textScalerOf(context),
                     ),
@@ -574,6 +589,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                 style: sellerText(
                   ApprovedReplicaScope.maybeOf(context) ??
                       ApprovedReplicaMetrics.resolve(
+                        brightness: Theme.of(context).brightness,
                         availableWidth: MediaQuery.sizeOf(context).width,
                         textScaler: MediaQuery.textScalerOf(context),
                       ),
@@ -590,6 +606,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                 style: sellerText(
                   ApprovedReplicaScope.maybeOf(context) ??
                       ApprovedReplicaMetrics.resolve(
+                        brightness: Theme.of(context).brightness,
                         availableWidth: MediaQuery.sizeOf(context).width,
                         textScaler: MediaQuery.textScalerOf(context),
                       ),
@@ -648,6 +665,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
             style: sellerText(
               ApprovedReplicaScope.maybeOf(context) ??
                   ApprovedReplicaMetrics.resolve(
+                    brightness: Theme.of(context).brightness,
                     availableWidth: MediaQuery.sizeOf(context).width,
                     textScaler: MediaQuery.textScalerOf(context),
                   ),

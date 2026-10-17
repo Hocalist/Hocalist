@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../theme/buyer_ui_foundation.dart';
 import '../theme/seller_ui_foundation.dart';
@@ -40,6 +41,7 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width > 0
               ? MediaQuery.sizeOf(context).width
               : 390.0,
@@ -49,12 +51,18 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
       fontFamily: 'Nunito',
       fontSize: metrics.fontSize(13),
       fontWeight: FontWeight.w700,
-      color: widget.seller ? SellerUiColors.ink : BuyerUiTokens.text,
+      color: HocalistPalette.text(
+        context,
+        widget.seller ? SellerUiColors.ink : BuyerUiTokens.text,
+      ),
     );
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(9)),
       borderSide: BorderSide(
-        color: widget.seller ? SellerUiColors.line : BuyerUiTokens.border,
+        color: HocalistPalette.border(
+          context,
+          widget.seller ? SellerUiColors.line : BuyerUiTokens.border,
+        ),
       ),
     );
     return Column(
@@ -84,7 +92,7 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
             decoration: InputDecoration(
               isDense: true,
               filled: true,
-              fillColor: Colors.white,
+              fillColor: HocalistPalette.surface(context, Colors.white),
               counterText: '',
               suffixIcon: widget.obscureText
                   ? IconButton(
@@ -112,9 +120,12 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
               disabledBorder: border,
               focusedBorder: border.copyWith(
                 borderSide: BorderSide(
-                  color: widget.seller
-                      ? SellerUiColors.primaryBright
-                      : BuyerUiTokens.action,
+                  color: HocalistPalette.border(
+                    context,
+                    widget.seller
+                        ? SellerUiColors.primaryBright
+                        : BuyerUiTokens.action,
+                  ),
                   width: 1.5,
                 ),
               ),
@@ -133,9 +144,11 @@ class HocalistAccountFormCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: SellerUiColors.line),
+      border: Border.all(
+        color: HocalistPalette.border(context, SellerUiColors.line),
+      ),
     ),
     child: child,
   );

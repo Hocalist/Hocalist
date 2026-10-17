@@ -6,6 +6,8 @@
 /// natively (see android/app/build.gradle.kts) and never handled here.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -84,20 +86,25 @@ class HocalistMapPlaceholder extends StatelessWidget {
       key: const Key('hocalistMapPlaceholder'),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: BuyerUiTokens.softSurface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.map_outlined, color: BuyerUiTokens.action),
+          Icon(
+            Icons.map_outlined,
+            color: HocalistPalette.text(context, BuyerUiTokens.action),
+          ),
           const SizedBox(height: 6),
           Text(
             'Map preview is not configured for this build.\nYou can still confirm the searched address.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: BuyerUiTokens.text,
+              color: HocalistPalette.text(context, BuyerUiTokens.text),
               fontWeight: FontWeight.w700,
             ),
           ),

@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import '../../components/notification_indicator.dart';
 
@@ -352,7 +353,7 @@ class _ApprovedAccountCreationPageState
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.white,
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -423,7 +424,7 @@ class _ApprovedAccountCreationPageState
               : 'Join Hocalist to get started.');
 
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: metrics.geometryInsets(
@@ -449,7 +450,10 @@ class _ApprovedAccountCreationPageState
                             width: metrics.geometry(38),
                             height: metrics.geometry(4),
                             decoration: BoxDecoration(
-                              color: const Color(0xffc8c9d9),
+                              color: HocalistPalette.surface(
+                                context,
+                                const Color(0xffc8c9d9),
+                              ),
                               borderRadius: BorderRadius.circular(
                                 metrics.geometry(99),
                               ),
@@ -937,7 +941,10 @@ class _ApprovedRoleButton extends StatelessWidget {
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? const Color(0xfff7f6ff) : Colors.white,
+        color: HocalistPalette.surface(
+          context,
+          selected ? const Color(0xfff7f6ff) : Colors.white,
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
         child: InkWell(
           onTap: onTap,
@@ -951,9 +958,10 @@ class _ApprovedRoleButton extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(metrics.geometry(10)),
               border: Border.all(
-                color: selected
-                    ? const Color(0xffaaa6ff)
-                    : const Color(0xffdfe3ee),
+                color: HocalistPalette.border(
+                  context,
+                  selected ? const Color(0xffaaa6ff) : const Color(0xffdfe3ee),
+                ),
               ),
             ),
             child: Row(
@@ -1042,17 +1050,20 @@ class _ApprovedField extends StatelessWidget {
           const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: HocalistPalette.surface(context, Colors.white),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
           borderSide: BorderSide(
-            color: const Color(0xffdfe3ee),
+            color: HocalistPalette.border(context, const Color(0xffdfe3ee)),
             width: metrics.geometry(1),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
-          borderSide: BorderSide(color: _blue, width: metrics.geometry(1.5)),
+          borderSide: BorderSide(
+            color: HocalistPalette.border(context, _blue),
+            width: metrics.geometry(1.5),
+          ),
         ),
       ),
     );
@@ -1084,7 +1095,7 @@ class _ApprovedFieldAssetButton extends StatelessWidget {
           width: metrics.geometry(36),
           height: metrics.geometry(36),
           child: Material(
-            color: Colors.transparent,
+            color: HocalistPalette.surface(context, Colors.transparent),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: onTap,
@@ -1123,10 +1134,10 @@ class _ApprovedSocialButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          foregroundColor: _navy,
+          foregroundColor: HocalistPalette.text(context, _navy),
           minimumSize: Size.fromHeight(metrics.geometry(42)),
           side: BorderSide(
-            color: const Color(0xffdfe3ee),
+            color: HocalistPalette.border(context, const Color(0xffdfe3ee)),
             width: metrics.geometry(1),
           ),
           shape: RoundedRectangleBorder(
@@ -1277,7 +1288,7 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
         : widget.name.trim().split(RegExp(r'\s+')).first;
     final videoPreview = _videoPreviews[_videoIndex];
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       child: SafeArea(
         child: Padding(
           padding: metrics.geometryInsets(
@@ -1317,7 +1328,10 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
                           children: [
                             Container(
                               height: metrics.geometry(12),
-                              color: Colors.black,
+                              color: HocalistPalette.surface(
+                                context,
+                                Colors.black,
+                              ),
                               padding: EdgeInsets.only(
                                 left: metrics.geometry(7),
                               ),
@@ -1331,8 +1345,11 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
                                     margin: EdgeInsets.only(
                                       right: metrics.geometry(4),
                                     ),
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xffa9a9a9),
+                                    decoration: BoxDecoration(
+                                      color: HocalistPalette.surface(
+                                        context,
+                                        Color(0xffa9a9a9),
+                                      ),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -1438,18 +1455,21 @@ class _ApprovedBenefitsScrollCue extends StatelessWidget {
     return Container(
       height: metrics.geometry(42),
       alignment: Alignment.bottomCenter,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0x00ffffff), Colors.white],
+          colors: [
+            const Color(0x00ffffff),
+            HocalistPalette.surface(context, Colors.white),
+          ],
         ),
       ),
       child: BuyerGlyphIcon(
         icon: Icons.keyboard_arrow_down_rounded,
         slotSize: metrics.geometry(24),
         glyphSize: metrics.geometry(24),
-        color: _blue,
+        color: HocalistPalette.text(context, _blue),
         semanticLabel: 'More Buyer benefits below',
       ),
     );
@@ -1531,8 +1551,11 @@ class _ApprovedBenefitCard extends StatelessWidget {
       constraints: BoxConstraints(minHeight: metrics.geometry(64)),
       padding: metrics.geometryInsets(const EdgeInsets.fromLTRB(9, 7, 9, 7)),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _line, width: metrics.geometry(1)),
+        color: HocalistPalette.surface(context, Colors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, _line),
+          width: metrics.geometry(1),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: Row(
@@ -1583,7 +1606,7 @@ class _ApprovedFairnessBanner extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       ),
       decoration: BoxDecoration(
-        color: const Color(0xffeef7f1),
+        color: HocalistPalette.surface(context, const Color(0xffeef7f1)),
         borderRadius: BorderRadius.circular(metrics.geometry(9)),
       ),
       child: Row(
@@ -1787,7 +1810,7 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     return Material(
-      color: const Color(0xfffbfcff),
+      color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
       child: SafeArea(
         child: Column(
           children: [
@@ -1945,6 +1968,9 @@ class _ApprovedHeader extends StatelessWidget {
     final metrics = _replicaMetrics(context);
     final logo = Image.asset(
       'assets/brand/hocalist-wordmark.png',
+      color: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xfff3f3ff)
+          : null,
       width: metrics.geometry(buyerMode ? 88 : 104),
       height: metrics.geometry(buyerMode ? 54 : 62),
       fit: BoxFit.contain,
@@ -1963,7 +1989,7 @@ class _ApprovedHeader extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       ),
       decoration: BoxDecoration(
-        color: _lavender,
+        color: HocalistPalette.surface(context, _lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(99)),
       ),
       child: Row(
@@ -2030,7 +2056,7 @@ class _ApprovedImageAction extends StatelessWidget {
       label: semanticLabel,
       child: Material(
         key: ValueKey('approved-home-$asset'),
-        color: Colors.transparent,
+        color: HocalistPalette.surface(context, Colors.transparent),
         borderRadius: BorderRadius.circular(metrics.geometry(8)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -2069,10 +2095,10 @@ class _ApprovedHomeBenefits extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             ),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: HocalistPalette.surface(context, Colors.white),
               borderRadius: BorderRadius.circular(metrics.geometry(12)),
               border: Border.all(
-                color: const Color(0xffe8ebf5),
+                color: HocalistPalette.border(context, const Color(0xffe8ebf5)),
                 width: metrics.geometry(1),
               ),
               boxShadow: [
@@ -2197,7 +2223,7 @@ class _ApprovedFaqPanel extends StatelessWidget {
                           : Icons.keyboard_arrow_down,
                       slotSize: metrics.geometry(24),
                       glyphSize: metrics.geometry(24),
-                      color: _navy,
+                      color: HocalistPalette.text(context, _navy),
                     ),
                   ],
                 ),
@@ -2252,8 +2278,14 @@ class _ApprovedStartBanner extends StatelessWidget {
         final action = FilledButton(
           onPressed: onTap,
           style: FilledButton.styleFrom(
-            backgroundColor: accessibility.backgroundOr(_blue),
-            foregroundColor: accessibility.foregroundOr(Colors.white),
+            backgroundColor: HocalistPalette.surface(
+              context,
+              accessibility.backgroundOr(_blue),
+            ),
+            foregroundColor: HocalistPalette.text(
+              context,
+              accessibility.foregroundOr(Colors.white),
+            ),
             minimumSize: Size(0, metrics.geometry(48)),
             padding: EdgeInsets.symmetric(
               horizontal: metrics.geometry(12),
@@ -2279,7 +2311,7 @@ class _ApprovedStartBanner extends StatelessWidget {
         return Container(
           padding: EdgeInsets.all(metrics.geometry(14)),
           decoration: BoxDecoration(
-            color: _lavender,
+            color: HocalistPalette.surface(context, _lavender),
             borderRadius: BorderRadius.circular(metrics.geometry(8)),
           ),
           child: stacked
@@ -2338,10 +2370,10 @@ class _ApprovedBottomNav extends StatelessWidget {
           key: const ValueKey('approved-bottom-navigation'),
           constraints: BoxConstraints(minHeight: metrics.geometry(78)),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: HocalistPalette.surface(context, Colors.white),
             border: Border(
               top: BorderSide(
-                color: const Color(0xffedf0f8),
+                color: HocalistPalette.border(context, const Color(0xffedf0f8)),
                 width: metrics.geometry(1),
               ),
             ),
@@ -2370,9 +2402,10 @@ class _ApprovedBottomNav extends StatelessWidget {
                           vertical: metrics.geometry(6),
                         ),
                         decoration: BoxDecoration(
-                          color: index == selectedIndex
-                              ? _lavender
-                              : Colors.white,
+                          color: HocalistPalette.surface(
+                            context,
+                            index == selectedIndex ? _lavender : Colors.white,
+                          ),
                           borderRadius: BorderRadius.circular(
                             metrics.geometry(8),
                           ),
@@ -2470,6 +2503,7 @@ class _ApprovedNavItem {
 ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
   return ApprovedReplicaScope.maybeOf(context) ??
       ApprovedReplicaMetrics.resolve(
+        brightness: Theme.of(context).brightness,
         availableWidth: MediaQuery.sizeOf(context).width,
         textScaler: MediaQuery.textScalerOf(context),
       );
@@ -2478,10 +2512,10 @@ ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
 BoxDecoration _panelDecoration(BuildContext context) {
   final metrics = _replicaMetrics(context);
   return BoxDecoration(
-    color: Colors.white,
+    color: HocalistPalette.surface(context, Colors.white),
     borderRadius: BorderRadius.circular(metrics.geometry(8)),
     border: Border.all(
-      color: const Color(0xffe8ebf5),
+      color: HocalistPalette.border(context, const Color(0xffe8ebf5)),
       width: metrics.geometry(1),
     ),
     boxShadow: [
@@ -2669,7 +2703,7 @@ class ApprovedBuyerMeetingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xfffbfcff),
+      color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2682,7 +2716,10 @@ class ApprovedBuyerMeetingsPage extends StatelessWidget {
                     key: const Key('approvedBuyerMeetingsBack'),
                     tooltip: 'Back',
                     onPressed: onBack,
-                    icon: const Icon(Icons.arrow_back, color: _navy),
+                    icon: Icon(
+                      Icons.arrow_back,
+                      color: HocalistPalette.text(context, _navy),
+                    ),
                   ),
                   const SizedBox(width: 2),
                   Expanded(
@@ -2831,6 +2868,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, viewport) {
         final metrics = ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: viewport.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -2849,7 +2887,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
         return ApprovedReplicaScope(
           metrics: metrics,
           child: Material(
-            color: const Color(0xfffbfcff),
+            color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
             child: SafeArea(
               child: _ApprovedBuyerHomeLayout(
                 metrics: metrics,
@@ -3235,7 +3273,7 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
           Container(
             padding: metrics.geometryInsets(const EdgeInsets.all(18)),
             decoration: BoxDecoration(
-              color: _lavender,
+              color: HocalistPalette.surface(context, _lavender),
               borderRadius: BorderRadius.circular(metrics.geometry(18)),
             ),
             child: Row(
@@ -3275,7 +3313,10 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                   asset: '$_approvedAssetRoot/dashboard-trophy-glyph.png',
                   surfaceSize: metrics.artSize(74),
                   iconSize: metrics.artSize(42),
-                  backgroundColor: const Color(0xffe9e4ff),
+                  backgroundColor: HocalistPalette.surface(
+                    context,
+                    const Color(0xffe9e4ff),
+                  ),
                   shape: BuyerIconSurfaceShape.circle,
                 ),
               ],
@@ -3333,10 +3374,13 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                 SizedBox(height: metrics.geometry(12)),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(99),
-                  child: const LinearProgressIndicator(
+                  child: LinearProgressIndicator(
                     value: .992,
                     minHeight: 9,
-                    backgroundColor: _lavender,
+                    backgroundColor: HocalistPalette.surface(
+                      context,
+                      _lavender,
+                    ),
                     valueColor: AlwaysStoppedAnimation<Color>(_blue),
                   ),
                 ),
@@ -3416,15 +3460,15 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                     Container(
                       width: metrics.artSize(38),
                       height: metrics.artSize(38),
-                      decoration: const BoxDecoration(
-                        color: _lavender,
+                      decoration: BoxDecoration(
+                        color: HocalistPalette.surface(context, _lavender),
                         shape: BoxShape.circle,
                       ),
                       child: BuyerGlyphIcon(
                         icon: Icons.account_balance_outlined,
                         slotSize: metrics.artSize(38),
                         glyphSize: metrics.artSize(20),
-                        color: _blue,
+                        color: HocalistPalette.text(context, _blue),
                       ),
                     ),
                     SizedBox(width: metrics.geometry(10)),
@@ -3453,7 +3497,7 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                       icon: Icons.chevron_right,
                       slotSize: metrics.artSize(24),
                       glyphSize: metrics.artSize(20),
-                      color: _muted,
+                      color: HocalistPalette.text(context, _muted),
                     ),
                   ],
                 ),
@@ -3510,7 +3554,7 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                   icon: Icons.info_outline_rounded,
                   slotSize: 24,
                   glyphSize: 20,
-                  color: _blue,
+                  color: HocalistPalette.text(context, _blue),
                 ),
                 SizedBox(width: 8),
                 Expanded(
@@ -4482,7 +4526,10 @@ class _ApprovedBuyerWithdrawalPageState
                     asset: '$_approvedAssetRoot/dashboard-calendar.png',
                     surfaceSize: metrics.artSize(72),
                     iconSize: metrics.artSize(38),
-                    backgroundColor: const Color(0xffe7f7ef),
+                    backgroundColor: HocalistPalette.surface(
+                      context,
+                      const Color(0xffe7f7ef),
+                    ),
                     shape: BuyerIconSurfaceShape.circle,
                   ),
                   SizedBox(height: metrics.spacing(12)),
@@ -4594,7 +4641,7 @@ class _ApprovedBuyerWithdrawalPageState
                 ),
                 SizedBox(height: metrics.spacing(10)),
                 Material(
-                  color: Colors.transparent,
+                  color: HocalistPalette.surface(context, Colors.transparent),
                   child: ListTile(
                     key: const Key('approved-withdrawal-destination'),
                     contentPadding: EdgeInsets.zero,
@@ -4602,7 +4649,7 @@ class _ApprovedBuyerWithdrawalPageState
                       icon: Icons.account_balance_outlined,
                       slotSize: metrics.artSize(30),
                       glyphSize: metrics.artSize(24),
-                      color: _blue,
+                      color: HocalistPalette.text(context, _blue),
                     ),
                     title: Text(
                       _payoutDestination ?? 'Add a payout account',
@@ -4619,9 +4666,9 @@ class _ApprovedBuyerWithdrawalPageState
                           : 'Selected for this withdrawal',
                       style: _text(context, size: 10.5, color: _muted),
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right_rounded,
-                      color: _blue,
+                      color: HocalistPalette.text(context, _blue),
                     ),
                     onTap: _addDestination,
                   ),
@@ -4902,8 +4949,11 @@ class ApprovedSellerPublicProfilePage extends StatelessWidget {
                         width: metrics.geometry(56),
                         height: metrics.geometry(56),
                         alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: BuyerUiTokens.activeSurface,
+                        decoration: BoxDecoration(
+                          color: HocalistPalette.surface(
+                            context,
+                            BuyerUiTokens.activeSurface,
+                          ),
                           shape: BoxShape.circle,
                         ),
                         child: Text(
@@ -4987,8 +5037,13 @@ class ApprovedSellerPublicProfilePage extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: _line),
+                            color: HocalistPalette.surface(
+                              context,
+                              Colors.white,
+                            ),
+                            border: Border.all(
+                              color: HocalistPalette.border(context, _line),
+                            ),
                             borderRadius: BorderRadius.circular(9),
                           ),
                           child: Column(
@@ -5067,7 +5122,12 @@ class ApprovedSellerPublicProfilePage extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
                   selectionError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(
+                    color: HocalistPalette.text(
+                      context,
+                      Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
               ),
             if (onSelect != null) ...[
@@ -5255,7 +5315,12 @@ class _ApprovedProfileInfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BuyerGlyphIcon(icon: icon, slotSize: 26, glyphSize: 23, color: _blue),
+          BuyerGlyphIcon(
+            icon: icon,
+            slotSize: 26,
+            glyphSize: 23,
+            color: HocalistPalette.text(context, _blue),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -5430,7 +5495,10 @@ class _ApprovedMeetingDetailsPageState
                   height: metrics.artSize(compactViewport ? 62 : 76),
                   padding: metrics.geometryInsets(const EdgeInsets.all(5)),
                   decoration: BoxDecoration(
-                    color: const Color(0xfff8f8ff),
+                    color: HocalistPalette.surface(
+                      context,
+                      const Color(0xfff8f8ff),
+                    ),
                     borderRadius: BorderRadius.circular(metrics.geometry(12)),
                   ),
                   child: realMode
@@ -5479,7 +5547,10 @@ class _ApprovedMeetingDetailsPageState
                           ),
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xffe9f8ee),
+                          color: HocalistPalette.surface(
+                            context,
+                            const Color(0xffe9f8ee),
+                          ),
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
@@ -5535,7 +5606,7 @@ class _ApprovedMeetingDetailsPageState
               EdgeInsets.all(compactViewport ? 10 : 13),
             ),
             decoration: BoxDecoration(
-              color: const Color(0xffeef9f2),
+              color: HocalistPalette.surface(context, const Color(0xffeef9f2)),
               borderRadius: BorderRadius.circular(metrics.geometry(14)),
             ),
             child: Row(
@@ -5652,7 +5723,7 @@ class ApprovedRequestPostedDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Dialog(
     insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
-    backgroundColor: Colors.white,
+    backgroundColor: HocalistPalette.surface(context, Colors.white),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
@@ -6020,7 +6091,7 @@ class _ApprovedBuyerDealHistoryPageState
           Container(
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: const Color(0xffeef9f2),
+              color: HocalistPalette.surface(context, const Color(0xffeef9f2)),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
@@ -6473,7 +6544,7 @@ class _ApprovedHistoryRealCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       borderRadius: BorderRadius.circular(15),
       child: InkWell(
         key: ValueKey('approved-deal-history-record-${entry.id}'),
@@ -6483,7 +6554,7 @@ class _ApprovedHistoryRealCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             border: Border.all(
-              color: expanded ? _blue : _line,
+              color: HocalistPalette.border(context, expanded ? _blue : _line),
               width: expanded ? 1.5 : 1,
             ),
             borderRadius: BorderRadius.circular(15),
@@ -6495,14 +6566,14 @@ class _ApprovedHistoryRealCard extends StatelessWidget {
                 width: 50,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: _lavender,
+                  color: HocalistPalette.surface(context, _lavender),
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Center(
+                child: Center(
                   child: BuyerGlyphIcon(
                     icon: Icons.devices_other_outlined,
                     slotSize: 30,
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
                 ),
               ),
@@ -6574,7 +6645,7 @@ class _ApprovedHistoryRealCard extends StatelessWidget {
                               : Icons.chevron_right_rounded,
                           slotSize: 20,
                           glyphSize: 20,
-                          color: _blue,
+                          color: HocalistPalette.text(context, _blue),
                         ),
                       ],
                     ),
@@ -6605,14 +6676,14 @@ class _ApprovedHistoryRealSummary extends StatelessWidget {
             width: 66,
             height: 76,
             decoration: BoxDecoration(
-              color: const Color(0xfff6f5ff),
+              color: HocalistPalette.surface(context, const Color(0xfff6f5ff)),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
+            child: Center(
               child: BuyerGlyphIcon(
                 icon: Icons.devices_other_outlined,
                 slotSize: 34,
-                color: _blue,
+                color: HocalistPalette.text(context, _blue),
               ),
             ),
           ),
@@ -6925,10 +6996,10 @@ class _ApprovedBuyerReviewPageState extends State<ApprovedBuyerReviewPage> {
           _ApprovedDetailSurface(
             child: Row(
               children: [
-                const BuyerGlyphIcon(
+                BuyerGlyphIcon(
                   icon: Icons.receipt_long_outlined,
                   slotSize: BuyerIconTokens.feature,
-                  color: _blue,
+                  color: HocalistPalette.text(context, _blue),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -7035,7 +7106,10 @@ class _ApprovedBuyerReviewPageState extends State<ApprovedBuyerReviewPage> {
                         icon: BuyerAssetIcon(
                           asset: 'assets/approved_offers_chat/detail-star.png',
                           slotSize: BuyerIconTokens.card,
-                          color: selected ? null : const Color(0xffc9cbe0),
+                          color: HocalistPalette.textOrNull(
+                            context,
+                            selected ? null : const Color(0xffc9cbe0),
+                          ),
                           colorBlendMode: BlendMode.srcIn,
                         ),
                       );
@@ -7077,7 +7151,12 @@ class _ApprovedBuyerReviewPageState extends State<ApprovedBuyerReviewPage> {
                     ? '$_error Retry to check safely; the same submission '
                           'will not create a duplicate.'
                     : _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(
+                  color: HocalistPalette.text(
+                    context,
+                    Theme.of(context).colorScheme.error,
+                  ),
+                ),
               ),
             ],
             const SizedBox(height: 16),
@@ -7146,7 +7225,10 @@ class _ApprovedBuyerReviewPageState extends State<ApprovedBuyerReviewPage> {
                       icon: BuyerAssetIcon(
                         asset: 'assets/approved_offers_chat/detail-star.png',
                         slotSize: BuyerIconTokens.card,
-                        color: selected ? null : const Color(0xffc9cbe0),
+                        color: HocalistPalette.textOrNull(
+                          context,
+                          selected ? null : const Color(0xffc9cbe0),
+                        ),
                         colorBlendMode: BlendMode.srcIn,
                       ),
                     );
@@ -7267,7 +7349,12 @@ class ApprovedBuyerDealRecoveryPage extends StatelessWidget {
             Text(
               actionError!,
               key: const ValueKey('approved-recovery-error'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              style: TextStyle(
+                color: HocalistPalette.text(
+                  context,
+                  Theme.of(context).colorScheme.error,
+                ),
+              ),
             ),
             if (actionUncertain && onDiscard != null)
               Align(
@@ -7305,7 +7392,7 @@ class _ApprovedBuyerLifecycleScaffold extends StatelessWidget {
       metrics: metrics,
       child: Material(
         key: pageKey,
-        color: const Color(0xfffafbff),
+        color: HocalistPalette.surface(context, const Color(0xfffafbff)),
         child: SafeArea(
           child: Column(
             children: [
@@ -7448,8 +7535,13 @@ class _ApprovedDealHistoryFilters extends StatelessWidget {
               color: filter == selected ? Colors.white : _navy,
             ),
             selectedColor: _blue,
-            backgroundColor: Colors.white,
-            side: BorderSide(color: filter == selected ? _blue : _line),
+            backgroundColor: HocalistPalette.surface(context, Colors.white),
+            side: BorderSide(
+              color: HocalistPalette.border(
+                context,
+                filter == selected ? _blue : _line,
+              ),
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(99),
             ),
@@ -7470,7 +7562,7 @@ class _ApprovedDealHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       borderRadius: BorderRadius.circular(15),
       child: InkWell(
         key: ValueKey('approved-deal-history-record-${record.id}'),
@@ -7479,7 +7571,7 @@ class _ApprovedDealHistoryCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            border: Border.all(color: _line),
+            border: Border.all(color: HocalistPalette.border(context, _line)),
             borderRadius: BorderRadius.circular(15),
           ),
           child: Row(
@@ -7490,17 +7582,17 @@ class _ApprovedDealHistoryCard extends StatelessWidget {
                 height: 58,
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: _lavender,
+                  color: HocalistPalette.surface(context, _lavender),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Image.asset(
                   record.productAsset,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
-                  errorBuilder: (_, _, _) => const BuyerGlyphIcon(
+                  errorBuilder: (_, _, _) => BuyerGlyphIcon(
                     icon: Icons.devices_other_outlined,
                     slotSize: 30,
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
                 ),
               ),
@@ -7557,11 +7649,11 @@ class _ApprovedDealHistoryCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 2),
-                        const BuyerGlyphIcon(
+                        BuyerGlyphIcon(
                           icon: Icons.chevron_right_rounded,
                           slotSize: 20,
                           glyphSize: 20,
-                          color: _blue,
+                          color: HocalistPalette.text(context, _blue),
                         ),
                       ],
                     ),
@@ -7586,7 +7678,10 @@ class _ApprovedDealHistoryBadge extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 96),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: status.color.withValues(alpha: .1),
+        color: HocalistPalette.surface(
+          context,
+          status.color.withValues(alpha: .1),
+        ),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
@@ -7618,10 +7713,10 @@ class _ApprovedDealHistoryEmptyState extends StatelessWidget {
     return _ApprovedDetailSurface(
       child: Column(
         children: [
-          const BuyerGlyphIcon(
+          BuyerGlyphIcon(
             icon: Icons.history_rounded,
             slotSize: BuyerIconTokens.feature,
-            color: _blue,
+            color: HocalistPalette.text(context, _blue),
           ),
           const SizedBox(height: 8),
           Text(
@@ -7672,7 +7767,7 @@ class _ApprovedLifecycleDealSummary extends StatelessWidget {
             height: 76,
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: const Color(0xfff6f5ff),
+              color: HocalistPalette.surface(context, const Color(0xfff6f5ff)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Image.asset(
@@ -7721,7 +7816,10 @@ class _ApprovedLifecycleDealSummary extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: effectiveStatusColor.withValues(alpha: .11),
+                        color: HocalistPalette.surface(
+                          context,
+                          effectiveStatusColor.withValues(alpha: .11),
+                        ),
                         borderRadius: BorderRadius.circular(99),
                       ),
                       child: Text(
@@ -7899,9 +7997,17 @@ class _ApprovedLifecyclePinNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: completed ? const Color(0xffeef9f2) : _lavender,
+        color: HocalistPalette.surface(
+          context,
+          completed ? const Color(0xffeef9f2) : _lavender,
+        ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: completed ? const Color(0xffcdebd7) : _line),
+        border: Border.all(
+          color: HocalistPalette.border(
+            context,
+            completed ? const Color(0xffcdebd7) : _line,
+          ),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7965,7 +8071,7 @@ class _ApprovedLifecycleAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       borderRadius: BorderRadius.circular(15),
       child: InkWell(
         onTap: onTap,
@@ -7973,7 +8079,7 @@ class _ApprovedLifecycleAction extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
-            border: Border.all(color: _line),
+            border: Border.all(color: HocalistPalette.border(context, _line)),
             borderRadius: BorderRadius.circular(15),
           ),
           child: Row(
@@ -7982,7 +8088,10 @@ class _ApprovedLifecycleAction extends StatelessWidget {
                 asset: 'assets/approved_offers_chat/$asset',
                 surfaceSize: 42,
                 iconSize: 26,
-                backgroundColor: accent.withValues(alpha: .1),
+                backgroundColor: HocalistPalette.surface(
+                  context,
+                  accent.withValues(alpha: .1),
+                ),
                 shape: BuyerIconSurfaceShape.circle,
               ),
               const SizedBox(width: 11),
@@ -8013,11 +8122,11 @@ class _ApprovedLifecycleAction extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 5),
-              const BuyerGlyphIcon(
+              BuyerGlyphIcon(
                 icon: Icons.chevron_right_rounded,
                 slotSize: BuyerIconTokens.control,
                 glyphSize: BuyerIconTokens.control,
-                color: _blue,
+                color: HocalistPalette.text(context, _blue),
               ),
             ],
           ),
@@ -8095,7 +8204,7 @@ class _ApprovedHistoryMetric extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
-        color: _lavender,
+        color: HocalistPalette.surface(context, _lavender),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -8130,7 +8239,7 @@ class _ApprovedHistorySupportNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xfffff7e8),
+        color: HocalistPalette.surface(context, const Color(0xfffff7e8)),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
@@ -8180,9 +8289,9 @@ class _ApprovedDetailSurface extends StatelessWidget {
     return Container(
       padding: metrics.geometryInsets(padding),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(metrics.geometry(16)),
-        border: Border.all(color: _line),
+        border: Border.all(color: HocalistPalette.border(context, _line)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0c00036c),
@@ -8606,8 +8715,8 @@ class _ApprovedRewardCard extends StatelessWidget {
           TextButton(
             onPressed: onTap,
             style: TextButton.styleFrom(
-              backgroundColor: _lavender,
-              foregroundColor: _blue,
+              backgroundColor: HocalistPalette.surface(context, _lavender),
+              foregroundColor: HocalistPalette.text(context, _blue),
               minimumSize: metrics.geometrySize(const Size(0, 30)),
               padding: metrics.geometryInsets(
                 const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
@@ -8699,7 +8808,7 @@ class _ApprovedPendingCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: .992,
                 minHeight: metrics.geometry(6),
-                backgroundColor: _lavender,
+                backgroundColor: HocalistPalette.surface(context, _lavender),
                 valueColor: AlwaysStoppedAnimation<Color>(_blue),
               ),
             ),
@@ -8733,7 +8842,7 @@ class _ApprovedPostRequest extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     return Material(
-      color: const Color(0xfffbfaff),
+      color: HocalistPalette.surface(context, const Color(0xfffbfaff)),
       borderRadius: BorderRadius.circular(metrics.geometry(8)),
       child: InkWell(
         onTap: onTap,
@@ -8746,7 +8855,7 @@ class _ApprovedPostRequest extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(metrics.geometry(8)),
             border: Border.all(
-              color: const Color(0xffa997ff),
+              color: HocalistPalette.border(context, const Color(0xffa997ff)),
               width: metrics.geometry(1),
             ),
           ),
@@ -8805,7 +8914,7 @@ class _ApprovedDashboardNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.geometry(10)),
       decoration: BoxDecoration(
-        color: _lavender,
+        color: HocalistPalette.surface(context, _lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(9)),
       ),
       child: Column(
@@ -8828,7 +8937,7 @@ class _ApprovedDashboardNotice extends StatelessWidget {
               style: TextButton.styleFrom(
                 minimumSize: Size(0, metrics.geometry(32)),
                 padding: EdgeInsets.zero,
-                foregroundColor: _blue,
+                foregroundColor: HocalistPalette.text(context, _blue),
               ),
               child: const Text('Retry'),
             ),
@@ -8910,7 +9019,7 @@ class _ApprovedEmptySectionCard extends StatelessWidget {
               child: TextButton(
                 onPressed: onAction,
                 style: TextButton.styleFrom(
-                  backgroundColor: _lavender,
+                  backgroundColor: HocalistPalette.surface(context, _lavender),
                   minimumSize: Size(0, metrics.geometry(34)),
                   padding: metrics.geometryInsets(
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -8994,7 +9103,7 @@ class _ApprovedActiveRequest extends StatelessWidget {
         final action = TextButton(
           onPressed: onOffers,
           style: TextButton.styleFrom(
-            backgroundColor: _lavender,
+            backgroundColor: HocalistPalette.surface(context, _lavender),
             minimumSize: Size.zero,
             padding: metrics.geometryInsets(
               const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -9249,7 +9358,7 @@ class _ApprovedMeetingRow extends StatelessWidget {
           width: metrics.geometry(39),
           padding: EdgeInsets.only(bottom: metrics.geometry(4)),
           decoration: BoxDecoration(
-            color: const Color(0xfff2f1ff),
+            color: HocalistPalette.surface(context, const Color(0xfff2f1ff)),
             borderRadius: BorderRadius.circular(metrics.geometry(6)),
           ),
           child: Column(
@@ -9258,7 +9367,7 @@ class _ApprovedMeetingRow extends StatelessWidget {
                 width: double.infinity,
                 padding: EdgeInsets.symmetric(vertical: metrics.geometry(2)),
                 decoration: BoxDecoration(
-                  color: _blue,
+                  color: HocalistPalette.surface(context, _blue),
                   borderRadius: BorderRadius.vertical(
                     top: Radius.circular(metrics.geometry(6)),
                   ),
@@ -9292,7 +9401,7 @@ class _ApprovedMeetingRow extends StatelessWidget {
         );
         final identity = CircleAvatar(
           radius: metrics.geometry(17),
-          backgroundColor: Colors.black,
+          backgroundColor: HocalistPalette.surface(context, Colors.black),
           child: Text(
             meeting.initials,
             style: _text(
@@ -9327,7 +9436,7 @@ class _ApprovedMeetingRow extends StatelessWidget {
                     icon: Icons.verified,
                     slotSize: metrics.geometry(11),
                     glyphSize: metrics.geometry(11),
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
                 ],
               ),
@@ -9344,7 +9453,7 @@ class _ApprovedMeetingRow extends StatelessWidget {
                     icon: Icons.location_on,
                     slotSize: metrics.geometry(9),
                     glyphSize: metrics.geometry(9),
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
                   SizedBox(width: metrics.geometry(2)),
                   Expanded(
@@ -9364,7 +9473,7 @@ class _ApprovedMeetingRow extends StatelessWidget {
                     icon: Icons.schedule,
                     slotSize: metrics.geometry(9),
                     glyphSize: metrics.geometry(9),
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
                   SizedBox(width: metrics.geometry(2)),
                   Expanded(
@@ -9389,7 +9498,10 @@ class _ApprovedMeetingRow extends StatelessWidget {
                 vertical: metrics.geometry(3),
               ),
               decoration: BoxDecoration(
-                color: meeting.statusColor.withValues(alpha: 0.1),
+                color: HocalistPalette.surface(
+                  context,
+                  meeting.statusColor.withValues(alpha: 0.1),
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(999)),
               ),
               child: Text(
@@ -9661,8 +9773,8 @@ class _ApprovedRealActivityPanel extends StatelessWidget {
                         key: const ValueKey('buyerActivityUnreadDot'),
                         width: metrics.geometry(7),
                         height: metrics.geometry(7),
-                        decoration: const BoxDecoration(
-                          color: _blue,
+                        decoration: BoxDecoration(
+                          color: HocalistPalette.surface(context, _blue),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -9700,7 +9812,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
       padding: metrics.geometryInsets(const EdgeInsets.fromLTRB(10, 8, 10, 8)),
       constraints: BoxConstraints(minHeight: metrics.geometry(64)),
       decoration: BoxDecoration(
-        color: _lavender,
+        color: HocalistPalette.surface(context, _lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(8)),
       ),
       child: LayoutBuilder(
@@ -9942,7 +10054,7 @@ TextStyle _text(
   return Theme.of(context).textTheme.bodyMedium!.copyWith(
     fontSize: metrics.fontSize(size),
     fontWeight: weight,
-    color: color,
+    color: HocalistPalette.text(context, color),
     height: height,
     letterSpacing: 0,
   );

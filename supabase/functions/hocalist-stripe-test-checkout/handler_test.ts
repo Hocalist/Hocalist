@@ -12,6 +12,7 @@ const CHECKOUT = "2f0c9d1a-0000-4000-8000-000000000003";
 type Stored = { rpc: Array<{ name: string; body: ObjectMap }>; stripe: Array<{ path: string; params?: Record<string, string>; key?: string }> };
 
 class FakeBackend {
+  userEmail(): string | undefined { return undefined; }
   calls: Stored = { rpc: [], stripe: [] };
   userResult: string | Error = USER;
   rpcHandlers: Record<string, (body: ObjectMap) => unknown> = {};

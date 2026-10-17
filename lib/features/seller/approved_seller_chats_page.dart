@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
 
@@ -222,7 +223,10 @@ class _ApprovedSellerChatsPageState extends State<ApprovedSellerChatsPage> {
                 hintStyle: sellerInputPlaceholder(metrics),
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: SellerUiColors.lavender,
+                fillColor: HocalistPalette.surface(
+                  context,
+                  SellerUiColors.lavender,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(metrics.geometry(11)),
                   borderSide: BorderSide.none,
@@ -316,8 +320,10 @@ class _SellerChatsEmptyCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(16)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -326,14 +332,17 @@ class _SellerChatsEmptyCard extends StatelessWidget {
             width: metrics.artSize(48),
             height: metrics.artSize(48),
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: SellerUiColors.lavender,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, SellerUiColors.lavender),
               shape: BoxShape.circle,
             ),
             child: Icon(
               filtered ? Icons.search_off_rounded : Icons.forum_outlined,
               size: metrics.artSize(24),
-              color: SellerUiColors.primaryBright,
+              color: HocalistPalette.text(
+                context,
+                SellerUiColors.primaryBright,
+              ),
             ),
           ),
           SizedBox(height: metrics.spacing(10)),
@@ -379,7 +388,7 @@ class _SellerChatsNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(12)),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
       ),
       child: Column(
@@ -402,7 +411,10 @@ class _SellerChatsNotice extends StatelessWidget {
               style: TextButton.styleFrom(
                 minimumSize: Size(0, metrics.geometry(34)),
                 padding: EdgeInsets.zero,
-                foregroundColor: SellerUiColors.primaryBright,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
               child: const Text('Retry'),
             ),
@@ -425,8 +437,10 @@ class _SellerChatsEmptyState extends StatelessWidget {
       key: const Key('sellerChatsEmptyState'),
       padding: EdgeInsets.all(metrics.spacing(20)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -434,7 +448,7 @@ class _SellerChatsEmptyState extends StatelessWidget {
           Icon(
             Icons.search_off_rounded,
             size: metrics.artSize(34),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(height: metrics.spacing(7)),
           Text(
@@ -458,9 +472,11 @@ class _SellerChatCard extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
-          color: SellerUiColors.white,
+          color: HocalistPalette.surface(context, SellerUiColors.white),
           shape: RoundedRectangleBorder(
-            side: const BorderSide(color: SellerUiColors.line),
+            side: BorderSide(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(11)),
           ),
           child: InkWell(
@@ -475,7 +491,10 @@ class _SellerChatCard extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: metrics.artSize(25),
-                        backgroundColor: chat.avatarColor,
+                        backgroundColor: HocalistPalette.surface(
+                          context,
+                          chat.avatarColor,
+                        ),
                         child: Text(
                           chat.initials,
                           style: sellerText(
@@ -494,9 +513,18 @@ class _SellerChatCard extends StatelessWidget {
                             width: metrics.geometry(11),
                             height: metrics.geometry(11),
                             decoration: BoxDecoration(
-                              color: SellerUiColors.green,
+                              color: HocalistPalette.surface(
+                                context,
+                                SellerUiColors.green,
+                              ),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(
+                                color: HocalistPalette.border(
+                                  context,
+                                  Colors.white,
+                                ),
+                                width: 2,
+                              ),
                             ),
                           ),
                         ),
@@ -558,7 +586,10 @@ class _SellerChatCard extends StatelessWidget {
                     SizedBox(width: metrics.geometry(7)),
                     CircleAvatar(
                       radius: metrics.geometry(10),
-                      backgroundColor: SellerUiColors.primaryBright,
+                      backgroundColor: HocalistPalette.surface(
+                        context,
+                        SellerUiColors.primaryBright,
+                      ),
                       child: Text(
                         '${chat.unread}',
                         style: sellerText(

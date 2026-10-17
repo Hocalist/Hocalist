@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 
 /// Quiet reload action that can sit beside supporting copy.
@@ -19,7 +20,9 @@ class HocalistReloadLink extends StatelessWidget {
     child: TextButton(
       onPressed: loading ? null : onPressed,
       style: TextButton.styleFrom(
-        foregroundColor: color,
+        foregroundColor: color == null
+            ? null
+            : HocalistPalette.text(context, color!),
         padding: const EdgeInsets.symmetric(horizontal: 6),
         minimumSize: const Size(48, 40),
         textStyle: const TextStyle(

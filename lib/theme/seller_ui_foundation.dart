@@ -6,6 +6,7 @@ import '../components/hocalist_motion.dart';
 
 import '../features/approved/approved_replica_metrics.dart';
 import 'accessibility_visuals.dart';
+import 'adaptive_palette.dart';
 
 export '../features/approved/approved_replica_metrics.dart';
 
@@ -72,7 +73,7 @@ TextStyle sellerText(
   return TextStyle(
     fontSize: metrics.fontSize(size),
     fontWeight: weight,
-    color: color,
+    color: HocalistPalette.textFor(metrics.brightness, color),
     height: height,
     letterSpacing: letterSpacing,
   );
@@ -106,12 +107,15 @@ InputDecoration sellerInputDecoration(
   final metrics =
       ApprovedReplicaScope.maybeOf(context) ??
       ApprovedReplicaMetrics.resolve(
+        brightness: Theme.of(context).brightness,
         availableWidth: media.size.width,
         textScaler: media.textScaler,
       );
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(metrics.geometry(12)),
-    borderSide: const BorderSide(color: SellerUiColors.lavenderBorder),
+    borderSide: BorderSide(
+      color: HocalistPalette.border(context, SellerUiColors.lavenderBorder),
+    ),
   );
   return InputDecoration(
     isDense: true,
@@ -120,7 +124,7 @@ InputDecoration sellerInputDecoration(
     labelText: labelText,
     prefixIcon: prefixIcon,
     filled: true,
-    fillColor: SellerUiColors.lavender,
+    fillColor: HocalistPalette.surface(context, SellerUiColors.lavender),
     contentPadding: metrics.geometryInsets(
       const EdgeInsets.fromLTRB(14, 12, 14, 12),
     ),
@@ -136,7 +140,7 @@ InputDecoration sellerInputDecoration(
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(12)),
       borderSide: BorderSide(
-        color: SellerUiColors.primaryBright,
+        color: HocalistPalette.border(context, SellerUiColors.primaryBright),
         width: metrics.geometry(1.5),
       ),
     ),
@@ -159,7 +163,7 @@ class SellerResponsivePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: backgroundColor,
+      color: HocalistPalette.surface(context, backgroundColor),
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -168,6 +172,7 @@ class SellerResponsivePage extends StatelessWidget {
               ApprovedReplicaMetrics.supportedViewportMaxWidth,
             );
             final metrics = ApprovedReplicaMetrics.resolve(
+              brightness: Theme.of(context).brightness,
               availableWidth: availableWidth,
               textScaler: MediaQuery.textScalerOf(context),
             );
@@ -217,6 +222,7 @@ class SellerPrimaryButton extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -237,9 +243,12 @@ class SellerPrimaryButton extends StatelessWidget {
           constraints: BoxConstraints(minHeight: resolvedMinimumHeight),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: highContrast
-                  ? accessibility.backgroundOr(SellerUiColors.primary)
-                  : null,
+              color: HocalistPalette.surfaceOrNull(
+                context,
+                highContrast
+                    ? accessibility.backgroundOr(SellerUiColors.primary)
+                    : null,
+              ),
               gradient: highContrast
                   ? null
                   : LinearGradient(
@@ -254,7 +263,7 @@ class SellerPrimaryButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(radius),
             ),
             child: Material(
-              color: Colors.transparent,
+              color: HocalistPalette.surface(context, Colors.transparent),
               child: InkWell(
                 onTap: onPressed,
                 borderRadius: BorderRadius.circular(radius),
@@ -329,6 +338,7 @@ class SellerSecondaryButton extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -342,16 +352,22 @@ class SellerSecondaryButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
-            foregroundColor: SellerUiColors.primaryBright,
+            foregroundColor: HocalistPalette.text(
+              context,
+              SellerUiColors.primaryBright,
+            ),
             minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
             padding: EdgeInsets.symmetric(
               horizontal: metrics.geometry(compact ? 6 : 18),
               vertical: metrics.geometry(compact ? 7 : 9),
             ),
             side: BorderSide(
-              color: accessibility.usesHighContrastButton
-                  ? accessibility.buttonBackground
-                  : SellerUiColors.primaryBright,
+              color: HocalistPalette.border(
+                context,
+                accessibility.usesHighContrastButton
+                    ? accessibility.buttonBackground
+                    : SellerUiColors.primaryBright,
+              ),
               width: accessibility.usesHighContrastButton
                   ? accessibility.buttonBorderWidth
                   : 1,
@@ -402,6 +418,7 @@ class SellerModalSheet extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -410,7 +427,7 @@ class SellerModalSheet extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
         child: Material(
-          color: SellerUiColors.white,
+          color: HocalistPalette.surface(context, SellerUiColors.white),
           borderRadius: BorderRadius.vertical(
             top: Radius.circular(metrics.geometry(24)),
           ),
@@ -433,7 +450,10 @@ class SellerModalSheet extends StatelessWidget {
                       width: metrics.geometry(52),
                       height: metrics.geometry(5),
                       decoration: BoxDecoration(
-                        color: const Color(0xffc6c1dd),
+                        color: HocalistPalette.surface(
+                          context,
+                          const Color(0xffc6c1dd),
+                        ),
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
@@ -445,14 +465,17 @@ class SellerModalSheet extends StatelessWidget {
                       Container(
                         width: metrics.artSize(34),
                         height: metrics.artSize(34),
-                        decoration: const BoxDecoration(
-                          color: SellerUiColors.lavender,
+                        decoration: BoxDecoration(
+                          color: HocalistPalette.surface(
+                            context,
+                            SellerUiColors.lavender,
+                          ),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           icon,
                           size: metrics.artSize(18),
-                          color: accentColor,
+                          color: HocalistPalette.text(context, accentColor),
                         ),
                       ),
                       SizedBox(width: metrics.spacing(10)),
@@ -551,6 +574,7 @@ class SellerStateNotice extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -590,9 +614,9 @@ class SellerStateNotice extends StatelessWidget {
         width: double.infinity,
         padding: metrics.geometryInsets(EdgeInsets.all(narrow ? 12 : 14)),
         decoration: BoxDecoration(
-          color: background,
+          color: HocalistPalette.surface(context, background),
           borderRadius: BorderRadius.circular(metrics.geometry(14)),
-          border: Border.all(color: border),
+          border: Border.all(color: HocalistPalette.border(context, border)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -604,15 +628,20 @@ class SellerStateNotice extends StatelessWidget {
                   width: metrics.artSize(32),
                   height: metrics.artSize(32),
                   decoration: BoxDecoration(
-                    color: SellerUiColors.white,
+                    color: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.white,
+                    ),
                     shape: BoxShape.circle,
-                    border: Border.all(color: border),
+                    border: Border.all(
+                      color: HocalistPalette.border(context, border),
+                    ),
                   ),
                   child: Center(
                     child: Icon(
                       icon,
                       size: metrics.artSize(17),
-                      color: foreground,
+                      color: HocalistPalette.text(context, foreground),
                     ),
                   ),
                 ),
@@ -692,6 +721,7 @@ class SellerStatusChip extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -735,10 +765,16 @@ class SellerStatusChip extends StatelessWidget {
           vertical: metrics.spacing(4),
         ),
         decoration: BoxDecoration(
-          color: selected ? SellerUiColors.lavender : background,
+          color: HocalistPalette.surface(
+            context,
+            selected ? SellerUiColors.lavender : background,
+          ),
           borderRadius: BorderRadius.circular(99),
           border: Border.all(
-            color: selected ? SellerUiColors.primaryBright : border,
+            color: HocalistPalette.border(
+              context,
+              selected ? SellerUiColors.primaryBright : border,
+            ),
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -749,7 +785,10 @@ class SellerStatusChip extends StatelessWidget {
               Icon(
                 icon,
                 size: metrics.artSize(13),
-                color: selected ? SellerUiColors.primaryBright : foreground,
+                color: HocalistPalette.text(
+                  context,
+                  selected ? SellerUiColors.primaryBright : foreground,
+                ),
               ),
               SizedBox(width: metrics.spacing(4)),
             ],
@@ -796,6 +835,7 @@ class SellerMetricTile extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -858,6 +898,7 @@ class SellerSectionHeading extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -882,7 +923,10 @@ class SellerSectionHeading extends StatelessWidget {
               key: actionKey,
               onPressed: onAction,
               style: TextButton.styleFrom(
-                foregroundColor: SellerUiColors.primaryBright,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
                 padding: EdgeInsets.symmetric(horizontal: metrics.spacing(8)),
                 minimumSize: const Size(48, 48),
                 tapTargetSize: MaterialTapTargetSize.padded,
@@ -921,6 +965,7 @@ class SellerProgressStrip extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -946,7 +991,10 @@ class SellerProgressStrip extends StatelessWidget {
             label: 'Loading',
             child: LinearProgressIndicator(
               minHeight: metrics.geometry(5),
-              backgroundColor: SellerUiColors.lavender,
+              backgroundColor: HocalistPalette.surface(
+                context,
+                SellerUiColors.lavender,
+              ),
               valueColor: const AlwaysStoppedAnimation<Color>(
                 SellerUiColors.primaryBright,
               ),
