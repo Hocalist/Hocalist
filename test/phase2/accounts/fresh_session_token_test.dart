@@ -15,6 +15,26 @@ import 'package:hocalist/data/phase2/providers/stripe_test_billing_service.dart'
 import 'package:hocalist/data/phase2/providers/hocalist_push_service.dart';
 
 void main() {
+  test(
+    'billing handoff refreshes a valid but nearly expired app session',
+    () async {
+      final backend = SyntheticAccountBackend();
+      final client = buildSyntheticSupabaseClient(backend.client());
+      addTearDown(client.dispose);
+      await client.auth.setInitialSession(
+        jsonEncode(backend.issueSession(syntheticUserA)),
+      );
+      final oldToken = client.auth.currentSession!.accessToken;
+      client.auth.currentSession!.expiresAt =
+          DateTime.now().millisecondsSinceEpoch ~/ 1000 + 120;
+      final fence = ProviderSessionFence(client);
+      expect(
+        await fence.freshToken(minimumValidity: const Duration(minutes: 30)),
+        isNot(oldToken),
+      );
+      expect(client.auth.currentUser!.id, syntheticUserA);
+    },
+  );
   for (final provider in ['billing', 'notification lookup']) {
     test('$provider dispatch pins the refreshed Bearer token', () async {
       final backend = SyntheticAccountBackend();
