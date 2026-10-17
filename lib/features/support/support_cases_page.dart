@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_section_intro.dart';
@@ -123,8 +124,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
     setState(() {
       _sending = false;
       if (result.isFailure) {
-        _formError =
-            widget.generalHelp ? 'The question was not confirmed. Retry sends the same question safely.' : 'The report was not confirmed. Retry sends the same report safely.';
+        _formError = widget.generalHelp
+            ? 'The question was not confirmed. Retry sends the same question safely.'
+            : 'The report was not confirmed. Retry sends the same report safely.';
       } else {
         _ack = result.valueOrNull;
         _intent = null;
@@ -139,6 +141,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -168,9 +171,17 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
             Container(
               padding: metrics.geometryInsets(const EdgeInsets.all(12)),
               decoration: BoxDecoration(
-                color: BuyerUiTokens.softSurface,
+                color: HocalistPalette.surface(
+                  context,
+                  BuyerUiTokens.softSurface,
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(14)),
-                border: Border.all(color: const Color(0xffd9d5ff)),
+                border: Border.all(
+                  color: HocalistPalette.border(
+                    context,
+                    const Color(0xffd9d5ff),
+                  ),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +237,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
               key: const Key('supportAcknowledged'),
               icon: Icons.task_alt_rounded,
               tone: BuyerNoticeTone.success,
-              title: widget.generalHelp ? 'Question received' : 'Report received',
+              title: widget.generalHelp
+                  ? 'Question received'
+                  : 'Report received',
               body: 'Case ID: $_ack',
             ),
             SizedBox(height: metrics.spacing(12)),
@@ -243,8 +256,12 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
               title: _retryDiscarded
                   ? 'Retry discarded'
                   : _intent != null
-                  ? (widget.generalHelp ? 'Question not confirmed' : 'Report not confirmed')
-                  : (widget.generalHelp ? 'Check your question' : 'Check your report'),
+                  ? (widget.generalHelp
+                        ? 'Question not confirmed'
+                        : 'Report not confirmed')
+                  : (widget.generalHelp
+                        ? 'Check your question'
+                        : 'Check your report'),
               body: _formError,
             ),
             SizedBox(height: metrics.spacing(12)),
@@ -262,7 +279,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                       context: context,
                       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
                       isScrollControlled: true,
-                      backgroundColor: BuyerUiTokens.surface,
+                      backgroundColor: HocalistPalette.surface(
+                        context,
+                        BuyerUiTokens.surface,
+                      ),
                       shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.vertical(
                           top: Radius.circular(24),
@@ -296,8 +316,11 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(12),
-                                              side: const BorderSide(
-                                                color: BuyerUiTokens.border,
+                                              side: BorderSide(
+                                                color: HocalistPalette.border(
+                                                  context,
+                                                  BuyerUiTokens.border,
+                                                ),
                                               ),
                                             ),
                                             selected: _reason == reason.code,
@@ -309,7 +332,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                                                   ? Icons.radio_button_checked
                                                   : Icons
                                                         .radio_button_unchecked,
-                                              color: BuyerUiTokens.action,
+                                              color: HocalistPalette.text(
+                                                context,
+                                                BuyerUiTokens.action,
+                                              ),
                                             ),
                                             onTap: () => Navigator.pop(
                                               sheetContext,
@@ -393,9 +419,17 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
               child: Container(
                 padding: metrics.geometryInsets(const EdgeInsets.all(14)),
                 decoration: BoxDecoration(
-                  color: BuyerUiTokens.surface,
+                  color: HocalistPalette.surface(
+                    context,
+                    BuyerUiTokens.surface,
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(14)),
-                  border: Border.all(color: BuyerUiTokens.border),
+                  border: Border.all(
+                    color: HocalistPalette.border(
+                      context,
+                      BuyerUiTokens.border,
+                    ),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,7 +486,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                           const EdgeInsets.all(10),
                         ),
                         decoration: BoxDecoration(
-                          color: BuyerUiTokens.softSurface,
+                          color: HocalistPalette.surface(
+                            context,
+                            BuyerUiTokens.softSurface,
+                          ),
                           borderRadius: BorderRadius.circular(
                             metrics.geometry(12),
                           ),

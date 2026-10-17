@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import '../../domain/phase2/profiles.dart' show NotificationPreferences;
 import '../../domain/phase2/schedule.dart';
 import '../../theme/input_foundation.dart';
 import '../../components/hocalist_motion.dart';
+import '../../components/notification_preference_edits.dart';
 import '../../components/hocalist_section_tabs.dart';
 import '../../theme/seller_ui_foundation.dart';
 import '../media/private_remote_image.dart';
@@ -131,10 +133,10 @@ class ApprovedSellerProfilePage extends StatelessWidget {
           key: const Key('sellerProfileEdit'),
           label: 'Edit profile',
           onPressed: onEditProfile,
-          leading: const Icon(
+          leading: Icon(
             Icons.edit_outlined,
             size: 18,
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
           ),
         ),
       ],
@@ -502,10 +504,10 @@ class ApprovedSellerEditProfilePage extends StatelessWidget {
               key: const Key('sellerSaveProfile'),
               label: 'Save profile',
               onPressed: onDone,
-              leading: const Icon(
+              leading: Icon(
                 Icons.check_circle_outline,
                 size: 18,
-                color: Colors.white,
+                color: HocalistPalette.text(context, Colors.white),
               ),
             ),
         ],
@@ -615,7 +617,7 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
       context: context,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: HocalistPalette.surface(context, Colors.transparent),
       builder: (context) =>
           _SellerHelpAnswerSheet(title: title, answer: answer),
     );
@@ -626,7 +628,7 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
       context: context,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: HocalistPalette.surface(context, Colors.transparent),
       builder: (context) => _SellerSupportFormSheet(safety: safety),
     );
     if (saved == true && context.mounted) {
@@ -751,6 +753,7 @@ class _SellerHelpAnswerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -796,6 +799,7 @@ class _SellerSupportFormSheetState extends State<_SellerSupportFormSheet> {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -933,6 +937,7 @@ class _SellerSheetField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -969,6 +974,7 @@ InputDecoration _sellerSheetInputDecoration(
   String hintText,
 ) {
   final metrics = ApprovedReplicaMetrics.resolve(
+    brightness: Theme.of(context).brightness,
     availableWidth: MediaQuery.sizeOf(context).width,
     textScaler: MediaQuery.textScalerOf(context),
   );
@@ -976,21 +982,25 @@ InputDecoration _sellerSheetInputDecoration(
     hintText: hintText,
     hintStyle: sellerText(metrics, 11.5, color: SellerUiColors.muted),
     filled: true,
-    fillColor: const Color(0xfff7f7ff),
+    fillColor: HocalistPalette.surface(context, const Color(0xfff7f7ff)),
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: SellerUiColors.line),
+      borderSide: BorderSide(
+        color: HocalistPalette.border(context, SellerUiColors.line),
+      ),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: SellerUiColors.line),
+      borderSide: BorderSide(
+        color: HocalistPalette.border(context, SellerUiColors.line),
+      ),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(
-        color: SellerUiColors.primaryBright,
+      borderSide: BorderSide(
+        color: HocalistPalette.border(context, SellerUiColors.primaryBright),
         width: 1.4,
       ),
     ),
@@ -1006,19 +1016,24 @@ class _SellerSheetNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 17, color: SellerUiColors.primaryBright),
+          Icon(
+            icon,
+            size: 17,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1056,13 +1071,16 @@ class _SellerSheetActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
     return Material(
-      color: const Color(0xfff7f7ff),
+      color: HocalistPalette.surface(context, const Color(0xfff7f7ff)),
       shape: RoundedRectangleBorder(
-        side: const BorderSide(color: SellerUiColors.line),
+        side: BorderSide(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
@@ -1072,7 +1090,11 @@ class _SellerSheetActionRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           child: Row(
             children: [
-              Icon(icon, color: accentColor, size: 20),
+              Icon(
+                icon,
+                color: HocalistPalette.text(context, accentColor),
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -1099,7 +1121,11 @@ class _SellerSheetActionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, size: 18, color: accentColor),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: HocalistPalette.text(context, accentColor),
+              ),
             ],
           ),
         ),
@@ -1366,7 +1392,12 @@ class _ApprovedSellerNotificationsPageState
                       selected: _filter == filter,
                       onSelected: (_) => setState(() => _filter = filter),
                       selectedColor: SellerUiColors.lavender,
-                      side: const BorderSide(color: SellerUiColors.line),
+                      side: BorderSide(
+                        color: HocalistPalette.border(
+                          context,
+                          SellerUiColors.line,
+                        ),
+                      ),
                       labelStyle: sellerText(
                         metrics,
                         11.5,
@@ -1452,7 +1483,10 @@ class _ApprovedSellerNotificationsPageState
                               ? Icons.filter_alt_off_outlined
                               : Icons.notifications_none_rounded,
                           size: metrics.artSize(26),
-                          color: SellerUiColors.muted,
+                          color: HocalistPalette.text(
+                            context,
+                            SellerUiColors.muted,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -1544,13 +1578,19 @@ class _SellerNotificationRow extends StatelessWidget {
                 Container(
                   width: metrics.artSize(36),
                   height: metrics.artSize(36),
-                  decoration: const BoxDecoration(
-                    color: SellerUiColors.lavender,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.lavender,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     item.icon,
-                    color: SellerUiColors.primaryBright,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
                     size: metrics.artSize(18),
                   ),
                 ),
@@ -1561,8 +1601,11 @@ class _SellerNotificationRow extends StatelessWidget {
                     child: Container(
                       width: metrics.artSize(8),
                       height: metrics.artSize(8),
-                      decoration: const BoxDecoration(
-                        color: SellerUiColors.red,
+                      decoration: BoxDecoration(
+                        color: HocalistPalette.surface(
+                          context,
+                          SellerUiColors.red,
+                        ),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -1608,7 +1651,7 @@ class _SellerNotificationRow extends StatelessWidget {
             Icon(
               Icons.chevron_right,
               size: metrics.artSize(19),
-              color: SellerUiColors.muted,
+              color: HocalistPalette.text(context, SellerUiColors.muted),
             ),
           ],
         ),
@@ -1625,6 +1668,7 @@ class _SellerNotificationDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -1638,9 +1682,11 @@ class _SellerNotificationDetailsSheet extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xfff7f7ff),
+            color: HocalistPalette.surface(context, const Color(0xfff7f7ff)),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: SellerUiColors.line),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
           ),
           child: Text(
             item.body,
@@ -1675,8 +1721,18 @@ class _ApprovedSellerNotificationPreferencesPageState
   bool messages = true;
   bool meetings = true;
   bool safety = true;
-  bool _saving = false;
-  String? _saveError;
+  late final _edits = NotificationPreferenceEdits(
+    read: () => widget.repository!.notificationPreferences!.preferences,
+    save: (next) async {
+      final result = await widget.repository!.updateNotificationPreferences(
+        next,
+      );
+      return result.isSuccess ? null : result.error;
+    },
+    changed: () {
+      if (mounted) setState(() {});
+    },
+  );
 
   bool get _realMode => widget.repository?.isNotificationsBacked ?? false;
 
@@ -1689,6 +1745,7 @@ class _ApprovedSellerNotificationPreferencesPageState
 
   @override
   void dispose() {
+    _edits.dispose();
     widget.repository?.removeListener(_onRepositoryChanged);
     super.dispose();
   }
@@ -1717,20 +1774,6 @@ class _ApprovedSellerNotificationPreferencesPageState
 
   /// Saves one server-side change at the carried revision. A failed write keeps
   /// the previous values and reports the error.
-  Future<void> _updateRemote(NotificationPreferences next) async {
-    final repository = widget.repository;
-    if (repository == null || _saving) return;
-    setState(() {
-      _saving = true;
-      _saveError = null;
-    });
-    final result = await repository.updateNotificationPreferences(next);
-    if (!mounted) return;
-    setState(() {
-      _saving = false;
-      _saveError = result.isSuccess ? null : result.error;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1791,24 +1834,26 @@ class _ApprovedSellerNotificationPreferencesPageState
                           ? 'New and updated buyer requests relevant to your Seller profile.'
                           : 'Lead notifications are not connected yet.')
                     : 'New buyer requests that match your Seller profile.',
-                value: _realMode ? (supportsLeads && preferences.leads) : leads,
-                enabled: !_saving && (!_realMode || supportsLeads),
+                value: _realMode
+                    ? (supportsLeads &&
+                          _edits.value('leads', preferences.leads))
+                    : leads,
+                enabled:
+                    !_edits.pending('leads') && (!_realMode || supportsLeads),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(leads: value)),
-                      )
+                    ? unawaited(_edits.update('leads', value))
                     : unawaited(_update(_leadsKey, value, () => leads = value)),
               ),
               _SellerPreferenceSwitch(
                 icon: Icons.local_offer_outlined,
                 title: 'Offer updates',
                 body: 'Offer changes, buyer selections, and deal updates.',
-                value: _realMode ? preferences.offers : offers,
-                enabled: !_saving,
+                value: _realMode
+                    ? _edits.value('offers', preferences.offers)
+                    : offers,
+                enabled: !_edits.pending('offers'),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(offers: value)),
-                      )
+                    ? unawaited(_edits.update('offers', value))
                     : unawaited(
                         _update(_offersKey, value, () => offers = value),
                       ),
@@ -1817,12 +1862,12 @@ class _ApprovedSellerNotificationPreferencesPageState
                 icon: Icons.chat_bubble_outline,
                 title: 'Messages & chats',
                 body: 'Messages from buyers and active conversation updates.',
-                value: _realMode ? preferences.messages : messages,
-                enabled: !_saving,
+                value: _realMode
+                    ? _edits.value('messages', preferences.messages)
+                    : messages,
+                enabled: !_edits.pending('messages'),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(messages: value)),
-                      )
+                    ? unawaited(_edits.update('messages', value))
                     : unawaited(
                         _update(_messagesKey, value, () => messages = value),
                       ),
@@ -1832,12 +1877,12 @@ class _ApprovedSellerNotificationPreferencesPageState
                 title: 'Meetings',
                 body:
                     'Meeting reminders, confirmations, and reschedule requests.',
-                value: _realMode ? preferences.deals : meetings,
-                enabled: !_saving,
+                value: _realMode
+                    ? _edits.value('deals', preferences.deals)
+                    : meetings,
+                enabled: !_edits.pending('deals'),
                 onChanged: (value) => _realMode
-                    ? unawaited(
-                        _updateRemote(preferences.copyWith(deals: value)),
-                      )
+                    ? unawaited(_edits.update('deals', value))
                     : unawaited(
                         _update(_meetingsKey, value, () => meetings = value),
                       ),
@@ -1849,15 +1894,15 @@ class _ApprovedSellerNotificationPreferencesPageState
                     ? 'Security, verification, and important safety notices. Always on.'
                     : 'Security, verification, and important safety notices.',
                 value: _realMode ? true : safety,
-                enabled: !_saving && !_realMode,
+                enabled: !_realMode,
                 onChanged: (value) =>
                     unawaited(_update(_safetyKey, value, () => safety = value)),
               ),
-              if (_saveError != null)
+              if (_edits.error != null)
                 Padding(
                   key: const Key('sellerNotificationPreferencesSaveError'),
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(_saveError!, textAlign: TextAlign.center),
+                  child: Text(_edits.error!, textAlign: TextAlign.center),
                 ),
             ],
           ],
@@ -1971,10 +2016,10 @@ class ApprovedSellerVerificationPage extends StatelessWidget {
           key: const Key('sellerVerificationFinish'),
           label: 'Finish setup',
           onPressed: finishEnabled ? onFinish : null,
-          leading: const Icon(
+          leading: Icon(
             Icons.check_circle_outline,
             size: 18,
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
           ),
         ),
       ],
@@ -2146,7 +2191,7 @@ class _SellerOffersNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(12)),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
       ),
       child: Column(
@@ -2169,7 +2214,10 @@ class _SellerOffersNotice extends StatelessWidget {
               style: TextButton.styleFrom(
                 minimumSize: Size(0, metrics.geometry(34)),
                 padding: EdgeInsets.zero,
-                foregroundColor: SellerUiColors.primaryBright,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
               child: const Text('Retry'),
             ),
@@ -2413,10 +2461,10 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
           key: const Key('sellerOfferDetailChat'),
           label: 'Open conversation',
           onPressed: onChat,
-          leading: const Icon(
+          leading: Icon(
             Icons.chat_bubble_outline,
             size: 18,
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
           ),
         ),
         if (offer != null && offer.isWithdrawable && onEdit != null) ...[
@@ -2434,8 +2482,13 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
             onPressed: withdrawBusy ? null : onWithdraw,
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(44),
-              foregroundColor: SellerUiColors.red,
-              side: const BorderSide(color: SellerUiColors.red),
+              foregroundColor: HocalistPalette.text(
+                context,
+                SellerUiColors.red,
+              ),
+              side: BorderSide(
+                color: HocalistPalette.border(context, SellerUiColors.red),
+              ),
             ),
             child: Text(withdrawBusy ? 'Withdrawing…' : 'Withdraw offer'),
           ),
@@ -2635,7 +2688,12 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
                   surfaceTintColor: SellerUiColors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(metrics.geometry(12)),
-                    side: const BorderSide(color: SellerUiColors.line),
+                    side: BorderSide(
+                      color: HocalistPalette.border(
+                        context,
+                        SellerUiColors.line,
+                      ),
+                    ),
                   ),
                   onSelected: (value) => setState(() => _filter = value),
                   itemBuilder: (context) => [
@@ -2661,7 +2719,10 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
                       vertical: metrics.spacing(7),
                     ),
                     decoration: BoxDecoration(
-                      color: SellerUiColors.lavender,
+                      color: HocalistPalette.surface(
+                        context,
+                        SellerUiColors.lavender,
+                      ),
                       borderRadius: BorderRadius.circular(metrics.geometry(10)),
                     ),
                     child: Row(
@@ -2679,7 +2740,10 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
                         Icon(
                           Icons.expand_more,
                           size: metrics.artSize(16),
-                          color: SellerUiColors.primaryBright,
+                          color: HocalistPalette.text(
+                            context,
+                            SellerUiColors.primaryBright,
+                          ),
                         ),
                       ],
                     ),
@@ -2749,7 +2813,7 @@ class _SellerCreditBalanceCard extends StatelessWidget {
         key: const Key('sellerCreditBalanceCard'),
         padding: EdgeInsets.all(metrics.spacing(15)),
         decoration: BoxDecoration(
-          color: SellerUiColors.ink,
+          color: HocalistPalette.surface(context, SellerUiColors.ink),
           borderRadius: BorderRadius.circular(metrics.geometry(14)),
         ),
         child: Column(
@@ -2760,13 +2824,19 @@ class _SellerCreditBalanceCard extends StatelessWidget {
                 Container(
                   width: metrics.artSize(36),
                   height: metrics.artSize(36),
-                  decoration: const BoxDecoration(
-                    color: SellerUiColors.lavender,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.lavender,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.toll_outlined,
-                    color: SellerUiColors.primaryBright,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
                     size: metrics.artSize(19),
                   ),
                 ),
@@ -2806,7 +2876,7 @@ class _SellerCreditBalanceCard extends StatelessWidget {
                 Container(
                   width: 1,
                   height: metrics.geometry(34),
-                  color: Colors.white24,
+                  color: HocalistPalette.surface(context, Colors.white24),
                 ),
                 Expanded(
                   child: _SellerBalanceMetric(
@@ -2880,13 +2950,19 @@ class _SellerCreditActivityRow extends StatelessWidget {
             Container(
               width: metrics.artSize(34),
               height: metrics.artSize(34),
-              decoration: const BoxDecoration(
-                color: SellerUiColors.lavender,
+              decoration: BoxDecoration(
+                color: HocalistPalette.surface(
+                  context,
+                  SellerUiColors.lavender,
+                ),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 item.icon,
-                color: SellerUiColors.primaryBright,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
                 size: metrics.artSize(18),
               ),
             ),
@@ -2936,7 +3012,7 @@ class _SellerCreditActivityRow extends StatelessWidget {
                 SizedBox(height: metrics.spacing(6)),
                 Icon(
                   Icons.chevron_right,
-                  color: SellerUiColors.muted,
+                  color: HocalistPalette.text(context, SellerUiColors.muted),
                   size: metrics.artSize(18),
                 ),
               ],
@@ -2974,13 +3050,16 @@ class _SellerBillingHistoryRow extends StatelessWidget {
           Container(
             width: metrics.artSize(34),
             height: metrics.artSize(34),
-            decoration: const BoxDecoration(
-              color: SellerUiColors.lavender,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, SellerUiColors.lavender),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.receipt_long_outlined,
-              color: SellerUiColors.primaryBright,
+              color: HocalistPalette.text(
+                context,
+                SellerUiColors.primaryBright,
+              ),
               size: metrics.artSize(18),
             ),
           ),
@@ -3016,6 +3095,7 @@ class _SellerTransactionDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -3029,9 +3109,11 @@ class _SellerTransactionDetailsSheet extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xfff7f7ff),
+            color: HocalistPalette.surface(context, const Color(0xfff7f7ff)),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: SellerUiColors.line),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
           ),
           child: Column(
             children: [
@@ -3072,6 +3154,7 @@ class _SellerTransactionLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -3119,15 +3202,20 @@ class ApprovedBuyerPublicProfilePage extends StatelessWidget {
             return Container(
               padding: EdgeInsets.all(metrics.spacing(14)),
               decoration: BoxDecoration(
-                color: SellerUiColors.white,
-                border: Border.all(color: SellerUiColors.line),
+                color: HocalistPalette.surface(context, SellerUiColors.white),
+                border: Border.all(
+                  color: HocalistPalette.border(context, SellerUiColors.line),
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(12)),
               ),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: metrics.artSize(31),
-                    backgroundColor: SellerUiColors.lavender,
+                    backgroundColor: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.lavender,
+                    ),
                     child: Text(
                       'MC',
                       style: sellerText(
@@ -3522,8 +3610,16 @@ class _ApprovedSellerPaymentMethodPageState
           onPressed: _addPaymentMethod,
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
-            foregroundColor: SellerUiColors.primaryBright,
-            side: const BorderSide(color: SellerUiColors.primaryBright),
+            foregroundColor: HocalistPalette.text(
+              context,
+              SellerUiColors.primaryBright,
+            ),
+            side: BorderSide(
+              color: HocalistPalette.border(
+                context,
+                SellerUiColors.primaryBright,
+              ),
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -3605,9 +3701,10 @@ class _SellerPaymentMethodRow extends StatelessWidget {
               selected
                   ? Icons.radio_button_checked
                   : Icons.radio_button_unchecked,
-              color: selected
-                  ? SellerUiColors.primaryBright
-                  : SellerUiColors.muted,
+              color: HocalistPalette.text(
+                context,
+                selected ? SellerUiColors.primaryBright : SellerUiColors.muted,
+              ),
             ),
             SizedBox(width: metrics.spacing(10)),
             Expanded(
@@ -3647,7 +3744,7 @@ class _SellerPaymentMethodRow extends StatelessWidget {
               tooltip: 'Manage payment method',
               onPressed: onManage,
               icon: const Icon(Icons.more_vert),
-              color: SellerUiColors.ink,
+              color: HocalistPalette.text(context, SellerUiColors.ink),
             ),
           ],
         ),
@@ -3677,6 +3774,7 @@ class _SellerAddPaymentMethodSheetState
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -3847,6 +3945,7 @@ class _SellerSubpageBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -3868,9 +3967,12 @@ class _SellerSubpageBlock extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   icon: Icon(
                     Icons.arrow_back,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Theme.of(context).colorScheme.onSurface
-                        : SellerUiColors.ink,
+                    color: HocalistPalette.text(
+                      context,
+                      Theme.of(context).brightness == Brightness.dark
+                          ? Theme.of(context).colorScheme.onSurface
+                          : SellerUiColors.ink,
+                    ),
                     size: metrics.artSize(23),
                   ),
                 ),
@@ -3962,9 +4064,11 @@ class _SellerSubpageSection extends StatelessWidget {
           ),
           SizedBox(height: metrics.spacing(7)),
           Material(
-            color: SellerUiColors.white,
+            color: HocalistPalette.surface(context, SellerUiColors.white),
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: SellerUiColors.line),
+              side: BorderSide(
+                color: HocalistPalette.border(context, SellerUiColors.line),
+              ),
               borderRadius: BorderRadius.circular(metrics.geometry(11)),
             ),
             clipBehavior: Clip.antiAlias,
@@ -4025,13 +4129,19 @@ class _SellerSubpageRow extends StatelessWidget {
                 Container(
                   width: metrics.artSize(34),
                   height: metrics.artSize(34),
-                  decoration: const BoxDecoration(
-                    color: SellerUiColors.lavender,
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.lavender,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     icon,
-                    color: SellerUiColors.primaryBright,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
                     size: metrics.artSize(18),
                   ),
                 ),
@@ -4076,7 +4186,10 @@ class _SellerSubpageRow extends StatelessWidget {
                     padding: EdgeInsets.only(top: metrics.spacing(7)),
                     child: Icon(
                       Icons.chevron_right,
-                      color: SellerUiColors.muted,
+                      color: HocalistPalette.text(
+                        context,
+                        SellerUiColors.muted,
+                      ),
                       size: metrics.artSize(20),
                     ),
                   ),
@@ -4113,7 +4226,10 @@ class _SellerPreferenceSwitch extends StatelessWidget {
     return SwitchListTile.adaptive(
       value: value,
       onChanged: enabled ? onChanged : null,
-      activeThumbColor: SellerUiColors.primaryBright,
+      activeThumbColor: HocalistPalette.text(
+        context,
+        SellerUiColors.primaryBright,
+      ),
       contentPadding: EdgeInsets.symmetric(
         horizontal: metrics.spacing(12),
         vertical: metrics.spacing(4),
@@ -4121,13 +4237,13 @@ class _SellerPreferenceSwitch extends StatelessWidget {
       secondary: Container(
         width: metrics.artSize(34),
         height: metrics.artSize(34),
-        decoration: const BoxDecoration(
-          color: SellerUiColors.lavender,
+        decoration: BoxDecoration(
+          color: HocalistPalette.surface(context, SellerUiColors.lavender),
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: SellerUiColors.primaryBright,
+          color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           size: metrics.artSize(18),
         ),
       ),
@@ -4169,8 +4285,13 @@ class _SellerProfileSummary extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(metrics.spacing(14)),
         decoration: BoxDecoration(
-          color: SellerUiColors.lavender,
-          border: Border.all(color: SellerUiColors.lavenderBorder),
+          color: HocalistPalette.surface(context, SellerUiColors.lavender),
+          border: Border.all(
+            color: HocalistPalette.border(
+              context,
+              SellerUiColors.lavenderBorder,
+            ),
+          ),
           borderRadius: BorderRadius.circular(metrics.geometry(14)),
         ),
         child: Row(
@@ -4382,8 +4503,10 @@ class _SellerAvatarPendingCard extends StatelessWidget {
         key: const Key('sellerAvatarPendingCard'),
         padding: EdgeInsets.all(metrics.spacing(12)),
         decoration: BoxDecoration(
-          color: SellerUiColors.lavender,
-          border: Border.all(color: SellerUiColors.line),
+          color: HocalistPalette.surface(context, SellerUiColors.lavender),
+          border: Border.all(
+            color: HocalistPalette.border(context, SellerUiColors.line),
+          ),
           borderRadius: BorderRadius.circular(metrics.geometry(11)),
         ),
         child: Column(
@@ -4459,7 +4582,10 @@ class _SellerProfileAvatar extends StatelessWidget {
           Positioned.fill(
             child: avatarMediaId == null
                 ? CircleAvatar(
-                    backgroundColor: SellerUiColors.primaryBright,
+                    backgroundColor: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
                     child: Text(
                       initial.toUpperCase(),
                       style: sellerText(
@@ -4482,7 +4608,7 @@ class _SellerProfileAvatar extends StatelessWidget {
             right: -metrics.spacing(2),
             bottom: -metrics.spacing(2),
             child: Material(
-              color: SellerUiColors.white,
+              color: HocalistPalette.surface(context, SellerUiColors.white),
               shape: const CircleBorder(),
               elevation: 1,
               child: IconButton(
@@ -4497,7 +4623,10 @@ class _SellerProfileAvatar extends StatelessWidget {
                 ),
                 icon: Icon(
                   Icons.photo_camera_outlined,
-                  color: SellerUiColors.primaryBright,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                   size: metrics.artSize(17),
                 ),
               ),
@@ -4522,7 +4651,7 @@ Future<void> _showSellerProfilePhotoOptions(
   await showModalBottomSheet<void>(
     context: context,
     sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-    backgroundColor: SellerUiColors.white,
+    backgroundColor: HocalistPalette.surface(context, SellerUiColors.white),
     isScrollControlled: true,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(
@@ -4545,7 +4674,10 @@ Future<void> _showSellerProfilePhotoOptions(
                 width: metrics.artSize(42),
                 height: metrics.geometry(4),
                 decoration: BoxDecoration(
-                  color: SellerUiColors.lavenderBorder,
+                  color: HocalistPalette.surface(
+                    context,
+                    SellerUiColors.lavenderBorder,
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(10)),
                 ),
               ),
@@ -4623,9 +4755,12 @@ class _SellerPhotoOption extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: metrics.spacing(8)),
       child: Material(
-        color: isDestructive
-            ? SellerUiColors.red.withValues(alpha: 0.05)
-            : SellerUiColors.lavender.withValues(alpha: 0.7),
+        color: HocalistPalette.surface(
+          context,
+          isDestructive
+              ? SellerUiColors.red.withValues(alpha: 0.05)
+              : SellerUiColors.lavender.withValues(alpha: 0.7),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
         child: InkWell(
           key: optionKey,
@@ -4638,7 +4773,11 @@ class _SellerPhotoOption extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(icon, color: color, size: metrics.artSize(22)),
+                Icon(
+                  icon,
+                  color: HocalistPalette.text(context, color),
+                  size: metrics.artSize(22),
+                ),
                 SizedBox(width: metrics.spacing(12)),
                 Expanded(
                   child: Column(
@@ -4667,7 +4806,7 @@ class _SellerPhotoOption extends StatelessWidget {
                 ),
                 Icon(
                   Icons.chevron_right,
-                  color: SellerUiColors.muted,
+                  color: HocalistPalette.text(context, SellerUiColors.muted),
                   size: metrics.artSize(20),
                 ),
               ],
@@ -4698,13 +4837,17 @@ class _SellerStatusChip extends StatelessWidget {
         vertical: metrics.spacing(4),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
+        color: HocalistPalette.surface(context, SellerUiColors.white),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: metrics.artSize(13), color: SellerUiColors.primary),
+          Icon(
+            icon,
+            size: metrics.artSize(13),
+            color: HocalistPalette.text(context, SellerUiColors.primary),
+          ),
           SizedBox(width: metrics.spacing(4)),
           Text(label, style: sellerText(metrics, 10, weight: FontWeight.w700)),
         ],
@@ -4758,7 +4901,7 @@ class _SellerProfileField extends StatelessWidget {
             decoration: InputDecoration(
               isDense: true,
               filled: true,
-              fillColor: SellerUiColors.white,
+              fillColor: HocalistPalette.surface(context, SellerUiColors.white),
               contentPadding: EdgeInsets.symmetric(
                 horizontal: metrics.spacing(12),
                 vertical: metrics.spacing(12),
@@ -4768,12 +4911,17 @@ class _SellerProfileField extends StatelessWidget {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
-                borderSide: const BorderSide(color: SellerUiColors.line),
+                borderSide: BorderSide(
+                  color: HocalistPalette.border(context, SellerUiColors.line),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
-                borderSide: const BorderSide(
-                  color: SellerUiColors.primaryBright,
+                borderSide: BorderSide(
+                  color: HocalistPalette.border(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                   width: 1.5,
                 ),
               ),

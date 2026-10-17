@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_reload_link.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/hocalist_section_tabs.dart';
@@ -288,7 +289,10 @@ class _WalletBody extends StatelessWidget {
                           'Weekly targeting capacity, ${value.weekly.used} of ${value.weekly.limit} used',
                       value: capacity,
                       minHeight: 6,
-                      backgroundColor: SellerUiColors.lavender,
+                      backgroundColor: HocalistPalette.surface(
+                        context,
+                        SellerUiColors.lavender,
+                      ),
                       valueColor: const AlwaysStoppedAnimation<Color>(
                         SellerUiColors.primaryBright,
                       ),
@@ -339,6 +343,7 @@ class _WalletBody extends StatelessWidget {
   static ApprovedReplicaMetrics _fallbackMetrics(BuildContext context) {
     final media = MediaQuery.of(context);
     return ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: media.size.width,
       textScaler: media.textScaler,
     );
@@ -478,9 +483,11 @@ class _BatchCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: SellerUiColors.white,
+          color: HocalistPalette.surface(context, SellerUiColors.white),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: SellerUiColors.line),
+          border: Border.all(
+            color: HocalistPalette.border(context, SellerUiColors.line),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,6 +558,7 @@ class _BatchCard extends StatelessWidget {
   static ApprovedReplicaMetrics _fallback(BuildContext context) {
     final media = MediaQuery.of(context);
     return ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: media.size.width,
       textScaler: media.textScaler,
     );
@@ -571,9 +579,14 @@ class _OptionCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: SellerUiColors.lavender,
+          color: HocalistPalette.surface(context, SellerUiColors.lavender),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: SellerUiColors.lavenderBorder),
+          border: Border.all(
+            color: HocalistPalette.border(
+              context,
+              SellerUiColors.lavenderBorder,
+            ),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,6 +633,7 @@ class _OptionCard extends StatelessWidget {
   static ApprovedReplicaMetrics _fallback(BuildContext context) {
     final media = MediaQuery.of(context);
     return ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: media.size.width,
       textScaler: media.textScaler,
     );
@@ -641,9 +655,11 @@ class _TargetCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: SellerUiColors.white,
+          color: HocalistPalette.surface(context, SellerUiColors.white),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: SellerUiColors.line),
+          border: Border.all(
+            color: HocalistPalette.border(context, SellerUiColors.line),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,6 +729,7 @@ class _TargetCard extends StatelessWidget {
   static ApprovedReplicaMetrics _fallback(BuildContext context) {
     final media = MediaQuery.of(context);
     return ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: media.size.width,
       textScaler: media.textScaler,
     );

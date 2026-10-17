@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/hocalist_status_fact.dart';
@@ -558,8 +559,10 @@ class _RealSellerHomeNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(14)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
       ),
       child: Column(
@@ -656,7 +659,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: HocalistPalette.surface(context, Colors.transparent),
       barrierColor: const Color(0x990B1231),
       builder: (sheetContext) => ValueListenableBuilder<int>(
         valueListenable: _sheetRevision,
@@ -761,8 +764,16 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: SellerUiColors.white,
-                          border: Border.all(color: SellerUiColors.line),
+                          color: HocalistPalette.surface(
+                            context,
+                            SellerUiColors.white,
+                          ),
+                          border: Border.all(
+                            color: HocalistPalette.border(
+                              context,
+                              SellerUiColors.line,
+                            ),
+                          ),
                           borderRadius: BorderRadius.circular(9),
                         ),
                         child: Column(
@@ -860,7 +871,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
           ? 'Verification progress unavailable'
           : '$completed of 3 verification steps complete',
       child: Material(
-        color: Colors.transparent,
+        color: HocalistPalette.surface(context, Colors.transparent),
         child: InkWell(
           key: const Key('sellerAccountHealth'),
           onTap: () => _showDetail(context),
@@ -937,8 +948,10 @@ class _SellerHomeEmptyCard extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.all(metrics.spacing(14)),
           decoration: BoxDecoration(
-            color: SellerUiColors.white,
-            border: Border.all(color: SellerUiColors.line),
+            color: HocalistPalette.surface(context, SellerUiColors.white),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(11)),
           ),
           child: Column(
@@ -950,7 +963,10 @@ class _SellerHomeEmptyCard extends StatelessWidget {
                   Icon(
                     icon,
                     size: metrics.artSize(28),
-                    color: SellerUiColors.primaryBright,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
                   ),
                   SizedBox(width: metrics.geometry(9)),
                   Expanded(
@@ -985,8 +1001,14 @@ class _SellerHomeEmptyCard extends StatelessWidget {
                 TextButton(
                   onPressed: onAction,
                   style: TextButton.styleFrom(
-                    foregroundColor: SellerUiColors.primaryBright,
-                    backgroundColor: SellerUiColors.lavender,
+                    foregroundColor: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
+                    backgroundColor: HocalistPalette.surface(
+                      context,
+                      SellerUiColors.lavender,
+                    ),
                     minimumSize: Size(0, metrics.geometry(34)),
                     padding: EdgeInsets.symmetric(
                       horizontal: metrics.geometry(10),
@@ -1027,8 +1049,10 @@ class _RealRecentLeadsCard extends StatelessWidget {
       key: const Key('sellerHomeRealRecentLeads'),
       padding: EdgeInsets.symmetric(horizontal: metrics.geometry(11)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
         boxShadow: const [BoxShadow(color: Color(0x080A0D38), blurRadius: 14)],
       ),
@@ -1098,9 +1122,12 @@ class _AccountHealthBar extends StatelessWidget {
                         height: metrics.geometry(8),
                         margin: EdgeInsets.only(right: metrics.geometry(2)),
                         decoration: BoxDecoration(
-                          color: index < (progress * colors.length).ceil()
-                              ? colors[index]
-                              : const Color(0xFFE8E9F3),
+                          color: HocalistPalette.surface(
+                            context,
+                            index < (progress * colors.length).ceil()
+                                ? colors[index]
+                                : const Color(0xFFE8E9F3),
+                          ),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -1112,7 +1139,7 @@ class _AccountHealthBar extends StatelessWidget {
             Icon(
               Icons.info_outline,
               size: metrics.geometry(18),
-              color: SellerUiColors.ink,
+              color: HocalistPalette.text(context, SellerUiColors.ink),
             ),
           ],
         );
@@ -1149,8 +1176,10 @@ class _SellerMetricCard extends StatelessWidget {
           constraints: BoxConstraints(minHeight: metrics.geometry(130)),
           padding: EdgeInsets.all(metrics.geometry(13)),
           decoration: BoxDecoration(
-            color: SellerUiColors.white,
-            border: Border.all(color: SellerUiColors.line),
+            color: HocalistPalette.surface(context, SellerUiColors.white),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(11)),
             boxShadow: const [
               BoxShadow(
@@ -1178,7 +1207,7 @@ class _SellerMetricCard extends StatelessWidget {
                   Icon(
                     Icons.info_outline,
                     size: metrics.geometry(16),
-                    color: SellerUiColors.muted,
+                    color: HocalistPalette.text(context, SellerUiColors.muted),
                   ),
                 ],
               ),
@@ -1223,8 +1252,14 @@ class _SellerMetricCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: onTap,
                 style: TextButton.styleFrom(
-                  foregroundColor: SellerUiColors.primaryBright,
-                  backgroundColor: SellerUiColors.lavender,
+                  foregroundColor: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
+                  backgroundColor: HocalistPalette.surface(
+                    context,
+                    SellerUiColors.lavender,
+                  ),
                   minimumSize: Size(0, metrics.geometry(32)),
                   padding: EdgeInsets.symmetric(
                     horizontal: metrics.geometry(8),
@@ -1275,8 +1310,13 @@ class _FindBuyersBanner extends StatelessWidget {
             metrics.geometry(13),
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F7FF),
-            border: Border.all(color: SellerUiColors.lavenderBorder),
+            color: HocalistPalette.surface(context, const Color(0xFFF8F7FF)),
+            border: Border.all(
+              color: HocalistPalette.border(
+                context,
+                SellerUiColors.lavenderBorder,
+              ),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(10)),
           ),
           child: Row(
@@ -1318,7 +1358,7 @@ class _FindBuyersBanner extends StatelessWidget {
                   trailing: Icon(
                     Icons.chevron_right,
                     size: metrics.geometry(12),
-                    color: SellerUiColors.white,
+                    color: HocalistPalette.text(context, SellerUiColors.white),
                   ),
                 ),
               ),
@@ -1375,7 +1415,10 @@ class _SectionTitle extends StatelessWidget {
         TextButton(
           onPressed: onAction,
           style: TextButton.styleFrom(
-            foregroundColor: SellerUiColors.primaryBright,
+            foregroundColor: HocalistPalette.text(
+              context,
+              SellerUiColors.primaryBright,
+            ),
             padding: EdgeInsets.symmetric(horizontal: metrics.geometry(3)),
             minimumSize: Size(0, metrics.geometry(36)),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1441,8 +1484,10 @@ class _RecentLeadsCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: metrics.geometry(11)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(11)),
         boxShadow: const [BoxShadow(color: Color(0x080A0D38), blurRadius: 14)],
       ),
@@ -1492,7 +1537,7 @@ class _RecentLeadRow extends StatelessWidget {
                   height: metrics.geometry(42),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: avatarSurface,
+                    color: HocalistPalette.surface(context, avatarSurface),
                     shape: BoxShape.circle,
                   ),
                   child: Text(
@@ -1554,7 +1599,7 @@ class _RecentLeadRow extends StatelessWidget {
                         vertical: metrics.geometry(3),
                       ),
                       decoration: BoxDecoration(
-                        color: statusSurface,
+                        color: HocalistPalette.surface(context, statusSurface),
                         borderRadius: BorderRadius.circular(
                           metrics.geometry(6),
                         ),
@@ -1583,7 +1628,7 @@ class _RecentLeadRow extends StatelessWidget {
                 Icon(
                   Icons.chevron_right,
                   size: metrics.geometry(20),
-                  color: SellerUiColors.body,
+                  color: HocalistPalette.text(context, SellerUiColors.body),
                 ),
               ],
             ),
@@ -1625,8 +1670,8 @@ class _RecommendedLeadCard extends StatelessWidget {
             width: metrics.artSize(36),
             height: metrics.artSize(36),
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF2EFFF),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Color(0xFFF2EFFF)),
               shape: BoxShape.circle,
             ),
             child: Text(
@@ -1662,7 +1707,7 @@ class _RecommendedLeadCard extends StatelessWidget {
         vertical: metrics.geometry(1),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Wrap(
@@ -1672,7 +1717,7 @@ class _RecommendedLeadCard extends StatelessWidget {
           Icon(
             Icons.local_fire_department_outlined,
             size: metrics.geometry(9),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           Text(
             'Hot',
@@ -1692,8 +1737,10 @@ class _RecommendedLeadCard extends StatelessWidget {
           constraints: BoxConstraints(minHeight: metrics.geometry(145)),
           padding: EdgeInsets.all(metrics.geometry(9)),
           decoration: BoxDecoration(
-            color: SellerUiColors.white,
-            border: Border.all(color: SellerUiColors.line),
+            color: HocalistPalette.surface(context, SellerUiColors.white),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(10)),
           ),
           child: Column(
@@ -1733,7 +1780,10 @@ class _RecommendedLeadCard extends StatelessWidget {
                   vertical: metrics.geometry(2),
                 ),
                 decoration: BoxDecoration(
-                  color: SellerUiColors.greenSurface,
+                  color: HocalistPalette.surface(
+                    context,
+                    SellerUiColors.greenSurface,
+                  ),
                   borderRadius: BorderRadius.circular(5),
                 ),
                 child: Text(
@@ -1777,7 +1827,10 @@ class _RecommendedLeadCard extends StatelessWidget {
                       Icon(
                         Icons.chevron_right,
                         size: metrics.geometry(17),
-                        color: SellerUiColors.primaryBright,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.primaryBright,
+                        ),
                       ),
                     ],
                   ),

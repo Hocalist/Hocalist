@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -186,7 +187,10 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                                   child: SizedBox.square(
                                     dimension: 30,
                                     child: Material(
-                                      color: Colors.white,
+                                      color: HocalistPalette.surface(
+                                        context,
+                                        Colors.white,
+                                      ),
                                       shape: const CircleBorder(),
                                       elevation: 1,
                                       child: IconButton(
@@ -208,9 +212,12 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                                         icon: Icon(
                                           Icons.close_rounded,
                                           size: 16,
-                                          color: _seller
-                                              ? SellerUiColors.primary
-                                              : BuyerUiTokens.action,
+                                          color: HocalistPalette.text(
+                                            context,
+                                            _seller
+                                                ? SellerUiColors.primary
+                                                : BuyerUiTokens.action,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -225,9 +232,12 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w700,
-                              color: _seller
-                                  ? SellerUiColors.muted
-                                  : BuyerUiTokens.muted,
+                              color: HocalistPalette.text(
+                                context,
+                                _seller
+                                    ? SellerUiColors.muted
+                                    : BuyerUiTokens.muted,
+                              ),
                             ),
                           ),
                         ],

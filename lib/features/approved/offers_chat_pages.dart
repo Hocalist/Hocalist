@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
 
@@ -35,6 +36,7 @@ const _green = BuyerUiTokens.success;
 ApprovedReplicaMetrics _chatMetrics(BuildContext context) {
   return ApprovedReplicaScope.maybeOf(context) ??
       ApprovedReplicaMetrics.resolve(
+        brightness: Theme.of(context).brightness,
         availableWidth: MediaQuery.sizeOf(context).width,
         textScaler: MediaQuery.textScalerOf(context),
       );
@@ -117,10 +119,10 @@ class BuyerOfferView {
       sellerName: name,
       sellerProfileId: offer.sellerProfileId,
       initials: _initialsFor(name),
-      priceLabel: _formatMoney(terms.price),
+      priceLabel: BuyerOfferView._formatMoney(terms.price),
       message: terms.message.trim(),
       meetingLabel: _formatSchedule(terms.schedule),
-      placeLabel: _formatPlace(terms.place),
+      placeLabel: BuyerOfferView._formatPlace(terms.place),
       status: offer.status,
       conversationId: offer.conversationId,
       imageMediaIds: List.unmodifiable(terms.imageMediaIds),
@@ -784,7 +786,11 @@ class _OfferCountdownNotice extends StatelessWidget {
       padding: EdgeInsets.all(compact ? 5 : 7),
       child: Row(
         children: [
-          const Icon(Icons.schedule, size: 16, color: _muted),
+          Icon(
+            Icons.schedule,
+            size: 16,
+            color: HocalistPalette.text(context, _muted),
+          ),
           SizedBox(width: compact ? 4 : 6),
           Expanded(
             child: Text(
@@ -869,7 +875,11 @@ class _PurchaseSellerPanel extends StatelessWidget {
             SizedBox(height: compact ? 3 : 4),
             Row(
               children: [
-                const Icon(Icons.verified, size: 16, color: _blue),
+                Icon(
+                  Icons.verified,
+                  size: 16,
+                  color: HocalistPalette.text(context, _blue),
+                ),
                 SizedBox(width: compact ? 3 : 5),
                 Expanded(
                   child: Text(
@@ -941,7 +951,8 @@ class _OfferClosedNotice extends StatelessWidget {
 /// fabricated title or price, and no verification or presence is implied.
 class ApprovedDealView {
   const ApprovedDealView({
-    required this.meetingId,
+    this.meetingId,
+    this.offerId,
     required this.title,
     required this.priceLabel,
     required this.statusLabel,
@@ -951,9 +962,23 @@ class ApprovedDealView {
     this.placeLabel,
     this.pendingLabel,
     this.purchaseSelected = false,
-  });
+  }) : assert(meetingId != null || offerId != null);
 
-  final String meetingId;
+  final String? meetingId;
+  final String? offerId;
+  String get id => meetingId ?? offerId!;
+
+  factory ApprovedDealView.fromSelectedOffer(Offer offer) {
+    final terms = (offer.acceptedRevision ?? offer.latestRevision).terms;
+    return ApprovedDealView(
+      offerId: offer.id,
+      title: offer.requestTitle ?? 'Selected offer',
+      priceLabel: BuyerOfferView._formatMoney(terms.price),
+      statusLabel: 'Offer selected · arrange meeting',
+      placeLabel: BuyerOfferView._formatPlace(terms.place),
+      purchaseSelected: offer.purchaseSelected,
+    );
+  }
   final String title;
   final String priceLabel;
   final String statusLabel;
@@ -1439,15 +1464,22 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     var frozen = controller.text.trim().isNotEmpty;
     String? error;
     try {
-      await showDialog<void>(
+      await showModalBottomSheet<void>(
         context: context,
-        animationStyle: HocalistMotion.dialogStyle(context),
+        sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
         builder: (dialogContext) => StatefulBuilder(
-          builder: (context, update) => AlertDialog(
-            title: const Text('Ask for a change'),
-            content: Column(
+          builder: (context, update) => BuyerModalSheet(
+            title: 'Ask for a change',
+            icon: Icons.edit_note_outlined,
+            onClose: () {
+              if (!sending) Navigator.pop(dialogContext);
+            },
+            child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
                   'Tell the other person what you would like changed. This sends a chat message; the offer and meeting stay as they are until updated separately.',
@@ -1471,61 +1503,54 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: sending ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Close'),
-              ),
-              FilledButton(
-                key: const Key('real-change-request-send'),
-                onPressed: sending
-                    ? null
-                    : () async {
-                        final body = controller.text.trim();
-                        if (body.length < 5) {
-                          update(
-                            () => error =
-                                'Describe the change in at least 5 characters.',
-                          );
-                          return;
-                        }
-                        final message = 'Change request: $body';
-                        update(() {
-                          sending = true;
-                          frozen = true;
-                          error = null;
-                        });
-                        bool acknowledged;
-                        try {
-                          acknowledged = await submit(message);
-                        } catch (_) {
-                          acknowledged = false;
-                        }
-                        if (!dialogContext.mounted) return;
-                        if (acknowledged) {
-                          Navigator.pop(dialogContext);
-                          _message(
-                            'Change request sent in chat. Offer terms are unchanged.',
-                          );
-                        } else {
+                const SizedBox(height: 16),
+                BuyerPrimaryButton(
+                  key: const Key('real-change-request-send'),
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          final body = controller.text.trim();
+                          if (body.length < 5) {
+                            update(
+                              () => error =
+                                  'Describe the change in at least 5 characters.',
+                            );
+                            return;
+                          }
+                          final message = 'Change request: $body';
                           update(() {
-                            sending = false;
-                            error =
-                                'The message was not confirmed. Retry the same request, or close and check the chat.';
+                            sending = true;
+                            frozen = true;
+                            error = null;
                           });
-                        }
-                      },
-                child: Text(
-                  sending
+                          bool acknowledged;
+                          try {
+                            acknowledged = await submit(message);
+                          } catch (_) {
+                            acknowledged = false;
+                          }
+                          if (!dialogContext.mounted) return;
+                          if (acknowledged) {
+                            Navigator.pop(dialogContext);
+                            _message(
+                              'Change request sent in chat. Offer terms are unchanged.',
+                            );
+                          } else {
+                            update(() {
+                              sending = false;
+                              error =
+                                  'The message was not confirmed. Retry the same request, or close and check the chat.';
+                            });
+                          }
+                        },
+                  label: sending
                       ? 'Sending…'
                       : frozen
                       ? 'Retry request'
                       : 'Send request',
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -1985,7 +2010,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     if (deals.isEmpty) return;
     ApprovedDealView? deal;
     for (final candidate in deals) {
-      if (candidate.meetingId == meetingId) {
+      if (candidate.id == meetingId) {
         deal = candidate;
         break;
       }
@@ -2004,7 +2029,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
             ? null
             : () {
                 Navigator.pop(sheetContext);
-                widget.onOpenRealDeal!.call(deal!.meetingId);
+                widget.onOpenRealDeal!.call(deal!.id);
               },
         onViewOriginalRequest: widget.onViewOriginalRequest == null
             ? null
@@ -2067,292 +2092,319 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
   @override
   Widget build(BuildContext context) {
     final content = IconButtonTheme(
-      data: const IconButtonThemeData(
+      data: IconButtonThemeData(
         style: ButtonStyle(
-          backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
           overlayColor: WidgetStatePropertyAll(Colors.transparent),
           shadowColor: WidgetStatePropertyAll(Colors.transparent),
           surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
           elevation: WidgetStatePropertyAll(0),
         ),
       ),
-      child: CustomScrollView(
-        key: const Key('approved-chat-scroll'),
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-            sliver: SliverList.list(
-              children: [
-                _ChatHeader(
-                  prototypeStatus: !widget.usesRealEntries,
-                  onBack: widget.onBack,
-                  onCall: widget.onCall,
-                  callLabel: widget.viewerIsSeller
-                      ? 'Call buyer'
-                      : 'Call seller',
-                  onMore: _showConversationMenu,
-                  contactName: widget.usesRealEntries
-                      ? (widget.realContactName?.trim().isNotEmpty == true
-                            ? widget.realContactName!.trim()
-                            : (widget.viewerIsSeller ? 'Buyer' : 'Seller'))
-                      : widget.contactName,
-                  contactRoleLabel: widget.usesRealEntries
-                      ? 'Conversation'
-                      : widget.contactRoleLabel,
-                  contactInitials: widget.usesRealEntries
-                      ? (widget.viewerIsSeller ? 'B' : 'S')
-                      : widget.contactInitials,
-                ),
-                if (!widget.usesRealEntries &&
-                    widget.viewerIsSeller &&
-                    widget.requestChangePending) ...[
-                  const SizedBox(height: 10),
-                  _RequestUpdatedNotice(
-                    onContinue: widget.onContinueWithRequest ?? () {},
-                    onWithdraw: widget.onWithdrawFromRequest ?? () {},
-                  ),
-                ],
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.usesRealEntries
-                            ? ((widget.realDeals?.isEmpty ?? true)
-                                  ? 'Active Deals'
-                                  : 'Active Deals (${widget.realDeals!.length})')
-                            : 'Active Deals (${_secondDealAdded ? 2 : 1})',
-                        style: _text(
-                          context,
-                          size: 15,
-                          weight: FontWeight.w900,
+      child: Column(
+        children: [
+          Expanded(
+            child: CustomScrollView(
+              key: const Key('approved-chat-scroll'),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                  sliver: SliverList.list(
+                    children: [
+                      _ChatHeader(
+                        prototypeStatus: !widget.usesRealEntries,
+                        onBack: widget.onBack,
+                        onCall: widget.onCall,
+                        callLabel: widget.viewerIsSeller
+                            ? 'Call buyer'
+                            : 'Call seller',
+                        onMore: _showConversationMenu,
+                        contactName: widget.usesRealEntries
+                            ? (widget.realContactName?.trim().isNotEmpty == true
+                                  ? widget.realContactName!.trim()
+                                  : (widget.viewerIsSeller
+                                        ? 'Buyer'
+                                        : 'Seller'))
+                            : widget.contactName,
+                        contactRoleLabel: widget.usesRealEntries
+                            ? 'Conversation'
+                            : widget.contactRoleLabel,
+                        contactInitials: widget.usesRealEntries
+                            ? (widget.viewerIsSeller ? 'B' : 'S')
+                            : widget.contactInitials,
+                      ),
+                      if (!widget.usesRealEntries &&
+                          widget.viewerIsSeller &&
+                          widget.requestChangePending) ...[
+                        const SizedBox(height: 10),
+                        _RequestUpdatedNotice(
+                          onContinue: widget.onContinueWithRequest ?? () {},
+                          onWithdraw: widget.onWithdrawFromRequest ?? () {},
                         ),
+                      ],
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.usesRealEntries
+                                  ? ((widget.realDeals?.isEmpty ?? true)
+                                        ? 'Active Deals'
+                                        : 'Active Deals (${widget.realDeals!.length})')
+                                  : 'Active Deals (${_secondDealAdded ? 2 : 1})',
+                              style: _text(
+                                context,
+                                size: 15,
+                                weight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            key: const Key(
+                              'approved-manage-conversation-deals',
+                            ),
+                            onPressed: _showConversationDeals,
+                            style: TextButton.styleFrom(
+                              foregroundColor: HocalistPalette.text(
+                                context,
+                                _blue,
+                              ),
+                              minimumSize: const Size(44, 40),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                            ),
+                            icon: BuyerGlyphIcon(
+                              icon: Icons.tune_rounded,
+                              slotSize: 18,
+                              glyphSize: 18,
+                              color: HocalistPalette.text(context, _blue),
+                            ),
+                            label: Text(
+                              'Manage',
+                              style: _text(
+                                context,
+                                size: 11,
+                                weight: FontWeight.w800,
+                                color: _blue,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    TextButton.icon(
-                      key: const Key('approved-manage-conversation-deals'),
-                      onPressed: _showConversationDeals,
-                      style: TextButton.styleFrom(
-                        foregroundColor: _blue,
-                        minimumSize: const Size(44, 40),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                      ),
-                      icon: const BuyerGlyphIcon(
-                        icon: Icons.tune_rounded,
-                        slotSize: 18,
-                        glyphSize: 18,
-                        color: _blue,
-                      ),
-                      label: Text(
-                        'Manage',
-                        style: _text(
-                          context,
-                          size: 11,
-                          weight: FontWeight.w800,
-                          color: _blue,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                if (!widget.usesRealEntries)
-                  _ActiveDealsPanel(
-                    offer: widget.offer,
-                    viewerIsSeller: widget.viewerIsSeller,
-                    meetingConfirmed: widget.meetingConfirmed,
-                    offerRevisionPending: widget.offerRevisionPending,
-                    secondDealAdded: _secondDealAdded,
-                    onOpenDeal: _showDealDetails,
-                    onLongPressDeal: _showDealDetails,
-                    onAddDeal: () {
-                      setState(() => _secondDealAdded = true);
-                      _message('A second deal was added to this conversation.');
-                    },
-                  )
-                else
-                  _RealActiveDealsPanel(
-                    deals: widget.realDeals,
-                    loading: widget.realDealsLoading,
-                    error: widget.realDealsError,
-                    onRefresh: widget.onRefreshRealDeals,
-                    onOpenDeal: (meetingId) =>
-                        unawaited(_showRealDealDetails(meetingId)),
-                  ),
-                const SizedBox(height: 12),
-                if (widget.usesRealEntries &&
-                    widget.blockState != null &&
-                    (widget.blockState!.isBlockedByMe ||
-                        widget.blockState!.blockedByCounterpart)) ...[
-                  _BlockedConversationNotice(
-                    blockedByMe: widget.blockState!.isBlockedByMe,
-                    onUnblock: widget.blockState!.isBlockedByMe
-                        ? () => _showUnblockConfirmation(
-                            widget.viewerIsSeller ? 'buyer' : 'seller',
-                          )
-                        : null,
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                if (widget.usesRealEntries) ...[
-                  if (widget.olderError != null) Text(widget.olderError!),
-                  if (widget.onLoadOlder != null)
-                    TextButton(
-                      onPressed: widget.olderLoading || widget.messagesLoading
-                          ? null
-                          : widget.onLoadOlder,
-                      child: Text(
-                        widget.olderLoading
-                            ? 'Loading older messages…'
-                            : 'Load older messages',
-                      ),
-                    ),
-                  if (widget.messagesLoading)
-                    const _ChatStateNotice(
-                      key: Key('approvedChatLoading'),
-                      message: 'Loading messages…',
-                    )
-                  else if (widget.messagesError != null)
-                    _ChatStateNotice(
-                      key: const Key('approvedChatError'),
-                      message: widget.messagesError!,
-                      onRetry: widget.onRefreshMessages,
-                    )
-                  else if (widget.realEntries!.isEmpty)
-                    const _ChatStateNotice(
-                      key: Key('approvedChatEmpty'),
-                      message:
-                          'No messages yet. Send a message to start the '
-                          'conversation.',
-                    )
-                  else
-                    for (final entry in widget.realEntries!) ...[
                       const SizedBox(height: 6),
-                      if (entry.isOutgoing)
-                        _OutgoingMessage(
-                          text: entry.attachmentMediaIds.isEmpty
-                              ? entry.displayText
-                              : entry.text,
-                          time: entry.time,
-                          attachmentMediaIds: entry.attachmentMediaIds,
+                      if (!widget.usesRealEntries)
+                        _ActiveDealsPanel(
+                          offer: widget.offer,
+                          viewerIsSeller: widget.viewerIsSeller,
+                          meetingConfirmed: widget.meetingConfirmed,
+                          offerRevisionPending: widget.offerRevisionPending,
+                          secondDealAdded: _secondDealAdded,
+                          onOpenDeal: _showDealDetails,
+                          onLongPressDeal: _showDealDetails,
+                          onAddDeal: () {
+                            setState(() => _secondDealAdded = true);
+                            _message(
+                              'A second deal was added to this conversation.',
+                            );
+                          },
                         )
                       else
-                        _IncomingMessage(
-                          text: entry.attachmentMediaIds.isEmpty
-                              ? entry.displayText
-                              : entry.text,
-                          time: entry.time,
-                          contactInitials: widget.viewerIsSeller ? 'B' : 'S',
-                          prototypeStatus: false,
-                          attachmentMediaIds: entry.attachmentMediaIds,
+                        _RealActiveDealsPanel(
+                          deals: widget.realDeals,
+                          loading: widget.realDealsLoading,
+                          error: widget.realDealsError,
+                          onRefresh: widget.onRefreshRealDeals,
+                          onOpenDeal: (meetingId) =>
+                              unawaited(_showRealDealDetails(meetingId)),
                         ),
+                      const SizedBox(height: 12),
+                      if (widget.usesRealEntries &&
+                          widget.blockState != null &&
+                          (widget.blockState!.isBlockedByMe ||
+                              widget.blockState!.blockedByCounterpart)) ...[
+                        _BlockedConversationNotice(
+                          blockedByMe: widget.blockState!.isBlockedByMe,
+                          onUnblock: widget.blockState!.isBlockedByMe
+                              ? () => _showUnblockConfirmation(
+                                  widget.viewerIsSeller ? 'buyer' : 'seller',
+                                )
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      if (widget.usesRealEntries) ...[
+                        if (widget.olderError != null) Text(widget.olderError!),
+                        if (widget.onLoadOlder != null)
+                          TextButton(
+                            onPressed:
+                                widget.olderLoading || widget.messagesLoading
+                                ? null
+                                : widget.onLoadOlder,
+                            child: Text(
+                              widget.olderLoading
+                                  ? 'Loading older messages…'
+                                  : 'Load older messages',
+                            ),
+                          ),
+                        if (widget.messagesLoading)
+                          const _ChatStateNotice(
+                            key: Key('approvedChatLoading'),
+                            message: 'Loading messages…',
+                          )
+                        else if (widget.messagesError != null)
+                          _ChatStateNotice(
+                            key: const Key('approvedChatError'),
+                            message: widget.messagesError!,
+                            onRetry: widget.onRefreshMessages,
+                          )
+                        else if (widget.realEntries!.isEmpty)
+                          const _ChatStateNotice(
+                            key: Key('approvedChatEmpty'),
+                            message:
+                                'No messages yet. Send a message to start the '
+                                'conversation.',
+                          )
+                        else
+                          for (final entry in widget.realEntries!) ...[
+                            const SizedBox(height: 6),
+                            if (entry.isOutgoing)
+                              _OutgoingMessage(
+                                text: entry.attachmentMediaIds.isEmpty
+                                    ? entry.displayText
+                                    : entry.text,
+                                time: entry.time,
+                                attachmentMediaIds: entry.attachmentMediaIds,
+                              )
+                            else
+                              _IncomingMessage(
+                                text: entry.attachmentMediaIds.isEmpty
+                                    ? entry.displayText
+                                    : entry.text,
+                                time: entry.time,
+                                contactInitials: widget.viewerIsSeller
+                                    ? 'B'
+                                    : 'S',
+                                prototypeStatus: false,
+                                attachmentMediaIds: entry.attachmentMediaIds,
+                              ),
+                          ],
+                        if (widget.sendError != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.sendError!,
+                            key: const Key('approvedChatSendError'),
+                            textAlign: TextAlign.center,
+                            style: _text(
+                              context,
+                              size: 9,
+                              weight: FontWeight.w700,
+                              color: const Color(0xFFD32F2F),
+                            ),
+                          ),
+                        ],
+                      ] else ...[
+                        const _DateDivider(),
+                        const SizedBox(height: 10),
+                        _IncomingMessage(
+                          key: const Key('approved-chat-message-incoming-1'),
+                          text: widget.incomingMessage,
+                          time: '9:30 AM',
+                          contactInitials: widget.contactInitials,
+                        ),
+                        const SizedBox(height: 6),
+                        _OutgoingMessage(
+                          key: const Key('approved-chat-message-outgoing-1'),
+                          text: widget.outgoingMessage,
+                          time: '9:31 AM',
+                        ),
+                        const SizedBox(height: 6),
+                        _IncomingMessage(
+                          key: const Key('approved-chat-message-incoming-2'),
+                          text:
+                              'Great! I’m at the Yonkers location. See you at 5:00 PM today.',
+                          time: '9:32 AM',
+                          contactInitials: widget.contactInitials,
+                        ),
+                        const SizedBox(height: 6),
+                        const _OutgoingMessage(
+                          text: 'Perfect. I’ll be there around 4:55 PM.',
+                          time: '9:33 AM',
+                        ),
+                        const SizedBox(height: 6),
+                        _IncomingMessage(
+                          text:
+                              'Sounds good. I’ll have the iPad charged and ready for you to check.',
+                          time: '9:34 AM',
+                          contactInitials: widget.contactInitials,
+                        ),
+                        const SizedBox(height: 6),
+                        const _OutgoingMessage(
+                          text: 'Awesome, thanks! Talk to you soon.',
+                          time: '9:35 AM',
+                        ),
+                        const SizedBox(height: 6),
+                        _IncomingMessage(
+                          text: 'You got it. See you soon!',
+                          time: '9:35 AM',
+                          contactInitials: widget.contactInitials,
+                        ),
+                        for (final entry in _sentEntries) ...[
+                          const SizedBox(height: 6),
+                          if (entry.isOutgoing)
+                            _OutgoingMessage(
+                              text: entry.displayText,
+                              time: entry.time,
+                            )
+                          else
+                            _IncomingMessage(
+                              text: entry.displayText,
+                              time: entry.time,
+                              contactInitials: widget.contactInitials,
+                            ),
+                        ],
+                      ],
+                      const SizedBox(height: 8),
+                      if (_pendingAttachment != null) ...[
+                        _ApprovedPendingAttachment(
+                          label: _pendingAttachment!,
+                          isImage: _pendingAttachmentIsImage,
+                          onRemove: () =>
+                              setState(() => _pendingAttachment = null),
+                        ),
+                        const SizedBox(height: 7),
+                      ],
+                      if (widget.usesRealEntries &&
+                          widget.pendingAttachmentMediaId != null) ...[
+                        _ApprovedPendingRemoteAttachment(
+                          mediaId: widget.pendingAttachmentMediaId!,
+                          busy: widget.attachmentRetryBusy,
+                          onRetry: widget.onRetryAttachment,
+                          onDiscard: widget.onDiscardAttachment,
+                        ),
+                        const SizedBox(height: 7),
+                      ],
                     ],
-                  if (widget.sendError != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.sendError!,
-                      key: const Key('approvedChatSendError'),
-                      textAlign: TextAlign.center,
-                      style: _text(
-                        context,
-                        size: 9,
-                        weight: FontWeight.w700,
-                        color: const Color(0xFFD32F2F),
-                      ),
-                    ),
-                  ],
-                ] else ...[
-                  const _DateDivider(),
-                  const SizedBox(height: 10),
-                  _IncomingMessage(
-                    key: const Key('approved-chat-message-incoming-1'),
-                    text: widget.incomingMessage,
-                    time: '9:30 AM',
-                    contactInitials: widget.contactInitials,
                   ),
-                  const SizedBox(height: 6),
-                  _OutgoingMessage(
-                    key: const Key('approved-chat-message-outgoing-1'),
-                    text: widget.outgoingMessage,
-                    time: '9:31 AM',
-                  ),
-                  const SizedBox(height: 6),
-                  _IncomingMessage(
-                    key: const Key('approved-chat-message-incoming-2'),
-                    text:
-                        'Great! I’m at the Yonkers location. See you at 5:00 PM today.',
-                    time: '9:32 AM',
-                    contactInitials: widget.contactInitials,
-                  ),
-                  const SizedBox(height: 6),
-                  const _OutgoingMessage(
-                    text: 'Perfect. I’ll be there around 4:55 PM.',
-                    time: '9:33 AM',
-                  ),
-                  const SizedBox(height: 6),
-                  _IncomingMessage(
-                    text:
-                        'Sounds good. I’ll have the iPad charged and ready for you to check.',
-                    time: '9:34 AM',
-                    contactInitials: widget.contactInitials,
-                  ),
-                  const SizedBox(height: 6),
-                  const _OutgoingMessage(
-                    text: 'Awesome, thanks! Talk to you soon.',
-                    time: '9:35 AM',
-                  ),
-                  const SizedBox(height: 6),
-                  _IncomingMessage(
-                    text: 'You got it. See you soon!',
-                    time: '9:35 AM',
-                    contactInitials: widget.contactInitials,
-                  ),
-                  for (final entry in _sentEntries) ...[
-                    const SizedBox(height: 6),
-                    if (entry.isOutgoing)
-                      _OutgoingMessage(
-                        text: entry.displayText,
-                        time: entry.time,
-                      )
-                    else
-                      _IncomingMessage(
-                        text: entry.displayText,
-                        time: entry.time,
-                        contactInitials: widget.contactInitials,
-                      ),
-                  ],
-                ],
-                const SizedBox(height: 8),
-                if (_pendingAttachment != null) ...[
-                  _ApprovedPendingAttachment(
-                    label: _pendingAttachment!,
-                    isImage: _pendingAttachmentIsImage,
-                    onRemove: () => setState(() => _pendingAttachment = null),
-                  ),
-                  const SizedBox(height: 7),
-                ],
-                if (widget.usesRealEntries &&
-                    widget.pendingAttachmentMediaId != null) ...[
-                  _ApprovedPendingRemoteAttachment(
-                    mediaId: widget.pendingAttachmentMediaId!,
-                    busy: widget.attachmentRetryBusy,
-                    onRetry: widget.onRetryAttachment,
-                    onDiscard: widget.onDiscardAttachment,
-                  ),
-                  const SizedBox(height: 7),
-                ],
-                _MessageComposer(
-                  controller: _controller,
-                  onAttach: _showAttachmentPicker,
-                  onSend: _send,
-                  enabled: _canMessage,
-                  hintText: !_canMessage
-                      ? (widget.blockState?.isBlockedByMe == true
-                            ? 'You blocked this person'
-                            : 'Messaging is unavailable')
-                      : 'Type a message...',
                 ),
               ],
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+              child: _MessageComposer(
+                controller: _controller,
+                onAttach: _showAttachmentPicker,
+                onSend: _send,
+                enabled: _canMessage,
+                hintText: !_canMessage
+                    ? (widget.blockState?.isBlockedByMe == true
+                          ? 'You blocked this person'
+                          : 'Messaging is unavailable')
+                    : 'Type a message...',
+              ),
             ),
           ),
         ],
@@ -2363,6 +2415,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: constraints.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -2403,6 +2456,7 @@ class _ApprovedPageScaffold extends StatelessWidget {
             ? constraints.maxHeight
             : media.size.height;
         final metrics = ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: availableWidth,
           textScaler: media.textScaler,
         );
@@ -2413,11 +2467,12 @@ class _ApprovedPageScaffold extends StatelessWidget {
             availableHeight / metrics.geometryScale,
           );
           final canvasMetrics = ApprovedReplicaMetrics.resolve(
+            brightness: Theme.of(context).brightness,
             availableWidth: ApprovedReplicaMetrics.referenceCanvasWidth,
             textScaler: media.textScaler,
           );
           return ColoredBox(
-            color: Colors.white,
+            color: HocalistPalette.surface(context, Colors.white),
             child: Center(
               child: SizedBox(
                 key: const Key('approved-replica-viewport'),
@@ -2429,7 +2484,12 @@ class _ApprovedPageScaffold extends StatelessWidget {
                     child: SizedBox.fromSize(
                       key: const Key('approved-replica-canvas'),
                       size: canvasSize,
-                      child: _buildScaffold(media, canvasMetrics, canvasSize),
+                      child: _buildScaffold(
+                        context,
+                        media,
+                        canvasMetrics,
+                        canvasSize,
+                      ),
                     ),
                   ),
                 ),
@@ -2440,12 +2500,12 @@ class _ApprovedPageScaffold extends StatelessWidget {
 
         final canvasSize = Size(metrics.contentMaxWidth, availableHeight);
         return ColoredBox(
-          color: Colors.white,
+          color: HocalistPalette.surface(context, Colors.white),
           child: Center(
             child: SizedBox.fromSize(
               key: const Key('approved-replica-viewport'),
               size: canvasSize,
-              child: _buildScaffold(media, metrics, canvasSize),
+              child: _buildScaffold(context, media, metrics, canvasSize),
             ),
           ),
         );
@@ -2454,6 +2514,7 @@ class _ApprovedPageScaffold extends StatelessWidget {
   }
 
   Widget _buildScaffold(
+    BuildContext context,
     MediaQueryData media,
     ApprovedReplicaMetrics metrics,
     Size canvasSize,
@@ -2468,7 +2529,7 @@ class _ApprovedPageScaffold extends StatelessWidget {
             if (!didPop) onBack();
           },
           child: Scaffold(
-            backgroundColor: Colors.white,
+            backgroundColor: HocalistPalette.surface(context, Colors.white),
             body: SafeArea(
               bottom: false,
               child: body ?? CustomScrollView(key: bodyKey, slivers: slivers!),
@@ -2495,7 +2556,7 @@ TextStyle _text(
   return (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
     fontSize: size,
     fontWeight: weight,
-    color: color,
+    color: HocalistPalette.text(context, color),
     height: height,
     letterSpacing: 0,
   );
@@ -2633,7 +2694,7 @@ class _ApprovedGlobalHeader extends StatelessWidget {
           height: compact ? 30 : 36,
           padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 10),
           decoration: BoxDecoration(
-            color: _lavender,
+            color: HocalistPalette.surface(context, _lavender),
             borderRadius: BorderRadius.circular(22),
           ),
           child: Row(
@@ -2766,9 +2827,9 @@ class _OffersRewardsCard extends StatelessWidget {
             width: tight ? 54 : 70,
             height: tight ? 54 : 70,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: HocalistPalette.surface(context, Colors.white),
               shape: BoxShape.circle,
-              border: Border.all(color: _line),
+              border: Border.all(color: HocalistPalette.border(context, _line)),
             ),
             padding: EdgeInsets.all(tight ? 6 : 8),
             child: _asset('rewards-gift.png', fit: BoxFit.contain),
@@ -2840,7 +2901,10 @@ class _OffersRewardsCard extends StatelessWidget {
               Container(
                 width: 1,
                 height: tight ? 54 : 72,
-                color: const Color(0xffdedff0),
+                color: HocalistPalette.surface(
+                  context,
+                  const Color(0xffdedff0),
+                ),
               ),
               SizedBox(width: tight ? 5 : 9),
               Expanded(flex: 6, child: explanation),
@@ -2915,11 +2979,15 @@ class _OffersToolbar extends StatelessWidget {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: _line),
+                    borderSide: BorderSide(
+                      color: HocalistPalette.border(context, _line),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: _line),
+                    borderSide: BorderSide(
+                      color: HocalistPalette.border(context, _line),
+                    ),
                   ),
                 ),
                 style: _text(
@@ -2956,7 +3024,7 @@ class _OffersToolbar extends StatelessWidget {
                     ? MaterialTapTargetSize.shrinkWrap
                     : MaterialTapTargetSize.padded,
                 padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
-                side: const BorderSide(color: _line),
+                side: BorderSide(color: HocalistPalette.border(context, _line)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -2989,7 +3057,7 @@ class _ChatStateNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: _lavender,
+        color: HocalistPalette.surface(context, _lavender),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -3012,7 +3080,7 @@ class _ChatStateNotice extends StatelessWidget {
               style: TextButton.styleFrom(
                 minimumSize: const Size(0, 30),
                 padding: EdgeInsets.zero,
-                foregroundColor: _offersBlue,
+                foregroundColor: HocalistPalette.text(context, _offersBlue),
               ),
               child: const Text('Retry'),
             ),
@@ -3052,11 +3120,15 @@ class _OffersStateNotice extends StatelessWidget {
               width: 44,
               height: 44,
               alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: _lavender,
+              decoration: BoxDecoration(
+                color: HocalistPalette.surface(context, _lavender),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 22, color: _offersBlue),
+              child: Icon(
+                icon,
+                size: 22,
+                color: HocalistPalette.text(context, _offersBlue),
+              ),
             ),
             const SizedBox(height: 8),
           ],
@@ -3089,7 +3161,7 @@ class _OffersStateNotice extends StatelessWidget {
               style: TextButton.styleFrom(
                 minimumSize: const Size(0, 32),
                 padding: EdgeInsets.zero,
-                foregroundColor: _offersBlue,
+                foregroundColor: HocalistPalette.text(context, _offersBlue),
               ),
               child: const Text('Retry'),
             ),
@@ -3153,8 +3225,8 @@ class _ApprovedOfferCard extends StatelessWidget {
               if (topMatch)
                 Container(
                   padding: const EdgeInsets.fromLTRB(4, 0, 7, 0),
-                  decoration: const BoxDecoration(
-                    color: Color(0xffe5f5eb),
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(context, Color(0xffe5f5eb)),
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(8),
                       bottomRight: Radius.circular(14),
@@ -3204,7 +3276,10 @@ class _ApprovedOfferCard extends StatelessWidget {
                           ),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: const Color(0xfff8f7ff),
+                            color: HocalistPalette.surface(
+                              context,
+                              const Color(0xfff8f7ff),
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
@@ -3214,7 +3289,10 @@ class _ApprovedOfferCard extends StatelessWidget {
                                 icon: Icons.sell_outlined,
                                 slotSize: compact ? 17 : 23,
                                 glyphSize: compact ? 17 : 23,
-                                color: _offersBlue,
+                                color: HocalistPalette.text(
+                                  context,
+                                  _offersBlue,
+                                ),
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -3332,7 +3410,10 @@ class _ApprovedOfferCard extends StatelessWidget {
                           label: 'View offer details',
                           onPressed: onDetails,
                           height: compact ? 30 : 44,
-                          backgroundColor: _offersBlue,
+                          backgroundColor: HocalistPalette.surface(
+                            context,
+                            _offersBlue,
+                          ),
                         );
                         if (stacked) {
                           return SizedBox(
@@ -3512,7 +3593,7 @@ class _SecurePrivateNotice extends StatelessWidget {
       key: const Key('approved-secure-private-notice'),
       padding: EdgeInsets.all(compact ? 5 : 9),
       decoration: BoxDecoration(
-        color: const Color(0xfff1faf5),
+        color: HocalistPalette.surface(context, const Color(0xfff1faf5)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -3591,7 +3672,7 @@ class _OfferDetailHeader extends StatelessWidget {
               height: 34,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
-                color: _lavender,
+                color: HocalistPalette.surface(context, _lavender),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Row(
@@ -3899,7 +3980,7 @@ class _OfferRewardWindow extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(compact ? 6 : 9),
       decoration: BoxDecoration(
-        color: const Color(0xfffff8eb),
+        color: HocalistPalette.surface(context, const Color(0xfffff8eb)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: LayoutBuilder(
@@ -3952,7 +4033,7 @@ class _OfferRewardWindow extends StatelessWidget {
               vertical: compact ? 5 : 7,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xffffedc8),
+              color: HocalistPalette.surface(context, const Color(0xffffedc8)),
               borderRadius: BorderRadius.circular(7),
             ),
             child: Column(
@@ -4134,9 +4215,11 @@ class _DescriptionBlock extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(compact ? 6 : 8),
       decoration: BoxDecoration(
-        color: const Color(0xfff8f7ff),
+        color: HocalistPalette.surface(context, const Color(0xfff8f7ff)),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xffecebfa)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffecebfa)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4178,9 +4261,11 @@ class _OfferPinNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(compact ? 6 : 8),
       decoration: BoxDecoration(
-        color: const Color(0xfff5f1ff),
+        color: HocalistPalette.surface(context, const Color(0xfff5f1ff)),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xffdfd8ff)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffdfd8ff)),
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -4232,7 +4317,7 @@ class _OfferPinNotice extends StatelessWidget {
               vertical: compact ? 5 : 7,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xffe8e0ff),
+              color: HocalistPalette.surface(context, const Color(0xffe8e0ff)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -4329,7 +4414,7 @@ class _AboutSeller extends StatelessWidget {
             key: const Key('approved-view-profile'),
             onPressed: onViewProfile,
             style: TextButton.styleFrom(
-              backgroundColor: _lavender,
+              backgroundColor: HocalistPalette.surface(context, _lavender),
               minimumSize: Size(compact ? 86 : 104, compact ? 38 : 44),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -4378,7 +4463,7 @@ class _OfferOfflineNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(compact ? 3 : 7),
       decoration: BoxDecoration(
-        color: const Color(0xfff6f4ff),
+        color: HocalistPalette.surface(context, const Color(0xfff6f4ff)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -4553,8 +4638,8 @@ class _ChatHeader extends StatelessWidget {
             width: compact ? 30 : 40,
             height: compact ? 30 : 40,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: _lavender,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, _lavender),
               shape: BoxShape.circle,
             ),
             child: Text(
@@ -4574,9 +4659,15 @@ class _ChatHeader extends StatelessWidget {
               width: compact ? 9 : 11,
               height: compact ? 9 : 11,
               decoration: BoxDecoration(
-                color: const Color(0xff12b759),
+                color: HocalistPalette.surface(
+                  context,
+                  const Color(0xff12b759),
+                ),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                border: Border.all(
+                  color: HocalistPalette.border(context, Colors.white),
+                  width: 2,
+                ),
               ),
             ),
           ),
@@ -4591,7 +4682,7 @@ class _ChatHeader extends StatelessWidget {
               vertical: compact ? 2 : 3,
             ),
             decoration: BoxDecoration(
-              color: _lavender,
+              color: HocalistPalette.surface(context, _lavender),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -4846,7 +4937,7 @@ class _ActiveDealCard extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
-          color: Colors.white,
+          color: HocalistPalette.surface(context, Colors.white),
           borderRadius: BorderRadius.circular(10),
           child: InkWell(
             onTap: onTap,
@@ -4856,7 +4947,10 @@ class _ActiveDealCard extends StatelessWidget {
               constraints: BoxConstraints(minHeight: compact ? 118 : 134),
               padding: EdgeInsets.all(compact ? 7 : 9),
               decoration: BoxDecoration(
-                border: Border.all(color: _blue, width: 1.2),
+                border: Border.all(
+                  color: HocalistPalette.border(context, _blue),
+                  width: 1.2,
+                ),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -4870,7 +4964,10 @@ class _ActiveDealCard extends StatelessWidget {
                         height: compact ? 48 : 58,
                         padding: EdgeInsets.all(compact ? 3 : 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xfff8f8ff),
+                          color: HocalistPalette.surface(
+                            context,
+                            const Color(0xfff8f8ff),
+                          ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: asset == null
@@ -4878,7 +4975,7 @@ class _ActiveDealCard extends StatelessWidget {
                                 icon: Icons.tv_outlined,
                                 slotSize: compact ? 22 : 28,
                                 glyphSize: compact ? 22 : 28,
-                                color: _blue,
+                                color: HocalistPalette.text(context, _blue),
                               )
                             : _asset(
                                 asset!,
@@ -4924,9 +5021,12 @@ class _ActiveDealCard extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: status == 'Offer updated'
-                          ? const Color(0xfffff4df)
-                          : _lavender,
+                      color: HocalistPalette.surface(
+                        context,
+                        status == 'Offer updated'
+                            ? const Color(0xfffff4df)
+                            : _lavender,
+                      ),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
@@ -4950,7 +5050,7 @@ class _ActiveDealCard extends StatelessWidget {
                         icon: Icons.event_outlined,
                         slotSize: compact ? 11 : 13,
                         glyphSize: compact ? 11 : 13,
-                        color: _blue,
+                        color: HocalistPalette.text(context, _blue),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
@@ -4982,7 +5082,7 @@ class _NewDealCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: HocalistPalette.surface(context, Colors.white),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         key: const Key('active-deal-new'),
@@ -4991,7 +5091,10 @@ class _NewDealCard extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(minHeight: 134),
           decoration: BoxDecoration(
-            border: Border.all(color: _line, style: BorderStyle.solid),
+            border: Border.all(
+              color: HocalistPalette.border(context, _line),
+              style: BorderStyle.solid,
+            ),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
@@ -5080,9 +5183,9 @@ class _RealActiveDealsPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _RealDealCard(
-                    key: ValueKey('active-deal-${deal.meetingId}'),
+                    key: ValueKey('active-deal-${deal.id}'),
                     deal: deal,
-                    onTap: () => onOpenDeal(deal.meetingId),
+                    onTap: () => onOpenDeal(deal.id),
                   ),
                 ),
                 SizedBox(width: spacing),
@@ -5102,9 +5205,9 @@ class _RealActiveDealsPanel extends StatelessWidget {
                 SizedBox(
                   width: dealWidth,
                   child: _RealDealCard(
-                    key: ValueKey('active-deal-${deal.meetingId}'),
+                    key: ValueKey('active-deal-${deal.id}'),
                     deal: deal,
-                    onTap: () => onOpenDeal(deal.meetingId),
+                    onTap: () => onOpenDeal(deal.id),
                   ),
                 ),
                 SizedBox(width: spacing),
@@ -5140,8 +5243,8 @@ class _RealDealStateCard extends StatelessWidget {
       constraints: BoxConstraints(minHeight: compact ? 118 : 134),
       padding: EdgeInsets.all(compact ? 8 : 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _line),
+        color: HocalistPalette.surface(context, Colors.white),
+        border: Border.all(color: HocalistPalette.border(context, _line)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -5156,7 +5259,7 @@ class _RealDealStateCard extends StatelessWidget {
               icon: Icons.hourglass_empty_rounded,
               slotSize: compact ? 22 : 28,
               glyphSize: compact ? 22 : 28,
-              color: _blue,
+              color: HocalistPalette.text(context, _blue),
             ),
             const SizedBox(height: 6),
             Flexible(
@@ -5178,7 +5281,7 @@ class _RealDealStateCard extends StatelessWidget {
                 key: const Key('active-deals-retry'),
                 onPressed: onRetry,
                 style: TextButton.styleFrom(
-                  foregroundColor: _blue,
+                  foregroundColor: HocalistPalette.text(context, _blue),
                   minimumSize: const Size(0, 30),
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -5225,7 +5328,7 @@ class _RealDealCard extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
-          color: Colors.white,
+          color: HocalistPalette.surface(context, Colors.white),
           borderRadius: BorderRadius.circular(10),
           child: InkWell(
             onTap: onTap,
@@ -5234,7 +5337,10 @@ class _RealDealCard extends StatelessWidget {
               constraints: BoxConstraints(minHeight: compact ? 118 : 134),
               padding: EdgeInsets.all(compact ? 7 : 9),
               decoration: BoxDecoration(
-                border: Border.all(color: _blue, width: 1.2),
+                border: Border.all(
+                  color: HocalistPalette.border(context, _blue),
+                  width: 1.2,
+                ),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -5247,7 +5353,10 @@ class _RealDealCard extends StatelessWidget {
                         width: compact ? 42 : 50,
                         height: compact ? 48 : 58,
                         decoration: BoxDecoration(
-                          color: const Color(0xfff8f8ff),
+                          color: HocalistPalette.surface(
+                            context,
+                            const Color(0xfff8f8ff),
+                          ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Center(
@@ -5255,7 +5364,7 @@ class _RealDealCard extends StatelessWidget {
                             icon: Icons.devices_other_outlined,
                             slotSize: compact ? 22 : 28,
                             glyphSize: compact ? 22 : 28,
-                            color: _blue,
+                            color: HocalistPalette.text(context, _blue),
                           ),
                         ),
                       ),
@@ -5298,7 +5407,7 @@ class _RealDealCard extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: statusBackground,
+                      color: HocalistPalette.surface(context, statusBackground),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
@@ -5320,7 +5429,7 @@ class _RealDealCard extends StatelessWidget {
                         icon: Icons.event_outlined,
                         slotSize: compact ? 11 : 13,
                         glyphSize: compact ? 11 : 13,
-                        color: _blue,
+                        color: HocalistPalette.text(context, _blue),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
@@ -5419,7 +5528,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
                 BuyerGlyphIcon(
                   icon: Icons.receipt_long_outlined,
                   slotSize: BuyerIconTokens.feature,
-                  color: _blue,
+                  color: HocalistPalette.text(context, _blue),
                 ),
                 SizedBox(height: metrics.geometry(8)),
                 Text(
@@ -5451,7 +5560,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
                         ? 'View previous deal'
                         : 'Propose meeting',
                     onPressed: previous != null && previous.isNotEmpty
-                        ? () => onOpenDeal(previous.first.meetingId)
+                        ? () => onOpenDeal(previous.first.id)
                         : onProposeMeeting,
                   ),
                 ],
@@ -5464,12 +5573,12 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
               children: [
                 for (final deal in list)
                   _ConversationDealRow(
-                    key: ValueKey('approved-real-deal-row-${deal.meetingId}'),
+                    key: ValueKey('approved-real-deal-row-${deal.id}'),
                     icon: Icons.devices_other_outlined,
                     title: deal.title,
                     price: deal.priceLabel,
                     status: deal.statusLabel,
-                    onTap: () => onOpenDeal(deal.meetingId),
+                    onTap: () => onOpenDeal(deal.id),
                   ),
               ],
             ),
@@ -5520,14 +5629,12 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
                 : [
                     for (final deal in previous)
                       _ConversationDealRow(
-                        key: ValueKey(
-                          'approved-real-previous-row-${deal.meetingId}',
-                        ),
+                        key: ValueKey('approved-real-previous-row-${deal.id}'),
                         icon: Icons.devices_other_outlined,
                         title: deal.title,
                         price: deal.priceLabel,
                         status: deal.statusLabel,
-                        onTap: () => onOpenDeal(deal.meetingId),
+                        onTap: () => onOpenDeal(deal.id),
                       ),
                   ],
           ),
@@ -5562,7 +5669,7 @@ class _ConversationDealStateRow extends StatelessWidget {
             icon: icon,
             slotSize: metrics.artSize(20),
             glyphSize: metrics.artSize(20),
-            color: _blue,
+            color: HocalistPalette.text(context, _blue),
           ),
           SizedBox(width: metrics.geometry(9)),
           Expanded(
@@ -5621,6 +5728,7 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -5654,16 +5762,21 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                 width: metrics.artSize(76),
                 height: metrics.artSize(88),
                 decoration: BoxDecoration(
-                  color: const Color(0xfff8f8ff),
+                  color: HocalistPalette.surface(
+                    context,
+                    const Color(0xfff8f8ff),
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(14)),
-                  border: Border.all(color: _line),
+                  border: Border.all(
+                    color: HocalistPalette.border(context, _line),
+                  ),
                 ),
                 child: Center(
                   child: BuyerGlyphIcon(
                     icon: Icons.devices_other_outlined,
                     slotSize: metrics.artSize(34),
                     glyphSize: metrics.artSize(34),
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
                 ),
               ),
@@ -5702,7 +5815,10 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                             ),
                           ),
                           decoration: BoxDecoration(
-                            color: statusBackground,
+                            color: HocalistPalette.surface(
+                              context,
+                              statusBackground,
+                            ),
                             borderRadius: BorderRadius.circular(99),
                           ),
                           child: Text(
@@ -5725,7 +5841,10 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                               ),
                             ),
                             decoration: BoxDecoration(
-                              color: _lavender,
+                              color: HocalistPalette.surface(
+                                context,
+                                _lavender,
+                              ),
                               borderRadius: BorderRadius.circular(99),
                             ),
                             child: Text(
@@ -5753,9 +5872,9 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
           Container(
             padding: metrics.geometryInsets(const EdgeInsets.all(12)),
             decoration: BoxDecoration(
-              color: const Color(0xfffbfcff),
+              color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
               borderRadius: BorderRadius.circular(metrics.geometry(14)),
-              border: Border.all(color: _line),
+              border: Border.all(color: HocalistPalette.border(context, _line)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5789,7 +5908,9 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
           SizedBox(height: metrics.geometry(16)),
           BuyerPrimaryButton(
             key: const ValueKey('approved-real-deal-open-meeting'),
-            label: viewerIsSeller
+            label: deal.meetingId == null
+                ? 'Arrange meeting'
+                : viewerIsSeller
                 ? 'Review meeting details'
                 : 'Open meeting details',
             onPressed: onOpenMeeting,
@@ -5927,7 +6048,7 @@ class _ConversationDealGroup extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 ),
                 decoration: BoxDecoration(
-                  color: _lavender,
+                  color: HocalistPalette.surface(context, _lavender),
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: Text(
@@ -5946,8 +6067,8 @@ class _ConversationDealGroup extends StatelessWidget {
         SizedBox(height: metrics.geometry(7)),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xfffbfcff),
-            border: Border.all(color: _line),
+            color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
+            border: Border.all(color: HocalistPalette.border(context, _line)),
             borderRadius: BorderRadius.circular(metrics.geometry(14)),
           ),
           clipBehavior: Clip.antiAlias,
@@ -6008,7 +6129,7 @@ class _ConversationDealRow extends StatelessWidget {
                     height: metrics.artSize(48),
                     padding: metrics.geometryInsets(const EdgeInsets.all(4)),
                     decoration: BoxDecoration(
-                      color: _lavender,
+                      color: HocalistPalette.surface(context, _lavender),
                       borderRadius: BorderRadius.circular(metrics.geometry(9)),
                     ),
                     child: asset != null
@@ -6017,7 +6138,7 @@ class _ConversationDealRow extends StatelessWidget {
                             icon: icon!,
                             slotSize: metrics.artSize(25),
                             glyphSize: metrics.artSize(25),
-                            color: _blue,
+                            color: HocalistPalette.text(context, _blue),
                           ),
                   ),
                   SizedBox(width: metrics.geometry(10)),
@@ -6061,11 +6182,11 @@ class _ConversationDealRow extends StatelessWidget {
                   ),
                   if (onTap != null) ...[
                     SizedBox(width: metrics.geometry(3)),
-                    const BuyerGlyphIcon(
+                    BuyerGlyphIcon(
                       icon: Icons.chevron_right_rounded,
                       slotSize: 20,
                       glyphSize: 20,
-                      color: _blue,
+                      color: HocalistPalette.text(context, _blue),
                     ),
                   ],
                 ],
@@ -6111,6 +6232,7 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -6129,9 +6251,14 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
                 height: metrics.artSize(88),
                 padding: metrics.geometryInsets(const EdgeInsets.all(6)),
                 decoration: BoxDecoration(
-                  color: const Color(0xfff8f8ff),
+                  color: HocalistPalette.surface(
+                    context,
+                    const Color(0xfff8f8ff),
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(14)),
-                  border: Border.all(color: _line),
+                  border: Border.all(
+                    color: HocalistPalette.border(context, _line),
+                  ),
                 ),
                 child: Image.asset(
                   '$_assetRoot/chat-ipad.png',
@@ -6193,9 +6320,9 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
           Container(
             padding: metrics.geometryInsets(const EdgeInsets.all(12)),
             decoration: BoxDecoration(
-              color: const Color(0xfffbfcff),
+              color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
               borderRadius: BorderRadius.circular(metrics.geometry(14)),
-              border: Border.all(color: _line),
+              border: Border.all(color: HocalistPalette.border(context, _line)),
             ),
             child: widget.viewerIsSeller
                 ? const _SellerDealFacts()
@@ -6215,7 +6342,7 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
               key: const ValueKey('approved-inline-meeting-review'),
               padding: metrics.geometryInsets(const EdgeInsets.all(13)),
               decoration: BoxDecoration(
-                color: _lavender,
+                color: HocalistPalette.surface(context, _lavender),
                 borderRadius: BorderRadius.circular(metrics.geometry(14)),
               ),
               child: Column(
@@ -6271,7 +6398,7 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
                     : const Key('buyer-accept-updated-offer'),
                 onPressed: widget.onAccept,
                 style: FilledButton.styleFrom(
-                  backgroundColor: _blue,
+                  backgroundColor: HocalistPalette.surface(context, _blue),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(metrics.geometry(14)),
                   ),
@@ -6299,8 +6426,10 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
                 onPressed: () =>
                     setState(() => _showMeetingDetails = !_showMeetingDetails),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _blue,
-                  side: const BorderSide(color: _blue),
+                  foregroundColor: HocalistPalette.text(context, _blue),
+                  side: BorderSide(
+                    color: HocalistPalette.border(context, _blue),
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(metrics.geometry(14)),
                   ),
@@ -6346,6 +6475,7 @@ class _ApprovedOfferEditorSheet extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -6418,7 +6548,7 @@ class _ApprovedChatSheetFrame extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       icon: icon,
-      iconColor: iconColor,
+      iconColor: HocalistPalette.text(context, iconColor),
       iconSurface: iconSurface,
       closeKey: const ValueKey('approved-chat-sheet-close'),
       onClose: onClose,
@@ -6451,10 +6581,10 @@ class _ApprovedMenuAction extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: metrics.geometry(6)),
       child: Material(
-        color: const Color(0xfffbfcff),
+        color: HocalistPalette.surface(context, const Color(0xfffbfcff)),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(13)),
-          side: const BorderSide(color: _line),
+          side: BorderSide(color: HocalistPalette.border(context, _line)),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -6480,7 +6610,10 @@ class _ApprovedMenuAction extends StatelessWidget {
                               icon: icon!,
                               slotSize: iconSize,
                               glyphSize: iconSize,
-                              color: foregroundColor,
+                              color: HocalistPalette.text(
+                                context,
+                                foregroundColor,
+                              ),
                             ),
                     ),
                   ),
@@ -6514,7 +6647,10 @@ class _ApprovedMenuAction extends StatelessWidget {
                     icon: Icons.chevron_right_rounded,
                     slotSize: metrics.geometry(20),
                     glyphSize: metrics.geometry(20),
-                    color: foregroundColor == _navy ? _blue : foregroundColor,
+                    color: HocalistPalette.text(
+                      context,
+                      foregroundColor == _navy ? _blue : foregroundColor,
+                    ),
                   ),
                 ],
               ),
@@ -6649,13 +6785,13 @@ class _ApprovedSearchConversationSheetState
             decoration: buyerInputDecoration(
               context,
               hintText: 'Search messages',
-              prefixIcon: const Center(
+              prefixIcon: Center(
                 widthFactor: 1,
                 child: BuyerGlyphIcon(
                   icon: Icons.search_rounded,
                   slotSize: BuyerIconTokens.control,
                   glyphSize: BuyerIconTokens.control,
-                  color: _blue,
+                  color: HocalistPalette.text(context, _blue),
                 ),
               ),
             ),
@@ -6694,7 +6830,10 @@ class _ApprovedSearchConversationSheetState
                 key: const Key('approvedConversationSearchError'),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
+                  color: HocalistPalette.text(
+                    context,
+                    Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -6711,7 +6850,7 @@ class _ApprovedSearchConversationSheetState
                 'No messages found',
                 key: const Key('approvedConversationSearchEmpty'),
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: _muted,
+                  color: HocalistPalette.text(context, _muted),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -6721,7 +6860,7 @@ class _ApprovedSearchConversationSheetState
                 Text(
                   '${_serverResults.length} ${_serverResults.length == 1 ? 'message' : 'messages'} found',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -6747,7 +6886,10 @@ class _ApprovedSearchConversationSheetState
                   ? 'No messages found'
                   : '${_matches.length} ${_matches.length == 1 ? 'message' : 'messages'} found',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: _matches.isEmpty ? _muted : _blue,
+                color: HocalistPalette.text(
+                  context,
+                  _matches.isEmpty ? _muted : _blue,
+                ),
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -6756,14 +6898,22 @@ class _ApprovedSearchConversationSheetState
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: BuyerUiTokens.softSurface,
-                  border: Border.all(color: BuyerUiTokens.border),
+                  color: HocalistPalette.surface(
+                    context,
+                    BuyerUiTokens.softSurface,
+                  ),
+                  border: Border.all(
+                    color: HocalistPalette.border(
+                      context,
+                      BuyerUiTokens.border,
+                    ),
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _navy,
+                    color: HocalistPalette.text(context, _navy),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -6788,8 +6938,10 @@ class _ServerSearchResultCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.softSurface,
-        border: Border.all(color: BuyerUiTokens.border),
+        color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -6798,7 +6950,7 @@ class _ServerSearchResultCard extends StatelessWidget {
           Text(
             hit.senderDisplayName ?? 'Sender unavailable',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _muted,
+              color: HocalistPalette.text(context, _muted),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -6806,7 +6958,7 @@ class _ServerSearchResultCard extends StatelessWidget {
           Text(
             hit.message.text,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: _navy,
+              color: HocalistPalette.text(context, _navy),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -6830,8 +6982,10 @@ class _BlockedConversationNotice extends StatelessWidget {
       key: const Key('approvedChatBlockedNotice'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xffffeeee),
-        border: Border.all(color: const Color(0xffffcdd2)),
+        color: HocalistPalette.surface(context, const Color(0xffffeeee)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffffcdd2)),
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -6842,7 +6996,7 @@ class _BlockedConversationNotice extends StatelessWidget {
                 ? 'You blocked this person'
                 : 'Messaging is unavailable',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: const Color(0xffc62828),
+              color: HocalistPalette.text(context, const Color(0xffc62828)),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -6851,9 +7005,9 @@ class _BlockedConversationNotice extends StatelessWidget {
             blockedByMe
                 ? 'They can’t send new messages or start calls. Your deal and history stay unchanged.'
                 : 'You can’t send messages here right now. Your deal records are unchanged.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: _navy),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: HocalistPalette.text(context, _navy),
+            ),
           ),
           if (onUnblock != null)
             TextButton(
@@ -6947,7 +7101,13 @@ class _ApprovedDealFactRow extends StatelessWidget {
     final rowChildren = <Widget>[];
     for (var index = 0; index < children.length; index++) {
       if (index > 0) {
-        rowChildren.add(Container(width: 1, height: 54, color: _line));
+        rowChildren.add(
+          Container(
+            width: 1,
+            height: 54,
+            color: HocalistPalette.surface(context, _line),
+          ),
+        );
       }
       rowChildren.add(Expanded(child: children[index]));
     }
@@ -6968,7 +7128,7 @@ class _SellerTransactionNotice extends StatelessWidget {
       key: const ValueKey('seller-after-transaction-notice'),
       padding: metrics.geometryInsets(const EdgeInsets.all(14)),
       decoration: BoxDecoration(
-        color: const Color(0xfffff5e7),
+        color: HocalistPalette.surface(context, const Color(0xfffff5e7)),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Row(
@@ -6978,7 +7138,7 @@ class _SellerTransactionNotice extends StatelessWidget {
             icon: Icons.notifications_none_rounded,
             slotSize: metrics.artSize(28),
             glyphSize: metrics.artSize(28),
-            color: const Color(0xfff2a51a),
+            color: HocalistPalette.text(context, const Color(0xfff2a51a)),
           ),
           SizedBox(width: metrics.geometry(10)),
           Expanded(
@@ -7119,7 +7279,10 @@ class _DealChangeRow extends StatelessWidget {
         children: [
           Expanded(
             flex: 2,
-            child: Text(label, style: const TextStyle(color: _muted)),
+            child: Text(
+              label,
+              style: TextStyle(color: HocalistPalette.text(context, _muted)),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -7146,21 +7309,23 @@ class _OfferUpdatedNotice extends StatelessWidget {
       key: const Key('buyer-offer-updated-notice'),
       padding: metrics.geometryInsets(const EdgeInsets.all(12)),
       decoration: BoxDecoration(
-        color: const Color(0xfffff7e8),
+        color: HocalistPalette.surface(context, const Color(0xfffff7e8)),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
-        border: Border.all(color: const Color(0xffffd58d)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffffd58d)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Row(
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               BuyerGlyphIcon(
                 icon: Icons.update,
                 slotSize: BuyerIconTokens.control,
                 glyphSize: BuyerIconTokens.control,
-                color: Color(0xff9b5b00),
+                color: HocalistPalette.text(context, Color(0xff9b5b00)),
               ),
               SizedBox(width: 8),
               Expanded(
@@ -7177,7 +7342,10 @@ class _OfferUpdatedNotice extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             ),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .72),
+              color: HocalistPalette.surface(
+                context,
+                Colors.white.withValues(alpha: .72),
+              ),
               borderRadius: BorderRadius.circular(metrics.geometry(9)),
             ),
             child: const Column(
@@ -7236,13 +7404,13 @@ class _DealRevisionRow extends StatelessWidget {
               ).copyWith(decoration: TextDecoration.lineThrough),
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 5),
             child: BuyerGlyphIcon(
               icon: Icons.arrow_forward_rounded,
               slotSize: 15,
               glyphSize: 15,
-              color: Color(0xff9b5b00),
+              color: HocalistPalette.text(context, Color(0xff9b5b00)),
             ),
           ),
           Expanded(
@@ -7280,20 +7448,22 @@ class _RequestUpdatedNotice extends StatelessWidget {
       key: const Key('seller-request-updated-notice'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xfffff7e8),
+        color: HocalistPalette.surface(context, const Color(0xfffff7e8)),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xffffd58d)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffffd58d)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               BuyerGlyphIcon(
                 icon: Icons.edit_notifications_outlined,
                 slotSize: BuyerIconTokens.control,
                 glyphSize: BuyerIconTokens.control,
-                color: Color(0xff9b5b00),
+                color: HocalistPalette.text(context, Color(0xff9b5b00)),
               ),
               SizedBox(width: 8),
               Expanded(
@@ -7602,7 +7772,9 @@ class _FinalOfferCard extends StatelessWidget {
                       onPressed: onRequestChange,
                       style: OutlinedButton.styleFrom(
                         minimumSize: Size(0, compact ? 38 : 44),
-                        side: const BorderSide(color: _line),
+                        side: BorderSide(
+                          color: HocalistPalette.border(context, _line),
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -7621,7 +7793,10 @@ class _FinalOfferCard extends StatelessWidget {
                       onPressed: onChangeLocation,
                       style: FilledButton.styleFrom(
                         minimumSize: Size(0, compact ? 38 : 44),
-                        backgroundColor: _navy,
+                        backgroundColor: HocalistPalette.surface(
+                          context,
+                          _navy,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -7784,8 +7959,8 @@ class _IncomingMessage extends StatelessWidget {
                 width: compact ? 29 : 34,
                 height: compact ? 29 : 34,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: _lavender,
+                decoration: BoxDecoration(
+                  color: HocalistPalette.surface(context, _lavender),
                   shape: BoxShape.circle,
                 ),
                 child: Text(
@@ -7806,9 +7981,15 @@ class _IncomingMessage extends StatelessWidget {
                   width: compact ? 8 : 10,
                   height: compact ? 8 : 10,
                   decoration: BoxDecoration(
-                    color: const Color(0xff12b759),
+                    color: HocalistPalette.surface(
+                      context,
+                      const Color(0xff12b759),
+                    ),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(
+                      color: HocalistPalette.border(context, Colors.white),
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
@@ -7825,7 +8006,7 @@ class _IncomingMessage extends StatelessWidget {
               compact ? 7 : 9,
             ),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: HocalistPalette.surface(context, Colors.white),
               borderRadius: BorderRadius.circular(14),
               boxShadow: const [
                 BoxShadow(
@@ -7911,8 +8092,8 @@ class _OutgoingMessage extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 240),
         padding: EdgeInsets.fromLTRB(compact ? 10 : 12, 8, compact ? 8 : 10, 5),
-        decoration: const BoxDecoration(
-          color: _navy,
+        decoration: BoxDecoration(
+          color: HocalistPalette.surface(context, _navy),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(14),
             topRight: Radius.circular(14),
@@ -7995,7 +8176,7 @@ class _ChatSafetyNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xfff4f1ff),
+        color: HocalistPalette.surface(context, const Color(0xfff4f1ff)),
         borderRadius: BorderRadius.circular(9),
       ),
       child: LayoutBuilder(
@@ -8145,8 +8326,8 @@ class _ApprovedPendingAttachment extends StatelessWidget {
       key: const Key('approved-pending-attachment'),
       padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-        color: _lavender,
-        border: Border.all(color: _line),
+        color: HocalistPalette.surface(context, _lavender),
+        border: Border.all(color: HocalistPalette.border(context, _line)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -8156,7 +8337,7 @@ class _ApprovedPendingAttachment extends StatelessWidget {
             height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: HocalistPalette.surface(context, Colors.white),
               borderRadius: BorderRadius.circular(9),
             ),
             child: isImage
@@ -8166,11 +8347,11 @@ class _ApprovedPendingAttachment extends StatelessWidget {
                     height: 34,
                     fit: BoxFit.contain,
                   )
-                : const BuyerGlyphIcon(
+                : BuyerGlyphIcon(
                     icon: Icons.description_outlined,
                     slotSize: 28,
                     glyphSize: 24,
-                    color: _blue,
+                    color: HocalistPalette.text(context, _blue),
                   ),
           ),
           const SizedBox(width: 9),
@@ -8228,8 +8409,8 @@ class _ApprovedPendingRemoteAttachment extends StatelessWidget {
       key: const Key('approved-pending-remote-attachment'),
       padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-        color: _lavender,
-        border: Border.all(color: _line),
+        color: HocalistPalette.surface(context, _lavender),
+        border: Border.all(color: HocalistPalette.border(context, _line)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -8280,7 +8461,7 @@ class _ApprovedPendingRemoteAttachment extends StatelessWidget {
                   label: busy ? 'Retrying…' : 'Retry photo',
                   onPressed: busy ? null : onRetry,
                   height: 36,
-                  backgroundColor: _blue,
+                  backgroundColor: HocalistPalette.surface(context, _blue),
                 ),
               ),
               const SizedBox(width: 8),
@@ -8290,7 +8471,7 @@ class _ApprovedPendingRemoteAttachment extends StatelessWidget {
                   onPressed: busy ? null : onDiscard,
                   style: TextButton.styleFrom(
                     minimumSize: const Size(0, 36),
-                    foregroundColor: _muted,
+                    foregroundColor: HocalistPalette.text(context, _muted),
                   ),
                   child: const Text('Discard photo'),
                 ),
@@ -8371,11 +8552,15 @@ class _MessageComposer extends StatelessWidget {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(26),
-                borderSide: const BorderSide(color: _line),
+                borderSide: BorderSide(
+                  color: HocalistPalette.border(context, _line),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(26),
-                borderSide: const BorderSide(color: _line),
+                borderSide: BorderSide(
+                  color: HocalistPalette.border(context, _line),
+                ),
               ),
             ),
           ),
@@ -8436,8 +8621,8 @@ class _InitialsAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: Colors.black,
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, Colors.black),
         shape: BoxShape.circle,
       ),
       child: Text(
@@ -8470,9 +8655,9 @@ class _Surface extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: color,
+        color: HocalistPalette.surface(context, color),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _line),
+        border: Border.all(color: HocalistPalette.border(context, _line)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0c111354),

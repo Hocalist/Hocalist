@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
 
@@ -110,10 +111,14 @@ class SellerBottomNavigation extends StatelessWidget {
         final bottom = metrics?.geometry(3) ?? 3.0;
         return Material(
           key: navigationKey ?? const Key('sellerBottomNavigation'),
-          color: SellerUiColors.white,
+          color: HocalistPalette.surface(context, SellerUiColors.white),
           child: DecoratedBox(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: SellerUiColors.line)),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: HocalistPalette.border(context, SellerUiColors.line),
+                ),
+              ),
             ),
             child: SafeArea(
               top: false,
@@ -204,9 +209,10 @@ class _SellerNavigationItem extends StatelessWidget {
                 height: metrics?.geometry(34) ?? 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: selected
-                      ? SellerUiColors.lavender
-                      : Colors.transparent,
+                  color: HocalistPalette.surface(
+                    context,
+                    selected ? SellerUiColors.lavender : Colors.transparent,
+                  ),
                   borderRadius: BorderRadius.circular(indicatorRadius),
                 ),
                 child: Transform.translate(
@@ -226,7 +232,7 @@ class _SellerNavigationItem extends StatelessWidget {
                           icon,
                           key: Key('sellerNav${label}Icon'),
                           size: opticalSize,
-                          color: color,
+                          color: HocalistPalette.text(context, color),
                           semanticLabel: '$label navigation icon',
                         ),
                 ),
@@ -244,7 +250,7 @@ class _SellerNavigationItem extends StatelessWidget {
                         fontWeight: selected
                             ? FontWeight.w800
                             : FontWeight.w600,
-                        color: color,
+                        color: HocalistPalette.text(context, color),
                       )
                     : sellerText(
                         metrics,

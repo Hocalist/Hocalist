@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../theme/buyer_ui_foundation.dart';
 
@@ -22,20 +23,24 @@ class HocalistSectionIntro extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: BuyerUiTokens.softSurface,
+            color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
             borderRadius: BorderRadius.circular(11),
           ),
-          child: Icon(icon, color: BuyerUiTokens.action, size: 19),
+          child: Icon(
+            icon,
+            color: HocalistPalette.text(context, BuyerUiTokens.action),
+            size: 19,
+          ),
         ),
         const SizedBox(width: 11),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14.5,
               height: 1.35,
               fontWeight: FontWeight.w800,
-              color: BuyerUiTokens.text,
+              color: HocalistPalette.text(context, BuyerUiTokens.text),
             ),
           ),
         ),

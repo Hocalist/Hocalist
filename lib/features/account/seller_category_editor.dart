@@ -140,6 +140,7 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );

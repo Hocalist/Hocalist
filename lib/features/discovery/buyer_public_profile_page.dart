@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 import '../../domain/phase2/discovery.dart';
@@ -82,17 +83,22 @@ class _BuyerPublicProfilePageState extends State<BuyerPublicProfilePage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: HocalistPalette.surface(context, Colors.white),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: SellerUiColors.line),
+                  border: Border.all(
+                    color: HocalistPalette.border(context, SellerUiColors.line),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.person_outline_rounded,
                       size: 40,
-                      color: SellerUiColors.primaryBright,
+                      color: HocalistPalette.text(
+                        context,
+                        SellerUiColors.primaryBright,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(

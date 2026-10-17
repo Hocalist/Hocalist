@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
@@ -133,9 +134,14 @@ class ApprovedSellerMorePage extends StatelessWidget {
               icon: const Icon(Icons.logout),
               label: const Text('Log out'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: SellerUiColors.red,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  SellerUiColors.red,
+                ),
                 minimumSize: Size(0, metrics.geometry(50)),
-                side: const BorderSide(color: SellerUiColors.red),
+                side: BorderSide(
+                  color: HocalistPalette.border(context, SellerUiColors.red),
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13),
                 ),
@@ -175,8 +181,14 @@ class _ProfileCard extends StatelessWidget {
           )
         : CircleAvatar(
             radius: metrics.artSize(22),
-            backgroundColor: SellerUiColors.lavender,
-            foregroundColor: SellerUiColors.primaryBright,
+            backgroundColor: HocalistPalette.surface(
+              context,
+              SellerUiColors.lavender,
+            ),
+            foregroundColor: HocalistPalette.text(
+              context,
+              SellerUiColors.primaryBright,
+            ),
             child: Icon(Icons.person_outline, size: metrics.artSize(23)),
           );
     final details = Column(
@@ -219,7 +231,10 @@ class _ProfileCard extends StatelessWidget {
       onPressed: onEditProfile,
       style: TextButton.styleFrom(
         minimumSize: Size(metrics.geometry(44), metrics.geometry(40)),
-        foregroundColor: SellerUiColors.primaryBright,
+        foregroundColor: HocalistPalette.text(
+          context,
+          SellerUiColors.primaryBright,
+        ),
         padding: EdgeInsets.symmetric(horizontal: metrics.spacing(8)),
       ),
       child: Text(
@@ -236,8 +251,10 @@ class _ProfileCard extends StatelessWidget {
       child: Container(
         key: const Key('sellerMoreIdentityCard'),
         decoration: BoxDecoration(
-          color: SellerUiColors.white,
-          border: Border.all(color: SellerUiColors.line),
+          color: HocalistPalette.surface(context, SellerUiColors.white),
+          border: Border.all(
+            color: HocalistPalette.border(context, SellerUiColors.line),
+          ),
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
           boxShadow: const [
             BoxShadow(
@@ -248,7 +265,7 @@ class _ProfileCard extends StatelessWidget {
           ],
         ),
         child: Material(
-          color: Colors.transparent,
+          color: HocalistPalette.surface(context, Colors.transparent),
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
           clipBehavior: Clip.antiAlias,
           child: Padding(
@@ -297,9 +314,11 @@ class _MoreSection extends StatelessWidget {
           ),
           SizedBox(height: metrics.geometry(6)),
           Material(
-            color: SellerUiColors.white,
+            color: HocalistPalette.surface(context, SellerUiColors.white),
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: SellerUiColors.line),
+              side: BorderSide(
+                color: HocalistPalette.border(context, SellerUiColors.line),
+              ),
               borderRadius: BorderRadius.circular(14),
             ),
             clipBehavior: Clip.antiAlias,
@@ -344,12 +363,18 @@ class _MoreItem extends StatelessWidget {
         key: Key(keyName),
         onTap: onTap,
         minTileHeight: metrics.geometry(54),
-        leading: Icon(icon, color: SellerUiColors.primaryBright),
+        leading: Icon(
+          icon,
+          color: HocalistPalette.text(context, SellerUiColors.primaryBright),
+        ),
         title: Text(
           label,
           style: sellerText(metrics, 13, weight: FontWeight.w700),
         ),
-        trailing: const Icon(Icons.chevron_right, color: SellerUiColors.muted),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: HocalistPalette.text(context, SellerUiColors.muted),
+        ),
       ),
     );
   }

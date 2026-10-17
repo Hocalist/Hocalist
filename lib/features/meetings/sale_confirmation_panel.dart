@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -169,6 +170,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -201,6 +203,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
                   : sellerInputText(
                       ApprovedReplicaScope.maybeOf(context) ??
                           ApprovedReplicaMetrics.resolve(
+                            brightness: Theme.of(context).brightness,
                             availableWidth: MediaQuery.sizeOf(context).width,
                             textScaler: MediaQuery.textScalerOf(context),
                           ),
@@ -209,18 +212,24 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
                   ? buyerInputDecoration(
                       context,
                       hintText: '5 digits',
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.password_rounded,
-                        color: BuyerUiTokens.action,
+                        color: HocalistPalette.text(
+                          context,
+                          BuyerUiTokens.action,
+                        ),
                       ),
                     ).copyWith(labelText: 'Buyer purchase PIN', counterText: '')
                   : sellerInputDecoration(
                       context,
                       hintText: '5 digits',
                       labelText: 'Buyer purchase PIN',
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.password_rounded,
-                        color: SellerUiColors.primary,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.primary,
+                        ),
                       ),
                     ).copyWith(counterText: ''),
             ),
@@ -342,6 +351,7 @@ class _PinDisplayCard extends StatelessWidget {
     final resolved =
         metrics ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -357,9 +367,9 @@ class _PinDisplayCard extends StatelessWidget {
       key: const Key('saleConfirmationPinCard'),
       padding: resolved.geometryInsets(const EdgeInsets.all(18)),
       decoration: BoxDecoration(
-        color: surface,
+        color: HocalistPalette.surface(context, surface),
         borderRadius: BorderRadius.circular(resolved.geometry(18)),
-        border: Border.all(color: border),
+        border: Border.all(color: HocalistPalette.border(context, border)),
       ),
       child: Column(
         children: [
@@ -369,7 +379,7 @@ class _PinDisplayCard extends StatelessWidget {
               Icon(
                 Icons.password_rounded,
                 size: resolved.artSize(18),
-                color: accent,
+                color: HocalistPalette.text(context, accent),
               ),
               SizedBox(width: resolved.spacing(6)),
               Text(
@@ -377,7 +387,7 @@ class _PinDisplayCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: resolved.fontSize(12.5),
                   fontWeight: FontWeight.w800,
-                  color: accent,
+                  color: HocalistPalette.text(context, accent),
                 ),
               ),
             ],
@@ -392,7 +402,7 @@ class _PinDisplayCard extends StatelessWidget {
                 fontSize: resolved.fontSize(38),
                 fontWeight: FontWeight.w900,
                 letterSpacing: resolved.geometry(10),
-                color: textColor,
+                color: HocalistPalette.text(context, textColor),
               ),
             ),
           ),
@@ -403,7 +413,10 @@ class _PinDisplayCard extends StatelessWidget {
             style: TextStyle(
               fontSize: resolved.fontSize(11.5),
               height: 1.35,
-              color: isBuyer ? BuyerUiTokens.muted : SellerUiColors.body,
+              color: HocalistPalette.text(
+                context,
+                isBuyer ? BuyerUiTokens.muted : SellerUiColors.body,
+              ),
             ),
           ),
         ],

@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../data/phase2/discovery/discovery_backends.dart';
@@ -113,9 +114,11 @@ class _BuyerProfileVisibilityEditorState
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Material(
         type: MaterialType.transparency,

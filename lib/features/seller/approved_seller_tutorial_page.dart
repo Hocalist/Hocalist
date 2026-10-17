@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 
@@ -265,7 +266,7 @@ class _SellerTutorialScrollCue extends StatelessWidget {
         child: Icon(
           Icons.keyboard_arrow_down_rounded,
           size: metrics.geometry(24),
-          color: SellerUiColors.primary,
+          color: HocalistPalette.text(context, SellerUiColors.primary),
         ),
       ),
     );
@@ -293,7 +294,7 @@ class _TutorialClose extends StatelessWidget {
             icon: Icon(
               Icons.close,
               size: metrics.geometry(26),
-              color: SellerUiColors.muted,
+              color: HocalistPalette.text(context, SellerUiColors.muted),
             ),
             padding: EdgeInsets.zero,
             constraints: BoxConstraints(
@@ -384,8 +385,10 @@ class _TutorialBenefit extends StatelessWidget {
         vertical: metrics.geometry(9),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.lavenderBorder),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.lavenderBorder),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: Row(
@@ -448,7 +451,7 @@ class _TutorialFairnessBanner extends StatelessWidget {
         vertical: metrics.geometry(8),
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF2FAF5),
+        color: HocalistPalette.surface(context, const Color(0xFFF2FAF5)),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: Row(

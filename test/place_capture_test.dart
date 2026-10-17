@@ -290,6 +290,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('hocalistPlaceConfirmed')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('hocalistPlaceSearchField')))
+          .controller!
+          .text,
+      'Cross County Mall',
+    );
     expect(find.text('stub map'), findsOneWidget);
     expect(find.text('Google Maps'), findsOneWidget);
 

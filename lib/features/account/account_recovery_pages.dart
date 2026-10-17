@@ -5,6 +5,8 @@
 /// before any membership or profile data loads.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/buyer_ui_foundation.dart';
@@ -30,6 +32,7 @@ class AccountRecoveryScaffold extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -352,10 +355,10 @@ class _RecoveryError extends StatelessWidget {
     return Text(
       message,
       textAlign: TextAlign.center,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: Color(0xffb3261e),
+        color: HocalistPalette.text(context, Color(0xffb3261e)),
       ),
     );
   }

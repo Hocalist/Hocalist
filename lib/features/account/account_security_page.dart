@@ -5,6 +5,8 @@
 /// until the provider confirms the new address.
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import '../../components/hocalist_account_field.dart';
 import '../../domain/phase2/profiles.dart';
 
@@ -192,10 +194,10 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
                     ? 'No email is on this account.'
                     : 'Current email: ${controller.email}',
                 key: const ValueKey('security-current-email'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 12.5,
-                  color: BuyerUiTokens.muted,
+                  color: HocalistPalette.text(context, BuyerUiTokens.muted),
                 ),
               ),
               const SizedBox(height: 8),
@@ -236,13 +238,13 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
                 onPressed: controller.formBusy ? null : _startEmailChange,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Email changes need confirmation from the new address before they take effect.',
                 style: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 11.5,
                   height: 1.35,
-                  color: BuyerUiTokens.muted,
+                  color: HocalistPalette.text(context, BuyerUiTokens.muted),
                 ),
               ),
             ],
@@ -292,6 +294,7 @@ class _SecuritySection extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );
@@ -299,9 +302,11 @@ class _SecuritySection extends StatelessWidget {
       margin: EdgeInsets.only(bottom: metrics.spacing(16)),
       padding: metrics.geometryInsets(const EdgeInsets.all(16)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: BorderRadius.circular(metrics.geometry(16)),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -325,6 +330,7 @@ class _SecurityNote extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: media.size.width,
           textScaler: media.textScaler,
         );

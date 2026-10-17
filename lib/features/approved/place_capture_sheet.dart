@@ -6,6 +6,8 @@
 /// A provider failure keeps manual entry available (MAP-03/04/06).
 library;
 
+import 'package:hocalist/theme/adaptive_palette.dart';
+
 import 'dart:async';
 import '../../domain/phase2/common.dart';
 
@@ -102,7 +104,7 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
     sheetAnimationStyle: HocalistMotion.sheetStyle(context),
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: Colors.transparent,
+    backgroundColor: HocalistPalette.surface(context, Colors.transparent),
     barrierColor: const Color(0x990B1231),
     builder: (sheetContext) => PlaceCaptureSheet(
       places: places,
@@ -260,7 +262,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
         _searching = false;
         _resolvingPlaceId = null;
         _suggestions = const <PlaceSuggestion>[];
-        _queryController.clear();
+        _queryController.text = suggestion.label;
         _session = null;
         _confirmed = PlaceCaptureResult(
           label: suggestion.label,
@@ -453,6 +455,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -535,6 +538,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -542,9 +546,11 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
       key: const Key('hocalistPlaceConfirmed'),
       padding: metrics.geometryInsets(const EdgeInsets.all(12)),
       decoration: BoxDecoration(
-        color: BuyerUiTokens.softSurface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
         borderRadius: BorderRadius.circular(metrics.geometry(14)),
-        border: Border.all(color: const Color(0xffd9d5ff)),
+        border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xffd9d5ff)),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,8 +558,8 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
           Container(
             width: metrics.artSize(30),
             height: metrics.artSize(30),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Colors.white),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -561,7 +567,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                 icon: Icons.check_rounded,
                 slotSize: metrics.artSize(18),
                 glyphSize: metrics.artSize(18),
-                color: BuyerUiTokens.action,
+                color: HocalistPalette.text(context, BuyerUiTokens.action),
               ),
             ),
           ),
@@ -609,6 +615,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -627,10 +634,12 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
       key: const Key('hocalistPlaceUseLocation'),
       onPressed: _locating ? null : _useCurrentLocation,
       style: OutlinedButton.styleFrom(
-        foregroundColor: BuyerUiTokens.action,
+        foregroundColor: HocalistPalette.text(context, BuyerUiTokens.action),
         minimumSize: Size.fromHeight(metrics.geometry(44)),
         padding: EdgeInsets.symmetric(horizontal: metrics.geometry(10)),
-        side: const BorderSide(color: BuyerUiTokens.action),
+        side: BorderSide(
+          color: HocalistPalette.border(context, BuyerUiTokens.action),
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(13)),
         ),
@@ -647,14 +656,18 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
       key: const Key('hocalistPlaceManualToggle'),
       onPressed: () => setState(() => _manual = !_manual),
       style: OutlinedButton.styleFrom(
-        foregroundColor: BuyerUiTokens.action,
-        backgroundColor: _manual
-            ? BuyerUiTokens.activeSurface
-            : BuyerUiTokens.surface,
+        foregroundColor: HocalistPalette.text(context, BuyerUiTokens.action),
+        backgroundColor: HocalistPalette.surface(
+          context,
+          _manual ? BuyerUiTokens.activeSurface : BuyerUiTokens.surface,
+        ),
         minimumSize: Size.fromHeight(metrics.geometry(44)),
         padding: EdgeInsets.symmetric(horizontal: metrics.geometry(10)),
         side: BorderSide(
-          color: _manual ? BuyerUiTokens.action : BuyerUiTokens.border,
+          color: HocalistPalette.border(
+            context,
+            _manual ? BuyerUiTokens.action : BuyerUiTokens.border,
+          ),
           width: _manual ? 1.5 : 1,
         ),
         shape: RoundedRectangleBorder(
@@ -677,7 +690,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
       heightFactor: 0.92,
       child: Material(
         key: const Key('hocalistPlaceCaptureSheet'),
-        color: BuyerUiTokens.surface,
+        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -687,7 +700,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
               width: 56,
               height: 5,
               decoration: BoxDecoration(
-                color: BuyerUiTokens.border,
+                color: HocalistPalette.surface(context, BuyerUiTokens.border),
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -704,8 +717,11 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                   Container(
                     width: metrics.artSize(34),
                     height: metrics.artSize(34),
-                    decoration: const BoxDecoration(
-                      color: BuyerUiTokens.softSurface,
+                    decoration: BoxDecoration(
+                      color: HocalistPalette.surface(
+                        context,
+                        BuyerUiTokens.softSurface,
+                      ),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -713,7 +729,10 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                         icon: Icons.place_outlined,
                         slotSize: metrics.artSize(18),
                         glyphSize: metrics.artSize(18),
-                        color: BuyerUiTokens.action,
+                        color: HocalistPalette.text(
+                          context,
+                          BuyerUiTokens.action,
+                        ),
                       ),
                     ),
                   ),
@@ -850,7 +869,10 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                             key: ValueKey(
                               'hocalistPlaceSuggestion-${suggestion.placeId}',
                             ),
-                            color: BuyerUiTokens.surface,
+                            color: HocalistPalette.surface(
+                              context,
+                              BuyerUiTokens.surface,
+                            ),
                             borderRadius: BorderRadius.circular(
                               metrics.geometry(13),
                             ),
@@ -873,10 +895,12 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                                     metrics.geometry(13),
                                   ),
                                   border: Border.all(
-                                    color:
-                                        _resolvingPlaceId == suggestion.placeId
-                                        ? BuyerUiTokens.action
-                                        : BuyerUiTokens.border,
+                                    color: HocalistPalette.border(
+                                      context,
+                                      _resolvingPlaceId == suggestion.placeId
+                                          ? BuyerUiTokens.action
+                                          : BuyerUiTokens.border,
+                                    ),
                                     width:
                                         _resolvingPlaceId == suggestion.placeId
                                         ? 1.5
@@ -888,8 +912,11 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                                     Container(
                                       width: metrics.artSize(32),
                                       height: metrics.artSize(32),
-                                      decoration: const BoxDecoration(
-                                        color: BuyerUiTokens.softSurface,
+                                      decoration: BoxDecoration(
+                                        color: HocalistPalette.surface(
+                                          context,
+                                          BuyerUiTokens.softSurface,
+                                        ),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Center(
@@ -897,7 +924,10 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                                           icon: Icons.location_on_outlined,
                                           slotSize: metrics.artSize(18),
                                           glyphSize: metrics.artSize(18),
-                                          color: BuyerUiTokens.action,
+                                          color: HocalistPalette.text(
+                                            context,
+                                            BuyerUiTokens.action,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -948,7 +978,10 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                                         icon: Icons.chevron_right_rounded,
                                         slotSize: metrics.artSize(20),
                                         glyphSize: metrics.artSize(20),
-                                        color: BuyerUiTokens.muted,
+                                        color: HocalistPalette.text(
+                                          context,
+                                          BuyerUiTokens.muted,
+                                        ),
                                       ),
                                   ],
                                 ),

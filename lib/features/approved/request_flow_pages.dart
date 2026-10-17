@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/notification_indicator.dart';
@@ -79,6 +80,7 @@ const _notificationIcon = '$_assetRoot/header-notification.png';
 ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
   return ApprovedReplicaScope.maybeOf(context) ??
       ApprovedReplicaMetrics.resolve(
+        brightness: Theme.of(context).brightness,
         availableWidth: MediaQuery.sizeOf(context).width,
         textScaler: MediaQuery.textScalerOf(context),
       );
@@ -564,6 +566,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     return LayoutBuilder(
       builder: (context, viewport) {
         final metrics = ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: viewport.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -618,7 +621,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
               SizedBox(height: metrics.geometry(2)),
               Text(
                 'Let sellers know what you need.',
-                style: _bodyStyle(context).copyWith(color: _approvedMuted),
+                style: _bodyStyle(context).copyWith(
+                  color: HocalistPalette.text(context, _approvedMuted),
+                ),
               ),
             ],
             SizedBox(
@@ -1028,7 +1033,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
           'The more details you provide, the better\nmatches you will receive.',
           textAlign: TextAlign.center,
           style: _bodyStyle(context).copyWith(
-            color: _approvedNavy,
+            color: HocalistPalette.text(context, _approvedNavy),
             fontSize: _requestFontSize(metrics, 11.5),
             fontWeight: FontWeight.w700,
             height: 1.25,
@@ -1115,7 +1120,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
             error!,
             key: const Key('approvedRequestSubmitError'),
             style: _bodyStyle(context).copyWith(
-              color: const Color(0xFFD32F2F),
+              color: HocalistPalette.text(context, const Color(0xFFD32F2F)),
               fontSize: _requestFontSize(metrics, 11),
               fontWeight: FontWeight.w700,
             ),
@@ -1207,7 +1212,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           'Sellers will be able to only see your\nlocation once you close the deal.',
           textAlign: TextAlign.center,
           style: _bodyStyle(context).copyWith(
-            color: _approvedMuted,
+            color: HocalistPalette.text(context, _approvedMuted),
             fontSize: _requestFontSize(metrics, 10),
             fontWeight: FontWeight.w700,
             height: 1.25,
@@ -1235,10 +1240,16 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xfffaf9ff),
+                    color: HocalistPalette.surface(
+                      context,
+                      const Color(0xfffaf9ff),
+                    ),
                     borderRadius: BorderRadius.circular(metrics.geometry(9)),
                     border: Border.all(
-                      color: useHomeAddress ? _approvedBlue : _approvedBorder,
+                      color: HocalistPalette.border(
+                        context,
+                        useHomeAddress ? _approvedBlue : _approvedBorder,
+                      ),
                       width: metrics.geometry(useHomeAddress ? 1.5 : 1),
                     ),
                   ),
@@ -1261,7 +1272,10 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: _approvedMuted,
+                                  color: HocalistPalette.border(
+                                    context,
+                                    _approvedMuted,
+                                  ),
                                   width: metrics.geometry(1.5),
                                 ),
                               ),
@@ -1270,8 +1284,11 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                           Container(
                             width: metrics.geometry(32),
                             height: metrics.geometry(32),
-                            decoration: const BoxDecoration(
-                              color: _approvedLavender,
+                            decoration: BoxDecoration(
+                              color: HocalistPalette.surface(
+                                context,
+                                _approvedLavender,
+                              ),
                               shape: BoxShape.circle,
                             ),
                             child: BuyerGlyphIcon(
@@ -1281,7 +1298,10 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                                 17,
                                 floor: 16,
                               ),
-                              color: _approvedBlue,
+                              color: HocalistPalette.text(
+                                context,
+                                _approvedBlue,
+                              ),
                             ),
                           ),
                           SizedBox(width: metrics.geometry(8)),
@@ -1453,14 +1473,15 @@ class _ApprovedRecommendedBadge extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       decoration: BoxDecoration(
-        color: _approvedLavender,
+        color: HocalistPalette.surface(context, _approvedLavender),
         borderRadius: BorderRadius.circular(metrics.geometry(999)),
       ),
       child: Text(
         'Recommended',
-        style: _smallStyle(
-          context,
-        ).copyWith(color: _approvedBlue, fontWeight: FontWeight.w800),
+        style: _smallStyle(context).copyWith(
+          color: HocalistPalette.text(context, _approvedBlue),
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -1832,6 +1853,7 @@ class _ApprovedBuyerRequestDetailsPageState
     return LayoutBuilder(
       builder: (context, viewport) {
         final metrics = ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: viewport.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -1882,7 +1904,9 @@ class _ApprovedBuyerRequestDetailsPageState
             SizedBox(height: metrics.geometry(4)),
             Text(
               'Review and edit your request information.',
-              style: _bodyStyle(context).copyWith(color: _approvedNavy),
+              style: _bodyStyle(
+                context,
+              ).copyWith(color: HocalistPalette.text(context, _approvedNavy)),
             ),
             SizedBox(height: metrics.geometry(13)),
             _ApprovedRequestSummary(
@@ -2067,7 +2091,7 @@ class _ApprovedBuyerRequestDetailsPageState
                 _saveError!,
                 key: const Key('requestSaveError'),
                 style: _bodyStyle(context).copyWith(
-                  color: const Color(0xFFD32F2F),
+                  color: HocalistPalette.text(context, const Color(0xFFD32F2F)),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -2119,7 +2143,7 @@ class ApprovedBuyerRequestShell extends StatelessWidget {
     final metrics = _replicaMetrics(context);
     final canvasWidth = metrics.contentMaxWidth;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
       body: SafeArea(
         child: Column(
           children: [
@@ -2161,7 +2185,7 @@ class ApprovedBuyerRequestShell extends StatelessWidget {
         ),
       ),
       bottomNavigationBar: ColoredBox(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         child: Center(
           heightFactor: 1,
           child: SizedBox(
@@ -2216,7 +2240,7 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                   icon: BuyerGlyphIcon(
                     icon: Icons.arrow_back,
                     slotSize: metrics.geometry(25.6),
-                    color: _approvedNavy,
+                    color: HocalistPalette.text(context, _approvedNavy),
                   ),
                 ),
               ),
@@ -2225,12 +2249,18 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                 right: constraints.maxWidth * .48,
                 top: 0,
                 bottom: 0,
-                child: Image.asset(
-                  'assets/brand/hocalist-wordmark.png',
-                  width: metrics.geometry(95),
-                  height: metrics.geometry(53.625),
-                  fit: BoxFit.contain,
-                  semanticLabel: 'Hocalist Reverse Marketplace',
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Image.asset(
+                    'assets/brand/hocalist-wordmark.png',
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xfff3f3ff)
+                        : null,
+                    width: metrics.artSize(88),
+                    height: metrics.artSize(54),
+                    fit: BoxFit.contain,
+                    semanticLabel: 'Hocalist Reverse Marketplace',
+                  ),
                 ),
               ),
               Align(
@@ -2244,7 +2274,10 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                         horizontal: metrics.geometry(7.31),
                       ),
                       decoration: BoxDecoration(
-                        color: _approvedLavender,
+                        color: HocalistPalette.surface(
+                          context,
+                          _approvedLavender,
+                        ),
                         borderRadius: BorderRadius.circular(
                           metrics.geometry(999),
                         ),
@@ -2267,7 +2300,10 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                             maxLines: 1,
                             softWrap: false,
                             style: _smallStyle(context).copyWith(
-                              color: _approvedBlue,
+                              color: HocalistPalette.text(
+                                context,
+                                _approvedBlue,
+                              ),
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -2375,7 +2411,10 @@ class _ApprovedKindCard extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
-          color: selected ? const Color(0xfff8f7ff) : Colors.white,
+          color: HocalistPalette.surface(
+            context,
+            selected ? const Color(0xfff8f7ff) : Colors.white,
+          ),
           borderRadius: BorderRadius.circular(metrics.geometry(8)),
           child: InkWell(
             onTap: onTap,
@@ -2392,7 +2431,10 @@ class _ApprovedKindCard extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(metrics.geometry(8)),
                 border: Border.all(
-                  color: selected ? _approvedBlue : _approvedBorder,
+                  color: HocalistPalette.border(
+                    context,
+                    selected ? _approvedBlue : _approvedBorder,
+                  ),
                   width: metrics.geometry(selected ? 1.5 : 1),
                 ),
               ),
@@ -2429,7 +2471,10 @@ class _ApprovedKindCard extends StatelessWidget {
                     softWrap: !metrics.screenshotLocked,
                     textAlign: TextAlign.center,
                     style: _smallStyle(context).copyWith(
-                      color: selected ? _approvedBlue : _approvedNavy,
+                      color: HocalistPalette.text(
+                        context,
+                        selected ? _approvedBlue : _approvedNavy,
+                      ),
                       fontSize: _requestFontSize(metrics, 11),
                       fontWeight: FontWeight.w800,
                     ),
@@ -2478,7 +2523,7 @@ class _ApprovedStepProgress extends StatelessWidget {
               child: Container(
                 key: const ValueKey('approved-request-step-connector'),
                 height: metrics.geometry(2.44),
-                color: _approvedBlue,
+                color: HocalistPalette.surface(context, _approvedBlue),
               ),
             ),
           ),
@@ -2516,13 +2561,19 @@ class _ApprovedStepDot extends StatelessWidget {
           height: _requestDimension(metrics, 28, floor: 26),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? _approvedBlue : const Color(0xffe7e8ee),
+            color: HocalistPalette.surface(
+              context,
+              active ? _approvedBlue : const Color(0xffe7e8ee),
+            ),
             shape: BoxShape.circle,
           ),
           child: Text(
             number,
             style: _bodyStyle(context).copyWith(
-              color: active ? Colors.white : _approvedNavy,
+              color: HocalistPalette.text(
+                context,
+                active ? Colors.white : _approvedNavy,
+              ),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -2531,7 +2582,10 @@ class _ApprovedStepDot extends StatelessWidget {
         Text(
           label,
           style: _smallStyle(context).copyWith(
-            color: active ? _approvedBlue : _approvedNavy,
+            color: HocalistPalette.text(
+              context,
+              active ? _approvedBlue : _approvedNavy,
+            ),
             fontWeight: active ? FontWeight.w800 : FontWeight.w600,
           ),
         ),
@@ -2607,7 +2661,7 @@ class _ApprovedFieldCard extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(
               right: BorderSide(
-                color: const Color(0xffedf0f8),
+                color: HocalistPalette.border(context, const Color(0xffedf0f8)),
                 width: metrics.geometry(1),
               ),
             ),
@@ -2630,9 +2684,10 @@ class _ApprovedFieldCard extends StatelessWidget {
           SizedBox(height: metrics.geometry(multiline ? 2 : 1.22)),
           Text(
             helper,
-            style: _smallStyle(
-              context,
-            ).copyWith(color: _approvedNavy, fontWeight: FontWeight.w700),
+            style: _smallStyle(context).copyWith(
+              color: HocalistPalette.text(context, _approvedNavy),
+              fontWeight: FontWeight.w700,
+            ),
           ),
           SizedBox(height: metrics.geometry(multiline ? 4 : 2)),
           if (metrics.screenshotLocked && multiline)
@@ -2649,7 +2704,7 @@ class _ApprovedFieldCard extends StatelessWidget {
                         child: Text(
                           counterText!,
                           style: _smallStyle(context).copyWith(
-                            color: _approvedNavy,
+                            color: HocalistPalette.text(context, _approvedNavy),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -2817,7 +2872,10 @@ class _ApprovedIconChoice extends StatelessWidget {
           ),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           side: BorderSide(
-            color: selected ? _approvedBlue : _approvedBorder,
+            color: HocalistPalette.border(
+              context,
+              selected ? _approvedBlue : _approvedBorder,
+            ),
             width: metrics.geometry(selected ? 1.5 : 1),
           ),
           shape: RoundedRectangleBorder(
@@ -2844,7 +2902,7 @@ class _ApprovedIconChoice extends StatelessWidget {
                 softWrap: false,
                 overflow: TextOverflow.fade,
                 style: _smallStyle(context).copyWith(
-                  color: _approvedNavy,
+                  color: HocalistPalette.text(context, _approvedNavy),
                   fontSize: _requestControlFontSize(
                     metrics,
                     compactLabel ? 9.4 : 10.5,
@@ -2979,9 +3037,10 @@ class _ApprovedPriceField extends StatelessWidget {
       onChanged: onChanged,
       textAlign: TextAlign.center,
       textAlignVertical: TextAlignVertical.center,
-      style: _smallStyle(
-        context,
-      ).copyWith(color: _approvedNavy, fontWeight: FontWeight.w800),
+      style: _smallStyle(context).copyWith(
+        color: HocalistPalette.text(context, _approvedNavy),
+        fontWeight: FontWeight.w800,
+      ),
       decoration: _inputDecoration(context).copyWith(
         constraints: BoxConstraints.tightFor(height: controlHeight),
         hintText: label,
@@ -3044,7 +3103,7 @@ class _ApprovedQuantityPanel extends StatelessWidget {
             height: _requestControlHeight(metrics),
             decoration: BoxDecoration(
               border: Border.all(
-                color: _approvedBorder,
+                color: HocalistPalette.border(context, _approvedBorder),
                 width: metrics.geometry(1),
               ),
               borderRadius: BorderRadius.circular(metrics.geometry(8)),
@@ -3219,7 +3278,7 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
               padding: EdgeInsets.symmetric(horizontal: metrics.geometry(6.1)),
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: _approvedBorder,
+                  color: HocalistPalette.border(context, _approvedBorder),
                   width: metrics.geometry(1),
                 ),
                 borderRadius: BorderRadius.circular(metrics.geometry(8)),
@@ -3262,9 +3321,12 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
                     key: const Key('approvedRequestCategoryError'),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: _smallStyle(
-                      context,
-                    ).copyWith(color: const Color(0xFFD32F2F)),
+                    style: _smallStyle(context).copyWith(
+                      color: HocalistPalette.text(
+                        context,
+                        const Color(0xFFD32F2F),
+                      ),
+                    ),
                   ),
                 ),
                 TextButton(
@@ -3275,7 +3337,10 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
                     padding: EdgeInsets.symmetric(
                       horizontal: metrics.geometry(6),
                     ),
-                    foregroundColor: _approvedBlue,
+                    foregroundColor: HocalistPalette.text(
+                      context,
+                      _approvedBlue,
+                    ),
                   ),
                   child: const Text('Retry'),
                 ),
@@ -3341,7 +3406,11 @@ class _ApprovedCategorySheet extends StatelessWidget {
                         child: Text(option.label, style: _bodyStyle(context)),
                       ),
                       if (option.id == selectedId)
-                        const Icon(Icons.check, color: _approvedBlue, size: 18),
+                        Icon(
+                          Icons.check,
+                          color: HocalistPalette.text(context, _approvedBlue),
+                          size: 18,
+                        ),
                     ],
                   ),
                 ),
@@ -3451,7 +3520,7 @@ class _ApprovedPanelTitle extends StatelessWidget {
                         maxLines: 1,
                         softWrap: false,
                         style: _smallStyle(context).copyWith(
-                          color: _approvedNavy,
+                          color: HocalistPalette.text(context, _approvedNavy),
                           fontSize: _requestControlFontSize(
                             metrics,
                             9.5,
@@ -3471,9 +3540,9 @@ class _ApprovedPanelTitle extends StatelessWidget {
                     if (optional)
                       Text(
                         '(optional)',
-                        style: _smallStyle(
-                          context,
-                        ).copyWith(color: _approvedNavy),
+                        style: _smallStyle(context).copyWith(
+                          color: HocalistPalette.text(context, _approvedNavy),
+                        ),
                       ),
                   ],
                 ),
@@ -3506,9 +3575,12 @@ class _ApprovedTextChoice extends StatelessWidget {
           minimumSize: Size.zero,
           padding: EdgeInsets.symmetric(horizontal: metrics.geometry(6)),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          foregroundColor: _approvedNavy,
+          foregroundColor: HocalistPalette.text(context, _approvedNavy),
           side: BorderSide(
-            color: selected ? _approvedBlue : _approvedBorder,
+            color: HocalistPalette.border(
+              context,
+              selected ? _approvedBlue : _approvedBorder,
+            ),
             width: metrics.geometry(selected ? 1.5 : 1),
           ),
           shape: RoundedRectangleBorder(
@@ -3522,7 +3594,10 @@ class _ApprovedTextChoice extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             style: _smallStyle(context).copyWith(
-              color: selected ? _approvedBlue : _approvedNavy,
+              color: HocalistPalette.text(
+                context,
+                selected ? _approvedBlue : _approvedNavy,
+              ),
               fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
               fontSize: _requestControlFontSize(metrics, 9.25, floor: 7),
               height: 1.05,
@@ -3564,7 +3639,7 @@ class _ApprovedActionRow extends StatelessWidget {
                   ? MaterialTapTargetSize.shrinkWrap
                   : null,
               side: BorderSide(
-                color: _approvedBlue,
+                color: HocalistPalette.border(context, _approvedBlue),
                 width: metrics.geometry(1.5),
               ),
               shape: RoundedRectangleBorder(
@@ -3635,8 +3710,14 @@ class _ApprovedPrimaryButton extends StatelessWidget {
           tapTargetSize: metrics.screenshotLocked
               ? MaterialTapTargetSize.shrinkWrap
               : null,
-          backgroundColor: accessibility.backgroundOr(_approvedBlue),
-          foregroundColor: accessibility.foregroundOr(Colors.white),
+          backgroundColor: HocalistPalette.surface(
+            context,
+            accessibility.backgroundOr(_approvedBlue),
+          ),
+          foregroundColor: HocalistPalette.text(
+            context,
+            accessibility.foregroundOr(Colors.white),
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
               accessibility.radiusOr(metrics.geometry(8)),
@@ -3656,7 +3737,7 @@ class _ApprovedPrimaryButton extends StatelessWidget {
           maxLines: 1,
           softWrap: false,
           style: _bodyStyle(context).copyWith(
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
             fontSize: _requestControlFontSize(metrics, 11.5, floor: 10.5),
             fontWeight: FontWeight.w700,
           ),
@@ -3694,7 +3775,7 @@ class _ApprovedLocationActions extends StatelessWidget {
             error!,
             key: const Key('approvedRequestSubmitError'),
             style: _bodyStyle(context).copyWith(
-              color: const Color(0xFFD32F2F),
+              color: HocalistPalette.text(context, const Color(0xFFD32F2F)),
               fontSize: _requestFontSize(metrics, 11),
               fontWeight: FontWeight.w700,
             ),
@@ -3714,8 +3795,10 @@ class _ApprovedLocationActions extends StatelessWidget {
             onPressed: onDiscard,
             style: OutlinedButton.styleFrom(
               minimumSize: Size(0, _requestDimension(metrics, 38, floor: 36)),
-              foregroundColor: _approvedBlue,
-              side: const BorderSide(color: _approvedBorder),
+              foregroundColor: HocalistPalette.text(context, _approvedBlue),
+              side: BorderSide(
+                color: HocalistPalette.border(context, _approvedBorder),
+              ),
             ),
             child: const Text('Discard this attempt'),
           ),
@@ -3725,7 +3808,7 @@ class _ApprovedLocationActions extends StatelessWidget {
           onPressed: onBack,
           style: TextButton.styleFrom(
             minimumSize: Size(0, _requestDimension(metrics, 32, floor: 32)),
-            foregroundColor: _approvedBlue,
+            foregroundColor: HocalistPalette.text(context, _approvedBlue),
             tapTargetSize: metrics.screenshotLocked
                 ? MaterialTapTargetSize.shrinkWrap
                 : null,
@@ -3736,7 +3819,7 @@ class _ApprovedLocationActions extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             style: _bodyStyle(context).copyWith(
-              color: _approvedBlue,
+              color: HocalistPalette.text(context, _approvedBlue),
               fontSize: _requestControlFontSize(metrics, 13, floor: 10.5),
               fontWeight: FontWeight.w700,
             ),
@@ -3891,7 +3974,7 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
     final fieldBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(8)),
       borderSide: BorderSide(
-        color: _approvedBorder,
+        color: HocalistPalette.border(context, _approvedBorder),
         width: metrics.geometry(1),
       ),
     );
@@ -3900,9 +3983,10 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
       children: [
         Text(
           widget.label,
-          style: _smallStyle(
-            context,
-          ).copyWith(color: _approvedNavy, fontWeight: FontWeight.w600),
+          style: _smallStyle(context).copyWith(
+            color: HocalistPalette.text(context, _approvedNavy),
+            fontWeight: FontWeight.w600,
+          ),
         ),
         SizedBox(height: metrics.geometry(3)),
         SizedBox(
@@ -3922,7 +4006,7 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
             decoration: InputDecoration(
               isDense: false,
               filled: true,
-              fillColor: Colors.white,
+              fillColor: HocalistPalette.surface(context, Colors.white),
               hintText: widget.hint,
               hintStyle: _requestHintStyle(
                 context,
@@ -3941,7 +4025,7 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
               enabledBorder: fieldBorder,
               focusedBorder: fieldBorder.copyWith(
                 borderSide: BorderSide(
-                  color: _approvedBlue,
+                  color: HocalistPalette.border(context, _approvedBlue),
                   width: metrics.geometry(1.5),
                 ),
               ),
@@ -3952,7 +4036,7 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
                         icon: Icons.keyboard_arrow_down,
                         slotSize: metrics.geometry(16),
                         glyphSize: metrics.geometry(16),
-                        color: _approvedMuted,
+                        color: HocalistPalette.text(context, _approvedMuted),
                       ),
                     )
                   : null,
@@ -4094,7 +4178,7 @@ class _ApprovedRequestSummary extends StatelessWidget {
                   Container(
                     width: metrics.geometry(1),
                     height: metrics.geometry(29.25),
-                    color: _approvedBorder,
+                    color: HocalistPalette.surface(context, _approvedBorder),
                   ),
                   SizedBox(width: metrics.geometry(4.875)),
                   Expanded(
@@ -4117,7 +4201,10 @@ class _ApprovedRequestSummary extends StatelessWidget {
                   vertical: metrics.geometry(3.66),
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xffe8f8ed),
+                  color: HocalistPalette.surface(
+                    context,
+                    const Color(0xffe8f8ed),
+                  ),
                   borderRadius: BorderRadius.circular(metrics.geometry(999)),
                 ),
                 child: Row(
@@ -4127,7 +4214,10 @@ class _ApprovedRequestSummary extends StatelessWidget {
                       icon: Icons.circle,
                       slotSize: metrics.geometry(6.1),
                       glyphSize: metrics.geometry(6.1),
-                      color: const Color(0xff0ca64a),
+                      color: HocalistPalette.text(
+                        context,
+                        const Color(0xff0ca64a),
+                      ),
                     ),
                     SizedBox(width: metrics.geometry(2.44)),
                     Text(
@@ -4139,7 +4229,10 @@ class _ApprovedRequestSummary extends StatelessWidget {
                         _ => 'Active',
                       },
                       style: TextStyle(
-                        color: const Color(0xff07933e),
+                        color: HocalistPalette.text(
+                          context,
+                          const Color(0xff07933e),
+                        ),
                         fontSize: _requestFontSize(metrics, 9.5),
                         fontWeight: FontWeight.w800,
                       ),
@@ -4152,9 +4245,9 @@ class _ApprovedRequestSummary extends StatelessWidget {
                 key: const Key('delete-request'),
                 onPressed: onDelete,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
+                  foregroundColor: HocalistPalette.text(context, Colors.red),
                   side: BorderSide(
-                    color: _approvedBorder,
+                    color: HocalistPalette.border(context, _approvedBorder),
                     width: metrics.geometry(1),
                   ),
                   minimumSize: Size(0, metrics.geometry(36.56)),
@@ -4242,7 +4335,7 @@ class _ApprovedSummaryFact extends StatelessWidget {
                 icon: icon!,
                 slotSize: metrics.geometry(18),
                 glyphSize: metrics.geometry(18),
-                color: _approvedBlue,
+                color: HocalistPalette.text(context, _approvedBlue),
               ),
               SizedBox(width: metrics.geometry(4)),
             ],
@@ -4250,9 +4343,10 @@ class _ApprovedSummaryFact extends StatelessWidget {
               child: Text(
                 value,
                 maxLines: 2,
-                style: _bodyStyle(
-                  context,
-                ).copyWith(color: _approvedBlue, fontWeight: FontWeight.w800),
+                style: _bodyStyle(context).copyWith(
+                  color: HocalistPalette.text(context, _approvedBlue),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -4438,7 +4532,7 @@ class _ApprovedDetailQuantityPanel extends StatelessWidget {
         height: _requestControlHeight(metrics),
         decoration: BoxDecoration(
           border: Border.all(
-            color: _approvedBorder,
+            color: HocalistPalette.border(context, _approvedBorder),
             width: metrics.geometry(1),
           ),
           borderRadius: BorderRadius.circular(metrics.geometry(8)),
@@ -4504,7 +4598,10 @@ class _ApprovedValueBox extends StatelessWidget {
       height: _requestControlHeight(metrics),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        border: Border.all(color: _approvedBorder, width: metrics.geometry(1)),
+        border: Border.all(
+          color: HocalistPalette.border(context, _approvedBorder),
+          width: metrics.geometry(1),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(8)),
       ),
       child: Text(
@@ -4541,7 +4638,7 @@ class _ApprovedLocationSummary extends StatelessWidget {
                 icon: Icons.location_on_outlined,
                 slotSize: metrics.geometry(21.94),
                 glyphSize: metrics.geometry(21.94),
-                color: _approvedNavy,
+                color: HocalistPalette.text(context, _approvedNavy),
               ),
               SizedBox(width: metrics.geometry(3.66)),
               Expanded(
@@ -4554,7 +4651,7 @@ class _ApprovedLocationSummary extends StatelessWidget {
                     Text(
                       location,
                       style: _bodyStyle(context).copyWith(
-                        color: _approvedBlue,
+                        color: HocalistPalette.text(context, _approvedBlue),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -4565,7 +4662,7 @@ class _ApprovedLocationSummary extends StatelessWidget {
                 icon: Icons.chevron_right,
                 slotSize: metrics.geometry(17.06),
                 glyphSize: metrics.geometry(17.06),
-                color: _approvedNavy,
+                color: HocalistPalette.text(context, _approvedNavy),
               ),
             ],
           ),
@@ -4618,15 +4715,15 @@ class _ApprovedRewardsPanel extends StatelessWidget {
           Container(
             width: metrics.geometry(21.94),
             height: metrics.geometry(21.94),
-            decoration: const BoxDecoration(
-              color: Color(0xffffb21c),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, Color(0xffffb21c)),
               shape: BoxShape.circle,
             ),
             child: BuyerGlyphIcon(
               icon: Icons.star,
               slotSize: metrics.geometry(13.4),
               glyphSize: metrics.geometry(13.4),
-              color: Colors.white,
+              color: HocalistPalette.text(context, Colors.white),
             ),
           ),
           SizedBox(width: metrics.geometry(3.66)),
@@ -4651,7 +4748,10 @@ class _ApprovedRewardsPanel extends StatelessWidget {
                     Text(
                       '\$6.40',
                       style: TextStyle(
-                        color: const Color(0xff0ca64a),
+                        color: HocalistPalette.text(
+                          context,
+                          const Color(0xff0ca64a),
+                        ),
                         fontSize: _requestFontSize(metrics, 14),
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0,
@@ -4666,7 +4766,10 @@ class _ApprovedRewardsPanel extends StatelessWidget {
                           vertical: metrics.geometry(1.22),
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xffe3f7e9),
+                          color: HocalistPalette.surface(
+                            context,
+                            const Color(0xffe3f7e9),
+                          ),
                           borderRadius: BorderRadius.circular(
                             metrics.geometry(12),
                           ),
@@ -4674,7 +4777,10 @@ class _ApprovedRewardsPanel extends StatelessWidget {
                         child: Text(
                           '32 offers',
                           style: TextStyle(
-                            color: const Color(0xff0c9845),
+                            color: HocalistPalette.text(
+                              context,
+                              const Color(0xff0c9845),
+                            ),
                             fontSize: _requestFontSize(metrics, 8.5),
                             fontWeight: FontWeight.w800,
                           ),
@@ -4703,7 +4809,7 @@ class _ApprovedRewardsPanel extends StatelessWidget {
             icon: Icons.info_outline,
             slotSize: metrics.geometry(12.19),
             glyphSize: metrics.geometry(12.19),
-            color: _approvedBlue,
+            color: HocalistPalette.text(context, _approvedBlue),
           ),
         ],
       ),
@@ -4747,8 +4853,14 @@ class _ApprovedSavePanel extends StatelessWidget {
                 horizontal: metrics.geometry(8.53),
                 vertical: metrics.geometry(2.44),
               ),
-              backgroundColor: accessibility.backgroundOr(_approvedBlue),
-              foregroundColor: accessibility.foregroundOr(Colors.white),
+              backgroundColor: HocalistPalette.surface(
+                context,
+                accessibility.backgroundOr(_approvedBlue),
+              ),
+              foregroundColor: HocalistPalette.text(
+                context,
+                accessibility.foregroundOr(Colors.white),
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(
                   accessibility.radiusOr(metrics.geometry(8)),
@@ -4766,7 +4878,10 @@ class _ApprovedSavePanel extends StatelessWidget {
               softWrap: false,
               style: metrics.screenshotLocked
                   ? _bodyStyle(context).copyWith(
-                      color: accessibility.foregroundOr(Colors.white),
+                      color: HocalistPalette.text(
+                        context,
+                        accessibility.foregroundOr(Colors.white),
+                      ),
                       fontSize: _requestControlFontSize(
                         metrics,
                         11.5,
@@ -4824,6 +4939,7 @@ class _ApprovedRequestDecisionSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: media.size.width,
       textScaler: media.textScaler,
     );
@@ -4834,7 +4950,7 @@ class _ApprovedRequestDecisionSheet extends StatelessWidget {
         title: title,
         subtitle: message,
         headerArtwork: BuyerAssetIcon(asset: asset, slotSize: 20),
-        iconColor: actionColor,
+        iconColor: HocalistPalette.text(context, actionColor),
         iconSurface: destructive
             ? const Color(0xffffeeee)
             : BuyerUiTokens.softSurface,
@@ -4914,10 +5030,10 @@ class _ApprovedSurface extends StatelessWidget {
             : _requestDimension(metrics, referenceVerticalPadding, floor: 6),
       ),
       decoration: BoxDecoration(
-        color: _approvedSurface,
+        color: HocalistPalette.surface(context, _approvedSurface),
         borderRadius: BorderRadius.circular(metrics.geometry(8)),
         border: Border.all(
-          color: const Color(0xfff2f3f8),
+          color: HocalistPalette.border(context, const Color(0xfff2f3f8)),
           width: metrics.geometry(1),
         ),
         boxShadow: [
@@ -4964,8 +5080,8 @@ class _ApprovedEditButton extends StatelessWidget {
       ),
       padding: EdgeInsets.zero,
       style: IconButton.styleFrom(
-        foregroundColor: _approvedBlue,
-        backgroundColor: _approvedLavender,
+        foregroundColor: HocalistPalette.text(context, _approvedBlue),
+        backgroundColor: HocalistPalette.surface(context, _approvedLavender),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(7)),
         ),
@@ -4991,10 +5107,16 @@ class _ApprovedAssetIcon extends StatelessWidget {
         icon: Icons.description_outlined,
         slotSize: size,
         glyphSize: size,
-        color: _approvedBlue,
+        color: HocalistPalette.text(context, _approvedBlue),
       );
     }
-    return BuyerAssetIcon(asset: asset, slotSize: size);
+    return BuyerAssetIcon(
+      asset: asset,
+      slotSize: size,
+      color: Theme.of(context).brightness == Brightness.dark
+          ? HocalistPalette.text(context, _approvedBlue)
+          : null,
+    );
   }
 }
 
@@ -5036,7 +5158,7 @@ class _ApprovedPageTitle extends StatelessWidget {
             icon: Icons.arrow_back,
             slotSize: metrics.geometry(20.72),
             glyphSize: metrics.geometry(20.72),
-            color: _approvedNavy,
+            color: HocalistPalette.text(context, _approvedNavy),
           ),
         ),
         SizedBox(width: metrics.geometry(2.44)),
@@ -5053,7 +5175,7 @@ InputDecoration _inputDecoration(BuildContext context, {bool compact = false}) {
   return InputDecoration(
     isDense: false,
     filled: true,
-    fillColor: Colors.white,
+    fillColor: HocalistPalette.surface(context, Colors.white),
     constraints: metrics.screenshotLocked
         ? BoxConstraints(
             minHeight: compact
@@ -5097,14 +5219,14 @@ InputDecoration _inputDecoration(BuildContext context, {bool compact = false}) {
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(8)),
       borderSide: BorderSide(
-        color: _approvedBorder,
+        color: HocalistPalette.border(context, _approvedBorder),
         width: metrics.geometry(1),
       ),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(8)),
       borderSide: BorderSide(
-        color: _approvedBlue,
+        color: HocalistPalette.border(context, _approvedBlue),
         width: metrics.geometry(1.5),
       ),
     ),
@@ -5121,7 +5243,7 @@ TextStyle _titleStyle(BuildContext context, double size) {
   };
   return (Theme.of(context).textTheme.headlineSmall ?? const TextStyle())
       .copyWith(
-        color: _approvedNavy,
+        color: HocalistPalette.text(context, _approvedNavy),
         fontSize: _requestFontSize(metrics, approvedSize),
         fontWeight: FontWeight.w800,
         height: 1.12,
@@ -5133,7 +5255,7 @@ TextStyle _sectionStyle(BuildContext context) {
   final metrics = _replicaMetrics(context);
   return (Theme.of(context).textTheme.titleMedium ?? const TextStyle())
       .copyWith(
-        color: _approvedNavy,
+        color: HocalistPalette.text(context, _approvedNavy),
         fontSize: _requestFontSize(metrics, 10.5),
         fontWeight: FontWeight.w800,
         height: 1.2,
@@ -5144,7 +5266,7 @@ TextStyle _sectionStyle(BuildContext context) {
 TextStyle _bodyStyle(BuildContext context) {
   final metrics = _replicaMetrics(context);
   return (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
-    color: _approvedNavy,
+    color: HocalistPalette.text(context, _approvedNavy),
     fontSize: _requestFontSize(metrics, 11.5),
     fontWeight: FontWeight.w400,
     height: 1.22,
@@ -5153,14 +5275,18 @@ TextStyle _bodyStyle(BuildContext context) {
 }
 
 TextStyle _requestInputStyle(BuildContext context) {
-  return _bodyStyle(
-    context,
-  ).copyWith(color: _approvedNavy, fontWeight: FontWeight.w600);
+  return _bodyStyle(context).copyWith(
+    color: HocalistPalette.text(context, _approvedNavy),
+    fontWeight: FontWeight.w600,
+  );
 }
 
 TextStyle _requestHintStyle(BuildContext context) {
   return _bodyStyle(context).copyWith(
-    color: _approvedMuted.withValues(alpha: 0.82),
+    color: HocalistPalette.text(
+      context,
+      _approvedMuted.withValues(alpha: 0.82),
+    ),
     fontWeight: FontWeight.w500,
   );
 }
@@ -5168,7 +5294,7 @@ TextStyle _requestHintStyle(BuildContext context) {
 TextStyle _smallStyle(BuildContext context) {
   final metrics = _replicaMetrics(context);
   return (Theme.of(context).textTheme.bodySmall ?? const TextStyle()).copyWith(
-    color: _approvedMuted,
+    color: HocalistPalette.text(context, _approvedMuted),
     fontSize: _requestFontSize(metrics, 10.5),
     fontWeight: FontWeight.w400,
     height: 1.18,

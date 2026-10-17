@@ -1,9 +1,12 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../data/local_marketplace_repository.dart';
+import '../../data/phase2/commercial/commercial_wallet_backend.dart';
+import '../../domain/phase2/commercial/commercial.dart';
 import '../../data/phase2/discovery/discovery_adapter.dart';
 import '../../data/phase2/marketplace/marketplace_leads_backend.dart';
 import '../../domain/phase2/discovery.dart';
@@ -55,12 +58,46 @@ class SellerOfferPresentation {
       higherOffersAllowed = false,
       defaultPrice = '550';
 
-  const SellerOfferPresentation.real()
-    : planLabel = 'HocaCredit deposit batches',
-      initialBid = 'Not available',
-      winningBid = 'Not available',
-      higherOffersAllowed = false,
-      defaultPrice = '';
+  const SellerOfferPresentation.real({
+    this.initialBid = 'Not available',
+    this.winningBid = 'Not available',
+  }) : planLabel = 'HocaCredit deposit batches',
+       higherOffersAllowed = false,
+       defaultPrice = '';
+
+  factory SellerOfferPresentation.fromWallet(
+    CreditWalletView wallet,
+    String? requestId,
+  ) {
+    String hc(int minor) => '${(minor / 100).toStringAsFixed(2)} HC';
+    for (final target in wallet.targets) {
+      if (target.requestId == requestId &&
+          (target.status == CreditTargetStatus.reserved ||
+              target.status == CreditTargetStatus.initialCharged)) {
+        return SellerOfferPresentation.real(
+          initialBid: hc(target.initialMinor),
+          winningBid: hc(target.winningMinor),
+        );
+      }
+    }
+    final batches = wallet.batches.toList()
+      ..sort((a, b) {
+        final time = a.createdAt.compareTo(b.createdAt);
+        return time == 0 ? a.id.compareTo(b.id) : time;
+      });
+    for (final batch in batches) {
+      if (batch.availableMinor >= batch.winningTotalMinor) {
+        return SellerOfferPresentation.real(
+          initialBid: hc(batch.initialFeeMinor),
+          winningBid: hc(batch.winningTotalMinor),
+        );
+      }
+    }
+    return const SellerOfferPresentation.real(
+      initialBid: 'Add credits',
+      winningBid: 'Add credits',
+    );
+  }
 
   final String planLabel;
   final String initialBid;
@@ -712,7 +749,10 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
                         key: const Key('sellerLeadsLoading'),
                         minHeight: 3,
                         color: SellerUiColors.primary,
-                        backgroundColor: SellerUiColors.lavender,
+                        backgroundColor: HocalistPalette.surface(
+                          context,
+                          SellerUiColors.lavender,
+                        ),
                       ),
                     ),
                     SizedBox(height: metrics.spacing(10)),
@@ -818,7 +858,7 @@ class _LeadsHeader extends StatelessWidget {
                 ? Icons.filter_alt_off_outlined
                 : Icons.filter_alt_outlined,
           ),
-          color: SellerUiColors.primaryBright,
+          color: HocalistPalette.text(context, SellerUiColors.primaryBright),
         ),
       ],
     );
@@ -854,7 +894,7 @@ class _DiscoveryAreaBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     return Material(
-      color: Colors.transparent,
+      color: HocalistPalette.surface(context, Colors.transparent),
       child: InkWell(
         key: const Key('sellerDiscoveryAreaBar'),
         onTap: loading ? null : onTap,
@@ -865,8 +905,13 @@ class _DiscoveryAreaBar extends StatelessWidget {
             vertical: metrics.geometry(9),
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F7FF),
-            border: Border.all(color: SellerUiColors.lavenderBorder),
+            color: HocalistPalette.surface(context, const Color(0xFFF8F7FF)),
+            border: Border.all(
+              color: HocalistPalette.border(
+                context,
+                SellerUiColors.lavenderBorder,
+              ),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(10)),
           ),
           child: Row(
@@ -874,7 +919,10 @@ class _DiscoveryAreaBar extends StatelessWidget {
               Icon(
                 Icons.explore_outlined,
                 size: metrics.artSize(18),
-                color: SellerUiColors.primaryBright,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
               SizedBox(width: metrics.geometry(7)),
               Expanded(
@@ -895,7 +943,7 @@ class _DiscoveryAreaBar extends StatelessWidget {
               Icon(
                 Icons.chevron_right,
                 size: metrics.geometry(18),
-                color: SellerUiColors.body,
+                color: HocalistPalette.text(context, SellerUiColors.body),
               ),
             ],
           ),
@@ -927,15 +975,28 @@ class _SearchField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: 'Search by product, service, brand, or keyword...',
         hintStyle: sellerInputPlaceholder(metrics),
-        prefixIcon: const Icon(Icons.search, color: SellerUiColors.body),
+        prefixIcon: Icon(
+          Icons.search,
+          color: HocalistPalette.text(context, SellerUiColors.body),
+        ),
         contentPadding: EdgeInsets.symmetric(vertical: metrics.geometry(14)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(11)),
-          borderSide: const BorderSide(color: SellerUiColors.lavenderBorder),
+          borderSide: BorderSide(
+            color: HocalistPalette.border(
+              context,
+              SellerUiColors.lavenderBorder,
+            ),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(11)),
-          borderSide: const BorderSide(color: SellerUiColors.primaryBright),
+          borderSide: BorderSide(
+            color: HocalistPalette.border(
+              context,
+              SellerUiColors.primaryBright,
+            ),
+          ),
         ),
       ),
     );
@@ -1063,7 +1124,9 @@ class _SellerLeadFilterMenu extends StatelessWidget {
       surfaceTintColor: SellerUiColors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
-        side: const BorderSide(color: SellerUiColors.line),
+        side: BorderSide(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
       ),
       onSelected: onChanged,
       itemBuilder: (context) => [
@@ -1079,7 +1142,10 @@ class _SellerLeadFilterMenu extends StatelessWidget {
                       ? Icon(
                           Icons.check_circle_rounded,
                           size: metrics.artSize(18),
-                          color: SellerUiColors.primaryBright,
+                          color: HocalistPalette.text(
+                            context,
+                            SellerUiColors.primaryBright,
+                          ),
                         )
                       : null,
                 ),
@@ -1100,19 +1166,29 @@ class _SellerLeadFilterMenu extends StatelessWidget {
         constraints: BoxConstraints(minHeight: metrics.geometry(44)),
         padding: EdgeInsets.symmetric(horizontal: metrics.geometry(11)),
         decoration: BoxDecoration(
-          color: value == values.first
-              ? Colors.transparent
-              : SellerUiColors.lavender,
+          color: HocalistPalette.surface(
+            context,
+            value == values.first
+                ? Colors.transparent
+                : SellerUiColors.lavender,
+          ),
           border: Border.all(
-            color: value == values.first
-                ? SellerUiColors.line
-                : SellerUiColors.primaryBright,
+            color: HocalistPalette.border(
+              context,
+              value == values.first
+                  ? SellerUiColors.line
+                  : SellerUiColors.primaryBright,
+            ),
           ),
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
         ),
         child: Row(
           children: [
-            Icon(icon, size: metrics.artSize(18), color: SellerUiColors.body),
+            Icon(
+              icon,
+              size: metrics.artSize(18),
+              color: HocalistPalette.text(context, SellerUiColors.body),
+            ),
             SizedBox(width: metrics.geometry(6)),
             Text(
               label,
@@ -1142,8 +1218,10 @@ class _SellerLeadsEmptyState extends StatelessWidget {
       key: const Key('sellerLeadsEmptyState'),
       padding: EdgeInsets.all(metrics.spacing(20)),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -1151,7 +1229,7 @@ class _SellerLeadsEmptyState extends StatelessWidget {
           Icon(
             filtered ? Icons.search_off_outlined : Icons.inbox_outlined,
             size: metrics.artSize(34),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(height: metrics.spacing(8)),
           Text(
@@ -1190,12 +1268,15 @@ class _TargetingNotice extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(10)),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: SellerUiColors.primaryBright),
+          Icon(
+            Icons.info_outline,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
+          ),
           SizedBox(width: metrics.spacing(8)),
           Expanded(
             child: Text.rich(
@@ -1244,8 +1325,10 @@ class _LeadCard extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.all(metrics.spacing(11)),
           decoration: BoxDecoration(
-            color: SellerUiColors.white,
-            border: Border.all(color: SellerUiColors.line),
+            color: HocalistPalette.surface(context, SellerUiColors.white),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(12)),
             boxShadow: const [
               BoxShadow(
@@ -1262,7 +1345,10 @@ class _LeadCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: metrics.artSize(26),
-                    backgroundColor: lead.avatarColor,
+                    backgroundColor: HocalistPalette.surface(
+                      context,
+                      lead.avatarColor,
+                    ),
                     child: Text(
                       lead.initials,
                       style: sellerText(
@@ -1305,7 +1391,10 @@ class _LeadCard extends StatelessWidget {
                         vertical: metrics.geometry(5),
                       ),
                       decoration: BoxDecoration(
-                        color: SellerUiColors.greenSurface,
+                        color: HocalistPalette.surface(
+                          context,
+                          SellerUiColors.greenSurface,
+                        ),
                         borderRadius: BorderRadius.circular(
                           metrics.geometry(7),
                         ),
@@ -1327,7 +1416,10 @@ class _LeadCard extends StatelessWidget {
                         vertical: metrics.geometry(5),
                       ),
                       decoration: BoxDecoration(
-                        color: SellerUiColors.lavender,
+                        color: HocalistPalette.surface(
+                          context,
+                          SellerUiColors.lavender,
+                        ),
                         borderRadius: BorderRadius.circular(
                           metrics.geometry(7),
                         ),
@@ -1372,7 +1464,7 @@ class _LeadCard extends StatelessWidget {
                   Icon(
                     Icons.sell_outlined,
                     size: metrics.artSize(17),
-                    color: SellerUiColors.body,
+                    color: HocalistPalette.text(context, SellerUiColors.body),
                   ),
                   SizedBox(width: metrics.geometry(6)),
                   Text(
@@ -1446,7 +1538,7 @@ class _LeadCard extends StatelessWidget {
                       leading: Icon(
                         Icons.description_outlined,
                         key: Key('sellerPrepareOfferIcon${lead.initials}'),
-                        color: Colors.white,
+                        color: HocalistPalette.text(context, Colors.white),
                         size: metrics.artSize(17),
                       ),
                     ),
@@ -1502,7 +1594,7 @@ class _LeadFact extends StatelessWidget {
         Icon(
           icon,
           size: metrics.artSize(17),
-          color: SellerUiColors.primaryBright,
+          color: HocalistPalette.text(context, SellerUiColors.primaryBright),
         ),
         SizedBox(width: metrics.geometry(5)),
         Expanded(
@@ -1546,7 +1638,9 @@ class _BidButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: Size(0, metrics.geometry(48)),
         padding: EdgeInsets.symmetric(horizontal: metrics.geometry(3)),
-        side: const BorderSide(color: SellerUiColors.primaryBright),
+        side: BorderSide(
+          color: HocalistPalette.border(context, SellerUiColors.primaryBright),
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(9)),
         ),
@@ -1594,7 +1688,34 @@ class _SendOfferSheet extends StatefulWidget {
 class _SendOfferSheetState extends State<_SendOfferSheet> {
   bool get _realMode => widget.onSubmitOffer != null;
   SellerOfferPresentation get _presentation =>
-      _realMode ? const SellerOfferPresentation.real() : widget.presentation;
+      _realMode ? _livePresentation : widget.presentation;
+  SellerOfferPresentation _livePresentation =
+      const SellerOfferPresentation.real(
+        initialBid: 'Loading…',
+        winningBid: 'Loading…',
+      );
+
+  Future<void> _loadFeePresentation() async {
+    try {
+      final backend = createConfiguredCommercialWalletBackend();
+      if (backend == null) throw StateError('Credit read unavailable');
+      final wallet = await backend.loadCreditWallet();
+      if (!mounted) return;
+      setState(
+        () => _livePresentation = SellerOfferPresentation.fromWallet(
+          wallet,
+          widget.lead.requestId,
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _livePresentation = const SellerOfferPresentation.real(),
+        );
+      }
+    }
+  }
+
   late final TextEditingController _priceController;
   late final TextEditingController _messageController;
   _MeetupChoice _meetupChoice = _MeetupChoice.business;
@@ -1616,7 +1737,10 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
   @override
   void initState() {
     super.initState();
-    if (_realMode) _meetingDate = DateTime.now();
+    if (_realMode) {
+      _meetingDate = DateTime.now();
+      unawaited(_loadFeePresentation());
+    }
     final firstName = widget.lead.name.split(' ').first;
     final product = widget.lead.request
         .replaceFirst('Looking for ', '')
@@ -1946,6 +2070,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: media.size.width.clamp(
         320,
         ApprovedReplicaMetrics.supportedViewportMaxWidth,
@@ -1956,7 +2081,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
       heightFactor: 0.9,
       child: Material(
         key: const Key('sellerSendOfferBottomSheet'),
-        color: SellerUiColors.white,
+        color: HocalistPalette.surface(context, SellerUiColors.white),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         clipBehavior: Clip.antiAlias,
         child: ApprovedReplicaScope(
@@ -1968,7 +2093,10 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                 width: metrics.geometry(62),
                 height: metrics.geometry(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC6C1DD),
+                  color: HocalistPalette.surface(
+                    context,
+                    const Color(0xFFC6C1DD),
+                  ),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -1990,7 +2118,10 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                         children: [
                           CircleAvatar(
                             radius: metrics.artSize(25),
-                            backgroundColor: widget.lead.avatarColor,
+                            backgroundColor: HocalistPalette.surface(
+                              context,
+                              widget.lead.avatarColor,
+                            ),
                             child: Text(
                               widget.lead.initials,
                               style: sellerText(
@@ -2036,7 +2167,10 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                             tooltip: 'Close offer',
                             onPressed: () => Navigator.pop(context),
                             icon: const Icon(Icons.close),
-                            color: SellerUiColors.ink,
+                            color: HocalistPalette.text(
+                              context,
+                              SellerUiColors.ink,
+                            ),
                           ),
                         ],
                       ),
@@ -2046,83 +2180,29 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                         child: _OfferPlanChip(label: _presentation.planLabel),
                       ),
                       SizedBox(height: metrics.spacing(8)),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final compactHeader = constraints.maxWidth < 400;
-                          final bidCard = _OfferBidCard(
-                            initialBid: _presentation.initialBid,
-                            winningBid: _presentation.winningBid,
-                            compact: compactHeader,
-                          );
-                          if (constraints.maxWidth < 300) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  key: const Key('sellerSendOfferHeading'),
-                                  'Send your offer',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  style: sellerText(
-                                    metrics,
-                                    20,
-                                    weight: FontWeight.w800,
-                                  ),
-                                ),
-                                SizedBox(height: metrics.spacing(8)),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: bidCard,
-                                ),
-                              ],
-                            );
-                          }
-                          if (compactHeader) {
-                            return Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Center(
-                                  child: Text(
-                                    key: const Key('sellerSendOfferHeading'),
-                                    'Send your offer',
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    style: sellerText(
-                                      metrics,
-                                      20,
-                                      weight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: bidCard,
-                                ),
-                              ],
-                            );
-                          }
-                          return Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Center(
-                                child: Text(
-                                  key: const Key('sellerSendOfferHeading'),
-                                  'Send your offer',
-                                  textAlign: TextAlign.center,
-                                  style: sellerText(
-                                    metrics,
-                                    25,
-                                    weight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: bidCard,
-                              ),
-                            ],
-                          );
-                        },
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Send your offer',
+                            key: const Key('sellerSendOfferHeading'),
+                            textAlign: TextAlign.center,
+                            style: sellerText(
+                              metrics,
+                              20,
+                              weight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: metrics.spacing(8)),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: _OfferBidCard(
+                              initialBid: _presentation.initialBid,
+                              winningBid: _presentation.winningBid,
+                              compact: true,
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(height: metrics.spacing(14)),
                       _OfferSection(
@@ -2143,9 +2223,14 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                             prefixIcon: Container(
                               key: const Key('sellerOfferCurrencyPrefix'),
                               alignment: Alignment.center,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 border: Border(
-                                  right: BorderSide(color: SellerUiColors.line),
+                                  right: BorderSide(
+                                    color: HocalistPalette.border(
+                                      context,
+                                      SellerUiColors.line,
+                                    ),
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -2323,7 +2408,10 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                         child: Container(
                           padding: EdgeInsets.all(metrics.spacing(10)),
                           decoration: BoxDecoration(
-                            color: SellerUiColors.lavender,
+                            color: HocalistPalette.surface(
+                              context,
+                              SellerUiColors.lavender,
+                            ),
                             borderRadius: BorderRadius.circular(
                               metrics.geometry(9),
                             ),
@@ -2337,7 +2425,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                               _OfferHowItWorksRow(
                                 icon: Icons.phone_outlined,
                                 text: _realMode
-                                    ? 'Acceptance reserves the winning fee from one eligible HocaCredit deposit batch. The initial fee is charged once both parties message.'
+                                    ? 'Sending an offer reserves the winning fee from one eligible HocaCredit deposit batch; a reservation is not a charge. The initial fee is charged only after both parties message.'
                                     : 'If the buyer accepts your offer and chooses to share verified contact information, your initial bid is charged and you’ll receive access to their contact details.',
                               ),
                               _OfferHowItWorksRow(
@@ -2419,7 +2507,10 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                             fontSize: compactAction ? 12 : 14,
                             trailing: Icon(
                               Icons.send_outlined,
-                              color: Colors.white,
+                              color: HocalistPalette.text(
+                                context,
+                                Colors.white,
+                              ),
                               size: metrics.artSize(compactAction ? 17 : 19),
                             ),
                           );
@@ -2433,8 +2524,16 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                             : () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           minimumSize: Size.fromHeight(metrics.geometry(44)),
-                          foregroundColor: SellerUiColors.red,
-                          side: const BorderSide(color: SellerUiColors.red),
+                          foregroundColor: HocalistPalette.text(
+                            context,
+                            SellerUiColors.red,
+                          ),
+                          side: BorderSide(
+                            color: HocalistPalette.border(
+                              context,
+                              SellerUiColors.red,
+                            ),
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(
                               metrics.geometry(12),
@@ -2472,15 +2571,18 @@ class _SellerInformationPanel extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Container(
       padding: EdgeInsets.all(metrics.spacing(12)),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
-        border: Border.all(color: SellerUiColors.lavenderBorder),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.lavenderBorder),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2488,7 +2590,7 @@ class _SellerInformationPanel extends StatelessWidget {
           Icon(
             icon,
             size: metrics.artSize(20),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(width: metrics.spacing(9)),
           Expanded(
@@ -2547,9 +2649,11 @@ class _SellerOfferImageSection extends StatelessWidget {
             key: const Key('sellerOfferImagesEmpty'),
             padding: EdgeInsets.all(metrics.spacing(12)),
             decoration: BoxDecoration(
-              color: SellerUiColors.lavender,
+              color: HocalistPalette.surface(context, SellerUiColors.lavender),
               borderRadius: BorderRadius.circular(metrics.geometry(10)),
-              border: Border.all(color: SellerUiColors.line),
+              border: Border.all(
+                color: HocalistPalette.border(context, SellerUiColors.line),
+              ),
             ),
             child: Text(
               mediaUploadAvailable
@@ -2572,8 +2676,16 @@ class _SellerOfferImageSection extends StatelessWidget {
                       Container(
                         padding: EdgeInsets.all(metrics.geometry(7)),
                         decoration: BoxDecoration(
-                          color: SellerUiColors.white,
-                          border: Border.all(color: SellerUiColors.line),
+                          color: HocalistPalette.surface(
+                            context,
+                            SellerUiColors.white,
+                          ),
+                          border: Border.all(
+                            color: HocalistPalette.border(
+                              context,
+                              SellerUiColors.line,
+                            ),
+                          ),
                           borderRadius: BorderRadius.circular(
                             metrics.geometry(10),
                           ),
@@ -2612,9 +2724,15 @@ class _SellerOfferImageSection extends StatelessWidget {
                           padding: EdgeInsets.zero,
                           onPressed: () => onRemove(image),
                           icon: Icon(Icons.close, size: metrics.artSize(17)),
-                          color: SellerUiColors.red,
+                          color: HocalistPalette.text(
+                            context,
+                            SellerUiColors.red,
+                          ),
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: HocalistPalette.surface(
+                              context,
+                              Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -2635,8 +2753,16 @@ class _SellerOfferImageSection extends StatelessWidget {
                 padding: EdgeInsets.symmetric(
                   horizontal: compact ? 10 : metrics.spacing(14),
                 ),
-                foregroundColor: SellerUiColors.primaryBright,
-                side: const BorderSide(color: SellerUiColors.primaryBright),
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
+                side: BorderSide(
+                  color: HocalistPalette.border(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(
                     compact ? 10 : metrics.geometry(10),
@@ -2741,6 +2867,7 @@ class _SellerOfferImageSourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
@@ -2758,7 +2885,10 @@ class _SellerOfferImageSourceTile extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: SellerUiColors.primaryBright,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                   size: compact ? 20 : metrics.artSize(20),
                 ),
                 SizedBox(width: compact ? 10 : metrics.spacing(10)),
@@ -2774,7 +2904,7 @@ class _SellerOfferImageSourceTile extends StatelessWidget {
                 ),
                 Icon(
                   Icons.chevron_right,
-                  color: SellerUiColors.body,
+                  color: HocalistPalette.text(context, SellerUiColors.body),
                   size: compact ? 22 : metrics.artSize(22),
                 ),
               ],
@@ -2810,8 +2940,11 @@ class _OfferSection extends StatelessWidget {
               width: metrics.geometry(32),
               height: metrics.geometry(32),
               alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: SellerUiColors.primaryBright,
+              decoration: BoxDecoration(
+                color: HocalistPalette.surface(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
                 shape: BoxShape.circle,
               ),
               child: Text(
@@ -2886,13 +3019,16 @@ class _SpecificLocationOption extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Material(
-      color: SellerUiColors.white,
+      color: HocalistPalette.surface(context, SellerUiColors.white),
       shape: RoundedRectangleBorder(
-        side: const BorderSide(color: SellerUiColors.line),
+        side: BorderSide(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),
       child: InkWell(
@@ -2907,14 +3043,20 @@ class _SpecificLocationOption extends StatelessWidget {
                 width: metrics.geometry(34),
                 height: metrics.geometry(34),
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: SellerUiColors.lavender,
+                decoration: BoxDecoration(
+                  color: HocalistPalette.surface(
+                    context,
+                    SellerUiColors.lavender,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.location_on_outlined,
                   size: metrics.artSize(18),
-                  color: SellerUiColors.primaryBright,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                 ),
               ),
               SizedBox(width: metrics.geometry(9)),
@@ -2940,7 +3082,10 @@ class _SpecificLocationOption extends StatelessWidget {
               Icon(
                 Icons.chevron_right_rounded,
                 size: metrics.artSize(18),
-                color: SellerUiColors.primaryBright,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
             ],
           ),
@@ -2967,7 +3112,7 @@ class _OfferPlanChip extends StatelessWidget {
         vertical: metrics.geometry(8),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.lavender,
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(metrics.geometry(9)),
       ),
       child: Row(
@@ -2976,7 +3121,7 @@ class _OfferPlanChip extends StatelessWidget {
           Icon(
             Icons.workspace_premium_outlined,
             size: metrics.artSize(17),
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(width: metrics.geometry(6)),
           Text(
@@ -3017,7 +3162,7 @@ class _OfferBidCard extends StatelessWidget {
             vertical: metrics.geometry(compact ? 7 : 9),
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFE2A0),
+            color: HocalistPalette.surface(context, const Color(0xFFFFE2A0)),
             borderRadius: BorderRadius.circular(metrics.geometry(9)),
           ),
           child: Column(
@@ -3066,7 +3211,11 @@ class _OfferInlineNotice extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: metrics.artSize(16), color: color),
+        Icon(
+          icon,
+          size: metrics.artSize(16),
+          color: HocalistPalette.text(context, color),
+        ),
         SizedBox(width: metrics.geometry(6)),
         Flexible(
           child: Text(
@@ -3112,9 +3261,10 @@ class _OfferChoice extends StatelessWidget {
         margin: EdgeInsets.only(bottom: metrics.geometry(7)),
         decoration: BoxDecoration(
           border: Border.all(
-            color: selected
-                ? SellerUiColors.primaryBright
-                : SellerUiColors.line,
+            color: HocalistPalette.border(
+              context,
+              selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+            ),
           ),
           borderRadius: BorderRadius.circular(metrics.geometry(8)),
         ),
@@ -3129,10 +3279,16 @@ class _OfferChoice extends StatelessWidget {
                   selected
                       ? Icons.radio_button_checked
                       : Icons.radio_button_off,
-                  color: SellerUiColors.primaryBright,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                 ),
                 SizedBox(width: metrics.geometry(7)),
-                Icon(icon, color: SellerUiColors.body),
+                Icon(
+                  icon,
+                  color: HocalistPalette.text(context, SellerUiColors.body),
+                ),
                 SizedBox(width: metrics.geometry(8)),
                 Expanded(
                   child: Column(
@@ -3184,9 +3340,10 @@ class _SpecificLocationLauncher extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           border: Border.all(
-            color: selected
-                ? SellerUiColors.primaryBright
-                : SellerUiColors.line,
+            color: HocalistPalette.border(
+              context,
+              selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+            ),
           ),
           borderRadius: BorderRadius.circular(metrics.geometry(8)),
         ),
@@ -3206,7 +3363,7 @@ class _SpecificLocationLauncher extends StatelessWidget {
               children: [
                 Icon(
                   Icons.map_outlined,
-                  color: SellerUiColors.body,
+                  color: HocalistPalette.text(context, SellerUiColors.body),
                   size: metrics.artSize(21),
                 ),
                 SizedBox(width: metrics.geometry(10)),
@@ -3235,7 +3392,7 @@ class _SpecificLocationLauncher extends StatelessWidget {
                 SizedBox(width: metrics.geometry(8)),
                 Icon(
                   Icons.chevron_right,
-                  color: SellerUiColors.ink,
+                  color: HocalistPalette.text(context, SellerUiColors.ink),
                   size: metrics.artSize(22),
                 ),
               ],
@@ -3270,7 +3427,9 @@ class _OfferPicker extends StatelessWidget {
       label: '$label. $value',
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: SellerUiColors.line),
+          border: Border.all(
+            color: HocalistPalette.border(context, SellerUiColors.line),
+          ),
           borderRadius: BorderRadius.circular(metrics.geometry(8)),
         ),
         child: InkWell(
@@ -3283,7 +3442,7 @@ class _OfferPicker extends StatelessWidget {
                 Icon(
                   icon,
                   size: metrics.artSize(17),
-                  color: SellerUiColors.body,
+                  color: HocalistPalette.text(context, SellerUiColors.body),
                 ),
                 SizedBox(width: metrics.geometry(7)),
                 Expanded(
@@ -3391,7 +3550,7 @@ class _OfferHowItWorksRow extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: SellerUiColors.primaryBright,
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
             size: metrics.artSize(18),
           ),
           SizedBox(width: metrics.geometry(9)),
@@ -3606,16 +3765,21 @@ class _SellerLeadsErrorNotice extends StatelessWidget {
         vertical: metrics.geometry(10),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.redSurface,
+        color: HocalistPalette.surface(context, SellerUiColors.redSurface),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
-        border: Border.all(color: SellerUiColors.red.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: HocalistPalette.border(
+            context,
+            SellerUiColors.red.withValues(alpha: 0.25),
+          ),
+        ),
       ),
       child: Row(
         children: [
           Icon(
             Icons.error_outline_rounded,
             size: metrics.artSize(18),
-            color: SellerUiColors.red,
+            color: HocalistPalette.text(context, SellerUiColors.red),
           ),
           SizedBox(width: metrics.geometry(8)),
           Expanded(
@@ -3634,7 +3798,10 @@ class _SellerLeadsErrorNotice extends StatelessWidget {
               key: const Key('sellerLeadsRetry'),
               onPressed: onRetry,
               style: TextButton.styleFrom(
-                foregroundColor: SellerUiColors.primary,
+                foregroundColor: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primary,
+                ),
                 padding: EdgeInsets.symmetric(horizontal: metrics.geometry(8)),
                 minimumSize: const Size(0, 32),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -3666,7 +3833,7 @@ class _OfferTimezoneField extends StatelessWidget {
         key: const Key('sellerOfferTimezoneUnavailable'),
         padding: EdgeInsets.all(metrics.geometry(10)),
         decoration: BoxDecoration(
-          color: SellerUiColors.amberSurface,
+          color: HocalistPalette.surface(context, SellerUiColors.amberSurface),
           borderRadius: BorderRadius.circular(metrics.geometry(9)),
         ),
         child: Text(
@@ -3695,7 +3862,10 @@ class _OfferTimezoneField extends StatelessWidget {
               context: context,
               isScrollControlled: true,
               useSafeArea: true,
-              backgroundColor: Colors.transparent,
+              backgroundColor: HocalistPalette.surface(
+                context,
+                Colors.transparent,
+              ),
               sheetAnimationStyle: HocalistMotion.sheetStyle(context),
               builder: (sheetContext) => StatefulBuilder(
                 builder: (context, setSheetState) => SellerModalSheet(
@@ -3790,7 +3960,7 @@ class _OfferOccurrenceChooser extends StatelessWidget {
       key: const Key('sellerOfferOccurrenceChooser'),
       padding: EdgeInsets.all(metrics.geometry(10)),
       decoration: BoxDecoration(
-        color: SellerUiColors.amberSurface,
+        color: HocalistPalette.surface(context, SellerUiColors.amberSurface),
         borderRadius: BorderRadius.circular(metrics.geometry(9)),
       ),
       child: Column(
@@ -3852,11 +4022,15 @@ class _OccurrenceOption extends StatelessWidget {
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         minimumSize: Size.fromHeight(metrics.geometry(38)),
-        foregroundColor: selected
-            ? SellerUiColors.primaryBright
-            : SellerUiColors.body,
+        foregroundColor: HocalistPalette.text(
+          context,
+          selected ? SellerUiColors.primaryBright : SellerUiColors.body,
+        ),
         side: BorderSide(
-          color: selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+          color: HocalistPalette.border(
+            context,
+            selected ? SellerUiColors.primaryBright : SellerUiColors.line,
+          ),
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(9)),

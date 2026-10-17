@@ -133,7 +133,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
             child: Dialog.fullscreen(
               child: SafeArea(
                 child: Scaffold(
-                  backgroundColor: Colors.white,
+                  backgroundColor: HocalistPalette.surface(context, Colors.white),
                   body: ListView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     children: [
@@ -235,7 +235,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
         return _AccessibilityReplicaScope(
           metrics: metrics,
           child: ColoredBox(
-            color: Colors.white,
+            color: HocalistPalette.surface(context, Colors.white),
             child: Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
@@ -280,7 +280,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                                 'Aa',
                                 textScaler: TextScaler.noScaling,
                                 style: TextStyle(
-                                  color: _ink,
+                                  color: HocalistPalette.text(context, _ink),
                                   fontFamily: draft.fontFamily,
                                   fontSize: metrics.font(sampleSize * 0.9),
                                   height: 1,
@@ -292,9 +292,12 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                                 size.label,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: draft.textSize == size
-                                      ? _primaryFor(context)
-                                      : _ink,
+                                  color: HocalistPalette.text(
+                                    context,
+                                    draft.textSize == size
+                                        ? _primaryFor(context)
+                                        : _ink,
+                                  ),
                                   fontSize: metrics.font(10.5),
                                   height: 1.08,
                                   fontWeight: FontWeight.w700,
@@ -344,7 +347,7 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                                 textScaler: TextScaler.noScaling,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: _ink,
+                                  color: HocalistPalette.text(context, _ink),
                                   fontFamily: family,
                                   fontSize:
                                       style ==
@@ -364,9 +367,12 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
                                 label,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: draft.fontStyle == style
-                                      ? _primaryFor(context)
-                                      : _ink,
+                                  color: HocalistPalette.text(
+                                    context,
+                                    draft.fontStyle == style
+                                        ? _primaryFor(context)
+                                        : _ink,
+                                  ),
                                   fontSize: metrics.font(10.5),
                                   height: 1.08,
                                   fontWeight: FontWeight.w700,
@@ -448,7 +454,10 @@ class _AccessibilityHeader extends StatelessWidget {
                   'Accessibility',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: _AccessibilityPageState._ink,
+                    color: HocalistPalette.text(
+                      context,
+                      _AccessibilityPageState._ink,
+                    ),
                     fontSize: metrics.font(20),
                     height: 1.08,
                     fontWeight: FontWeight.w900,
@@ -459,7 +468,10 @@ class _AccessibilityHeader extends StatelessWidget {
                   'Customize Hocalist to fit your needs',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: _AccessibilityPageState._ink,
+                    color: HocalistPalette.text(
+                      context,
+                      _AccessibilityPageState._ink,
+                    ),
                     fontSize: metrics.font(10.5),
                     height: 1.1,
                     fontWeight: FontWeight.w700,
@@ -504,8 +516,8 @@ class _IntroPanel extends StatelessWidget {
     final icon = Container(
       width: metrics.size(49),
       height: metrics.size(49),
-      decoration: const BoxDecoration(
-        color: Color(0xffeeeaff),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, Color(0xffeeeaff)),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
@@ -524,7 +536,7 @@ class _IntroPanel extends StatelessWidget {
         Text(
           'Make Hocalist easier to read and use',
           style: TextStyle(
-            color: _AccessibilityPageState._ink,
+            color: HocalistPalette.text(context, _AccessibilityPageState._ink),
             fontSize: metrics.font(13.5),
             height: 1.12,
             fontWeight: FontWeight.w900,
@@ -534,7 +546,10 @@ class _IntroPanel extends StatelessWidget {
         Text(
           'Choose the text size, fonts, and button style that work best for you. You can change these anytime.',
           style: TextStyle(
-            color: _AccessibilityPageState._muted,
+            color: HocalistPalette.text(
+              context,
+              _AccessibilityPageState._muted,
+            ),
             fontSize: metrics.font(10.5),
             height: 1.24,
             fontWeight: FontWeight.w700,
@@ -549,7 +564,10 @@ class _IntroPanel extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
       decoration: BoxDecoration(
-        color: _AccessibilityPageState._lavender,
+        color: HocalistPalette.surface(
+          context,
+          _AccessibilityPageState._lavender,
+        ),
         borderRadius: BorderRadius.circular(metrics.size(8)),
       ),
       child: compact
@@ -587,7 +605,7 @@ class _SectionHeading extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            color: _AccessibilityPageState._ink,
+            color: HocalistPalette.text(context, _AccessibilityPageState._ink),
             fontSize: metrics.font(12),
             height: 1.15,
             fontWeight: FontWeight.w900,
@@ -597,7 +615,10 @@ class _SectionHeading extends StatelessWidget {
         Text(
           instruction,
           style: TextStyle(
-            color: _AccessibilityPageState._muted,
+            color: HocalistPalette.text(
+              context,
+              _AccessibilityPageState._muted,
+            ),
             fontSize: metrics.font(10.5),
             height: 1.2,
             fontWeight: FontWeight.w700,
@@ -668,13 +689,16 @@ class _OptionCard extends StatelessWidget {
       selected: selected,
       label: semanticLabel,
       child: Material(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.size(8)),
           side: BorderSide(
-            color: selected
-                ? _AccessibilityPageState._primaryFor(context)
-                : _AccessibilityPageState._outline,
+            color: HocalistPalette.border(
+              context,
+              selected
+                  ? _AccessibilityPageState._primaryFor(context)
+                  : _AccessibilityPageState._outline,
+            ),
             width: metrics.size(selected ? 1.5 : 1),
           ),
         ),
@@ -732,7 +756,10 @@ class _TextPreviewPanel extends StatelessWidget {
         constraints: BoxConstraints(minHeight: metrics.size(104)),
         padding: metrics.insets(const EdgeInsets.fromLTRB(14, 13, 14, 12)),
         decoration: BoxDecoration(
-          color: _AccessibilityPageState._lavender,
+          color: HocalistPalette.surface(
+            context,
+            _AccessibilityPageState._lavender,
+          ),
           borderRadius: BorderRadius.circular(metrics.size(8)),
         ),
         child: Column(
@@ -751,7 +778,10 @@ class _TextPreviewPanel extends StatelessWidget {
                 Text(
                   'Preview',
                   style: TextStyle(
-                    color: _AccessibilityPageState._primaryFor(context),
+                    color: HocalistPalette.text(
+                      context,
+                      _AccessibilityPageState._primaryFor(context),
+                    ),
                     fontFamily: preferences.fontFamily,
                     fontSize: metrics.font(10.5) * scale,
                     height: 1,
@@ -764,7 +794,10 @@ class _TextPreviewPanel extends StatelessWidget {
             Text(
               'This is how text will look',
               style: TextStyle(
-                color: _AccessibilityPageState._ink,
+                color: HocalistPalette.text(
+                  context,
+                  _AccessibilityPageState._ink,
+                ),
                 fontFamily: preferences.fontFamily,
                 fontSize: metrics.font(17) * scale,
                 height: 1.1,
@@ -775,7 +808,10 @@ class _TextPreviewPanel extends StatelessWidget {
             Text(
               'You can preview how titles, descriptions, and buttons will appear throughout the app.',
               style: TextStyle(
-                color: _AccessibilityPageState._muted,
+                color: HocalistPalette.text(
+                  context,
+                  _AccessibilityPageState._muted,
+                ),
                 fontFamily: preferences.fontFamily,
                 fontSize: metrics.font(11.5) * scale,
                 height: 1.22,
@@ -831,9 +867,12 @@ class _ButtonStyleOption extends StatelessWidget {
                   height: metrics.size(29),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: rounded
-                        ? null
-                        : _AccessibilityPageState._highContrastFor(context),
+                    color: HocalistPalette.surfaceOrNull(
+                      context,
+                      rounded
+                          ? null
+                          : _AccessibilityPageState._highContrastFor(context),
+                    ),
                     gradient: rounded
                         ? LinearGradient(
                             colors: _AccessibilityPageState._isSeller(context)
@@ -853,7 +892,7 @@ class _ButtonStyleOption extends StatelessWidget {
                     key: Key('button-preview-label-${style.name}'),
                     textScaler: TextScaler.noScaling,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: HocalistPalette.text(context, Colors.white),
                       fontFamily: HocalistTheme.appFontFamily,
                       fontSize: metrics.font(10.5),
                       height: 1,
@@ -867,9 +906,12 @@ class _ButtonStyleOption extends StatelessWidget {
                   rounded ? 'Rounded (Default)' : 'High Contrast',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: selected
-                        ? _AccessibilityPageState._primaryFor(context)
-                        : _AccessibilityPageState._ink,
+                    color: HocalistPalette.text(
+                      context,
+                      selected
+                          ? _AccessibilityPageState._primaryFor(context)
+                          : _AccessibilityPageState._ink,
+                    ),
                     fontFamily: HocalistTheme.appFontFamily,
                     fontSize: metrics.font(10),
                     height: 1.08,
@@ -909,7 +951,7 @@ class _FullPreviewPanel extends StatelessWidget {
         Text(
           'Preview your selection',
           style: TextStyle(
-            color: _AccessibilityPageState._ink,
+            color: HocalistPalette.text(context, _AccessibilityPageState._ink),
             fontSize: metrics.font(12),
             height: 1.1,
             fontWeight: FontWeight.w900,
@@ -919,7 +961,10 @@ class _FullPreviewPanel extends StatelessWidget {
         Text(
           'See how Hocalist will look with your current settings.',
           style: TextStyle(
-            color: _AccessibilityPageState._muted,
+            color: HocalistPalette.text(
+              context,
+              _AccessibilityPageState._muted,
+            ),
             fontSize: metrics.font(10.5),
             height: 1.28,
             fontWeight: FontWeight.w700,
@@ -931,8 +976,16 @@ class _FullPreviewPanel extends StatelessWidget {
       key: const Key('show-accessibility-preview'),
       onPressed: onPreview,
       style: OutlinedButton.styleFrom(
-        foregroundColor: _AccessibilityPageState._green,
-        side: const BorderSide(color: _AccessibilityPageState._green),
+        foregroundColor: HocalistPalette.text(
+          context,
+          _AccessibilityPageState._green,
+        ),
+        side: BorderSide(
+          color: HocalistPalette.border(
+            context,
+            _AccessibilityPageState._green,
+          ),
+        ),
         minimumSize: Size(metrics.size(110), metrics.size(44)),
         padding: metrics.insets(
           const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
@@ -963,7 +1016,10 @@ class _FullPreviewPanel extends StatelessWidget {
         const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
       decoration: BoxDecoration(
-        color: _AccessibilityPageState._greenSurface,
+        color: HocalistPalette.surface(
+          context,
+          _AccessibilityPageState._greenSurface,
+        ),
         borderRadius: BorderRadius.circular(metrics.size(8)),
       ),
       child: compact

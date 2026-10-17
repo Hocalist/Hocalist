@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
 
@@ -161,6 +162,7 @@ class _SaleHistoryPanelState extends State<SaleHistoryPanel> {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -261,16 +263,20 @@ class _EntryCard extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
     return HocalistEntrance(
       child: Container(
         decoration: BoxDecoration(
-          color: BuyerUiTokens.surface,
+          color: HocalistPalette.surface(context, BuyerUiTokens.surface),
           borderRadius: BorderRadius.circular(metrics.geometry(14)),
           border: Border.all(
-            color: expanded ? const Color(0xffd9d5ff) : BuyerUiTokens.border,
+            color: HocalistPalette.border(
+              context,
+              expanded ? const Color(0xffd9d5ff) : BuyerUiTokens.border,
+            ),
             width: expanded ? 1.5 : 1,
           ),
         ),
@@ -278,7 +284,7 @@ class _EntryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Material(
-              color: Colors.transparent,
+              color: HocalistPalette.surface(context, Colors.transparent),
               borderRadius: BorderRadius.circular(metrics.geometry(14)),
               child: InkWell(
                 key: Key('saleHistoryEntry-${entry.id}'),
@@ -295,8 +301,11 @@ class _EntryCard extends StatelessWidget {
                           Container(
                             width: metrics.artSize(32),
                             height: metrics.artSize(32),
-                            decoration: const BoxDecoration(
-                              color: BuyerUiTokens.softSurface,
+                            decoration: BoxDecoration(
+                              color: HocalistPalette.surface(
+                                context,
+                                BuyerUiTokens.softSurface,
+                              ),
                               shape: BoxShape.circle,
                             ),
                             child: Center(
@@ -306,7 +315,10 @@ class _EntryCard extends StatelessWidget {
                                     : Icons.storefront_outlined,
                                 slotSize: metrics.artSize(17),
                                 glyphSize: metrics.artSize(17),
-                                color: BuyerUiTokens.action,
+                                color: HocalistPalette.text(
+                                  context,
+                                  BuyerUiTokens.action,
+                                ),
                               ),
                             ),
                           ),
@@ -450,6 +462,7 @@ class _DetailBody extends StatelessWidget {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
         ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
@@ -499,7 +512,7 @@ class _DetailBody extends StatelessWidget {
         Container(
           padding: metrics.geometryInsets(const EdgeInsets.all(10)),
           decoration: BoxDecoration(
-            color: BuyerUiTokens.softSurface,
+            color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
             borderRadius: BorderRadius.circular(metrics.geometry(11)),
           ),
           child: Row(
@@ -509,7 +522,7 @@ class _DetailBody extends StatelessWidget {
                 icon: Icons.handshake_outlined,
                 slotSize: metrics.artSize(17),
                 glyphSize: metrics.artSize(17),
-                color: BuyerUiTokens.action,
+                color: HocalistPalette.text(context, BuyerUiTokens.action),
               ),
               SizedBox(width: metrics.spacing(8)),
               Expanded(

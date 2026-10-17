@@ -110,6 +110,7 @@ class _SellerOfferRevisionEditorState extends State<SellerOfferRevisionEditor> {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );

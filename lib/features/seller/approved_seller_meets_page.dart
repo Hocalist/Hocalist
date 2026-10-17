@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -413,7 +414,10 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
                 key: const Key('sellerMeetingsError'),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: SellerUiColors.lavender,
+                  color: HocalistPalette.surface(
+                    context,
+                    SellerUiColors.lavender,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
@@ -520,7 +524,7 @@ class _MeetsHeader extends StatelessWidget {
           tooltip: 'Filter appointments',
           onPressed: onFilter,
           icon: const Icon(Icons.filter_alt_outlined),
-          color: SellerUiColors.primaryBright,
+          color: HocalistPalette.text(context, SellerUiColors.primaryBright),
         ),
       ],
     );
@@ -553,7 +557,9 @@ class _MeetStatusTabs extends StatelessWidget {
         return Container(
           padding: EdgeInsets.all(metrics.geometry(2)),
           decoration: BoxDecoration(
-            border: Border.all(color: SellerUiColors.line),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(11)),
           ),
           child: Row(
@@ -709,7 +715,7 @@ class _StatusTabLabel extends StatelessWidget {
           Icon(
             Icons.calendar_month_outlined,
             size: metrics.artSize(compact ? 12 : 14),
-            color: Colors.white,
+            color: HocalistPalette.text(context, Colors.white),
           ),
           SizedBox(width: compact ? 1.5 : metrics.geometry(3)),
         ],
@@ -748,7 +754,10 @@ class _StatusCount extends StatelessWidget {
     final metrics = ApprovedReplicaScope.of(context);
     return CircleAvatar(
       radius: metrics.geometry(compact ? 8 : 9),
-      backgroundColor: selected ? Colors.white : SellerUiColors.lavender,
+      backgroundColor: HocalistPalette.surface(
+        context,
+        selected ? Colors.white : SellerUiColors.lavender,
+      ),
       child: Text(
         count,
         style: sellerText(
@@ -800,8 +809,10 @@ class _EmptyAppointments extends StatelessWidget {
         vertical: metrics.spacing(30),
       ),
       decoration: BoxDecoration(
-        color: SellerUiColors.white,
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Column(
@@ -810,14 +821,17 @@ class _EmptyAppointments extends StatelessWidget {
             width: metrics.artSize(52),
             height: metrics.artSize(52),
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: SellerUiColors.lavender,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, SellerUiColors.lavender),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.event_available_outlined,
               size: metrics.artSize(26),
-              color: SellerUiColors.primaryBright,
+              color: HocalistPalette.text(
+                context,
+                SellerUiColors.primaryBright,
+              ),
             ),
           ),
           SizedBox(height: metrics.spacing(10)),
@@ -864,8 +878,10 @@ class _AppointmentCard extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.all(metrics.spacing(11)),
             decoration: BoxDecoration(
-              color: SellerUiColors.white,
-              border: Border.all(color: SellerUiColors.line),
+              color: HocalistPalette.surface(context, SellerUiColors.white),
+              border: Border.all(
+                color: HocalistPalette.border(context, SellerUiColors.line),
+              ),
               borderRadius: BorderRadius.circular(metrics.geometry(12)),
               boxShadow: const [
                 BoxShadow(
@@ -885,7 +901,10 @@ class _AppointmentCard extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: metrics.artSize(26),
-                          backgroundColor: appointment.avatarColor,
+                          backgroundColor: HocalistPalette.surface(
+                            context,
+                            appointment.avatarColor,
+                          ),
                           child: Text(
                             appointment.initials,
                             style: sellerText(
@@ -903,9 +922,18 @@ class _AppointmentCard extends StatelessWidget {
                             width: metrics.geometry(11),
                             height: metrics.geometry(11),
                             decoration: BoxDecoration(
-                              color: SellerUiColors.green,
+                              color: HocalistPalette.surface(
+                                context,
+                                SellerUiColors.green,
+                              ),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(
+                                color: HocalistPalette.border(
+                                  context,
+                                  Colors.white,
+                                ),
+                                width: 2,
+                              ),
                             ),
                           ),
                         ),
@@ -953,7 +981,10 @@ class _AppointmentCard extends StatelessWidget {
                             vertical: metrics.geometry(5),
                           ),
                           decoration: BoxDecoration(
-                            color: SellerUiColors.greenSurface,
+                            color: HocalistPalette.surface(
+                              context,
+                              SellerUiColors.greenSurface,
+                            ),
                             borderRadius: BorderRadius.circular(
                               metrics.geometry(7),
                             ),
@@ -965,7 +996,10 @@ class _AppointmentCard extends StatelessWidget {
                                 Icon(
                                   Icons.check_circle_outline,
                                   size: metrics.artSize(13),
-                                  color: SellerUiColors.green,
+                                  color: HocalistPalette.text(
+                                    context,
+                                    SellerUiColors.green,
+                                  ),
                                 ),
                                 SizedBox(width: metrics.geometry(3)),
                               ],
@@ -1020,7 +1054,10 @@ class _AppointmentCard extends StatelessWidget {
                           Icon(
                             Icons.info_outline,
                             size: metrics.artSize(18),
-                            color: SellerUiColors.primaryBright,
+                            color: HocalistPalette.text(
+                              context,
+                              SellerUiColors.primaryBright,
+                            ),
                           ),
                           SizedBox(width: metrics.geometry(7)),
                           Expanded(
@@ -1042,7 +1079,10 @@ class _AppointmentCard extends StatelessWidget {
                             child: Icon(
                               Icons.keyboard_arrow_down,
                               size: metrics.artSize(22),
-                              color: SellerUiColors.primaryBright,
+                              color: HocalistPalette.text(
+                                context,
+                                SellerUiColors.primaryBright,
+                              ),
                             ),
                           ),
                         ],
@@ -1059,7 +1099,10 @@ class _AppointmentCard extends StatelessWidget {
                         height: metrics.artSize(52),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: SellerUiColors.lavender,
+                          color: HocalistPalette.surface(
+                            context,
+                            SellerUiColors.lavender,
+                          ),
                           borderRadius: BorderRadius.circular(
                             metrics.geometry(8),
                           ),
@@ -1067,7 +1110,10 @@ class _AppointmentCard extends StatelessWidget {
                         child: Icon(
                           Icons.tablet_mac_outlined,
                           size: metrics.artSize(28),
-                          color: SellerUiColors.primaryBright,
+                          color: HocalistPalette.text(
+                            context,
+                            SellerUiColors.primaryBright,
+                          ),
                         ),
                       ),
                       SizedBox(width: metrics.spacing(9)),
@@ -1132,7 +1178,10 @@ class _AppointmentCard extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.location_on_outlined,
-                        color: SellerUiColors.primaryBright,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.primaryBright,
+                        ),
                       ),
                       SizedBox(width: metrics.geometry(7)),
                       Expanded(
@@ -1171,7 +1220,10 @@ class _AppointmentCard extends StatelessWidget {
                         tooltip: 'Open map',
                         onPressed: onOpenMap,
                         icon: const Icon(Icons.map_outlined),
-                        color: SellerUiColors.primaryBright,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.primaryBright,
+                        ),
                       ),
                     ],
                   ),
@@ -1292,8 +1344,10 @@ class _RealMeetingCard extends StatelessWidget {
             key: ValueKey('sellerRealMeeting-${meeting.meetingId}'),
             padding: EdgeInsets.all(metrics.spacing(11)),
             decoration: BoxDecoration(
-              color: SellerUiColors.white,
-              border: Border.all(color: SellerUiColors.line),
+              color: HocalistPalette.surface(context, SellerUiColors.white),
+              border: Border.all(
+                color: HocalistPalette.border(context, SellerUiColors.line),
+              ),
               borderRadius: BorderRadius.circular(metrics.geometry(12)),
               boxShadow: const [
                 BoxShadow(
@@ -1345,7 +1399,10 @@ class _RealMeetingCard extends StatelessWidget {
                         vertical: metrics.geometry(4),
                       ),
                       decoration: BoxDecoration(
-                        color: SellerUiColors.lavender,
+                        color: HocalistPalette.surface(
+                          context,
+                          SellerUiColors.lavender,
+                        ),
                         borderRadius: BorderRadius.circular(
                           metrics.geometry(7),
                         ),
@@ -1466,7 +1523,7 @@ class _RealMeetingFact extends StatelessWidget {
         Icon(
           icon,
           size: metrics.artSize(18),
-          color: SellerUiColors.primaryBright,
+          color: HocalistPalette.text(context, SellerUiColors.primaryBright),
         ),
         SizedBox(width: metrics.geometry(7)),
         Expanded(
@@ -1514,7 +1571,9 @@ class _MeetAction extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: Size(0, metrics.geometry(62)),
         padding: EdgeInsets.symmetric(horizontal: metrics.geometry(2)),
-        side: const BorderSide(color: SellerUiColors.line),
+        side: BorderSide(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(8)),
         ),
@@ -1522,7 +1581,11 @@ class _MeetAction extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: metrics.artSize(20), color: color),
+          Icon(
+            icon,
+            size: metrics.artSize(20),
+            color: HocalistPalette.text(context, color),
+          ),
           SizedBox(height: metrics.geometry(3)),
           Text(
             label,
@@ -1581,6 +1644,7 @@ class _SellerPinSheetState extends State<_SellerPinSheet> {
     final media = MediaQuery.of(context);
     final sheetWidth = media.size.width.clamp(0.0, 620.0);
     final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
       availableWidth: sheetWidth,
       textScaler: media.textScaler,
     );
@@ -1594,7 +1658,7 @@ class _SellerPinSheetState extends State<_SellerPinSheet> {
           alignment: Alignment.bottomCenter,
           child: Material(
             key: const Key('sellerPinSheet'),
-            color: SellerUiColors.white,
+            color: HocalistPalette.surface(context, SellerUiColors.white),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
@@ -1675,12 +1739,18 @@ class _SellerPinEntryContent extends StatelessWidget {
               height: metrics.artSize(46),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: SellerUiColors.lavender,
+                color: HocalistPalette.surface(
+                  context,
+                  SellerUiColors.lavender,
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(13)),
               ),
               child: Icon(
                 Icons.lock_outline,
-                color: SellerUiColors.primaryBright,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
                 size: metrics.artSize(25),
               ),
             ),
@@ -1690,7 +1760,7 @@ class _SellerPinEntryContent extends StatelessWidget {
               tooltip: 'Close PIN entry',
               onPressed: onCancel,
               icon: const Icon(Icons.close_rounded),
-              color: SellerUiColors.body,
+              color: HocalistPalette.text(context, SellerUiColors.body),
             ),
           ],
         ),
@@ -1750,7 +1820,7 @@ class _SellerPinEntryContent extends StatelessWidget {
             ),
             counterText: '',
             filled: true,
-            fillColor: SellerUiColors.white,
+            fillColor: HocalistPalette.surface(context, SellerUiColors.white),
             contentPadding: EdgeInsets.symmetric(
               horizontal: metrics.spacing(14),
               vertical: metrics.spacing(14),
@@ -1758,18 +1828,24 @@ class _SellerPinEntryContent extends StatelessWidget {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(metrics.geometry(13)),
               borderSide: BorderSide(
-                color: error == null
-                    ? SellerUiColors.lavenderBorder
-                    : SellerUiColors.red,
+                color: HocalistPalette.border(
+                  context,
+                  error == null
+                      ? SellerUiColors.lavenderBorder
+                      : SellerUiColors.red,
+                ),
                 width: metrics.geometry(1.25),
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(metrics.geometry(13)),
               borderSide: BorderSide(
-                color: error == null
-                    ? SellerUiColors.primaryBright
-                    : SellerUiColors.red,
+                color: HocalistPalette.border(
+                  context,
+                  error == null
+                      ? SellerUiColors.primaryBright
+                      : SellerUiColors.red,
+                ),
                 width: metrics.geometry(1.6),
               ),
             ),
@@ -1781,7 +1857,10 @@ class _SellerPinEntryContent extends StatelessWidget {
             key: const Key('sellerPinError'),
             padding: EdgeInsets.all(metrics.spacing(10)),
             decoration: BoxDecoration(
-              color: SellerUiColors.redSurface,
+              color: HocalistPalette.surface(
+                context,
+                SellerUiColors.redSurface,
+              ),
               borderRadius: BorderRadius.circular(metrics.geometry(10)),
             ),
             child: Row(
@@ -1790,7 +1869,7 @@ class _SellerPinEntryContent extends StatelessWidget {
                 Icon(
                   Icons.error_outline_rounded,
                   size: metrics.artSize(19),
-                  color: SellerUiColors.red,
+                  color: HocalistPalette.text(context, SellerUiColors.red),
                 ),
                 SizedBox(width: metrics.geometry(7)),
                 Expanded(
@@ -1813,7 +1892,10 @@ class _SellerPinEntryContent extends StatelessWidget {
         Container(
           padding: EdgeInsets.all(metrics.spacing(10)),
           decoration: BoxDecoration(
-            color: SellerUiColors.amberSurface,
+            color: HocalistPalette.surface(
+              context,
+              SellerUiColors.amberSurface,
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(10)),
           ),
           child: Row(
@@ -1822,7 +1904,7 @@ class _SellerPinEntryContent extends StatelessWidget {
               Icon(
                 Icons.info_outline_rounded,
                 size: metrics.artSize(20),
-                color: SellerUiColors.amber,
+                color: HocalistPalette.text(context, SellerUiColors.amber),
               ),
               SizedBox(width: metrics.geometry(7)),
               Expanded(
@@ -1847,7 +1929,7 @@ class _SellerPinEntryContent extends StatelessWidget {
           leading: Icon(
             Icons.verified_user_outlined,
             size: metrics.artSize(18),
-            color: SellerUiColors.white,
+            color: HocalistPalette.text(context, SellerUiColors.white),
           ),
           onPressed: onVerify,
         ),
@@ -1856,9 +1938,17 @@ class _SellerPinEntryContent extends StatelessWidget {
           key: const Key('sellerCancelPinEntry'),
           onPressed: onCancel,
           style: OutlinedButton.styleFrom(
-            foregroundColor: SellerUiColors.primaryBright,
+            foregroundColor: HocalistPalette.text(
+              context,
+              SellerUiColors.primaryBright,
+            ),
             minimumSize: Size(0, metrics.geometry(44)),
-            side: const BorderSide(color: SellerUiColors.lavenderBorder),
+            side: BorderSide(
+              color: HocalistPalette.border(
+                context,
+                SellerUiColors.lavenderBorder,
+              ),
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(metrics.geometry(13)),
             ),
@@ -1895,13 +1985,16 @@ class _SellerPinVerifiedContent extends StatelessWidget {
             width: metrics.artSize(64),
             height: metrics.artSize(64),
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: SellerUiColors.greenSurface,
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(
+                context,
+                SellerUiColors.greenSurface,
+              ),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.check_circle_outline,
-              color: SellerUiColors.green,
+              color: HocalistPalette.text(context, SellerUiColors.green),
               size: metrics.artSize(34),
             ),
           ),
@@ -1923,16 +2016,21 @@ class _SellerPinVerifiedContent extends StatelessWidget {
           key: const Key('sellerPinVerifiedState'),
           padding: EdgeInsets.all(metrics.spacing(13)),
           decoration: BoxDecoration(
-            color: SellerUiColors.greenSurface,
+            color: HocalistPalette.surface(
+              context,
+              SellerUiColors.greenSurface,
+            ),
             borderRadius: BorderRadius.circular(metrics.geometry(12)),
-            border: Border.all(color: const Color(0xFFCBEBD2)),
+            border: Border.all(
+              color: HocalistPalette.border(context, const Color(0xFFCBEBD2)),
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
                 Icons.workspace_premium_outlined,
-                color: SellerUiColors.green,
+                color: HocalistPalette.text(context, SellerUiColors.green),
                 size: metrics.artSize(24),
               ),
               SizedBox(width: metrics.geometry(9)),
@@ -1972,7 +2070,7 @@ class _SellerPinVerifiedContent extends StatelessWidget {
           leading: Icon(
             Icons.check_rounded,
             size: metrics.artSize(18),
-            color: SellerUiColors.white,
+            color: HocalistPalette.text(context, SellerUiColors.white),
           ),
           onPressed: onDone,
         ),
@@ -1995,15 +2093,20 @@ class _SellerPinMeetingSummary extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(metrics.spacing(11)),
       decoration: BoxDecoration(
-        color: const Color(0xFFFBFCFF),
-        border: Border.all(color: SellerUiColors.line),
+        color: HocalistPalette.surface(context, const Color(0xFFFBFCFF)),
+        border: Border.all(
+          color: HocalistPalette.border(context, SellerUiColors.line),
+        ),
         borderRadius: BorderRadius.circular(metrics.geometry(12)),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: metrics.artSize(22),
-            backgroundColor: appointment.avatarColor,
+            backgroundColor: HocalistPalette.surface(
+              context,
+              appointment.avatarColor,
+            ),
             child: Text(
               appointment.initials,
               style: sellerText(
@@ -2063,7 +2166,10 @@ class _SellerSheetHandle extends StatelessWidget {
         width: metrics.artSize(42),
         height: metrics.geometry(4),
         decoration: BoxDecoration(
-          color: SellerUiColors.lavenderBorder,
+          color: HocalistPalette.surface(
+            context,
+            SellerUiColors.lavenderBorder,
+          ),
           borderRadius: BorderRadius.circular(metrics.geometry(10)),
         ),
       ),

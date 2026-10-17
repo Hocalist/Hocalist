@@ -1,3 +1,4 @@
+import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../../components/hocalist_motion.dart';
@@ -155,9 +156,11 @@ class _PublicListingCardState extends State<_PublicListingCard> {
     return Container(
       margin: const EdgeInsets.only(top: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: BuyerUiTokens.border),
+        border: Border.all(
+          color: HocalistPalette.border(context, BuyerUiTokens.border),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -165,7 +168,7 @@ class _PublicListingCardState extends State<_PublicListingCard> {
           Semantics(
             expanded: expanded,
             child: Material(
-              color: Colors.transparent,
+              color: HocalistPalette.surface(context, Colors.transparent),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
                 onTap: () => setState(() => expanded = !expanded),
@@ -177,13 +180,19 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: BuyerUiTokens.softSurface,
+                          color: HocalistPalette.surface(
+                            context,
+                            BuyerUiTokens.softSurface,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.storefront_outlined,
                           size: 20,
-                          color: BuyerUiTokens.action,
+                          color: HocalistPalette.text(
+                            context,
+                            BuyerUiTokens.action,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -193,19 +202,25 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                           children: [
                             Text(
                               item.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
-                                color: BuyerUiTokens.text,
+                                color: HocalistPalette.text(
+                                  context,
+                                  BuyerUiTokens.text,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 5),
                             Text(
                               '${item.priceLabel} · ${item.categoryLabel}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 height: 1.4,
-                                color: BuyerUiTokens.muted,
+                                color: HocalistPalette.text(
+                                  context,
+                                  BuyerUiTokens.muted,
+                                ),
                               ),
                             ),
                           ],
@@ -215,9 +230,12 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                       AnimatedRotation(
                         turns: expanded ? .25 : 0,
                         duration: HocalistMotion.duration(context),
-                        child: const Icon(
+                        child: Icon(
                           Icons.chevron_right_rounded,
-                          color: BuyerUiTokens.action,
+                          color: HocalistPalette.text(
+                            context,
+                            BuyerUiTokens.action,
+                          ),
                           size: 20,
                         ),
                       ),
@@ -238,10 +256,13 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                         if (item.description.isNotEmpty)
                           Text(
                             item.description,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
                               height: 1.5,
-                              color: BuyerUiTokens.text,
+                              color: HocalistPalette.text(
+                                context,
+                                BuyerUiTokens.text,
+                              ),
                             ),
                           ),
                         if (item.serviceArea.isNotEmpty)
@@ -249,10 +270,13 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               'Service area: ${item.serviceArea}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 height: 1.5,
-                                color: BuyerUiTokens.muted,
+                                color: HocalistPalette.text(
+                                  context,
+                                  BuyerUiTokens.muted,
+                                ),
                               ),
                             ),
                           ),
@@ -261,10 +285,13 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
                               'Availability: ${item.availability}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 height: 1.5,
-                                color: BuyerUiTokens.muted,
+                                color: HocalistPalette.text(
+                                  context,
+                                  BuyerUiTokens.muted,
+                                ),
                               ),
                             ),
                           ),

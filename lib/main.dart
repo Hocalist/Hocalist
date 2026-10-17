@@ -8,6 +8,8 @@ import 'components/hocalist_motion.dart';
 import 'components/hocalist_section_tabs.dart';
 import 'components/hocalist_reload_link.dart';
 import 'components/notification_indicator.dart';
+import 'components/notification_preference_edits.dart';
+import 'theme/adaptive_palette.dart';
 import 'dart:math' as math;
 import 'data/phase2/marketplace/marketplace_saved_backend.dart';
 import 'data/phase2/marketplace/saved_item_reference.dart';
@@ -1215,29 +1217,60 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       _previousConversationDeals = null;
     });
     try {
+      // Direct entry from an accepted offer or meeting may bypass the inbox.
+      // Load the participant projection before exposing names/profile actions.
+      await _marketplace.refreshChatInbox();
+      if (!mounted ||
+          generation != _conversationDealsGeneration ||
+          _marketplace.activeConversationId != conversationId) {
+        return;
+      }
+      final summary = _marketplace.chatInbox
+          .where((row) => row.conversation.id == conversationId)
+          .firstOrNull;
+      if (summary != null) {
+        setState(
+          () => _chatCounterpart = (
+            name: summary.counterpartDisplayName,
+            profileId: summary.counterpartProfileId,
+          ),
+        );
+      }
       final result = await collectConversationMeetings(
         _marketplace,
         conversationId: conversationId,
       );
+      final selectedOffer =
+          result.matches.isEmpty && _marketplace.meetingsError == null
+          ? await _marketplace.loadActiveConversationOffer()
+          : null;
       if (!mounted ||
           _conversationDealsFor != conversationId ||
           generation != _conversationDealsGeneration) {
         return;
       }
       Set<String>? completed;
+      String? completionError;
       if (kCommercialReadsEnabled) {
-        if (role == UserRole.buyer) {
-          await _refreshConfirmedBuyerMeetings();
-          if (_buyerCompletionError != null) {
-            throw StateError('Completion read failed');
+        try {
+          if (role == UserRole.buyer) {
+            await _refreshConfirmedBuyerMeetings();
+            if (_buyerCompletionError != null) {
+              throw StateError('Completion read failed');
+            }
+            completed = Set.of(_confirmedPurchaseMeetings);
+          } else {
+            final backend =
+                _discoveryBackend ??
+                createConfiguredDiscoveryBackend(enabled: true);
+            if (backend == null) {
+              throw StateError('Completion read unavailable');
+            }
+            completed = await backend.loadConfirmedMeetingIds();
           }
-          completed = Set.of(_confirmedPurchaseMeetings);
-        } else {
-          final backend =
-              _discoveryBackend ??
-              createConfiguredDiscoveryBackend(enabled: true);
-          if (backend == null) throw StateError('Completion read unavailable');
-          completed = await backend.loadConfirmedMeetingIds();
+        } catch (_) {
+          completionError =
+              'Purchase history could not be verified. These meeting records may include completed deals. Retry to refresh their status.';
         }
       }
       if (!mounted ||
@@ -1247,11 +1280,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       }
       final groups = ConversationDealGroups(result.matches, completed);
       setState(() {
-        _conversationDealsError = _marketplace.meetingsError;
+        _conversationDealsError = _marketplace.meetingsError ?? completionError;
         _conversationDealsTruncated = result.truncated;
         _conversationDeals = groups.active
             .map((meeting) => _dealViewFor(meeting))
             .toList(growable: false);
+        if (selectedOffer != null &&
+            selectedOffer.status == OfferStatus.selected &&
+            selectedOffer.conversationId == conversationId) {
+          _conversationDeals = [
+            ApprovedDealView.fromSelectedOffer(selectedOffer),
+          ];
+        }
         _previousConversationDeals = groups.previous
             ?.map(
               (meeting) => _dealViewFor(
@@ -1277,6 +1317,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         setState(() => _conversationDealsLoading = false);
       }
     }
+  }
+
+  Future<void> _openConversationDeal(String id) async {
+    final deal = _conversationDeals?.where((row) => row.id == id).firstOrNull;
+    if (deal != null && deal.meetingId == null) {
+      await _openConversationMeeting();
+      return;
+    }
+    await _openMeetingById(id);
   }
 
   ApprovedDealView _dealViewFor(MeetingView meeting, {bool completed = false}) {
@@ -2757,7 +2806,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
     final profileId = _chatCounterpart?.profileId;
     if (profileId == null || profileId.isEmpty) {
-      showMessage('This seller has not published a public profile yet.');
+      showMessage(
+        'Seller details could not be loaded. Refresh the conversation and try again.',
+      );
       return;
     }
     go(AppPage.sellerPublicProfile);
@@ -4284,7 +4335,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ? () => unawaited(_loadConversationDeals(force: true))
                 : null,
             onOpenRealDeal: _marketplace.isMeetingsBacked
-                ? (meetingId) => unawaited(_openMeetingById(meetingId))
+                ? (meetingId) => unawaited(_openConversationDeal(meetingId))
                 : null,
             onBack: back,
             onPrimary: _marketplace.isMeetingsBacked
@@ -5362,7 +5413,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                     ? () => unawaited(_loadConversationDeals(force: true))
                     : null,
                 onOpenRealDeal: _marketplace.isMeetingsBacked
-                    ? (meetingId) => unawaited(_openMeetingById(meetingId))
+                    ? (meetingId) => unawaited(_openConversationDeal(meetingId))
                     : null,
                 onBack: back,
                 onPrimary: _marketplace.isMeetingsBacked
