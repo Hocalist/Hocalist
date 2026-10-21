@@ -61,3 +61,16 @@ test('factor provider errors have safe specific messages without leaking secrets
  const r=await enrollAdminMfa(f.request,f.deps);assert.equal(r.status,409);assert.match(r.body.message as string,pattern);assert.ok(!JSON.stringify(r).includes('never-return-this'));
  }
 });
+
+test('accepts a realistic rectangle-based provider QR SVG larger than 100 KB',async()=>{
+ const f=fixture(),original=f.deps.fetchImpl!;
+ const qr='<svg xmlns="http://www.w3.org/2000/svg">'+Array.from({length:65*65},(_,i)=>'<rect x="'+(i%65*3)+'" y="'+(Math.floor(i/65)*3)+'" width="3" height="3" style="fill:black;stroke:none"/>').join('')+'</svg>';
+ assert.ok(qr.length>100000);
+ f.deps.fetchImpl=(async(input,init)=>String(input).endsWith('/factors')?Response.json({id:factor,totp:{qr_code:qr,secret:'never-return-secret'}}):original(input,init)) as typeof fetch;
+ const r=await enrollAdminMfa(f.request,f.deps);assert.equal(r.status,200);assert.equal(r.body.qr_code,qr);assert.ok(!JSON.stringify(r).includes('never-return-secret'));
+});
+test('oversized provider response is bounded and never returned',async()=>{
+ const f=fixture(),original=f.deps.fetchImpl!;
+ f.deps.fetchImpl=(async(input,init)=>String(input).endsWith('/factors')?Response.json({id:factor,totp:{qr_code:'<svg>'+ 'x'.repeat(1100000)+'</svg>'}}):original(input,init)) as typeof fetch;
+ assert.equal((await enrollAdminMfa(f.request,f.deps)).status,502);
+});

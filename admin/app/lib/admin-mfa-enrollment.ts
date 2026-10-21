@@ -1,3 +1,4 @@
+import { boundedJson } from './bounded-json';
 import { randomUUID } from 'node:crypto';
 import { evaluateRequestOrigin, parseLoginBody, pendingCookieOptions } from './admin-rules';
 import { providerUserSession, signInWithPassword, callRpc, beginMfaChallenge, MFA_PENDING_COOKIE } from './admin-session';
@@ -52,7 +53,8 @@ export async function enrollAdminMfa(request: CoreRequest, deps: CoreDeps): Prom
       body: JSON.stringify({ factor_type: 'totp', friendly_name: 'Hocalist administrator '+randomUUID().slice(0,8), issuer: 'Hocalist' }), signal: AbortSignal.timeout(10000),
     });
   } catch { return failure(502, 'Authenticator setup is unavailable. Please retry.'); }
-  const payload = await response.json().catch(() => null) as { id?: string; code?: string; error_code?: string; totp?: { qr_code?: string } } | null;
+  const parsed=await boundedJson(response as unknown as Request,1024*1024);
+  const payload = (parsed.ok?parsed.body:null) as { id?: string; code?: string; error_code?: string; totp?: { qr_code?: string } } | null;
   if(!response.ok){
     const code=payload?.code??payload?.error_code;
     if(code==='mfa_factor_name_conflict')return failure(409,'An unfinished setup already uses this name. Start setup again.');
@@ -63,6 +65,6 @@ export async function enrollAdminMfa(request: CoreRequest, deps: CoreDeps): Prom
     return failure(502,'The authentication service could not create the authenticator. Please retry.');
   }
   const qr = payload?.totp?.qr_code;
-  if (!response.ok || !payload?.id || !uuid.test(payload.id) || typeof qr !== 'string' || qr.length > 100000 || !(qr.includes('<svg') || qr.startsWith('data:image/svg+xml;'))) return failure(502, 'Authenticator setup could not be prepared. Please retry.');
+  if (!payload?.id || !uuid.test(payload.id) || typeof qr !== 'string' || qr.length > 900000 || !(qr.includes('<svg') || qr.startsWith('data:image/svg+xml;'))) return failure(502, 'Authenticator setup could not be prepared. Please retry.');
   return { status: 200, body: { ok: true, factor_id: payload.id, qr_code: qr }, cookies: [{ name: MFA_PENDING_COOKIE, value: enrollmentToken, options: pendingCookieOptions({ isProduction: deps.isProduction, maxAge: 300 }) }] };
 }
