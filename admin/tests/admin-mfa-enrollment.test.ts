@@ -32,3 +32,20 @@ test('existing verified factor cannot be replaced by password-only setup',async(
 test('setup returns private QR with short HttpOnly cookie, never bearer credentials',async()=>{const f=fixture();const r=await enrollAdminMfa(f.request,f.deps);assert.equal(r.status,200);assert.equal(r.body.factor_id,factor);assert.ok(r.cookies?.[0].options.httpOnly);assert.equal(r.cookies?.[0].options.maxAge,300);assert.ok(!JSON.stringify(r.body).includes('synthetic-refresh'));assert.ok(!JSON.stringify(r.body).includes(jwt('aal1')));});
 test('verification upgrades the same account and issues AAL2 cookies',async()=>{const f=fixture();const r=await enrollAdminMfa({...f.request,pendingToken:jwt('aal1'),body:{action:'verify',factor_id:factor,code:'123456'}},f.deps);assert.equal(r.status,200);assert.ok(r.cookies?.some(c=>c.value===jwt('aal2')));});
 test('verification rejects an unknown factor before challenging',async()=>{const f=fixture();const r=await enrollAdminMfa({...f.request,pendingToken:jwt('aal1'),body:{action:'verify',factor_id:challenge,code:'123456'}},f.deps);assert.equal(r.status,403);assert.ok(!f.calls.some(x=>x.endsWith('/challenge')));});
+
+test('recent provider-validated password sign-in starts setup without a second password exchange',async()=>{
+ const f=fixture();const token='e30.'+Buffer.from(JSON.stringify({sub:user,exp:1800000300,amr:[{method:'password',timestamp:1800000000}]})).toString('base64url')+'.synthetic';
+ const r=await enrollAdminMfa({...f.request,pendingToken:token,body:{action:'start'}},f.deps);
+ assert.equal(r.status,200);assert.ok(!f.calls.some(x=>x.includes('/token')));assert.equal(r.cookies?.[0].value,token);
+});
+test('pending setup rejects stale password proof and email-only proof',async()=>{
+ for(const entry of [{method:'password',timestamp:1799999600},{method:'otp',timestamp:1800000000}]){
+ const f=fixture();const token='e30.'+Buffer.from(JSON.stringify({sub:user,exp:1800000300,amr:[entry]})).toString('base64url')+'.synthetic';
+ assert.equal((await enrollAdminMfa({...f.request,pendingToken:token,body:{action:'start'}},f.deps)).status,401);assert.ok(!f.calls.some(x=>x.endsWith('/factors')));
+ }
+});
+test('provider SVG data URL is accepted without rejecting successful enrollment',async()=>{
+ const f=fixture();const original=f.deps.fetchImpl!;
+ f.deps.fetchImpl=(async(input,init)=>String(input).endsWith('/factors')?Response.json({id:factor,totp:{qr_code:'data:image/svg+xml;utf-8,%3Csvg%3E%3C/svg%3E'}}):original(input,init)) as typeof fetch;
+ assert.equal((await enrollAdminMfa(f.request,f.deps)).status,200);
+});
