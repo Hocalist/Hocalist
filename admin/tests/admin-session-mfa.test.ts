@@ -549,3 +549,38 @@ test("second-factor failure and cancellation paths stay closed", async () => {
   assert.equal(cancelled.status, 200);
   assert.equal(cookie(cancelled.cookies, MFA_PENDING_COOKIE)?.value, "");
 });
+
+test("sign-in creates and verifies a fresh challenge within one request, ignoring the earlier browser challenge", async () => {
+  const fresh = "96000000-0000-4000-8000-000000000099";
+  const calls: string[] = [];
+  let verifiedChallenge = "";
+  const fallback = fakeFetch([...providerRoutes(), rpcRoute("marketplace_admin_moderation_queue", 200, { items: [] })]).fetchImpl;
+  const transport = (async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    calls.push(path);
+    if (path.endsWith("/challenge")) return json(200, { id: fresh });
+    if (path.endsWith("/verify")) verifiedChallenge = JSON.parse(String(init?.body)).challenge_id;
+    return fallback(input, init);
+  }) as typeof fetch;
+  const result = await handleMfaVerifyCore(request({ pendingToken: aal1(), body: { factor_id: FACTOR, challenge_id: CHALLENGE, code: "123456" } }), deps({ mfaPolicy: "required", fetchImpl: transport }));
+  assert.equal(result.status, 200);
+  assert.equal(verifiedChallenge, fresh);
+  assert.ok(calls.indexOf(`/auth/v1/factors/${FACTOR}/challenge`) < calls.indexOf(`/auth/v1/factors/${FACTOR}/verify`));
+});
+
+test("fresh-challenge failure never verifies the code or issues an admin session", async () => {
+  const transport = fakeFetch(providerRoutes({ challengeStatus: 500 }));
+  const result = await handleMfaVerifyCore(request({ pendingToken: aal1(), body: { factor_id: FACTOR, code: "123456" } }), deps({ mfaPolicy: "required", fetchImpl: transport.fetchImpl }));
+  assert.equal(result.status, 502);
+  assert.ok(!transport.calls.some(path => path.endsWith("/verify")));
+  assert.equal(cookie(result.cookies, SESSION_COOKIE), undefined);
+});
+
+test("provider IP mismatch reports a server failure without blaming the authenticator code", async () => {
+  const fallback = fakeFetch(providerRoutes()).fetchImpl;
+  const transport = (async (input, init) => String(input).endsWith("/verify") ? json(422, { code: "mfa_ip_address_mismatch" }) : fallback(input, init)) as typeof fetch;
+  const result = await handleMfaVerifyCore(request({ pendingToken: aal1(), body: { factor_id: FACTOR, code: "123456" } }), deps({ mfaPolicy: "required", fetchImpl: transport }));
+  assert.equal(result.status, 502);
+  assert.equal(result.body.state, "assurance_unavailable");
+  assert.equal(cookie(result.cookies, SESSION_COOKIE), undefined);
+});
