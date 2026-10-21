@@ -49,3 +49,15 @@ test('provider SVG data URL is accepted without rejecting successful enrollment'
  f.deps.fetchImpl=(async(input,init)=>String(input).endsWith('/factors')?Response.json({id:factor,totp:{qr_code:'data:image/svg+xml;utf-8,%3Csvg%3E%3C/svg%3E'}}):original(input,init)) as typeof fetch;
  assert.equal((await enrollAdminMfa(f.request,f.deps)).status,200);
 });
+
+test('setup attempts use distinct friendly names to avoid abandoned-factor conflicts',async()=>{
+ const f=fixture();const original=f.deps.fetchImpl!,names:string[]=[];
+ f.deps.fetchImpl=(async(input,init)=>{if(String(input).endsWith('/factors'))names.push(JSON.parse(init!.body as string).friendly_name);return original(input,init);}) as typeof fetch;
+ assert.equal((await enrollAdminMfa(f.request,f.deps)).status,200);assert.equal((await enrollAdminMfa(f.request,f.deps)).status,200);assert.notEqual(names[0],names[1]);
+});
+test('factor provider errors have safe specific messages without leaking secrets',async()=>{
+ for(const [code,pattern] of [['mfa_factor_name_conflict',/unfinished setup/],['too_many_enrolled_mfa_factors',/Too many unfinished/],['mfa_totp_enroll_not_enabled',/disabled/]] as const){
+ const f=fixture(),original=f.deps.fetchImpl!;f.deps.fetchImpl=(async(input,init)=>String(input).endsWith('/factors')?Response.json({code,secret:'never-return-this'},{status:422}):original(input,init)) as typeof fetch;
+ const r=await enrollAdminMfa(f.request,f.deps);assert.equal(r.status,409);assert.match(r.body.message as string,pattern);assert.ok(!JSON.stringify(r).includes('never-return-this'));
+ }
+});
