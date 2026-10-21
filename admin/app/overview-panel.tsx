@@ -62,7 +62,7 @@ export function OverviewPanel() {
     if(!decoded)setError("The backend returned an invalid overview.");
   }
   useEffect(()=>{void refresh();return()=>{++generation.current;};},[]);
-  return <><button onClick={()=>void refresh()} disabled={busy}>Refresh overview</button>
+  return <><div className="overview-toolbar"><p>Current marketplace records</p><button onClick={()=>void refresh()} disabled={busy}>{busy?"Refreshing…":"Reload overview"}</button></div>
     {busy&&<p role="status">Loading overview…</p>}
     {error&&<div role="alert" className="demo-notice"><span>{error}</span><Link href="/login">Sign in</Link></div>}
     {data&&<div className="stats">{Object.entries(OVERVIEW_LABELS).map(([key,label])=><Stat key={key} label={label} value={String(data[key as keyof typeof data])} note={key==="test_subscriptions"?"Stripe test mode only":key==="listings_in_review"?"Needs an admin decision":"Current recorded state"} href={METRIC_LINKS[key as keyof typeof data]}/>)}</div>}

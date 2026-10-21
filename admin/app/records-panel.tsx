@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { adminRpc } from "./lib/admin-client";
 import { decodeRecordPage, RECORDS, type RecordPage, type RecordResource } from "./lib/admin-records";
 import { Status } from "./components";
+import { RecordDetails } from "./record-details";
 
 export function RecordsPanel({ resource }: { resource: RecordResource }) {
   const definition = RECORDS[resource];
@@ -13,11 +14,13 @@ export function RecordsPanel({ resource }: { resource: RecordResource }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [signedOut, setSignedOut] = useState(false);
+  const [selectedId,setSelectedId]=useState<string|null>(null);
   const generation = useRef(0);
   const filters = useRef({ query: "", status: "" });
 
   async function fetchPage(cursor: string | null, append = false) {
     const current = ++generation.current;
+    setSelectedId(null);
     setBusy(true); setError(null);
     const result = await adminRpc("admin_records", { p_resource: resource, p_limit: 50,
       p_cursor: cursor, p_query: filters.current.query || null, p_status: filters.current.status || null });
@@ -53,8 +56,9 @@ export function RecordsPanel({ resource }: { resource: RecordResource }) {
     </form>
     {error && <div role="alert" className="demo-notice"><span>{error}</span>{signedOut && <Link href="/login">Sign in</Link>}<button onClick={()=>void fetchPage(null)} disabled={busy}>Try again</button></div>}
     {busy && <p role="status">Loading records…</p>}
-    {page && <div className="table-card"><div className="table-scroll"><table><thead><tr>{definition.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>
-      {page.items.length ? page.items.map(row=><tr key={row.id}>{row.cells.map((cell,i)=><td key={i}>{i===definition.statusIndex ? <Status>{cell}</Status> : cell || "—"}</td>)}</tr>) : <tr><td colSpan={6}>{(filters.current.query || filters.current.status) ? "No records match the current search or status filter." : "No records recorded yet."}</td></tr>}
+    {page && <div className="table-card"><div className="table-scroll"><table><thead><tr>{definition.columns.map(c=><th key={c}>{c}</th>)}<th><span className="sr-only">Details</span></th></tr></thead><tbody>
+      {page.items.length ? page.items.map(row=><tr key={row.id}>{row.cells.map((cell,i)=><td key={i}>{i===definition.statusIndex ? <Status>{cell}</Status> : cell || "—"}</td>)}<td><button type="button" onClick={()=>setSelectedId(row.id)}>View details ↗</button></td></tr>) : <tr><td colSpan={7}>{(filters.current.query || filters.current.status) ? "No records match the current search or status filter." : "No records recorded yet."}</td></tr>}
     </tbody></table></div><footer className="pagination"><span>{page.items.length} records loaded · ordered by ID</span>{page.next_cursor && <button disabled={busy} onClick={()=>void fetchPage(page.next_cursor,true)}>Load more</button>}</footer></div>}
+    {page?.items.filter(row=>row.id===selectedId).map(row=><RecordDetails key={row.id} columns={definition.columns} cells={row.cells} statusIndex={definition.statusIndex} onClose={()=>setSelectedId(null)}/>)}
   </>;
 }
