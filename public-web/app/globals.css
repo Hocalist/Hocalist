@@ -6549,6 +6549,34 @@ body main .page-section.safety-section,
   justify-self: start;
 }
 
+.billing-form .request-field:has(.billing-password-toggle) {
+  position: relative;
+}
+
+.billing-form .request-field:has(.billing-password-toggle) input {
+  padding-right: 48px;
+}
+
+.billing-password-toggle {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink, #00036c);
+  cursor: pointer;
+}
+
+.billing-password-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .billing-signin {
   max-width: 640px;
   margin: 0 auto;

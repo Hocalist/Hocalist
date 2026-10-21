@@ -1,2 +1,18 @@
-import Link from "next/link";
-export default function Login(){return <main className="login"><section className="login-brand"><span className="brandmark large">H</span><p>Hocalist operations</p><h1>Keep the local marketplace clear, trusted, and moving.</h1><p>Review accounts, requests, offers, seller access, and safety reports from one focused desktop workspace.</p><div className="login-note"><strong>Phase 1 preview</strong><span>This sign-in is visual only and does not authenticate or connect to production data.</span></div></section><section className="login-panel"><div className="login-card"><div><p className="eyebrow">Management portal</p><h2>Welcome back</h2><p>Use the demo credentials to preview the admin experience.</p></div><label>Email address<input type="email" defaultValue="admin@hocalist.test"/></label><label>Password<input type="password" defaultValue="hocalist-demo"/></label><div className="login-row"><label><input type="checkbox" defaultChecked/> Remember me</label><button>Forgot password?</button></div><Link className="primary login-button" href="/dashboard">Sign in to demo</Link><small>Authorized administrators only · Demo environment</small></div></section></main>}
+import { cookies } from "next/headers";
+
+import { adminMfaPolicy } from "../lib/admin-rules";
+import { adminConfig, MFA_PENDING_COOKIE } from "../lib/admin-session";
+
+import { LoginForm } from "./login-form";
+
+export const dynamic = "force-dynamic";
+
+export default async function Login() {
+  const configured = adminConfig() !== null;
+  const policyRequired = adminMfaPolicy(process.env.HOCALIST_ADMIN_MFA) === "required";
+  const store = await cookies();
+  const pending = Boolean(store.get(MFA_PENDING_COOKIE)?.value);
+  return (
+    <LoginForm configured={configured} policyRequired={policyRequired} pending={pending} />
+  );
+}

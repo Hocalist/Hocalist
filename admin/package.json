@@ -1,1 +1,27 @@
-{"name":"hocalist-admin","version":"0.1.0","private":true,"scripts":{"dev":"next dev","build":"next build","lint":"tsc --noEmit","typecheck":"tsc --noEmit"},"dependencies":{"next":"15.5.20","react":"19.0.0","react-dom":"19.0.0"},"devDependencies":{"@types/node":"22.15.30","@types/react":"19.0.12","@types/react-dom":"19.0.4","typescript":"5.8.3"},"overrides":{"postcss":"8.5.10"}}
+{
+  "name": "hocalist-admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-build/tests/*.test.js\""
+  },
+  "dependencies": {
+    "next": "15.5.28",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/react": "19.0.12",
+    "@types/react-dom": "19.0.4",
+    "typescript": "5.8.3"
+  },
+  "overrides": {
+    "postcss": "8.5.31",
+    "sharp": "0.35.5"
+  }
+}

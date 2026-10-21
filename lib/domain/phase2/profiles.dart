@@ -49,7 +49,7 @@ class MembershipRecord {
   /// [BuyerProfile.id] and [SellerProfile.id].
   final String membershipId;
 
-  /// Supabase Auth identity identifier (project-wide, shared with Postaneur).
+  /// Supabase Auth identity identifier for the Hocalist account.
   final String userId;
 
   final HocalistRole role;

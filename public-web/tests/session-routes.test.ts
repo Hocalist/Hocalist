@@ -156,3 +156,20 @@ test('logout, checkout and portal share the same guard', async () => {
   const clearing = sameOriginLogout.headers.getSetCookie?.() ?? [sameOriginLogout.headers.get('set-cookie') ?? ''];
   assert.equal(clearing.some((cookie) => /Max-Age=0/i.test(cookie)), true);
 });
+
+test('logout revokes provider credentials before clearing cookies and reports outage', async () => {
+  const { POST } = await import('../app/api/session/logout/route');
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: unknown) => { calls.push(String(input)); return new Response(null, { status: 204 }); }) as typeof fetch;
+  const makeRequest = () => new Request('https://www.hocalist.com/api/session/logout', {
+    method: 'POST', headers: { origin: 'https://www.hocalist.com', 'sec-fetch-site': 'same-origin', cookie: 'hocalist_site_session=synthetic' },
+  });
+  const success = await POST(makeRequest());
+  assert.equal(success.status, 200);
+  assert.ok(calls[0].endsWith('/auth/v1/logout?scope=local'));
+  assert.match(success.headers.get('set-cookie') ?? '', /Max-Age=0/i);
+  globalThis.fetch = (async () => { throw new Error('offline'); }) as typeof fetch;
+  const failure = await POST(makeRequest());
+  assert.equal(failure.status, 503);
+  assert.equal(failure.headers.get('set-cookie'), null);
+});

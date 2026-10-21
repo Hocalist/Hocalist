@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "lib": ["esnext"],
+    "types": ["node"],
+    "isolatedModules": false,
+    "incremental": false,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "app/lib/admin-rules.ts",
+    "app/lib/admin-session.ts",
+    "tests/**/*.ts"
+  ]
+}

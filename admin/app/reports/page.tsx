@@ -1,2 +1,4 @@
-import { AdminShell,DataTable,DemoNotice,Filters,PageHeader,Stat } from "../components";import { reports } from "../data";
-export default function Reports(){return <AdminShell><PageHeader title="Reports & moderation" description="Triage safety reports and track review outcomes across marketplace activity."/><DemoNotice/><div className="stats compact"><Stat label="Unassigned" value="6" note="Oldest 2h 14m" tone="gold"/><Stat label="Escalated" value="2" note="Priority review" tone="red"/><Stat label="Resolved today" value="19" note="Across all surfaces"/></div><Filters placeholder="Search report ID or reason" options={["All priorities","All statuses"]}/><DataTable columns={["Report","Reason","Surface","Priority","Status","Received"]} rows={reports} statusIndex={4}/></AdminShell>}
+import { AdminShell, PageHeader } from '../components';
+import { SupportPanel } from './support-panel';
+export const dynamic = 'force-dynamic';
+export default function Reports(){return <AdminShell><PageHeader title="Reports & support" description="Review submitted concerns and send a response visible to the reporter. Reports do not automatically penalize accounts."/><SupportPanel/></AdminShell>;}

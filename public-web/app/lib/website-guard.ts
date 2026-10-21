@@ -1,3 +1,4 @@
+import { boundedJson } from "./bounded-json";
 // Same-origin mutation guard for the website's cookie-authenticated routes.
 //
 // SameSite cookies alone do not stop login CSRF or same-site sibling-origin
@@ -99,20 +100,7 @@ export async function readBoundedJson(
   request: Request,
   maxBytes: number,
 ): Promise<BodyResult> {
-  let text: string;
-  try {
-    text = await request.text();
-  } catch {
-    return { ok: false, status: 400, error: "invalid_body" };
-  }
-  if (text.length > maxBytes) {
-    return { ok: false, status: 413, error: "request_too_large" };
-  }
-  try {
-    return { ok: true, body: JSON.parse(text) };
-  } catch {
-    return { ok: false, status: 400, error: "invalid_body" };
-  }
+  return boundedJson(request, maxBytes);
 }
 
 export function guardFailure(result: { status: number; error: string }) {
