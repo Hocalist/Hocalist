@@ -169,7 +169,7 @@ export function LoginForm({
         </div>
       </section>
       <section className="login-panel">
-        {step === "enrollment" ? <AuthenticatorSetup signedIn onComplete={() => { router.push("/dashboard"); router.refresh(); }} /> : step === "credentials" ? (
+        {step === "enrollment" ? <AuthenticatorSetup signedIn onRestart={() => { void abandon(); }} onComplete={() => { router.push("/dashboard"); router.refresh(); }} /> : step === "credentials" ? (
           <form className="login-card" onSubmit={submitCredentials}>
             <div>
               <p className="eyebrow">Management portal</p>
