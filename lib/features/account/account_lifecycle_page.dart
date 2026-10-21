@@ -3,8 +3,8 @@
 ///
 /// The screen never performs a deletion and never claims one happened. It
 /// shows the recorded status and financial/safety holds the server reports.
-/// Scope is Hocalist only; shared Auth identity and Postaneur records are out
-/// of scope by design.
+/// Scope is Hocalist account records; provider sign-in identity removal is
+/// handled separately by the account lifecycle service.
 library;
 
 import 'package:hocalist/theme/adaptive_palette.dart';
@@ -442,9 +442,9 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
         icon: Icons.person_remove_outlined,
         children: [
           const Text(
-            'Hocalist records only. Shared sign-in identity and Postaneur '
-            'records are not deleted here. Financial or safety holds pause '
-            'execution until they clear.',
+            'Request deletion of your Hocalist account records. Sign-in identity '
+            'removal is handled separately. Financial or safety holds pause '
+            'the request until they clear.',
             key: ValueKey('lifecycle-deletion-scope'),
             style: TextStyle(fontSize: 12.5, height: 1.4),
           ),

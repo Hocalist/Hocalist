@@ -1,2 +1,10 @@
-import { AdminShell,DataTable,DemoNotice,Filters,PageHeader,Stat } from "../components";import { subscriptions } from "../data";
-export default function Billing(){return <AdminShell><PageHeader title="Seller billing visibility" description="Monitor demo seller subscription access and account-level billing status."/><DemoNotice/><div className="boundary"><strong>Subscription billing only</strong><span>This area represents seller plans and platform access. It never handles buyer-to-seller item payment or seller payouts.</span></div><div className="stats compact"><Stat label="Active plans" value="184" note="Demo subscriptions"/><Stat label="Trials" value="23" note="7 end this week" tone="gold"/><Stat label="Past due" value="4" note="Review access state" tone="red"/></div><Filters placeholder="Search seller" options={["All plan states"]}/><DataTable columns={["Seller","Plan","Status","Schedule","Payment method"]} rows={subscriptions} statusIndex={2}/></AdminShell>}
+import Link from "next/link";
+import { AdminShell, PageHeader } from "../components";
+import { LedgerPanel } from "../ledger-panel";
+import { RecordsPanel } from "../records-panel";
+import { RECORDS } from "../lib/admin-records";
+export const dynamic = "force-dynamic";
+export default function Page() {
+ const definition=RECORDS.billing;
+ return <AdminShell><PageHeader title={definition.title} description={definition.description}/><p><Link href="/billing/config">Deposit options and buyer reward policy →</Link></p><RecordsPanel resource="billing"/><LedgerPanel/></AdminShell>;
+}

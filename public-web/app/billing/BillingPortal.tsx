@@ -81,6 +81,7 @@ export default function BillingPortal({
 }) {
   const returnTo = safeReturnPath(requestedReturnTo);
   const [view, setView] = useState<ViewState>({ kind: 'loading' });
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [action, setAction] = useState<{ busy: string | null; message: string | null; tone: 'info' | 'error' }>({
     busy: null,
     message: null,
@@ -204,11 +205,13 @@ export default function BillingPortal({
   async function signOut() {
     setAction({ busy: 'signout', message: null, tone: 'info' });
     try {
-      await fetch('/api/session/logout', { method: 'POST' });
-    } finally {
+      const response = await fetch('/api/session/logout', { method: 'POST' });
+      if (!response.ok) throw new Error('logout_unavailable');
       membershipRef.current = null;
       setAction({ busy: null, message: null, tone: 'info' });
       setView({ kind: 'signed_out' });
+    } catch {
+      setAction({ busy: null, message: 'Sign-out could not be completed. Please try again.', tone: 'error' });
     }
   }
 
@@ -336,7 +339,17 @@ export default function BillingPortal({
             </label>
             <label className="request-field wide">
               <span>Password</span>
-              <input type="password" name="password" autoComplete="current-password" required />
+              <input type={passwordVisible ? 'text' : 'password'} name="password" autoComplete="current-password" required />
+              <button type="button" className="billing-password-toggle"
+                aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+                aria-pressed={passwordVisible}
+                onClick={() => setPasswordVisible(value => !value)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                  <circle cx="12" cy="12" r="3" />
+                  {passwordVisible ? <path d="m3 3 18 18" /> : null}
+                </svg>
+              </button>
             </label>
             <button className="button primary" type="submit" disabled={action.busy === 'signin'}>
               {action.busy === 'signin' ? 'Signing in…' : 'Sign in'}

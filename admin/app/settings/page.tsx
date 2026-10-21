@@ -1,2 +1,8 @@
-import { AdminShell,DemoNotice,PageHeader,Section } from "../components";
-export default function Settings(){return <AdminShell><PageHeader title="Settings" description="Preview admin preferences and future marketplace configuration surfaces."/><DemoNotice/><div className="settings-grid"><Section title="Workspace"><div className="form-grid"><label>Workspace name<input defaultValue="Hocalist Admin"/></label><label>Default market<select defaultValue="chicago"><option value="chicago">Chicago, IL</option></select></label><label>Support email<input defaultValue="support@hocalist.com"/></label><label>Timezone<select defaultValue="central"><option value="central">Central Time</option></select></label></div><div className="form-actions"><button>Discard</button><button className="primary">Save demo settings</button></div></Section><Section title="Moderation preferences"><div className="toggle-list"><label><span><strong>Priority report alerts</strong><small>Notify admins about critical demo reports.</small></span><input type="checkbox" defaultChecked/></label><label><span><strong>Seller verification queue</strong><small>Show pending verification in overview.</small></span><input type="checkbox" defaultChecked/></label><label><span><strong>Weekly operations summary</strong><small>Preview a weekly admin digest.</small></span><input type="checkbox"/></label></div></Section></div></AdminShell>}
+import { AdministratorAccess } from './administrator-access';
+import { AuthenticatorSetup } from './authenticator-setup';
+import { AdminShell, PageHeader } from '../components';
+import { CallAuditPanel } from '../call-audit-panel';
+import { ReasonSettings } from './reason-settings';
+import { CallSettings } from './call-settings';
+export const dynamic='force-dynamic';
+export default function Settings(){return <AdminShell><PageHeader title="Settings" description="Protect administrator access and manage support settings."/><AuthenticatorSetup/><AdministratorAccess/><CallSettings/><CallAuditPanel/><ReasonSettings/></AdminShell>;}

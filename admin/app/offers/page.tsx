@@ -1,2 +1,8 @@
-import { AdminShell,DataTable,DemoNotice,Filters,PageHeader } from "../components";import { offers } from "../data";
-export default function Offers(){return <AdminShell><PageHeader title="Offers & deals" description="Inspect seller offers and buyer selection states. Item payment remains offline."/><DemoNotice/><div className="boundary"><strong>Offline deal boundary</strong><span>Hocalist records coordination status only. No checkout, escrow, shipping, or seller payout actions are available here.</span></div><Filters placeholder="Search offer or request ID" options={["All offer states"]}/><DataTable columns={["Offer","Request","Seller","Offer price","Status","Updated"]} rows={offers} statusIndex={4}/></AdminShell>}
+import { AdminShell, PageHeader } from "../components";
+import { RecordsPanel } from "../records-panel";
+import { RECORDS } from "../lib/admin-records";
+export const dynamic = "force-dynamic";
+export default function Page() {
+ const definition=RECORDS.offers;
+ return <AdminShell><PageHeader title={definition.title} description={definition.description}/><RecordsPanel resource="offers"/></AdminShell>;
+}

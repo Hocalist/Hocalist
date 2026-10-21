@@ -1,2 +1,8 @@
-import { AdminShell,DataTable,DemoNotice,Filters,PageHeader } from "../components";import { requests } from "../data";
-export default function Requests(){return <AdminShell><PageHeader title="Buyer requests" description="Review marketplace requests, categories, state, and offer activity."/><DemoNotice/><Filters placeholder="Search request ID or title" options={["All categories","All states"]}/><DataTable columns={["Request","Title","Buyer","Category","Status","Activity"]} rows={requests} statusIndex={4}/></AdminShell>}
+import { AdminShell, PageHeader } from "../components";
+import { RecordsPanel } from "../records-panel";
+import { RECORDS } from "../lib/admin-records";
+export const dynamic = "force-dynamic";
+export default function Page() {
+ const definition=RECORDS.requests;
+ return <AdminShell><PageHeader title={definition.title} description={definition.description}/><RecordsPanel resource="requests"/></AdminShell>;
+}
