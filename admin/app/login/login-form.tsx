@@ -201,6 +201,7 @@ export function LoginForm({
             <button className="primary login-button" type="submit" disabled={!configured || busy}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
+            <Link href="/reset-password">Forgot password?</Link>
             {message ? <p role="alert">{message}</p> : null}
             <small>
               {configured ? (
