@@ -8,23 +8,26 @@ export function CallAuditPanel() {
   const [data, setData] = useState<ReturnType<typeof decodeCallAuditHistory>>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const generation = useRef(0);
 
   async function refresh() {
     const current = ++generation.current;
     setBusy(true);
     setError(null);
+    setSignedOut(false);
     const result = await adminRpc("admin_call_settings_history", {});
     if (current !== generation.current) return;
     setBusy(false);
     if (!result.ok) {
+      setSignedOut(result.state === "signed_out");
       setData(null);
       setError(
         result.state === "signed_out"
           ? "Sign in to view the call history."
           : result.state === "forbidden"
           ? "Administrator access is required."
-          : "Call history is unavailable. The read contract may not be deployed yet.",
+          : "Call history could not be loaded. Please try again.",
       );
       return;
     }
@@ -52,7 +55,7 @@ export function CallAuditPanel() {
       {error && (
         <div role="alert" className="demo-notice">
           <span>{error}</span>
-          <Link href="/login">Sign in</Link>
+          {signedOut && <Link href="/login">Sign in</Link>}
         </div>
       )}
       {data && (
