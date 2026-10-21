@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
+import { PasswordInput } from '../password-input';
 export function AuthenticatorSetup({ onComplete, onRestart, signedIn = false }: { onComplete?: () => void; onRestart?: () => void; signedIn?: boolean } = {}) {
  const [email,setEmail]=useState(''); const [password,setPassword]=useState('');
  const [qr,setQr]=useState(''); const [factor,setFactor]=useState(''); const [code,setCode]=useState('');
@@ -16,15 +17,15 @@ export function AuthenticatorSetup({ onComplete, onRestart, signedIn = false }: 
   } catch { setMessage('The server could not be reached. Please retry.'); }
   finally { setBusy(false); }
  }
- return <section className="panel authenticator-setup">
-  <h2>Protect administrator sign-in</h2><p>Add an authenticator as a second sign-in step. It is free. Keep the QR code and verification codes private.</p>
+ return <section className="login-card authenticator-setup">
+  <div><p className="eyebrow">Account security</p><h2>Secure your account</h2><p>Use an authenticator app to protect your Hocalist account.</p></div>
   {!complete && <form onSubmit={submit} style={{display:'grid',gap:12}}>
-   {qr ? <><img src={qr} alt="Scan this private QR code with your authenticator" width={220} height={220} style={{maxWidth:'100%',background:'white'}}/><label>Authenticator code<input aria-label="Authenticator code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))} required disabled={busy}/></label></>
-   : signedIn ? <p>Your sign-in is verified. Set up your authenticator, then enter its six-digit code.</p> : <><label>Administrator email<input aria-label="Administrator email" type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required disabled={busy}/></label><label>Confirm your password<input aria-label="Confirm your password" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required disabled={busy}/></label></>}
+   {qr ? <><p>Scan this QR code with an app such as Google Authenticator, then enter the code it shows.</p><img src={qr} alt="Scan this private QR code with your authenticator" width={220} height={220} style={{maxWidth:'100%',background:'white'}}/><label>Six-digit code<input aria-label="Six-digit authenticator code" aria-describedby="setup-code-help" placeholder="000000" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))} required disabled={busy}/></label><small id="setup-code-help">Enter six numbers from your authenticator app. This is not your password or the setup key.</small></>
+   : signedIn ? <p>You’re signed in. Next, connect your authenticator app.</p> : <><label>Email address<input aria-label="Administrator email" type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required disabled={busy}/></label><label>Confirm your password<PasswordInput aria-label="Confirm your password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required disabled={busy}/></label></>}
    <button className="primary" type="submit" disabled={busy||expired}>{busy ? 'Please wait…' : qr ? 'Verify authenticator' : 'Set up authenticator'}</button>
-   {qr && <button className="secondary" type="button" disabled={busy} onClick={()=>{setQr('');setFactor('');setCode('');setMessage('Setup closed. The authenticator is not enabled until you verify a code.');}}>Close setup</button>}
+   {qr && !onRestart && <button className="text-action" type="button" disabled={busy} onClick={()=>{setQr('');setFactor('');setCode('');setMessage('Setup is not finished. You can continue when you’re ready.');}}>Set up later</button>}
   </form>}
-  <p role="status">{message}</p>
-  {signedIn && onRestart && <button className="secondary" type="button" disabled={busy} onClick={onRestart}>{expired?'Return to sign-in':'Cancel setup'}</button>}
+  {message && <p role="status">{message}</p>}
+  {signedIn && onRestart && <button className="text-action" type="button" disabled={busy} onClick={onRestart}>Back to sign-in</button>}
  </section>;
 }

@@ -2,6 +2,7 @@
 import { AuthenticatorSetup } from "../settings/authenticator-setup";
 
 import Link from "next/link";
+import { PasswordInput } from "../password-input";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
@@ -90,7 +91,7 @@ export function LoginForm({
       });
     } catch {
       setBusy(false);
-      setMessage("The admin backend is unreachable.");
+      setMessage("We couldn’t connect. Please try again.");
       return;
     }
     const body = (await response.json().catch(() => null)) as {
@@ -105,7 +106,7 @@ export function LoginForm({
       if (body?.state === "mfa_required") {
         setPassword("");
         setStep("challenge");
-        setMessage(body.message ?? "Complete the second factor to continue.");
+        setMessage(body.message ?? "Enter your authenticator code to continue.");
         return;
       }
       setMessage(body?.message ?? "Sign-in failed.");
@@ -144,13 +145,13 @@ export function LoginForm({
     setFactorId("");
     setChallengeId("");
     setCode("");
-    setMessage("Second-factor step cancelled. Sign in again to restart it.");
+    setMessage("You can sign in again when you’re ready.");
   }
 
   return (
     <main className="login">
       <section className="login-brand">
-        <span className="brandmark large">H</span>
+        <img className="auth-logo auth-logo-white" src="/brand/hocalist-wordmark-white.png" alt="Hocalist" width={240} height={80}/>
         <p>Hocalist operations</p>
         <h1>Keep the local marketplace clear, trusted, and moving.</h1>
         <p>
@@ -158,17 +159,12 @@ export function LoginForm({
           from one focused desktop workspace.
         </p>
         <div className="login-note">
-          <strong>{configured ? "Live backend" : "Backend not configured"}</strong>
-          <span>
-            {configured
-              ? policyRequired
-                ? "Sign-in uses your Supabase administrator account and enforces a second factor. Only accounts provisioned in hocalist.platform_admins can enter."
-                : "Sign-in uses your Supabase administrator account. Only accounts provisioned in hocalist.platform_admins can enter."
-              : "Set HOCALIST_SUPABASE_URL and HOCALIST_SUPABASE_ANON_KEY in the server environment to enable sign-in."}
-          </span>
+          <strong>Hocalist management</strong>
+          <span>{configured ? 'Sign in with your Hocalist account. An authenticator code helps keep your account safe.' : 'Sign-in is temporarily unavailable. Please contact the Hocalist account owner.'}</span>
         </div>
       </section>
       <section className="login-panel">
+        <img className="auth-logo auth-logo-mobile" src="/brand/hocalist-wordmark.png" alt="Hocalist" width={200} height={66}/>
         {step === "enrollment" ? <AuthenticatorSetup signedIn onRestart={() => { void abandon(); }} onComplete={() => { router.push("/dashboard"); router.refresh(); }} /> : step === "credentials" ? (
           <form className="login-card" onSubmit={submitCredentials}>
             <div>
@@ -189,8 +185,7 @@ export function LoginForm({
             </label>
             <label>
               Password
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -203,33 +198,19 @@ export function LoginForm({
             </button>
             <Link href="/reset-password">Forgot password?</Link>
             {message ? <p role="alert">{message}</p> : null}
-            <small>
-              {configured ? (
-                <>
-                  Sessions are short-lived. <Link href="/dashboard">Continue</Link>{" "}
-                  only after signing in.
-                </>
-              ) : (
-                <>
-                  The Phase 1 demo routes remain available for layout review.{" "}
-                  <Link href="/dashboard">Open demo workspace</Link>
-                </>
-              )}
-            </small>
           </form>
         ) : (
           <form className="login-card" onSubmit={submitCode}>
             <div>
-              <p className="eyebrow">Second factor</p>
+              <p className="eyebrow">Account security</p>
               <h2>Verify it is you</h2>
               <p>
-                This portal requires a second factor. The password step is not a
-                session: no privileged request can run until the code is verified.
+                Enter the six-digit code shown in your authenticator app.
               </p>
             </div>
             {factors.length > 1 ? (
               <label>
-                Factor
+                Authenticator app
                 <select
                   value={factorId}
                   disabled={busy}
@@ -247,11 +228,12 @@ export function LoginForm({
               </label>
             ) : null}
             <label>
-              Authenticator code
+              Six-digit code
               <input
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                pattern="\d{6}"
+                pattern="[0-9]{6}"
+                placeholder="000000"
                 maxLength={6}
                 value={code}
                 onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
@@ -272,16 +254,15 @@ export function LoginForm({
                 disabled={busy || !factorId}
                 onClick={() => void startChallenge(factorId)}
               >
-                New code
+                Try again
               </button>
               <button type="button" disabled={busy} onClick={() => void abandon()}>
-                Cancel
+                Back to sign-in
               </button>
             </div>
             {message ? <p role="alert">{message}</p> : null}
             <small>
-              A lost device or factor is reset by the owner. Initial enrollment is an
-              account-owner action available during administrator sign-in.
+              Lost access to your authenticator? Contact the Hocalist account owner for help.
             </small>
           </form>
         )}

@@ -1,12 +1,13 @@
 "use client";
 import Link from 'next/link';
+import { PasswordInput } from '../password-input';
 import { useEffect,useRef,useState,type FormEvent } from 'react';
 import { recoveryFragment } from '../lib/recovery-fragment';
 export function PasswordRecoveryForm(){
  const token=useRef(''),initialised=useRef(false),gate=useRef(false);
  const [mode,setMode]=useState<'loading'|'request'|'update'|'done'>('loading');
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirm,setConfirm]=useState('');
- const [visible,setVisible]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
  useEffect(()=>{
   const receive=()=>{
    if(initialised.current&&!location.hash)return;initialised.current=true;
@@ -30,12 +31,12 @@ export function PasswordRecoveryForm(){
   }catch{setMessage('The server could not be reached. Please retry.');}
   finally{gate.current=false;setBusy(false);}
  }
- return <main className="login"><section className="login-brand"><p>Hocalist administration</p><h1>Recover your account securely.</h1><p>Set your password privately. Your authenticator remains required for administrator access.</p></section><section className="login-panel"><form className="login-card" onSubmit={submit}>
+ return <main className="login"><section className="login-brand"><img className="auth-logo auth-logo-white" src="/brand/hocalist-wordmark-white.png" alt="Hocalist" width={240} height={80}/><p>Hocalist administration</p><h1>Let’s get you back in.</h1><p>Choose a new password for your Hocalist account. You’ll still use your authenticator app when you sign in.</p></section><section className="login-panel"><img className="auth-logo auth-logo-mobile" src="/brand/hocalist-wordmark.png" alt="Hocalist" width={200} height={66}/><form className="login-card" onSubmit={submit}>
   <div><p className="eyebrow">Account recovery</p><h2>{mode==='update'?'Choose a new password':mode==='done'?'Password updated':'Reset your password'}</h2></div>
   {mode==='request'&&<label>Hocalist account email<input type="email" autoComplete="username" maxLength={254} value={email} onChange={e=>setEmail(e.target.value)} required disabled={busy}/></label>}
-  {mode==='update'&&<><label>New password<input type={visible?'text':'password'} autoComplete="new-password" minLength={8} maxLength={200} value={password} onChange={e=>setPassword(e.target.value)} required disabled={busy}/></label><label>Confirm new password<input type={visible?'text':'password'} autoComplete="new-password" minLength={8} maxLength={200} value={confirm} onChange={e=>setConfirm(e.target.value)} required disabled={busy}/></label><button type="button" aria-pressed={visible} onClick={()=>setVisible(v=>!v)}>{visible?'Hide passwords':'Show passwords'}</button></>}
+  {mode==='update'&&<><label>New password<PasswordInput autoComplete="new-password" minLength={8} maxLength={200} value={password} onChange={e=>setPassword(e.target.value)} required disabled={busy}/></label><label>Confirm new password<PasswordInput autoComplete="new-password" minLength={8} maxLength={200} value={confirm} onChange={e=>setConfirm(e.target.value)} required disabled={busy}/></label></>}
   {(mode==='request'||mode==='update')&&<button className="primary login-button" disabled={busy}>{busy?'Please wait…':mode==='update'?'Save new password':'Send reset email'}</button>}
   {mode==='loading'&&<p role="status">Checking reset link…</p>}
-  <p role="status">{message}</p><Link href="/login">Back to administrator sign-in</Link>
+  <p role="status">{message}</p><Link href="/login">Back to sign-in</Link>
  </form></section></main>;
 }
