@@ -83,6 +83,7 @@ export const config = {
     "/withdrawals",
     "/delivery",
     "/settings",
+    "/administrators",
     "/events",
     "/audit",
   ],
