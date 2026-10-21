@@ -1,7 +1,7 @@
 import { boundedJson } from './bounded-json';
 import { randomUUID } from 'node:crypto';
 import { evaluateRequestOrigin, parseLoginBody, pendingCookieOptions } from './admin-rules';
-import { providerUserSession, signInWithPassword, callRpc, beginMfaChallenge, MFA_PENDING_COOKIE } from './admin-session';
+import { providerUserSession, signInWithPassword, callRpc, MFA_PENDING_COOKIE } from './admin-session';
 import { handleMfaVerifyCore, type CoreRequest, type CoreDeps, type CoreResult } from './admin-http';
 const failure = (status: number, message: string): CoreResult => ({ status, body: { ok: false, message } });
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -22,9 +22,7 @@ export async function enrollAdminMfa(request: CoreRequest, deps: CoreDeps): Prom
     if (!uuid.test(factorId) || !/^\d{6}$/.test(code) || !request.pendingToken) return failure(400, 'Enter the six-digit code from your authenticator.');
     const pending = await providerUserSession(config, request.pendingToken, transport);
     if (!pending.ok || pending.userId !== current.userId || !pending.factors.some(f => f.id === factorId && f.factorType === 'totp')) return failure(403, 'Restart authenticator setup for this account.');
-    const challenge = await beginMfaChallenge(config, request.pendingToken, factorId, transport);
-    if (!challenge.ok) return failure(502, 'The code check could not start. Please retry.');
-    return handleMfaVerifyCore({ ...request, body: { factor_id: factorId, challenge_id: challenge.challengeId, code } }, { ...deps, mfaPolicy: 'required' });
+    return handleMfaVerifyCore({ ...request, body: { factor_id: factorId, code } }, { ...deps, mfaPolicy: 'required' });
   }
   if (body?.action !== 'start') return failure(400, 'Choose an authenticator setup action.');
   if (current.factors.some(f => f.status === 'verified')) return failure(409, 'An authenticator is already configured. Use it when signing in.');

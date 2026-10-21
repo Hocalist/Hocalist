@@ -576,21 +576,27 @@ export async function handleMfaVerifyCore(
   }
   const record = body as Record<string, unknown>;
   const factorId = typeof record.factor_id === "string" ? record.factor_id.trim() : "";
-  const challengeId = typeof record.challenge_id === "string" ? record.challenge_id.trim() : "";
   const code = typeof record.code === "string" ? record.code.trim() : "";
-  if (!UUID_PATTERN.test(factorId) || !UUID_PATTERN.test(challengeId) || !/^\d{6}$/.test(code)) {
+  if (!UUID_PATTERN.test(factorId) || !/^\d{6}$/.test(code)) {
     return { status: 400, body: { ok: false, state: "invalid", message: "Malformed verification request." } };
   }
   const fetchImpl = deps.fetchImpl ?? fetch;
+  // Challenge and verify must share this server invocation. A challenge made
+  // in a previous request can carry a different serverless outbound IP.
+  const challenge = await beginMfaChallenge(deps.config, request.pendingToken as string, factorId, fetchImpl);
+  if (!challenge.ok) {
+    return { status: challenge.state === 'signed_out' ? 401 : 502, body: { ok:false, state: challenge.state === 'signed_out' ? 'pending_expired' : 'assurance_unavailable', message: challenge.state === 'signed_out' ? 'Sign in again.' : 'The security check could not start. Please try again.' } };
+  }
   const verified = await verifyMfaChallenge(
     deps.config,
     request.pendingToken as string,
     factorId,
-    challengeId,
+    challenge.challengeId,
     code,
     fetchImpl,
   );
   if (!verified.ok) {
+    if (verified.state === 'ip_mismatch') return {status:502,body:{ok:false,state:'assurance_unavailable',message:'The security check encountered a server connection problem. Please try again. Your authenticator does not need to be reset.'}};
     if (verified.state === "signed_out") {
       return {
         status: 401,

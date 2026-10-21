@@ -274,7 +274,7 @@ export type MfaVerifyResult =
   | {
       ok: false;
       status: number;
-      state: "signed_out" | "invalid_code" | "rate_limited" | "unavailable";
+      state: "signed_out" | "invalid_code" | "ip_mismatch" | "rate_limited" | "unavailable";
     };
 
 /** Verifies one factor challenge and returns the upgraded session tokens. */
@@ -306,6 +306,8 @@ export async function verifyMfaChallenge(
   if (response.status === 401) return { ok: false, status: 401, state: "signed_out" };
   if (response.status === 429) return { ok: false, status: 429, state: "rate_limited" };
   if (response.status === 400 || response.status === 403 || response.status === 422) {
+      const error = await response.json().catch(() => null) as {code?:string;error_code?:string}|null;
+      if ((error?.code ?? error?.error_code) === 'mfa_ip_address_mismatch') return {ok:false,status:response.status,state:'ip_mismatch'};
     return { ok: false, status: response.status, state: "invalid_code" };
   }
   if (!response.ok) return { ok: false, status: response.status, state: "unavailable" };
