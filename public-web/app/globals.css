@@ -6799,3 +6799,5 @@ body main .page-section.safety-section,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.brand-loading{display:grid;place-items:center;gap:16px;min-height:240px;padding:32px;text-align:center}.brand-loading img{border-radius:50%;animation:hocalist-loading-pulse 1s ease-in-out infinite alternate}.brand-loading p{margin:0}@keyframes hocalist-loading-pulse{from{opacity:.45;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@media(prefers-reduced-motion:reduce){.brand-loading img{animation:none}}

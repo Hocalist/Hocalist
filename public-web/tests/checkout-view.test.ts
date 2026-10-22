@@ -147,3 +147,9 @@ test('the retry key is discarded only for the exact terminal checkout', () => {
   assert.equal(shouldClearIntent(intent, { ...NEW_OPEN, state: 'expired' }), true);
   assert.equal(shouldClearIntent({ ...intent, checkoutId: null }, OLD_COMPLETE), false);
 });
+
+test('abandoned checkout does not poll for a payment, while verified payment stays authoritative', () => {
+  assert.equal(resolveCheckoutView({selected:NEW_OPEN},{cancelled:true,hintProvided:true}).mode,'unconfirmed');
+  assert.equal(resolveCheckoutView({deposits:[NEW_OPEN]},{cancelled:true}).mode,'unconfirmed');
+  assert.equal(resolveCheckoutView({selected:OLD_COMPLETE},{cancelled:true,hintProvided:true}).mode,'verified-deposit');
+});

@@ -47,7 +47,7 @@ export function resolveCheckoutView(
       };
     }
     if (selected.state === "open" || selected.state === "creating") {
-      return { mode: "pending", checkout: selected };
+      return { mode: options.cancelled ? "unconfirmed" : "pending", checkout: selected };
     }
     return { mode: "expired", checkout: selected };
   }
@@ -56,9 +56,10 @@ export function resolveCheckoutView(
     // longer exists: never fall back to an older completion.
     return { mode: "missing", checkout: null };
   }
+  if (options.cancelled) return { mode: "unconfirmed", checkout: null };
   const open = deposits.find((checkout) => checkout.state === "open" || checkout.state === "creating");
   if (open) return { mode: "pending", checkout: open };
-  if (options.cancelled) return { mode: "unconfirmed", checkout: null };
+
   return { mode: "idle", checkout: null };
 }
 
