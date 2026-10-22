@@ -1,3 +1,5 @@
+import '../../domain/phase2/category_answers.dart';
+import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,7 @@ class ApprovedSellerStorePage extends StatefulWidget {
     required this.onStoreSettings,
     this.sellerName,
     this.sellerProfileId,
+    this.questionLoader = loadCategoryQuestions,
     super.key,
   });
 
@@ -29,6 +32,7 @@ class ApprovedSellerStorePage extends StatefulWidget {
   /// Authoritative seller display name for the real public preview.
   final String? sellerName;
   final String? sellerProfileId;
+  final CategoryQuestionLoader questionLoader;
 
   @override
   State<ApprovedSellerStorePage> createState() =>
@@ -86,6 +90,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
       builder: (sheetContext) => _AddStoreListingSheet(
         initialListing: listing,
         storeBacked: widget.repository.isStoreBacked,
+        questionLoader: widget.questionLoader,
         categories: widget.repository.storeCategories,
         onReconcile: () => widget.repository.refreshStore(),
         onSave: (saved, {required operationKey, required isRetry}) async {
@@ -112,6 +117,9 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
   }
 
   String _savedMessage(LocalStoreListing saved, {required bool isNew}) {
+    if (saved.rejected) {
+      return 'Listing saved. It is not approved for publication.';
+    }
     if (saved.status == LocalListingStatus.active) {
       return saved.pendingReview
           ? 'Submitted for review. It appears in discovery after approval.'
@@ -204,11 +212,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
 
   Future<void> _showPublicStorePreview() async {
     final active = widget.repository.storeListings
-        .where(
-          (listing) =>
-              listing.status == LocalListingStatus.active &&
-              !listing.pendingReview,
-        )
+        .where((listing) => listing.isPubliclyVisible)
         .toList(growable: false);
     await showModalBottomSheet<void>(
       context: context,
@@ -333,7 +337,9 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
               title: listing.status == LocalListingStatus.active
                   ? 'Pause listing'
                   : 'Publish listing',
-              subtitle: listing.pendingReview
+              subtitle: listing.rejected
+                  ? 'Not approved. Update the listing before submitting it again.'
+                  : listing.pendingReview
                   ? 'It is not visible to buyers while it awaits review.'
                   : listing.status == LocalListingStatus.active
                   ? 'Hide it from buyer discovery without deleting it.'
@@ -495,11 +501,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
           builder: (context, _) {
             final listings = _visibleListings(widget.repository.storeListings);
             final activeCount = widget.repository.storeListings
-                .where(
-                  (listing) =>
-                      listing.status == LocalListingStatus.active &&
-                      !listing.pendingReview,
-                )
+                .where((listing) => listing.isPubliclyVisible)
                 .length;
             // Backed Store creation needs an admin-managed active category.
             // Prototype mode keeps the approved free-text category flow.
@@ -1343,6 +1345,7 @@ class _PublicListingPreview extends StatelessWidget {
                   ),
                 ),
                 if (expanded) ...[
+                  CategoryAnswersView(answers: listing.categoryAnswers),
                   SizedBox(height: metrics.spacing(5)),
                   Text(
                     '${listing.serviceArea} · ${listing.availability}',
@@ -1549,6 +1552,7 @@ class _AddStoreListingSheet extends StatefulWidget {
     required this.initialListing,
     required this.onSave,
     this.storeBacked = false,
+    this.questionLoader = loadCategoryQuestions,
     this.categories = const <StoreCategoryOption>[],
     this.onReconcile,
   });
@@ -1556,6 +1560,7 @@ class _AddStoreListingSheet extends StatefulWidget {
   final LocalStoreListing? initialListing;
   final _StoreEditorSave onSave;
   final bool storeBacked;
+  final CategoryQuestionLoader questionLoader;
   final List<StoreCategoryOption> categories;
   final VoidCallback? onReconcile;
 
@@ -1585,6 +1590,8 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
   LocalStoreListing? _pendingListing;
   String? _operationKey;
   String? _categoryId;
+  List<CategoryAnswer> _categoryAnswers = const [];
+  final _questionKey = GlobalKey<CategoryQuestionEditorState>();
 
   @override
   void initState() {
@@ -1605,6 +1612,7 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
     _imageCount = initial?.imageCount ?? 0;
     _existingImageIds.addAll(initial?.imageMediaIds ?? const []);
     _categoryId = initial?.categoryId;
+    _categoryAnswers = initial?.categoryAnswers ?? const [];
   }
 
   @override
@@ -1628,8 +1636,10 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
       description: _descriptionController.text.trim(),
       category: _categoryLabel ?? _categoryController.text.trim(),
       categoryId: _categoryId,
+      categoryAnswers: _categoryAnswers,
       revision: initial?.revision ?? 0,
       pendingReview: initial?.pendingReview ?? false,
+      rejected: initial?.rejected ?? false,
       serviceArea: _areaController.text.trim(),
       availability: _availabilityController.text.trim(),
       status: status,
@@ -1719,6 +1729,13 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
       return;
     }
     if (!_validateDetails()) return;
+    final questionError = _questionKey.currentState?.validationMessage(
+      requiredAnswers: status == LocalListingStatus.active,
+    );
+    if (questionError != null) {
+      setState(() => _error = questionError);
+      return;
+    }
     final listing = _buildListing(status);
     _operationKey ??= LocalMarketplaceRepository.newStoreOperationKey(
       'store-save',
@@ -1908,7 +1925,10 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
                 ? _categoryId
                 : null,
             currentLabel: _categoryLabel,
-            onSelected: (id) => setState(() => _categoryId = id),
+            onSelected: (id) => setState(() {
+              _categoryId = id;
+              _categoryAnswers = const [];
+            }),
           )
         else
           _StoreFormField(
@@ -1918,6 +1938,14 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
             fieldKey: const Key('sellerStoreCategoryField'),
           ),
         SizedBox(height: metrics.spacing(10)),
+        if (widget.storeBacked && _categoryId != null)
+          CategoryQuestionEditor(
+            key: _questionKey,
+            loader: widget.questionLoader,
+            categoryId: _categoryId!,
+            answers: _categoryAnswers,
+            onChanged: (answers) => setState(() => _categoryAnswers = answers),
+          ),
         _StoreFormField(
           fieldKey: const Key('sellerStorePriceField'),
           label: 'Pricing',
@@ -2317,6 +2345,13 @@ _StoreStatusBadge _listingStatusBadge(LocalStoreListing listing) {
       label: 'Saving…',
       foreground: SellerUiColors.primary,
       background: SellerUiColors.lavender,
+    );
+  }
+  if (listing.rejected) {
+    return const _StoreStatusBadge(
+      label: 'Not approved',
+      foreground: SellerUiColors.amber,
+      background: SellerUiColors.amberSurface,
     );
   }
   if (listing.status == LocalListingStatus.active && listing.pendingReview) {

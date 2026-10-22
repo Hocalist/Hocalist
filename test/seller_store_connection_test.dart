@@ -121,6 +121,7 @@ void main() {
               ),
               onNotifications: () {},
               child: ApprovedSellerStorePage(
+                questionLoader: (_) async => [],
                 repository: repository,
                 sellerName: sellerName,
                 onStoreSettings: () {},

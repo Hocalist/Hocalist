@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 
+import { FieldHelp } from "../../field-help";
 import { SectionTabs } from "../../section-tabs";
 import { adminRpc, creditAdminCommand } from "../../lib/admin-client";
 import {
@@ -231,7 +232,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </div>
       )}
 
-      <SectionTabs label="Deposit and reward settings" sections={[{title:"Deposit options",content:<><h2>Deposit options</h2>
+      <SectionTabs label="Deposit and reward settings" sections={[{title:"Deposit options",content:<><h2>Deposit options <FieldHelp label="Deposit options">These options set the credit purchase amount and fees for future purchases. Existing credit batches keep their original rates.</FieldHelp></h2>
       <p>
         A deposit option is the admin-managed amount and the fee rates frozen into
         each new batch at purchase. Editing or retiring an option never reprices an
@@ -273,7 +274,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
                 <tr>
                   <th>Amount</th>
                   <th>Initial fee</th>
-                  <th>Winning total</th>
+                  <th>Total fee after winning</th>
                   <th>Rate version</th>
                   <th>Status</th>
                   <th>Order</th>
@@ -321,7 +322,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </div>
       )}
 
-      <form className="form-grid" onSubmit={saveOption}>
+      <div className="fee-help-line"><FieldHelp label="Initial and winning fees">The initial fee is charged when an offer is sent. The total winning fee includes it. For example, an initial fee of 1.55 and total winning fee of 3.75 means another 2.20 is charged on a win. These are examples, not a change to your saved rates.</FieldHelp><span>How initial and winning fees work</span></div><form className="form-grid" onSubmit={saveOption}>
         <fieldset disabled={busy || !!retry || depositStale} style={{ display: "contents" }}>
           <label>
             Amount
@@ -394,7 +395,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </fieldset>
       </form>
 
-      </>},{title:"Buyer rewards",content:<><h2>Buyer reward policy</h2>
+      </>},{title:"Buyer rewards",content:<><h2>Buyer reward policy <FieldHelp label="Buyer rewards">Set the reward amounts used for eligible confirmed purchases. Rewards are separate from seller credits and do not pay for the item itself.</FieldHelp></h2>
       {config.reward_policy === null ? (
         <div className="demo-notice">
           <strong>Reward policy not configured</strong>

@@ -1,3 +1,4 @@
+import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -265,6 +266,7 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                               ),
                             ),
                           ),
+                        CategoryAnswersView(answers: item.categoryAnswers),
                         if (item.serviceArea.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),

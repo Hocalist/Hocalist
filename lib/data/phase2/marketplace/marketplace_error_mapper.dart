@@ -148,7 +148,8 @@ class MarketplaceErrorMapper {
     if (_has(message, 'purchase_seller_required')) {
       return const ConflictError(
         conflictCode: 'purchase_seller_required',
-        debugMessage: 'Only the buyer\u2019s chosen purchase seller can confirm.',
+        debugMessage:
+            'Only the buyer\u2019s chosen purchase seller can confirm.',
       );
     }
     if (_has(message, 'offer_not_selected')) {
@@ -228,6 +229,30 @@ class MarketplaceErrorMapper {
           ),
         ],
         debugMessage: 'The named zone skips this local time.',
+      );
+    }
+    if (_has(message, 'required_category_answers')) {
+      return const ValidationError(
+        issues: [
+          ValidationIssue(
+            field: 'categoryAnswers',
+            code: ValidationCodes.requiredField,
+            message:
+                'Category questions have changed. Reload them and answer the required questions.',
+          ),
+        ],
+      );
+    }
+    if (_has(message, 'invalid_field: category_answers')) {
+      return const ValidationError(
+        issues: [
+          ValidationIssue(
+            field: 'categoryAnswers',
+            code: ValidationCodes.invalidValue,
+            message:
+                'A selected category choice is no longer available. Reload the questions and choose again.',
+          ),
+        ],
       );
     }
     if (_has(message, 'invalid_category')) {

@@ -12,7 +12,7 @@ export default async function Locations() {
     <AdminShell>
       <PageHeader
         title="Locations"
-        description="Admin-managed market list used by request and Store forms. Values are backend configuration, not client defaults."
+        description="Suggested areas in request and offer location searches. Users still confirm an exact place; these entries do not restrict eligibility."
       />
       <AdminStateNotice load={load} />
       {zones.state !== "ok" && <AdminStateNotice load={zones} />}

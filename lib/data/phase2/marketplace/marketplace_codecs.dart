@@ -7,6 +7,7 @@
 library;
 
 import '../../../domain/phase2/catalogue.dart';
+import '../../../domain/phase2/category_answers.dart';
 import '../../../domain/phase2/common.dart';
 import '../../../domain/phase2/discovery.dart';
 import '../../../domain/phase2/money.dart';
@@ -16,6 +17,14 @@ import '../../../domain/phase2/schedule.dart';
 import '../../../domain/phase2/store_listings.dart';
 import '../accounts/account_codecs.dart' show AccountDecodeException;
 import '../accounts/timestamptz.dart';
+
+List<CategoryAnswer> _categoryAnswers(Map<String, Object?> row) {
+  try {
+    return CategoryAnswer.decode(row['category_answers']);
+  } on FormatException {
+    throw const MarketplaceDecodeException('category_answers');
+  }
+}
 
 class MarketplaceDecodeException implements Exception {
   const MarketplaceDecodeException(this.detail);
@@ -595,6 +604,7 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
       '$context.accepts_higher_offers',
     ),
     categoryId: _optionalString(row, 'category_id'),
+    categoryAnswers: _categoryAnswers(row),
     location: useHomeAddress
         ? const RequestLocation.homeAddress()
         : RequestLocation.custom(address: address, coordinates: coordinates),
@@ -666,6 +676,7 @@ SellerLeadProjection decodeLeadJson(Map<String, Object?> row, String context) {
       '$context.accepts_higher_offers',
     ),
     categoryId: _optionalString(row, 'category_id'),
+    categoryAnswers: _categoryAnswers(row),
     buyerProfileId: _requireString(
       row,
       'buyer_profile_id',
@@ -924,6 +935,7 @@ StoreListing decodeStoreListingJson(Map<String, Object?> row, String context) {
       allowEmpty: true,
     ),
     categoryId: _optionalString(row, 'category_id'),
+    categoryAnswers: _categoryAnswers(row),
     priceLabel: _requireString(row, 'price_label', '$context.price_label'),
     serviceArea: _requireString(
       row,
@@ -987,6 +999,7 @@ PublicStoreListing decodePublicStoreListingJson(
       allowEmpty: true,
     ),
     categoryId: _optionalString(row, 'category_id'),
+    categoryAnswers: _categoryAnswers(row),
     priceLabel: _requireString(row, 'price_label', '$context.price_label'),
     serviceArea: _requireString(
       row,

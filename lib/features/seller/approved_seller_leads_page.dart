@@ -1,3 +1,5 @@
+import '../../domain/phase2/category_answers.dart';
+import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
@@ -1458,6 +1460,7 @@ class _LeadCard extends StatelessWidget {
                 lead.description,
                 style: sellerText(metrics, 12, color: SellerUiColors.body),
               ),
+              CategoryAnswersView(answers: lead.categoryAnswers),
               SizedBox(height: metrics.spacing(8)),
               Row(
                 children: [
@@ -3578,6 +3581,7 @@ class SellerLeadView {
     required this.meeting,
     required this.avatarColor,
     required this.initialColor,
+    this.categoryAnswers = const [],
     this.requestId,
     this.requestRevision = 0,
     this.categoryId,
@@ -3599,6 +3603,7 @@ class SellerLeadView {
       requestId: projection.requestId,
       requestRevision: projection.requestRevision,
       categoryId: projection.categoryId,
+      categoryAnswers: projection.categoryAnswers,
       name: projection.buyerDisplayName,
       initials: _initialsFor(projection.buyerDisplayName),
       city: projection.areaLabel ?? 'Area not shared',
@@ -3663,6 +3668,7 @@ class SellerLeadView {
 
   /// Admin-managed catalogue category of the request in real mode.
   final String? categoryId;
+  final List<CategoryAnswer> categoryAnswers;
 
   /// Request revision the projection was built from.
   final int requestRevision;

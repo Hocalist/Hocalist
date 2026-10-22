@@ -10,6 +10,8 @@
 /// revisions so those policies can be decided later without reshaping data.
 library;
 
+import 'category_answers.dart';
+
 import 'common.dart';
 import 'failures.dart';
 import 'money.dart';
@@ -112,6 +114,7 @@ class RequestDraft {
     MoneyRange? budget,
     bool acceptsHigherOffers = false,
     String? categoryId,
+    List<CategoryAnswer> categoryAnswers = const [],
     RequestLocation location = const RequestLocation.homeAddress(),
   }) {
     if (quantity < 1 || quantity > 99) {
@@ -138,6 +141,7 @@ class RequestDraft {
       budget: budget ?? MoneyRange.empty,
       acceptsHigherOffers: acceptsHigherOffers,
       categoryId: categoryId,
+      categoryAnswers: List.unmodifiable(categoryAnswers),
       location: location,
     );
   }
@@ -152,6 +156,7 @@ class RequestDraft {
     required this.budget,
     required this.acceptsHigherOffers,
     required this.categoryId,
+    required this.categoryAnswers,
     required this.location,
   });
 
@@ -177,6 +182,8 @@ class RequestDraft {
   /// integration replaces it.
   final String? categoryId;
 
+  final List<CategoryAnswer> categoryAnswers;
+
   final RequestLocation location;
 
   /// Immutable update with explicit keep/set/clear semantics.
@@ -200,6 +207,7 @@ class RequestDraft {
     bool? acceptsHigherOffers,
     String? categoryId,
     bool clearCategory = false,
+    List<CategoryAnswer>? categoryAnswers,
     RequestLocation? location,
   }) {
     if (clearCondition && condition != null) {
@@ -227,6 +235,9 @@ class RequestDraft {
       budget: budget ?? this.budget,
       acceptsHigherOffers: acceptsHigherOffers ?? this.acceptsHigherOffers,
       categoryId: clearCategory ? null : (categoryId ?? this.categoryId),
+      categoryAnswers: clearCategory
+          ? const []
+          : (categoryAnswers ?? this.categoryAnswers),
       location: location ?? this.location,
     );
   }
@@ -528,6 +539,7 @@ class SellerLeadProjection {
     required this.kind,
     required String title,
     this.description = '',
+    this.categoryAnswers = const [],
     this.condition,
     this.serviceType,
     this.quantity = 1,
@@ -596,6 +608,7 @@ class SellerLeadProjection {
   final RequestKind kind;
   final String title;
   final String description;
+  final List<CategoryAnswer> categoryAnswers;
   final ProductCondition? condition;
   final ServiceType? serviceType;
   final int quantity;

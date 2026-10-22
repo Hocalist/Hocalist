@@ -8,6 +8,7 @@
 library;
 
 import '../../../domain/phase2/catalogue.dart';
+import '../../../domain/phase2/category_answers.dart';
 import '../../../domain/phase2/common.dart';
 import '../../../domain/phase2/conversations.dart';
 import '../../../domain/phase2/discovery.dart';
@@ -218,6 +219,7 @@ class MarketplaceDataAdapter
       'currency_code': draft.budget.currencyCode,
       'accepts_higher_offers': draft.acceptsHigherOffers,
       'category_id': draft.categoryId,
+      'category_answers': categoryAnswerInput(draft.categoryAnswers),
       'use_home_address': location.useHomeAddress,
       'address_line1': address?.line1,
       'address_line2': address?.line2,
@@ -263,6 +265,7 @@ class MarketplaceDataAdapter
     required String serviceArea,
     required String availability,
     required List<String> imageMediaIds,
+    required List<CategoryAnswer> categoryAnswers,
     ListingPublishIntent? publishIntent,
   }) {
     return {
@@ -270,6 +273,7 @@ class MarketplaceDataAdapter
       'title': title,
       'description': description,
       'category_id': categoryId,
+      'category_answers': categoryAnswerInput(categoryAnswers),
       'price_label': priceLabel,
       'service_area': serviceArea,
       'availability': availability,
@@ -319,6 +323,45 @@ class MarketplaceDataAdapter
       final categories = decodeCatalogueJson(result.valueOrNull!, 'catalogue');
       return RepositorySuccess(
         PageSlice<CatalogueCategory>(items: categories, nextCursor: null),
+      );
+    } on MarketplaceDecodeException catch (error) {
+      return _failure(
+        MalformedResponseError(
+          operation: 'marketplace_catalogue',
+          detail: error.detail,
+        ),
+      );
+    }
+  }
+
+  Future<RepositoryResult<List<CategoryQuestion>>> fetchCategoryQuestions(
+    String categoryId,
+  ) async {
+    final rows = await _catalogueRows(false);
+    if (rows.isFailure) return _failure(rows.errorOrNull!);
+    try {
+      for (final row in rows.valueOrNull!) {
+        if (row['id'] != categoryId) continue;
+        final groups = decodeNestedOptionGroupsJson(row, 'catalogue');
+        final rawGroups = decodeObjectList(row['groups'], 'catalogue');
+        return RepositorySuccess([
+          for (final group in groups.where((g) => g.isActive))
+            CategoryQuestion(group, [
+              for (final raw in rawGroups.where((r) => r['id'] == group.id))
+                for (final option in decodeObjectList(
+                  raw['options'],
+                  'catalogue',
+                ))
+                  if (decodeCatalogueOptionJson(option, 'catalogue').isActive)
+                    decodeCatalogueOptionJson(option, 'catalogue'),
+            ]),
+        ]);
+      }
+      return _failure(
+        const NotFoundError(
+          entityType: 'catalogue_category',
+          entityId: 'requested',
+        ),
       );
     } on MarketplaceDecodeException catch (error) {
       return _failure(
@@ -997,6 +1040,7 @@ class MarketplaceDataAdapter
         title: command.title,
         description: command.description,
         categoryId: command.categoryId,
+        categoryAnswers: command.categoryAnswers,
         priceLabel: command.priceLabel,
         serviceArea: command.serviceArea,
         availability: command.availability,
@@ -1019,6 +1063,7 @@ class MarketplaceDataAdapter
         title: command.title,
         description: command.description,
         categoryId: command.categoryId,
+        categoryAnswers: command.categoryAnswers,
         priceLabel: command.priceLabel,
         serviceArea: command.serviceArea,
         availability: command.availability,
