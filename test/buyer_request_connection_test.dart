@@ -1,3 +1,4 @@
+import 'package:hocalist/domain/phase2/category_answers.dart';
 // Buyer request create/detail connection tests: complete draft submission,
 // operation-key reconciliation and real-mode detail updates. Fakes only.
 import 'package:flutter/material.dart';
@@ -40,6 +41,8 @@ MarketplaceRequest _request({
   ),
 );
 
+Future<List<CategoryQuestion>> _noQuestions(String categoryId) async => [];
+
 Future<void> _pump(WidgetTester tester, Widget child) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(390, 844);
@@ -68,6 +71,15 @@ Future<void> _tapPost(WidgetTester tester) async {
 }
 
 Future<void> _postRequest(WidgetTester tester) async {
+  if (find.text('Select a category').evaluate().isNotEmpty) {
+    final category = find.byKey(const Key('approved-request-category-select'));
+    await tester.ensureVisible(category);
+    await tester.pumpAndSettle();
+    await tester.tap(category);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Electronics').last);
+    await tester.pumpAndSettle();
+  }
   final continueAction = find.text('Continue');
   await tester.ensureVisible(continueAction);
   await tester.pumpAndSettle();
@@ -86,6 +98,15 @@ void main() {
     await _pump(
       tester,
       ApprovedRequestFlowPage(
+        questionLoader: _noQuestions,
+        categories: const [
+          CatalogueCategoryOption(
+            id: '20000000-0000-4000-8000-000000000001',
+            label: 'Electronics',
+            scope: 'product',
+            status: 'active',
+          ),
+        ],
         accent: const Color(0xff1917ff),
         requestTitle: 'My request',
         budget: '',
@@ -115,12 +136,21 @@ void main() {
       await _pump(
         tester,
         ApprovedRequestFlowPage(
+          questionLoader: _noQuestions,
           homeAddress: const PostalAddress(
             line1: 'Saved test address',
             country: 'US',
           ),
           accent: const Color(0xff1917ff),
           requestTitle: 'Mapped request',
+          categories: const [
+            CatalogueCategoryOption(
+              id: '20000000-0000-4000-8000-000000000001',
+              label: 'Electronics',
+              scope: 'product',
+              status: 'active',
+            ),
+          ],
           includeAppChrome: true,
           budget: '',
           onTitleChanged: (_) {},
@@ -147,7 +177,19 @@ void main() {
           },
         ),
       );
+      if (find.text('Select a category').evaluate().isNotEmpty) {
+        final category = find.byKey(
+          const Key('approved-request-category-select'),
+        );
+        await tester.ensureVisible(category);
+        await tester.pumpAndSettle();
+        await tester.tap(category);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Electronics').last);
+        await tester.pumpAndSettle();
+      }
       await tester.ensureVisible(find.text('Continue'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(
@@ -193,6 +235,7 @@ void main() {
     await _pump(
       tester,
       ApprovedRequestFlowPage(
+        questionLoader: _noQuestions,
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -247,6 +290,15 @@ void main() {
     await _pump(
       tester,
       ApprovedRequestFlowPage(
+        questionLoader: _noQuestions,
+        categories: const [
+          CatalogueCategoryOption(
+            id: '20000000-0000-4000-8000-000000000001',
+            label: 'Electronics',
+            scope: 'product',
+            status: 'active',
+          ),
+        ],
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -295,6 +347,15 @@ void main() {
     await _pump(
       tester,
       ApprovedRequestFlowPage(
+        questionLoader: _noQuestions,
+        categories: const [
+          CatalogueCategoryOption(
+            id: '20000000-0000-4000-8000-000000000001',
+            label: 'Electronics',
+            scope: 'product',
+            status: 'active',
+          ),
+        ],
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -357,6 +418,7 @@ void main() {
     await _pump(
       tester,
       ApprovedRequestFlowPage(
+        questionLoader: _noQuestions,
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -418,6 +480,15 @@ void main() {
     await _pump(
       tester,
       ApprovedRequestFlowPage(
+        questionLoader: _noQuestions,
+        categories: const [
+          CatalogueCategoryOption(
+            id: '20000000-0000-4000-8000-000000000001',
+            label: 'Electronics',
+            scope: 'product',
+            status: 'active',
+          ),
+        ],
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -439,6 +510,7 @@ void main() {
     );
 
     await tester.ensureVisible(find.text('Continue'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(submitted, isFalse);
@@ -455,6 +527,7 @@ void main() {
     await _pump(
       tester,
       ApprovedBuyerRequestDetailsPage(
+        questionLoader: _noQuestions,
         accent: const Color(0xff1917ff),
         requestTitle: 'iPad Air, 5th gen or newer',
         budget: r'$350 - $480',
@@ -498,6 +571,7 @@ void main() {
     await _pump(
       tester,
       ApprovedBuyerRequestDetailsPage(
+        questionLoader: _noQuestions,
         accent: const Color(0xff1917ff),
         requestTitle: 'Prototype title',
         budget: r'$350 - $480',

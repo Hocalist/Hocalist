@@ -1,3 +1,6 @@
+import 'dart:convert';
+import '../../domain/phase2/category_answers.dart';
+import 'category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
@@ -163,9 +166,11 @@ class ApprovedRequestFlowPage extends StatefulWidget {
     this.initialDescription = '',
     this.homeAddress,
     this.onChooseLocation,
+    this.questionLoader = loadCategoryQuestions,
     super.key,
   });
 
+  final CategoryQuestionLoader questionLoader;
   final Color accent;
   final String requestTitle;
   final String budget;
@@ -224,6 +229,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   String _minimum = '';
   String _maximum = '';
   String? _categoryId;
+  List<CategoryAnswer> _categoryAnswers = const [];
+  final _questionKey = GlobalKey<CategoryQuestionEditorState>();
   String? _addressLine1;
   String? _addressLine2;
   String? _city;
@@ -232,6 +239,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   String? _country;
   RequestLocation? _mapLocation;
   bool _choosingLocation = false;
+
   bool _submitting = false;
   String? _submitError;
   bool _outcomeUncertain = false;
@@ -371,7 +379,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       quantity: isProduct ? _quantity : 1,
       budget: budget,
       acceptsHigherOffers: _acceptHigherOffers,
-      categoryId: isProduct ? null : _categoryId,
+      categoryId: _categoryId,
+      categoryAnswers: _categoryAnswers,
       location: location,
     );
   }
@@ -386,10 +395,26 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       left.budget == right.budget &&
       left.acceptsHigherOffers == right.acceptsHigherOffers &&
       left.categoryId == right.categoryId &&
+      jsonEncode(categoryAnswerInput(left.categoryAnswers)) ==
+          jsonEncode(categoryAnswerInput(right.categoryAnswers)) &&
       left.location == right.location;
 
   String? _detailsValidationMessage() {
     if (widget.requestTitle.trim().isEmpty) return 'Add a clear request title.';
+    if (widget.usesRealSubmission &&
+        (_categoryId == null ||
+            !widget.categories.any(
+              (c) =>
+                  c.id == _categoryId &&
+                  c.isActive &&
+                  (_kind == ApprovedRequestKind.product
+                      ? c.supportsProduct
+                      : c.supportsService),
+            ))) {
+      return 'Choose an active category before continuing.';
+    }
+    final questionError = _questionKey.currentState?.validationMessage();
+    if (questionError != null) return questionError;
     final minimum = _parseMinorUnits(_minimum);
     final maximum = _parseMinorUnits(_maximum);
     if (minimum != null && maximum != null && maximum < minimum) {
@@ -636,7 +661,13 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
             if (!isLocation) ...[
               _ApprovedKindPicker(
                 selected: _kind,
-                onChanged: (value) => setState(() => _kind = value),
+                onChanged: (value) => setState(() {
+                  if (_kind != value) {
+                    _categoryId = null;
+                    _categoryAnswers = const [];
+                  }
+                  _kind = value;
+                }),
               ),
               SizedBox(height: _requestDimension(metrics, 21, floor: 18)),
             ],
@@ -737,6 +768,32 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onBack: widget.onBack,
                       onContinue: _continueToLocation,
                       descriptionController: _descriptionController,
+                      categoryId: _categoryId,
+                      categoryLabel: _categoryLabel,
+                      categories: widget.categories,
+                      categoriesLoading: widget.categoriesLoading,
+                      categoriesError: widget.categoriesError,
+                      onRefreshCategories: widget.onRefreshCategories,
+                      onCategorySelected: widget.usesRealSubmission
+                          ? (value) {
+                              setState(() {
+                                _categoryId = value;
+                                _categoryAnswers = const [];
+                                _submitError = null;
+                              });
+                            }
+                          : null,
+                      categoryQuestions:
+                          widget.usesRealSubmission && _categoryId != null
+                          ? CategoryQuestionEditor(
+                              key: _questionKey,
+                              loader: widget.questionLoader,
+                              categoryId: _categoryId!,
+                              answers: _categoryAnswers,
+                              onChanged: (answers) =>
+                                  setState(() => _categoryAnswers = answers),
+                            )
+                          : null,
                       error: _submitError,
                     )
                   : ApprovedServiceRequestStep(
@@ -773,9 +830,21 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                           ? (value) {
                               setState(() {
                                 _categoryId = value;
+                                _categoryAnswers = const [];
                                 _submitError = null;
                               });
                             }
+                          : null,
+                      categoryQuestions:
+                          widget.usesRealSubmission && _categoryId != null
+                          ? CategoryQuestionEditor(
+                              key: _questionKey,
+                              loader: widget.questionLoader,
+                              categoryId: _categoryId!,
+                              answers: _categoryAnswers,
+                              onChanged: (answers) =>
+                                  setState(() => _categoryAnswers = answers),
+                            )
                           : null,
                       error: _submitError,
                     ),
@@ -805,6 +874,7 @@ class ApprovedProductRequestStep extends StatelessWidget {
     required this.onBack,
     required this.onContinue,
     this.descriptionController,
+    this.categoryQuestions,
     this.categoryId,
     this.categoryLabel,
     this.categories = const <CatalogueCategoryOption>[],
@@ -832,6 +902,7 @@ class ApprovedProductRequestStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onContinue;
   final TextEditingController? descriptionController;
+  final Widget? categoryQuestions;
   final String? categoryId;
   final String? categoryLabel;
   final List<CatalogueCategoryOption> categories;
@@ -861,6 +932,7 @@ class ApprovedProductRequestStep extends StatelessWidget {
       onBack: onBack,
       onContinue: onContinue,
       descriptionController: descriptionController,
+      categoryQuestions: categoryQuestions,
       categoryId: categoryId,
       categoryLabel: categoryLabel,
       categories: categories,
@@ -889,6 +961,7 @@ class ApprovedServiceRequestStep extends StatelessWidget {
     required this.onBack,
     required this.onContinue,
     this.descriptionController,
+    this.categoryQuestions,
     this.categoryId,
     this.categoryLabel,
     this.categories = const <CatalogueCategoryOption>[],
@@ -914,6 +987,7 @@ class ApprovedServiceRequestStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onContinue;
   final TextEditingController? descriptionController;
+  final Widget? categoryQuestions;
   final String? categoryId;
   final String? categoryLabel;
   final List<CatalogueCategoryOption> categories;
@@ -943,6 +1017,7 @@ class ApprovedServiceRequestStep extends StatelessWidget {
       onBack: onBack,
       onContinue: onContinue,
       descriptionController: descriptionController,
+      categoryQuestions: categoryQuestions,
       categoryId: categoryId,
       categoryLabel: categoryLabel,
       categories: categories,
@@ -974,6 +1049,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
     required this.onBack,
     required this.onContinue,
     this.descriptionController,
+    this.categoryQuestions,
     this.categoryId,
     this.categoryLabel,
     this.categories = const <CatalogueCategoryOption>[],
@@ -1001,6 +1077,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onContinue;
   final TextEditingController? descriptionController;
+  final Widget? categoryQuestions;
   final String? categoryId;
   final String? categoryLabel;
   final List<CatalogueCategoryOption> categories;
@@ -1114,6 +1191,18 @@ class _ApprovedDetailsStep extends StatelessWidget {
             ),
           ],
         ),
+        if (isProduct && onCategorySelected != null)
+          _ApprovedCategoryPanel(
+            options: categories,
+            selectedId: categoryId,
+            selectedLabel: categoryLabel,
+            onSelected: onCategorySelected,
+            loading: categoriesLoading,
+            error: categoriesError,
+            onRetry: onRefreshCategories,
+            supportsProduct: true,
+          ),
+        ?categoryQuestions,
         SizedBox(height: metrics.geometry(2)),
         if (error != null) ...[
           Text(
@@ -1508,9 +1597,11 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
     this.onChooseLocation,
     this.onUpdated,
     this.bookmarkAction,
+    this.questionLoader = loadCategoryQuestions,
     super.key,
   });
 
+  final CategoryQuestionLoader questionLoader;
   final Color accent;
   final String requestTitle;
   final String budget;
@@ -1562,6 +1653,8 @@ class _ApprovedBuyerRequestDetailsPageState
   String? _pendingOperationKey;
   RequestLocation? _editedLocation;
   bool _choosingLocation = false;
+  List<CategoryAnswer> _categoryAnswers = const [];
+  final _questionKey = GlobalKey<CategoryQuestionEditorState>();
 
   @override
   void initState() {
@@ -1580,6 +1673,7 @@ class _ApprovedBuyerRequestDetailsPageState
               "Color doesn't matter.",
     );
     if (draft != null) {
+      _categoryAnswers = draft.categoryAnswers;
       _isNew = draft.condition != ProductCondition.used;
       _serviceType = draft.serviceType ?? ServiceType.oneTime;
       _acceptHigherOffers = draft.acceptsHigherOffers;
@@ -1700,6 +1794,7 @@ class _ApprovedBuyerRequestDetailsPageState
       quantity: current.kind == RequestKind.product ? _quantity : 1,
       acceptsHigherOffers: _acceptHigherOffers,
       location: _editedLocation ?? current.location,
+      categoryAnswers: _categoryAnswers,
     );
   }
 
@@ -1713,6 +1808,8 @@ class _ApprovedBuyerRequestDetailsPageState
       left.budget == right.budget &&
       left.acceptsHigherOffers == right.acceptsHigherOffers &&
       left.categoryId == right.categoryId &&
+      jsonEncode(categoryAnswerInput(left.categoryAnswers)) ==
+          jsonEncode(categoryAnswerInput(right.categoryAnswers)) &&
       left.location == right.location;
 
   void _discardUncertain() {
@@ -1799,6 +1896,11 @@ class _ApprovedBuyerRequestDetailsPageState
     if (update == null) {
       widget.onSaveRequest?.call();
       _message('Request updated.');
+      return;
+    }
+    final questionError = _questionKey.currentState?.validationMessage();
+    if (questionError != null) {
+      setState(() => _saveError = questionError);
       return;
     }
     final draft = _editedDraft();
@@ -1958,6 +2060,16 @@ class _ApprovedBuyerRequestDetailsPageState
                 ).copyWith(counterText: ''),
               ),
             ),
+            if (widget.usesRealRequest &&
+                widget.request!.draft.categoryId != null)
+              CategoryQuestionEditor(
+                key: _questionKey,
+                loader: widget.questionLoader,
+                categoryId: widget.request!.draft.categoryId!,
+                answers: _categoryAnswers,
+                onChanged: (answers) =>
+                    setState(() => _categoryAnswers = answers),
+              ),
             SizedBox(height: metrics.geometry(10)),
             _ApprovedResponsiveGrid(
               preserveColumnsAtNormalScale: true,
@@ -3259,10 +3371,10 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _ApprovedPanelTitle(
+          _ApprovedPanelTitle(
             iconAsset: _categoryIcon,
             title: 'Category',
-            optional: true,
+            optional: widget.onSelected == null,
           ),
           SizedBox(height: metrics.geometry(4)),
           Text('This avoids mismatch.', style: _smallStyle(context)),

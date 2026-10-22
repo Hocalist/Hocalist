@@ -365,6 +365,18 @@ void main() {
       );
     });
 
+    test('rejected active listings stay private across persistence', () async {
+      transport.handler = (call) => data(
+        pageJson([listingJson(status: 'active', moderationStatus: 'rejected')]),
+      );
+      final listing = (await backend.loadListings()).single;
+      expect(listing.rejected, isTrue);
+      expect(listing.isPubliclyVisible, isFalse);
+      final restored = LocalStoreListing.fromJson(listing.toJson()).copyWith();
+      expect(restored.rejected, isTrue);
+      expect(restored.isPubliclyVisible, isFalse);
+    });
+
     test(
       'loads and maps listings with category identity and revision',
       () async {

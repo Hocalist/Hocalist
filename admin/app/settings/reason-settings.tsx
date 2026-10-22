@@ -56,7 +56,7 @@ export function ReasonSettings() {
  return <section className="section"><button disabled={busy || !!retry} onClick={() => void load()}>Refresh settings</button>{message && <p role="status">{message}</p>}
  <form className="form-grid" onSubmit={e => { e.preventDefault(); void save({ code: code.trim(), label: label.trim(), active: true, expected_revision: items.find(r => r.code === code.trim())?.revision, sort_order: items.find(r => r.code === code.trim())?.sort_order ?? items.length }); }}>
  <fieldset disabled={busy || !!retry || !loaded} style={{ display: "contents" }}>
- <label>Reason code<input required pattern="[a-z_]{1,40}" maxLength={40} value={code} onChange={e => setCode(e.target.value)} /></label>
+ <label>Reason code<input aria-describedby="reason-code-help" title="Use lowercase letters and underscores only, for example account_help." required pattern="[a-z_]{1,40}" maxLength={40} value={code} onChange={e => setCode(e.target.value)} /><small id="reason-code-help">Use lowercase letters and underscores only, for example account_help. Users see the display label instead.</small></label>
  <label>Display label<input required maxLength={100} value={label} onChange={e => setLabel(e.target.value)} /></label>
  <div className="form-actions"><button className="primary" disabled={busy || !!retry || !loaded}>Save reason</button></div>
  </fieldset></form>

@@ -1,3 +1,4 @@
+import '../domain/phase2/category_answers.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -514,8 +515,10 @@ class LocalStoreListing {
     required this.availability,
     required this.status,
     this.categoryId,
+    this.categoryAnswers = const [],
     this.revision = 0,
     this.pendingReview = false,
+    this.rejected = false,
     this.pendingSync = false,
     this.imageAsset,
     this.imageCount = 0,
@@ -540,8 +543,10 @@ class LocalStoreListing {
         orElse: () => LocalListingStatus.draft,
       ),
       categoryId: json['categoryId'] as String?,
+      categoryAnswers: CategoryAnswer.decode(json['categoryAnswers']),
       revision: (json['revision'] as num?)?.toInt() ?? 0,
       pendingReview: (json['pendingReview'] as bool?) ?? false,
+      rejected: (json['rejected'] as bool?) ?? false,
       pendingSync: (json['pendingSync'] as bool?) ?? false,
       imageAsset: json['imageAsset'] as String?,
       imageCount: (json['imageCount'] as num?)?.toInt() ?? 0,
@@ -563,6 +568,7 @@ class LocalStoreListing {
   /// Authoritative catalogue category id in real mode, or null for legacy
   /// free-text prototype records. Never derived from the label.
   final String? categoryId;
+  final List<CategoryAnswer> categoryAnswers;
 
   /// Authoritative server revision in real mode; 0 when unknown.
   final int revision;
@@ -570,6 +576,9 @@ class LocalStoreListing {
   /// True while the server moderation decision is still pending. A pending
   /// listing is not publicly visible even when its status is active.
   final bool pendingReview;
+
+  /// Rejected listings remain private even when publication was requested.
+  final bool rejected;
 
   /// True while a real-mode write is still in flight or its outcome is
   /// ambiguous. Pending rows are never described as persisted.
@@ -584,7 +593,7 @@ class LocalStoreListing {
 
   /// True only when the server has approved the listing and it is active.
   bool get isPubliclyVisible =>
-      status == LocalListingStatus.active && !pendingReview;
+      status == LocalListingStatus.active && !pendingReview && !rejected;
 
   LocalStoreListing copyWith({
     String? id,
@@ -594,8 +603,10 @@ class LocalStoreListing {
     String? description,
     String? category,
     String? categoryId,
+    List<CategoryAnswer>? categoryAnswers,
     int? revision,
     bool? pendingReview,
+    bool? rejected,
     bool? pendingSync,
     String? serviceArea,
     String? availability,
@@ -612,8 +623,10 @@ class LocalStoreListing {
       description: description ?? this.description,
       category: category ?? this.category,
       categoryId: categoryId ?? this.categoryId,
+      categoryAnswers: categoryAnswers ?? this.categoryAnswers,
       revision: revision ?? this.revision,
       pendingReview: pendingReview ?? this.pendingReview,
+      rejected: rejected ?? this.rejected,
       pendingSync: pendingSync ?? this.pendingSync,
       serviceArea: serviceArea ?? this.serviceArea,
       availability: availability ?? this.availability,
@@ -632,8 +645,10 @@ class LocalStoreListing {
     'description': description,
     'category': category,
     'categoryId': categoryId,
+    'categoryAnswers': categoryAnswers.map((a) => a.toJson()).toList(),
     'revision': revision,
     'pendingReview': pendingReview,
+    'rejected': rejected,
     'pendingSync': pendingSync,
     'serviceArea': serviceArea,
     'availability': availability,
@@ -1773,9 +1788,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       );
     }
     if (_chatSending) {
-      return const ChatSendResult.failure(
-        'A message is already being sent.',
-      );
+      return const ChatSendResult.failure('A message is already being sent.');
     }
     final pending = _pendingChatAttachments[conversationId];
     if (pending != null && !_sameAttachmentIntent(pending, text, mediaIds)) {
@@ -2243,8 +2256,12 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     final MarketplaceRequestReopenBackend reopenBackend =
         backend as MarketplaceRequestReopenBackend;
     final controller = _reopenIntent ??= RequestReopenIntentController(
-      reopen: ({required requestId, required expectedRevision, required operationKey}) =>
-          reopenBackend.reopenRequest(
+      reopen:
+          ({
+            required requestId,
+            required expectedRevision,
+            required operationKey,
+          }) => reopenBackend.reopenRequest(
             requestId: requestId,
             expectedRevision: expectedRevision,
             operationKey: operationKey,
@@ -2253,7 +2270,10 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         if (!_disposed) _upsertBuyerRequest(request);
       },
     );
-    return controller.run(requestId: requestId, expectedRevision: expectedRevision);
+    return controller.run(
+      requestId: requestId,
+      expectedRevision: expectedRevision,
+    );
   }
 
   RequestReopenIntentController? _reopenIntent;

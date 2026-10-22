@@ -3456,6 +3456,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final result = await showPlaceCaptureSheet(
       context: context,
       places: _placesRepository,
+      loadAreas: widget.accountSession == null ? null : _loadConfiguredAreas,
       mapBuilder: _placesRepository == null || !mapSdkAvailable
           ? null
           : buildGoogleMapSurface,
@@ -3469,6 +3470,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       latitude: result.latitude,
       longitude: result.longitude,
     );
+  }
+
+  Future<List<String>> _loadConfiguredAreas() async {
+    final result = await createMarketplaceDataAdapter(
+      client: Supabase.instance.client,
+    ).fetchLocations();
+    if (result.isFailure) throw StateError('Areas unavailable');
+    return result.valueOrNull!.items
+        .where((area) => area.isActive)
+        .map((area) => area.label)
+        .toSet()
+        .toList(growable: false);
   }
 
   Future<RequestLocation?> _chooseRequestLocation(
@@ -3501,6 +3514,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               source: PlaceCaptureSource.manual,
             ),
       places: _placesRepository,
+      loadAreas: widget.accountSession == null ? null : _loadConfiguredAreas,
       mapBuilder: _placesRepository == null || !mapSdkAvailable
           ? null
           : buildGoogleMapSurface,

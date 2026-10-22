@@ -63,6 +63,7 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
   HocalistMapBuilder? mapBuilder,
   LocationReader? locationReader,
   PlaceCaptureResult? initial,
+  Future<List<String>> Function()? loadAreas,
 }) {
   if (kIsWeb) {
     // ModalBottomSheetRoute adds an opaque semantics node over HTML platform
@@ -86,6 +87,7 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
             mapBuilder: mapBuilder,
             locationReader: locationReader,
             initial: initial,
+            loadAreas: loadAreas,
           ),
         ),
       ),
@@ -111,6 +113,7 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
       mapBuilder: mapBuilder,
       locationReader: locationReader,
       initial: initial,
+      loadAreas: loadAreas,
     ),
   );
 }
@@ -121,6 +124,7 @@ class PlaceCaptureSheet extends StatefulWidget {
     this.mapBuilder,
     this.locationReader,
     this.initial,
+    this.loadAreas,
     super.key,
   });
 
@@ -128,6 +132,7 @@ class PlaceCaptureSheet extends StatefulWidget {
   final HocalistMapBuilder? mapBuilder;
   final LocationReader? locationReader;
   final PlaceCaptureResult? initial;
+  final Future<List<String>> Function()? loadAreas;
 
   @override
   State<PlaceCaptureSheet> createState() => _PlaceCaptureSheetState();
@@ -149,10 +154,13 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
   bool _locating = false;
   String? _locationError;
   bool _manual = false;
+  List<String> _areas = const [];
+  bool _areasFailed = false;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadAreas());
     final initial = widget.initial;
     if (initial != null) {
       _confirmed = initial;
@@ -172,6 +180,22 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
   }
 
   bool get _searchAvailable => widget.places != null;
+
+  Future<void> _loadAreas() async {
+    final load = widget.loadAreas;
+    if (load == null) return;
+    try {
+      final areas = await load();
+      if (mounted) {
+        setState(() {
+          _areas = areas;
+          _areasFailed = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _areasFailed = true);
+    }
+  }
 
   void _onQueryChanged(String value) {
     _debounce?.cancel();
@@ -799,6 +823,47 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                     active: confirmed != null || _manual ? 1 : 0,
                   ),
                   SizedBox(height: metrics.spacing(16)),
+                  if (_areas.isNotEmpty && _searchAvailable) ...[
+                    Text(
+                      'Suggested areas',
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                      ),
+                    ),
+                    SizedBox(height: metrics.spacing(6)),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        for (final area in _areas)
+                          ActionChip(
+                            label: Text(area),
+                            onPressed: () {
+                              _queryController.text = area;
+                              _onQueryChanged(area);
+                              setState(() {});
+                            },
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: metrics.spacing(10)),
+                    Text(
+                      'Choose an area to search, then confirm the exact place.',
+                      style: BuyerTypography.style(
+                        context,
+                        metrics,
+                        BuyerTextRole.secondaryBody,
+                      ),
+                    ),
+                    SizedBox(height: metrics.spacing(10)),
+                  ],
+                  if (_areasFailed)
+                    TextButton(
+                      onPressed: _loadAreas,
+                      child: const Text('Reload suggested areas'),
+                    ),
                   TextField(
                     key: const Key('hocalistPlaceSearchField'),
                     controller: _queryController,

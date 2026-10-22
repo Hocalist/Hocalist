@@ -40,6 +40,7 @@ export function CatalogueActions({
   const [scope, setScope] = useState("product");
   const [parentId, setParentId] = useState("");
   const [selectionMode, setSelectionMode] = useState("single");
+  const [required, setRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export function CatalogueActions({
     intent.current.acknowledged();
     setRetry(null);
     setLabel("");
+    setRequired(false);
     setEditing(null);setEditorOpen(false);setMessage("Saved. The catalogue was refreshed.");
     router.refresh();
   }
@@ -94,7 +96,7 @@ export function CatalogueActions({
         category_id: parentId,
         label: label.trim(),
         selection_mode: selectionMode,
-        is_required: false,
+        is_required: required,
         sort_order: 0,
       });
     } else {
@@ -189,6 +191,7 @@ export function CatalogueActions({
             </select>
           </label>
         ) : null}
+        {entryType === "group" ? <label><input type="checkbox" checked={required} onChange={event => setRequired(event.target.checked)} /> Require an answer in buyer requests and seller listings</label> : null}
         <label>
           Label
           <input

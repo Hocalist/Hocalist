@@ -11,6 +11,8 @@
 /// pricing policy or plan limits; those stay server-controlled.
 library;
 
+import 'category_answers.dart';
+
 import 'common.dart';
 
 enum ListingKind { product, service }
@@ -45,6 +47,7 @@ class StoreListing {
     required String priceLabel,
     this.serviceArea = '',
     this.availability = '',
+    this.categoryAnswers = const [],
     List<String> imageMediaIds = const [],
     required this.status,
     required this.moderationStatus,
@@ -91,6 +94,7 @@ class StoreListing {
   final String serviceArea;
 
   final String availability;
+  final List<CategoryAnswer> categoryAnswers;
   final List<String> imageMediaIds;
 
   /// Server-owned publication state; never set by a client command.
@@ -116,6 +120,7 @@ class StoreListing {
     String? priceLabel,
     String? serviceArea,
     String? availability,
+    List<CategoryAnswer>? categoryAnswers,
     List<String>? imageMediaIds,
     ListingStatus? status,
     ListingModerationStatus? moderationStatus,
@@ -134,6 +139,7 @@ class StoreListing {
       priceLabel: priceLabel ?? this.priceLabel,
       serviceArea: serviceArea ?? this.serviceArea,
       availability: availability ?? this.availability,
+      categoryAnswers: categoryAnswers ?? this.categoryAnswers,
       imageMediaIds: imageMediaIds ?? this.imageMediaIds,
       status: status ?? this.status,
       moderationStatus: moderationStatus ?? this.moderationStatus,
@@ -182,6 +188,7 @@ class PublicStoreListing {
     required String priceLabel,
     this.serviceArea = '',
     this.availability = '',
+    this.categoryAnswers = const [],
     List<String> imageMediaIds = const [],
     DateTime? publishedAt,
   }) : id = requireNonBlank(id, 'id'),
@@ -208,6 +215,7 @@ class PublicStoreListing {
   final String priceLabel;
   final String serviceArea;
   final String availability;
+  final List<CategoryAnswer> categoryAnswers;
   final List<String> imageMediaIds;
   final DateTime? publishedAt;
 
@@ -265,6 +273,7 @@ class CreateStoreListingCommand {
     required String priceLabel,
     this.serviceArea = '',
     this.availability = '',
+    this.categoryAnswers = const [],
     List<String> imageMediaIds = const [],
     this.publishIntent = ListingPublishIntent.draft,
     required String idempotencyKey,
@@ -281,6 +290,7 @@ class CreateStoreListingCommand {
   final String priceLabel;
   final String serviceArea;
   final String availability;
+  final List<CategoryAnswer> categoryAnswers;
   final List<String> imageMediaIds;
 
   /// Draft save or publish request; the server decides the final status.
@@ -304,6 +314,7 @@ class UpdateStoreListingCommand {
     required String priceLabel,
     this.serviceArea = '',
     this.availability = '',
+    this.categoryAnswers = const [],
     List<String> imageMediaIds = const [],
     required String idempotencyKey,
   }) : listingId = requireNonBlank(listingId, 'listingId'),
@@ -329,6 +340,7 @@ class UpdateStoreListingCommand {
   final String priceLabel;
   final String serviceArea;
   final String availability;
+  final List<CategoryAnswer> categoryAnswers;
   final List<String> imageMediaIds;
   final String idempotencyKey;
 }

@@ -157,6 +157,7 @@ Future<_Capture> _openSheet(
                   mapBuilder: sheet.mapBuilder,
                   locationReader: sheet.locationReader,
                   initial: sheet.initial,
+                  loadAreas: sheet.loadAreas,
                 );
                 results.add(result);
               },
@@ -173,6 +174,24 @@ Future<_Capture> _openSheet(
 }
 
 void main() {
+  testWidgets('configured areas start a search without confirming an address', (
+    tester,
+  ) async {
+    await _openSheet(
+      tester,
+      PlaceCaptureSheet(
+        places: PlacesRepository(transport: _StubTransport()),
+        loadAreas: () async => ['TEST configured area'],
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('TEST configured area'), findsOneWidget);
+    await tester.tap(find.text('TEST configured area'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('Cross County Mall'), findsWidgets);
+    expect(find.text('123 Synthetic Ave'), findsNothing);
+  });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
       testWidgets('place sheet fits $width at $scale', (tester) async {
