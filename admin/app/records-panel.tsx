@@ -4,10 +4,13 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { adminRpc } from "./lib/admin-client";
 import { decodeRecordPage, RECORDS, type RecordPage, type RecordResource } from "./lib/admin-records";
 import { Status } from "./components";
+import {useSearchParams} from "next/navigation";
 import { RecordDetails } from "./record-details";
+import {ResourceSummary} from "./workspace-panels";
 
 export function RecordsPanel({ resource }: { resource: RecordResource }) {
   const definition = RECORDS[resource];
+  const searchParams=useSearchParams();const requestedId=searchParams.get("record");
   const [page, setPage] = useState<RecordPage | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -16,7 +19,7 @@ export function RecordsPanel({ resource }: { resource: RecordResource }) {
   const [signedOut, setSignedOut] = useState(false);
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const generation = useRef(0);
-  const filters = useRef({ query: "", status: "" });
+  const filters = useRef({ query: requestedId||"", status: "" });
 
   async function fetchPage(cursor: string | null, append = false) {
     const current = ++generation.current;
@@ -38,16 +41,17 @@ export function RecordsPanel({ resource }: { resource: RecordResource }) {
     const decoded = decodeRecordPage(result.data);
     if (!decoded) { setError("The backend returned an invalid records page."); return; }
     setSignedOut(false);
+    if(requestedId&&decoded.items.some(row=>row.id===requestedId))setSelectedId(requestedId);
     setPage(previous => append && previous ? {
       items: [...previous.items, ...decoded.items.filter(row => !previous.items.some(old => old.id === row.id))],
       next_cursor: decoded.next_cursor === cursor ? null : decoded.next_cursor,
     } : decoded);
   }
-  useEffect(() => { void fetchPage(null); return () => { ++generation.current; }; }, [resource]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { filters.current={query:requestedId||"",status:""};setQuery(requestedId||"");setStatus("");setPage(null);void fetchPage(null); return () => { ++generation.current; }; }, [resource,requestedId]); // eslint-disable-line react-hooks/exhaustive-deps
   function search(event: FormEvent) {
     event.preventDefault(); filters.current = {query: query.trim(), status}; setPage(null); void fetchPage(null);
   }
-  return <>
+  return <><ResourceSummary resource={resource}/><div className="section-tabs" role="group" aria-label="Record status shortcuts"><button aria-pressed={status===""} disabled={busy} onClick={()=>{setStatus("");filters.current={query:query.trim(),status:""};setPage(null);void fetchPage(null);}}>All records</button>{definition.statuses.slice(0,4).map(value=><button key={value} disabled={busy} aria-pressed={status===value} onClick={()=>{setStatus(value);filters.current={query:query.trim(),status:value};setPage(null);void fetchPage(null);}}>{value.replaceAll("_"," ")}</button>)}</div>
     <form className="filters" onSubmit={search}>
       <label><span>⌕</span><input aria-label="Search records" maxLength={100} placeholder="Search displayed fields or ID" value={query} onChange={e=>setQuery(e.target.value)}/></label>
       <select aria-label="Filter status" value={status} onChange={e=>setStatus(e.target.value)}><option value="">All statuses</option>{definition.statuses.map(s=><option key={s} value={s}>{s}</option>)}</select>

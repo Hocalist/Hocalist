@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 
+import { SectionTabs } from "../../section-tabs";
 import { adminRpc, creditAdminCommand } from "../../lib/admin-client";
 import {
   beginDepositOptionEdit,
@@ -230,7 +231,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </div>
       )}
 
-      <h2>Deposit options</h2>
+      <SectionTabs label="Deposit and reward settings" sections={[{title:"Deposit options",content:<><h2>Deposit options</h2>
       <p>
         A deposit option is the admin-managed amount and the fee rates frozen into
         each new batch at purchase. Editing or retiring an option never reprices an
@@ -393,7 +394,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </fieldset>
       </form>
 
-      <h2>Buyer reward policy</h2>
+      </>},{title:"Buyer rewards",content:<><h2>Buyer reward policy</h2>
       {config.reward_policy === null ? (
         <div className="demo-notice">
           <strong>Reward policy not configured</strong>
@@ -477,7 +478,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </fieldset>
       </form>
 
-      <div className="boundary">
+      </>}]} /><div className="boundary">
         <strong>Immutable batch rates</strong>
         <span>
           Historical batches and open reservations keep the rates recorded at

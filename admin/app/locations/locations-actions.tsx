@@ -5,10 +5,12 @@ import { useRef, useState, type FormEvent } from "react";
 
 import { adminCommand } from "../lib/admin-client";
 import type { AdminLocation } from "../lib/admin-data";
+import { WorkspaceDrawer } from "../workspace-drawer";
 import { AdminIntent } from "../lib/admin-intent";
 
 export function LocationsActions({ locations, timezones }: { locations: AdminLocation[]; timezones: string[] }) {
   const router = useRouter();
+  const [editorOpen,setEditorOpen]=useState(false),[query,setQuery]=useState("");
   const [label, setLabel] = useState("");
   const [countryCode, setCountryCode] = useState("US");
   const [region, setRegion] = useState("");
@@ -53,7 +55,7 @@ export function LocationsActions({ locations, timezones }: { locations: AdminLoc
     setRegion("");
     setCity("");
     setTimezone("");
-    setMessage("Saved.");
+    setEditorOpen(false);setMessage("Saved.");
     router.refresh();
   }
 
@@ -67,7 +69,7 @@ export function LocationsActions({ locations, timezones }: { locations: AdminLoc
   }
 
   function edit(location: AdminLocation) {
-    setEditing(location); setLabel(location.label); setCountryCode(location.country_code);
+    setEditorOpen(true);setEditing(location); setLabel(location.label); setCountryCode(location.country_code);
     setRegion(location.region ?? ""); setCity(location.city ?? "");
     setTimezone(location.timezone_id ?? ""); setMessage(null);
   }
@@ -75,9 +77,9 @@ export function LocationsActions({ locations, timezones }: { locations: AdminLoc
   return (
     <section className="section">
       <div className="section-title">
-        <h2>{editing ? "Edit location" : "Add location"}</h2>
+        <h2>Markets</h2><button className="primary" disabled={busy||!!retry} onClick={()=>setEditorOpen(true)}>Add market</button>
       </div>
-      <form className="form-grid" onSubmit={submit}>
+      <WorkspaceDrawer title={editing?"Edit market":"Add market"} open={editorOpen} locked={busy||!!retry} onClose={()=>setEditorOpen(false)}><form className="form-grid" onSubmit={submit}>
         <fieldset disabled={busy || !!retry} style={{display:"contents"}}>
         <label>
           Country code
@@ -135,7 +137,7 @@ export function LocationsActions({ locations, timezones }: { locations: AdminLoc
         <button disabled={busy} onClick={()=>void execute(retry.operation,retry.input)}>Retry same change</button>
         <button disabled={busy} onClick={()=>{intent.current.acknowledged();setRetry(null);setEditing(null);setLabel("");setMessage("Retry discarded. Check refreshed records before creating another change; a previous save may have succeeded.");router.refresh();}}>Discard retry and refresh</button>
       </div>}
-      <div className="table-card">
+      </WorkspaceDrawer><div className="filters"><label><input aria-label="Search markets" placeholder="Search markets…" value={query} onChange={e=>setQuery(e.target.value)}/></label></div><div className="table-card">
         <div className="table-scroll">
           <table>
             <thead>
@@ -152,7 +154,7 @@ export function LocationsActions({ locations, timezones }: { locations: AdminLoc
               </tr>
             </thead>
             <tbody>
-              {locations.map((location) => (
+              {locations.filter(l=>[l.label,l.country_code,l.region,l.city,l.timezone_id,l.status].join(" ").toLowerCase().includes(query.toLowerCase())).map((location) => (
                 <tr key={location.id}>
                   <td>
                     <strong>{location.label}</strong>

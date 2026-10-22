@@ -4,6 +4,7 @@ import Link from "next/link";
 import { adminRpc } from "./lib/admin-client";
 import { decodeOverview, OVERVIEW_LABELS } from "./lib/admin-records";
 import { Stat } from "./components";
+import {DashboardActivity} from "./workspace-panels";
 
 const METRIC_LINKS: Record<keyof typeof OVERVIEW_LABELS, string> = {
   active_memberships: "/users",
@@ -33,12 +34,12 @@ const QUEUES = [
   {
     href: "/events",
     title: "Failed provider events",
-    body: "Stripe TEST receipt and reconciliation events that still need attention, with sanitized error classes. Email bounce ingestion is not connected.",
+    body: "Review Stripe TEST events that still need attention.",
   },
   {
     href: "/billing/config",
     title: "Commercial configuration",
-    body: "Admin-managed deposit options and buyer reward policy with carried revisions. No rate is seeded or invented.",
+    body: "Manage deposit options and buyer reward policy. Existing purchases retain their recorded rates.",
   },
   {
     href: "/audit",
@@ -66,7 +67,7 @@ export function OverviewPanel() {
     {busy&&<p role="status">Loading overview…</p>}
     {error&&<div role="alert" className="demo-notice"><span>{error}</span><Link href="/login">Sign in</Link></div>}
     {data&&<div className="stats">{Object.entries(OVERVIEW_LABELS).map(([key,label])=><Stat key={key} label={label} value={String(data[key as keyof typeof data])} note={key==="test_subscriptions"?"Stripe test mode only":key==="listings_in_review"?"Needs an admin decision":"Current recorded state"} href={METRIC_LINKS[key as keyof typeof data]}/>)}</div>}
-    <section className="section">
+    <DashboardActivity/><section className="section">
       <div className="section-title"><h2>Review queues</h2></div>
       <div className="overview-queues">
         {QUEUES.map(queue=><article key={queue.href} className="overview-queue">
