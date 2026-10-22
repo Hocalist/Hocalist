@@ -2,11 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminRpc } from '../lib/admin-client';
 import { AdminIntent } from '../lib/admin-intent';
+import {WorkspaceDrawer} from '../workspace-drawer';
 type Case = {id:string;reason:string;body:string;status:string;response:string|null;revision:number};
 export function SupportPanel(){
  const [cases,setCases]=useState<Case[]>([]),[cursor,setCursor]=useState<string|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
  const [selected,setSelected]=useState<Case|null>(null),[status,setStatus]=useState('in_review'),[response,setResponse]=useState('');
+ const [query,setQuery]=useState(''),[filter,setFilter]=useState('');
  const intent=useRef(new AdminIntent()),generation=useRef(0),inFlight=useRef(false);
  const [retry,setRetry]=useState<Record<string,unknown>|null>(null);
   async function load(more=false){
@@ -35,14 +37,14 @@ export function SupportPanel(){
  return <section className="section">
   <button disabled={busy||!!retry} onClick={()=>void load()}>Refresh reports</button>
   {busy&&<p role="status">Loading…</p>}{error&&<p role="alert">{error}</p>}
-  {selected&&<form className="form-grid" onSubmit={e=>{e.preventDefault();void save();}}>
+  <div className="filters"><label><input aria-label="Search loaded reports" placeholder="Search loaded reports…" value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label="Report status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">All statuses</option><option value="open">Open</option><option value="in_review">In review</option><option value="resolved">Resolved</option></select></div><WorkspaceDrawer title="Review report" open={!!selected} locked={busy||!!retry} onClose={()=>setSelected(null)}>{selected&&<form className="form-grid" onSubmit={e=>{e.preventDefault();void save();}}>
    <div><h2>{selected.reason}</h2><p>Case {selected.id}</p><p style={{whiteSpace:'pre-wrap'}}>{selected.body}</p></div>
    <label>Status<select disabled={busy||!!retry} value={status} onChange={e=>setStatus(e.target.value)}><option value="open">Open</option><option value="in_review">In review</option><option value="resolved">Resolved</option></select></label>
    <label>Response to reporter<textarea required maxLength={4000} rows={5} disabled={busy||!!retry} value={response} onChange={e=>setResponse(e.target.value)}/></label>
    <div className="form-actions"><button disabled={busy||!response.trim()} className="primary">{retry?'Retry response':'Save response'}</button><button type="button" disabled={busy} onClick={()=>{intent.current.acknowledged();setRetry(null);setSelected(null);void load();}}>{retry?'Discard retry and refresh':'Cancel'}</button></div>
   </form>}
-  {!busy&&!cases.length&&!error&&<p>No reports submitted.</p>}
-  <div className="table-card"><div className="table-scroll"><table><thead><tr><th>Case</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead><tbody>{cases.map(c=><tr key={c.id}><td>{c.id}</td><td>{c.reason}</td><td>{c.status}</td><td><button disabled={busy||!!retry} onClick={()=>{setSelected(c);setStatus(c.status);setResponse(c.response??'');}}>Review</button></td></tr>)}</tbody></table></div></div>
+  {error&&<p role="alert">{error}</p>}</WorkspaceDrawer>{!busy&&!cases.length&&!error&&<p>No reports submitted.</p>}
+  <div className="table-card"><div className="table-scroll"><table><thead><tr><th>Case</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead><tbody>{cases.filter(c=>(!filter||c.status===filter)&&[c.id,c.reason,c.body].join(" ").toLowerCase().includes(query.toLowerCase())).map(c=><tr key={c.id}><td>{c.id}</td><td>{c.reason}</td><td>{c.status}</td><td><button disabled={busy||!!retry} onClick={()=>{setSelected(c);setStatus(c.status);setResponse(c.response??'');}}>Review</button></td></tr>)}</tbody></table></div></div>
   {cursor&&<button disabled={busy} onClick={()=>void load(true)}>Load more</button>}
  </section>;
 }

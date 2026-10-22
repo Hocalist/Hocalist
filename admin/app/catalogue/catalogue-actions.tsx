@@ -5,6 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import { adminCommand } from "../lib/admin-client";
 import type { AdminCatalogueCategory } from "../lib/admin-data";
+import { WorkspaceDrawer } from "../workspace-drawer";
 import { AdminIntent } from "../lib/admin-intent";
 
 type EntryType = "category" | "group" | "option";
@@ -32,6 +33,8 @@ export function CatalogueActions({
   categories: AdminCatalogueCategory[];
 }) {
   const router = useRouter();
+  const [editorOpen,setEditorOpen]=useState(false);
+  const [editing,setEditing]=useState<AdminCatalogueCategory|null>(null),[query,setQuery]=useState("");
   const [entryType, setEntryType] = useState<EntryType>("category");
   const [label, setLabel] = useState("");
   const [scope, setScope] = useState("product");
@@ -68,13 +71,14 @@ export function CatalogueActions({
     intent.current.acknowledged();
     setRetry(null);
     setLabel("");
-    setMessage("Saved. The catalogue was refreshed.");
+    setEditing(null);setEditorOpen(false);setMessage("Saved. The catalogue was refreshed.");
     router.refresh();
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!label.trim() || busy || retry) return;
+    if(editing){await execute("category.update",{category_id:editing.id,expected_revision:editing.revision,label:label.trim(),scope,parent_id:editing.parent_id,slug:editing.slug,sort_order:editing.sort_order});return;}
     if (entryType === "category") {
       await execute("category.create", {
         label: label.trim(),
@@ -124,14 +128,14 @@ export function CatalogueActions({
   return (
     <section className="section">
       <div className="section-title">
-        <h2>Add catalogue entry</h2>
+        <h2>Catalogue entries</h2>
       </div>
-      <form className="form-grid" onSubmit={submit}>
+      <button className="primary" disabled={busy||!!retry} onClick={()=>{setEditing(null);setLabel("");setEditorOpen(true)}}>Add catalogue entry</button><WorkspaceDrawer title={editing?"Edit category":"Add catalogue entry"} open={editorOpen} locked={busy||!!retry} onClose={()=>setEditorOpen(false)}><form className="form-grid" onSubmit={submit}>
         <fieldset disabled={busy || !!retry} style={{ display: "contents" }}>
         <label>
           Entry type
           <select
-            value={entryType}
+            value={entryType} disabled={!!editing}
             onChange={(event) => {
               setEntryType(event.target.value as EntryType);
               setParentId("");
@@ -196,7 +200,7 @@ export function CatalogueActions({
         </label>
         <div className="form-actions">
           <button className="primary" type="submit" disabled={busy || !!retry}>
-            {busy ? "Saving…" : "Add entry"}
+            {busy ? "Saving…" : editing?"Save changes":"Add entry"}
           </button>
         </div>
         </fieldset>
@@ -229,7 +233,7 @@ export function CatalogueActions({
           </button>
         </div>
       )}
-      <div className="table-card">
+      </WorkspaceDrawer><div className="filters"><label><input aria-label="Search catalogue" placeholder="Search categories and options…" value={query} onChange={e=>setQuery(e.target.value)}/></label></div><div className="table-card">
         <div className="table-scroll">
           <table>
             <thead>
@@ -244,11 +248,12 @@ export function CatalogueActions({
               </tr>
             </thead>
             <tbody>
-              {categories.map((category) => (
+              {categories.filter(c=>JSON.stringify(c).toLowerCase().includes(query.toLowerCase())).map((category) => (
                 <CategoryRows
                   key={category.id}
                   category={category}
                   busy={busy || !!retry}
+                  onEdit={c=>{setEditing(c);setEntryType("category");setLabel(c.label);setScope(c.scope);setEditorOpen(true)}}
                   onStatus={setStatus}
                 />
               ))}
@@ -264,9 +269,11 @@ function CategoryRows({
   category,
   busy,
   onStatus,
+  onEdit,
 }: {
   category: AdminCatalogueCategory;
   busy: boolean;
+  onEdit:(category:AdminCatalogueCategory)=>void;
   onStatus: (
     type: "category" | "option_group" | "option",
     id: string,
@@ -284,7 +291,7 @@ function CategoryRows({
         <td>{category.status}</td>
         <td>{category.revision}</td>
         <td>
-          <StatusButton
+          <button disabled={busy} onClick={()=>onEdit(category)}>Edit</button><StatusButton
             busy={busy}
             status={category.status}
             onToggle={() =>

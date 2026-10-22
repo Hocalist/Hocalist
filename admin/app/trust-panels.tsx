@@ -11,6 +11,7 @@ import {
   trustErrorMessage,
   type ReviewQueue,
 } from "./lib/admin-trust";
+import {SectionTabs} from "./section-tabs";
 import { Stat } from "./components";
 
 function usd(minor: number): string {
@@ -229,7 +230,7 @@ export function TrustPanel() {
           </label>
           {evidenceNotice && <p role="status">{evidenceNotice}</p>}
 
-          <h3>Evidence submissions</h3>
+          <SectionTabs label="Trust review sections" sections={[{title:"Verification",content:<><h3>Evidence submissions</h3>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
             <select
               aria-label="Filter verification status"
@@ -338,7 +339,7 @@ export function TrustPanel() {
             </div>
           )}
 
-          <h3>Seller-health reports</h3>
+          </>},{title:"Account health",content:<><h3>Seller-health reports</h3>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
             <select
               aria-label="Filter health review state"
@@ -420,7 +421,7 @@ export function TrustPanel() {
             </div>
           )}
 
-          <h3>Restrictions and appeals</h3>
+          </>},{title:"Restrictions & appeals",content:<><h3>Restrictions and appeals</h3>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
             <select
               aria-label="Filter restriction status"
@@ -520,6 +521,7 @@ export function TrustPanel() {
               )}
             </div>
           )}
+          </>}]} />
         </>
       )}
       <div className="boundary">

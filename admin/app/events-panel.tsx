@@ -13,6 +13,7 @@ import {
   type FailedEventPage,
 } from "./lib/admin-events";
 
+import {WorkspaceDrawer} from "./workspace-drawer";
 type Loaded = { page: FailedEventPage };
 
 export function EventsPanel() {
@@ -236,7 +237,7 @@ export function EventsPanel() {
               </footer>
             </div>
           )}
-          {detail && (
+          <WorkspaceDrawer title="Provider event details" open={!!detail} onClose={()=>setDetail(null)}>{detail && (
             <div className="ledger-detail">
               <h3>Event {detail.event_id}</h3>
               <dl className="detail-list">
@@ -255,7 +256,7 @@ export function EventsPanel() {
               </p>
             </div>
           )}
-        </>
+</WorkspaceDrawer>        </>
       )}
       <div className="boundary">
         <strong>Read-only operations</strong>

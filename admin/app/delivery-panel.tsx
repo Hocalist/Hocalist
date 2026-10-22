@@ -111,7 +111,7 @@ export function DeliveryPanel() {
         <strong>Delivery boundaries</strong>
         <span>
           This view is read-only: it never retries or deletes a delivery. The push
-          schedule is paused, no device token or notification content is shown,
+          schedule is managed separately, no device token or notification content is shown,
           and provider/device delivery is not proved by these counts.
         </span>
       </div>
