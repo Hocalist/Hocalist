@@ -1,4 +1,5 @@
 'use client';
+import { BrandLoading } from '../../brand-loading';
 import { useEffect, useRef, useState } from 'react';
 import { subscribeNativeBillingReentry } from '../../lib/native-billing-reentry';
 
@@ -29,8 +30,7 @@ export default function NativeBillingAdmission() {
     return stopReentry;
   }, []);
   return <main className="page-shell"><section className="card" aria-live="polite">
-    <h1>{failed ? 'Billing could not be opened' : 'Opening your seller billing account…'}</h1>
-    <p>{failed ? 'Return to Hocalist and open billing again for a fresh secure link.' : 'Please wait while we securely connect your account.'}</p>
+    {failed ? <><h1>Billing could not be opened</h1><p>Return to Hocalist and try opening billing again.</p></> : <BrandLoading label="Opening your billing account…" />}
     <a className="button secondary" href="com.hocalist.app://billing-return/">Return to app</a>
   </section></main>;
 }
