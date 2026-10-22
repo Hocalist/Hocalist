@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./design-tokens.css";
 import "./globals.css";
 import "./workspace.css";
 
