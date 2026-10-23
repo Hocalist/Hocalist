@@ -24,3 +24,5 @@
 :where(.canvas,.record-drawer) a{color:var(--primary)}
 :where(.canvas,.record-drawer) :where(h2){font-size:17px;font-weight:600;line-height:1.4}
 :where(.canvas,.record-drawer) :where(p){font-size:13px;line-height:1.7;color:var(--muted)}
+
+.request-posting-form{grid-template-columns:minmax(0,1fr);max-width:680px}.request-posting-form .form-actions{align-items:center}
