@@ -7,6 +7,7 @@
 // Only reviewed admin functions can be forwarded from the browser.
 export const ADMIN_RPC_ALLOWLIST = new Set([
   "call_admin_settings",
+  "admin_request_posting_settings",
   "admin_access_list",
   "admin_access_command",
   "support_list",
