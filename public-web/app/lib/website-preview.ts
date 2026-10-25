@@ -11,6 +11,7 @@ export type PreviewKind =
   | "populated"
   | "empty"
   | "pending"
+  | "pending-subscription"
   | "plans-disabled"
   | "subscription"
   | "old-completed-new-pending"
@@ -130,6 +131,9 @@ export function previewStatus(kind: string): { status: number; body: Record<stri
       };
     case "pending":
       return { status: 200, body: payload({ deposits: [openCheckout], selected: openCheckout }) };
+    case "pending-subscription":
+      return { status: 200, body: payload({ subscription: null, credit_purchase_allowed: true,
+        selected: { ...subscriptionCheckout, state: 'open' } }) };
     case "plans-disabled":
       return {
         status: 200,

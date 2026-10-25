@@ -123,9 +123,37 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
       const cancel = serviceUrl(config.cancel);
       await assertAccount(api);
 
+      // Recover a checkout retained on the server after browser storage is lost
+      // or another purchase type was selected. Only Stripe can prove expiry.
+      const begin = async (name: string, body: Record<string, unknown>) => {
+        try { return await api.rpc(name, body); }
+        catch (error) {
+          if (!(error instanceof BillingError) || error.code !== 'checkout_pending') throw error;
+          const pending = object(await api.rpc('stripe_test_pending_checkout', { p_user: user }));
+          const sameChoice = input.kind === pending.kind &&
+            (input.kind === 'credit_deposit' ? input.option === pending.option_id : input.plan === pending.plan_code);
+          if (!pending.session_id) {
+            if (!sameChoice) throw error;
+            return await api.rpc(name, { ...body, p_key: uuid(pending.request_key) });
+          }
+          const customer = String(pending.customer_id ?? '');
+          if (!/^cus_[A-Za-z0-9]+$/.test(customer)) throw error;
+          try {
+            await recoverSession(api, pending, customer);
+          } catch (recovery) {
+            if (recovery instanceof BillingError && recovery.code === 'checkout_closed') {
+              return await api.rpc(name, body);
+            }
+            throw recovery;
+          }
+          if (!sameChoice) throw error;
+          return await api.rpc(name, { ...body, p_key: uuid(pending.request_key) });
+        }
+      };
+
       if (input.kind === "credit_deposit") {
         const checkout = object(
-          await api.rpc("stripe_test_deposit_begin", {
+          await begin("stripe_test_deposit_begin", {
             p_user: user,
             p_option: input.option,
             p_key: input.key,
@@ -138,6 +166,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
         const session = await api.stripe("checkout/sessions", {
           mode: "payment",
           customer,
+          "invoice_creation[enabled]": "true",
           "payment_method_types[0]": "card",
           "line_items[0][price_data][currency]": "usd",
           "line_items[0][price_data][unit_amount]": String(amount),
@@ -169,7 +198,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
       }
 
       const checkout = object(
-        await api.rpc("stripe_test_checkout_begin", {
+        await begin("stripe_test_checkout_begin", {
           p_user: user,
           p_plan: input.plan,
           p_key: input.key,

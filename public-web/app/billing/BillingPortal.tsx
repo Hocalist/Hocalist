@@ -257,6 +257,10 @@ export default function BillingPortal({
         window.location.assign(body.url);
         return;
       }
+      if (body?.code === 'checkout_pending' && !intent.checkoutId) {
+        // A refused attempt created nothing; allow the retained checkout to resume.
+        writeIntent(browserStorage(), membershipId, null);
+      }
       if (response.status === 401) {
         setView({ kind: 'signed_out', message: body?.message });
         return;
@@ -403,7 +407,9 @@ export default function BillingPortal({
   const { subscription, options, deposits, plans, preview } = view.data;
   const plan = subscription?.plan ?? 'free';
   const activePaid = plan === 'pro' || plan === 'elite';
-  const openCheckout = deposits.find((checkout) => checkout.state === 'creating' || checkout.state === 'open');
+  const selectedPending = view.data.selected;
+  const openCheckout = selectedPending && ['creating', 'open'].includes(selectedPending.state)
+    ? selectedPending : deposits.find((checkout) => checkout.state === 'creating' || checkout.state === 'open');
 
   return (
     <section className="billing-section">
@@ -451,10 +457,18 @@ export default function BillingPortal({
           </article>
         </div>
         {openCheckout ? (
-          <p className="billing-message info" role="status">
+          <div className="billing-message info" role="status">
             A checkout is open right now. Complete it in the Stripe page, or choose the same option
             again to reopen the same session.
-          </p>
+            {(openCheckout.kind === 'subscription' && openCheckout.plan_code) ||
+             (openCheckout.kind === 'credit_deposit' && openCheckout.option_id) ? (
+              <button className="button secondary" type="button" disabled={action.busy !== null}
+                onClick={() => void startCheckout(openCheckout.kind === 'subscription' ? 'subscription' : 'credit_deposit',
+                  (openCheckout.kind === 'subscription' ? openCheckout.plan_code : openCheckout.option_id)!)}>
+                Resume checkout
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {action.message ? (
           <p className={`billing-message ${action.tone}`} role={action.tone === 'error' ? 'alert' : 'status'}>
