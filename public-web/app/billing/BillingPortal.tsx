@@ -1,6 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import PaygoPaymentSetup from './PaygoPaymentSetup';
+import BillingLoading from './BillingLoading';
+import {paygoReturn} from './paygo-return';
+import SellerBillingOverview, {type BillingEntitlement,type StandardRate} from './SellerBillingOverview';
+import CreditFundingDialog from './CreditFundingDialog';
+import PlanChangeDialog from './PlanChangeDialog';
+import {isCurrentPlan} from './plan-presentation';
+import PlanTargetingFees,{type PlanFeeRates} from './PlanTargetingFees';
+import SellerPlanIdentity from './SellerPlanIdentity';
+import PlanSelectionAction from './PlanSelectionAction';
 import { formatUsdMinor, parsePortalBody, safeReturnPath } from '../lib/website-rules';
 import {
   intentMatches,
@@ -11,7 +21,7 @@ import {
   type CheckoutRow
 } from '../lib/website-checkout';
 
-type PlanRow = { code: string; amount_minor: number; currency?: string; enabled: boolean };
+type PlanRow = { code: string; amount_minor: number; currency?: string; enabled: boolean; billing_interval?: 'month' | 'year' };
 type BillingOption = {
   id: string;
   amount_minor: number;
@@ -38,6 +48,13 @@ type StatusPayload = {
   deposits: CheckoutRow[];
   selected: CheckoutRow | null;
   credit_purchase_allowed: boolean;
+  effective_plan?: string;
+  trial_days?: number;
+  standard_deposits_enabled?: boolean;
+  entitlement?: BillingEntitlement;
+  standard_rates?: StandardRate[];
+  plan_fee_rates?: PlanFeeRates[];
+  subscription_price?: {amount_minor:number;currency:string;billing_interval:'month'|'year'};
 };
 
 type ViewState =
@@ -48,8 +65,8 @@ type ViewState =
   | { kind: 'ready'; data: StatusPayload };
 
 const PLAN_COPY: Record<string, { name: string; summary: string }> = {
-  pro: { name: 'Pro Seller', summary: '50 weekly customer targets and up to 15 Store listings.' },
-  elite: { name: 'Elite Seller', summary: '100 weekly customer targets and up to 50 Store listings.' }
+  pro: { name: 'Pro Seller', summary: 'Grow your customer reach with more listings and seller tools.' },
+  elite: { name: 'Elite Seller', summary: 'Expand your reach with advanced insights and the best targeting rates.' }
 };
 
 function browserStorage() {
@@ -82,6 +99,14 @@ export default function BillingPortal({
   const returnTo = safeReturnPath(requestedReturnTo);
   const [view, setView] = useState<ViewState>({ kind: 'loading' });
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<'month'|'year'>('month');
+  const [fundingOpen,setFundingOpen]=useState(false);
+  const [returningToCard,setReturningToCard]=useState(false);
+  useEffect(()=>{
+    const result=paygoReturn(new URL(window.location.href).searchParams);
+    if(result.setupId||result.cancelled){setReturningToCard(true);setFundingOpen(true);}
+  },[]);
+  const [planChange,setPlanChange]=useState<string|null>(null);
   const [action, setAction] = useState<{ busy: string | null; message: string | null; tone: 'info' | 'error' }>({
     busy: null,
     message: null,
@@ -93,6 +118,13 @@ export default function BillingPortal({
     const payload: StatusPayload = {
       state: 'ready',
       preview: body.preview === true,
+      effective_plan: typeof body.effective_plan === 'string' ? body.effective_plan : undefined,
+      trial_days: body.trial_days === 14 ? 14 : 0,
+      standard_deposits_enabled: body.standard_deposits_enabled === true,
+      entitlement: body.entitlement && typeof body.entitlement==='object' ? body.entitlement as BillingEntitlement : undefined,
+      standard_rates: Array.isArray(body.standard_rates) ? body.standard_rates as StandardRate[] : [],
+      plan_fee_rates: Array.isArray(body.plan_fee_rates) ? body.plan_fee_rates as PlanFeeRates[] : [],
+      subscription_price: body.subscription_price && typeof body.subscription_price==='object' ? body.subscription_price as StatusPayload['subscription_price'] : undefined,
       account: (body.account as StatusPayload['account']) ?? null,
       plans: Array.isArray(body.plans) ? (body.plans as PlanRow[]) : [],
       options: Array.isArray(body.options) ? (body.options as BillingOption[]) : [],
@@ -226,7 +258,11 @@ export default function BillingPortal({
       return;
     }
     const membershipId = membershipRef.current;
-    const existing = readIntent(browserStorage(), membershipId);
+    let existing = readIntent(browserStorage(), membershipId);
+    if (kind === 'subscription') {
+      if (!value.includes(':')) value += ':month';
+      if (existing?.kind === 'subscription' && !existing.value.includes(':')) existing = {...existing,value:`${existing.value}:month`};
+    }
     if (existing && !intentMatches(existing, kind, value)) {
       setAction({
         busy: null,
@@ -244,8 +280,8 @@ export default function BillingPortal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           kind === 'subscription'
-            ? { kind, plan: value, idempotencyKey: intent.key }
-            : { kind, optionId: value, idempotencyKey: intent.key }
+            ? { kind, plan: value.split(':')[0], interval: value.split(':')[1], idempotencyKey: intent.key }
+            : { kind, ...(value.startsWith('standard:')?{amountMinor:Number(value.slice(9))}:{optionId:value}), idempotencyKey: intent.key }
         )
       });
       const body = await response.json().catch(() => null);
@@ -256,6 +292,10 @@ export default function BillingPortal({
         });
         window.location.assign(body.url);
         return;
+      }
+      if (body?.code === 'checkout_pending' && !intent.checkoutId) {
+        // A refused attempt created nothing; allow the retained checkout to resume.
+        writeIntent(browserStorage(), membershipId, null);
       }
       if (response.status === 401) {
         setView({ kind: 'signed_out', message: body?.message });
@@ -314,8 +354,7 @@ export default function BillingPortal({
     return (
       <section className="billing-section" aria-busy="true">
         <div className="billing-card billing-loading">
-          <span className="status-chip">Checking billing status</span>
-          <p>Loading your seller plan and credit pack options…</p>
+          <BillingLoading label="Loading your plan and credits…" />
         </div>
       </section>
     );
@@ -328,9 +367,8 @@ export default function BillingPortal({
           <p className="eyebrow">Seller account</p>
           <h1>Sign in to manage your seller plan and credits</h1>
           <p>
-            Purchases happen on this website through Stripe TEST checkout while billing is in
-            testing. Sign in with the same Hocalist account you use in the app. Buyers never pay
-            Hocalist here; item payment stays between buyer and seller.
+            Sign in with the same Hocalist account you use in the app to manage your plan,
+            credits and payment details.
           </p>
           <form className="billing-form" onSubmit={signIn} noValidate>
             <label className="request-field wide">
@@ -401,74 +439,51 @@ export default function BillingPortal({
   }
 
   const { subscription, options, deposits, plans, preview } = view.data;
-  const plan = subscription?.plan ?? 'free';
-  const activePaid = plan === 'pro' || plan === 'elite';
-  const openCheckout = deposits.find((checkout) => checkout.state === 'creating' || checkout.state === 'open');
+  const plan = view.data.effective_plan ?? ((subscription?.provider_status === 'active' || subscription?.provider_status === 'trialing') && subscription?.paid_until && new Date(subscription.paid_until).getTime()>Date.now() ? subscription.plan : 'free') ?? 'free';
+  const activePaid = !!subscription && !subscription.requires_review &&
+    (subscription.provider_status === 'active' || subscription.provider_status === 'trialing') &&
+    !!subscription.paid_until && new Date(subscription.paid_until).getTime()>Date.now();
+  const selectedPending = view.data.selected;
+  const openCheckout = selectedPending && ['creating', 'open'].includes(selectedPending.state)
+    ? selectedPending : deposits.find((checkout) => checkout.state === 'creating' || checkout.state === 'open');
 
   return (
-    <section className="billing-section">
+    <section className="billing-section seller-billing-design">
       {preview ? (
         <p className="billing-preview-banner" role="note">
           Local preview mode: every value on this page is synthetic and no provider is contacted.
         </p>
       ) : null}
-      <div className="billing-card">
-        <div className="billing-card-head">
-          <div>
-            <p className="eyebrow">Seller billing</p>
-            <h1>Your plan, credits, and payment method</h1>
-          </div>
-          <button className="button secondary small" type="button" onClick={signOut} disabled={action.busy === 'signout'}>
-            {action.busy === 'signout' ? 'Signing out…' : 'Sign out'}
-          </button>
-        </div>
-        <div className="billing-summary-grid">
-          <article className="billing-stat">
-            <span>Current plan</span>
-            <strong>{activePaid ? PLAN_COPY[plan]?.name ?? plan : 'Free'}</strong>
-            <p>
-              {activePaid
-                ? subscription?.cancel_at_period_end
-                  ? 'Cancels at the end of the paid period.'
-                  : subscription?.paid_until
-                    ? `Paid through ${new Date(subscription.paid_until).toLocaleDateString()}.`
-                    : 'Active seller plan.'
-                : 'Free seller tools with 10 weekly customer targets.'}
-            </p>
-          </article>
-          <article className="billing-stat">
-            <span>Payment method</span>
-            <strong>Managed by Stripe</strong>
-            <p>View or update saved payment methods in Stripe. A completed purchase does not confirm that a card is saved.</p>
-            <button
-              className="button secondary small"
-              type="button"
-              onClick={openPortal}
-              disabled={action.busy === 'portal' || !(activePaid || deposits.some((entry) => entry.state === 'complete'))}
-            >
-              {action.busy === 'portal' ? 'Opening…' : 'Manage payment method'}
-            </button>
-          </article>
-        </div>
+      <div className="billing-overview-grid"><SellerBillingOverview plan={plan} entitlement={view.data.entitlement} options={options}
+        standard={view.data.standard_rates?.find(row=>row.plan_code===plan)}
+        priceLabel={activePaid&&view.data.subscription_price?.currency==='usd'?`${formatUsdMinor(view.data.subscription_price.amount_minor)} / ${view.data.subscription_price.billing_interval}`:undefined}
+        accessLabel={activePaid&&subscription?.paid_until?`${subscription.provider_status==='trialing'?'Trial ends':subscription.cancel_at_period_end?'Access ends':'Renews after'} ${new Date(subscription.paid_until).toLocaleDateString()}`:view.data.entitlement?.effective_source==='earned'?'Earned Pro · this calendar month':'Your seller benefits'}
+        onAddCredits={()=>setFundingOpen(true)}
+        onSelectPlan={()=>document.getElementById('seller-plans')?.scrollIntoView({behavior:'smooth',block:'start'})}/></div>
         {openCheckout ? (
-          <p className="billing-message info" role="status">
+          <div className="billing-message info" role="status">
             A checkout is open right now. Complete it in the Stripe page, or choose the same option
             again to reopen the same session.
-          </p>
+            {(openCheckout.kind === 'subscription' && openCheckout.plan_code) ||
+             (openCheckout.kind === 'credit_deposit' && (openCheckout.option_id||openCheckout.standard_deposit)) ? (
+              <button className="button secondary" type="button" disabled={action.busy !== null}
+                onClick={() => void startCheckout(openCheckout.kind === 'subscription' ? 'subscription' : 'credit_deposit',
+                  (openCheckout.kind === 'subscription' ? `${openCheckout.plan_code}:${openCheckout.billing_interval ?? 'month'}` : openCheckout.standard_deposit?`standard:${openCheckout.amount_minor}`:openCheckout.option_id)!)}>
+                Resume checkout
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {action.message ? (
           <p className={`billing-message ${action.tone}`} role={action.tone === 'error' ? 'alert' : 'status'}>
             {action.message}
           </p>
         ) : null}
-      </div>
-
-      <div className="billing-card" id="seller-plans">
+      <div className="billing-card plan-selection-card" id="seller-plans">
         <h2>Seller plans</h2>
         <p className="billing-note">
-          Monthly USD prices and availability come from the live seller plan configuration. Paid
-          access is in TEST mode until billing activation; annual plans and trials are not offered
-          here.
+          Choose monthly or annual billing. Your plan provides seller tools and limits;
+          wallet credits cover targeting fees separately.
         </p>
         {plans.length === 0 ? (
           <div className="billing-empty">
@@ -478,80 +493,49 @@ export default function BillingPortal({
               Check back later or contact support.
             </p>
           </div>
-        ) : (
+        ) : null}
+          <div className="billing-period-switch" role="group" aria-label="Billing period">
+            <button type="button" aria-pressed={billingInterval==='month'} onClick={()=>setBillingInterval('month')}>Monthly</button>
+            <button type="button" aria-pressed={billingInterval==='year'} onClick={()=>setBillingInterval('year')}>Annual</button>
+          </div>
+          {view.data.trial_days === 14 && !activePaid ? <p className="billing-note">Eligible new subscribers receive a 14-day trial. Your selected plan renews at the displayed price unless cancelled.</p> : null}
           <div className="billing-plan-grid">
-            {plans.map((entry) => {
+            <article className="billing-plan tier-free">
+              <SellerPlanIdentity plan="free" entitlement={view.data.entitlement} priceLabel="$0" current={!activePaid&&plan==='free'}/>
+              <PlanTargetingFees rates={view.data.plan_fee_rates?.find(row=>row.plan_code==='free')}/>
+              <div className="plan-choice-footer">{!activePaid&&<p className="billing-note plan-option-note">{plan==='pro'&&view.data.entitlement?.effective_source==='earned'?'Your account is Free with earned Pro benefits for this month.':'No monthly subscription payment.'}</p>}
+              <PlanSelectionAction plan="free" disabled={!activePaid||action.busy!==null} onClick={()=>setPlanChange('free')} label={activePaid?'Switch to Free':plan==='free'?'Current plan':'Free account'}/>
+              </div>
+            </article>
+            {plans.filter(entry=>(entry.billing_interval ?? 'month')===billingInterval).map((entry) => {
               const copy = PLAN_COPY[entry.code] ?? { name: entry.code, summary: 'Seller plan.' };
-              const isCurrent = activePaid && plan === entry.code;
-              const price = `${formatUsdMinor(entry.amount_minor)} USD / month`;
+              const isCurrent = isCurrentPlan(activePaid,subscription?.plan??'',view.data.subscription_price?.billing_interval,entry.code,billingInterval);
+              const price = `${formatUsdMinor(entry.amount_minor)} USD / ${billingInterval}`;
               return (
-                <article className="billing-plan" key={entry.code}>
-                  <h3>{copy.name}</h3>
-                  <strong>{price}</strong>
-                  <p>{copy.summary}</p>
-                  <button
-                    className="button primary"
-                    type="button"
-                    disabled={!entry.enabled || isCurrent || action.busy !== null || activePaid}
-                    onClick={() => void startCheckout('subscription', entry.code)}
-                  >
-                    {!entry.enabled
+                <article className={`billing-plan tier-${entry.code}`} key={entry.code}>
+                  <SellerPlanIdentity plan={entry.code} entitlement={view.data.entitlement} priceLabel={price} current={isCurrent}/>
+                  <PlanTargetingFees rates={view.data.plan_fee_rates?.find(row=>row.plan_code===entry.code)}/>
+                  <PlanSelectionAction plan={entry.code}
+                    disabled={!entry.enabled || isCurrent || action.busy !== null}
+                    onClick={() => activePaid ? setPlanChange(`${entry.code}:${billingInterval}`) : void startCheckout('subscription', `${entry.code}:${billingInterval}`)}
+                    label={!entry.enabled
                       ? 'Unavailable'
                       : isCurrent
                         ? 'Current plan'
-                        : activePaid
-                          ? 'Manage current plan'
-                          : `Buy ${copy.name}`}
-                  </button>
+                        : `Switch to ${copy.name} · ${billingInterval==='year'?'Annual':'Monthly'}`}/>
                 </article>
               );
             })}
           </div>
-        )}
       </div>
 
-      <div className="billing-card">
-        <h2>HocaCredits</h2>
-        {!view.data.credit_purchase_allowed ? (
-          <p className="billing-message info">Credit purchases are unavailable while this billing account is under review.</p>
-        ) : null}
-        <p className="billing-note">
-          Credits cover eligible targeting fees and are separate from weekly target limits. Each
-          purchase keeps the rates shown at purchase time. Item payment stays offline.
-        </p>
-        {options.length === 0 ? (
-          <div className="billing-empty">
-            <span className="status-chip">No credit packs configured</span>
-            <p>
-              An administrator has not published credit packs yet, so there is nothing to buy here.
-              Check back later or contact support.
-            </p>
-          </div>
-        ) : (
-          <div className="billing-pack-grid">
-            {options.map((option) => (
-              <article className="billing-pack" key={option.id}>
-                <span className="status-chip">{formatUsdMinor(option.amount_minor)} pack</span>
-                <strong>{formatUsdMinor(option.amount_minor)}</strong>
-                <ul>
-                  <li>Initial fee: {formatUsdMinor(option.initial_fee_minor)}</li>
-                  <li>Winning total: {formatUsdMinor(option.winning_total_minor)}</li>
-                  <li>Only the winning difference is charged later</li>
-                </ul>
-                <button
-                  className="button primary"
-                  type="button"
-                  disabled={action.busy !== null || !view.data.credit_purchase_allowed}
-                  onClick={() => void startCheckout('credit_deposit', option.id)}
-                >
-                  {action.busy === `credit_deposit:${option.id}` ? 'Opening checkout…' : view.data.credit_purchase_allowed ? 'Buy credits' : 'Unavailable'}
-                </button>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-
+      <CreditFundingDialog open={fundingOpen} initialMethod={returningToCard?'card':'wallet'} onClose={()=>{setFundingOpen(false);setReturningToCard(false);}} options={options}
+        onManage={()=>{setFundingOpen(false);void openPortal();}}
+        standard={view.data.standard_rates?.find(row=>row.plan_code===plan)}
+        busy={action.busy!==null} allowed={view.data.credit_purchase_allowed} preview={preview===true} standardEnabled={view.data.standard_deposits_enabled===true}
+        onChoose={id=>{setFundingOpen(false);void startCheckout('credit_deposit',id);}}
+        onCustom={amount=>{setFundingOpen(false);void startCheckout('credit_deposit',`standard:${amount}`);}}/>
+      <PlanChangeDialog target={planChange} onClose={()=>setPlanChange(null)} onContinue={()=>{setPlanChange(null);void openPortal();}} busy={action.busy!==null} entitlement={view.data.entitlement} paidUntil={subscription?.paid_until}/>
       <div className="billing-card">
         <h2>Recent credit purchases</h2>
         {deposits.length === 0 ? (
@@ -579,9 +563,13 @@ export default function BillingPortal({
           </ul>
         )}
         <p className="billing-note">
-          A purchase is credited only after a verified Stripe TEST event. A return to this site
-          alone never adds credits. <a href="/billing/return">Check a recent checkout</a>.
+          Your credits appear after payment is confirmed. <a href="/billing/return">Check a recent checkout</a>.
         </p>
+      </div>
+      <div className="billing-card billing-account-tools">
+        <h2>Payment settings</h2><p>Securely manage your payment method, invoices and subscription.</p>
+        <div className="billing-actions"><button className="button secondary" type="button" onClick={openPortal} disabled={action.busy!==null}>{action.busy==='portal'?'Opening…':'Manage payment'}</button><button className="button secondary" type="button" onClick={signOut} disabled={action.busy!==null}>{action.busy==='signout'?'Signing out…':'Sign out'}</button></div>
+        <PaygoPaymentSetup key={view.data.account?.membership_id ?? 'unavailable'} preview={preview} onManage={()=>void openPortal()}/>
       </div>
     </section>
   );

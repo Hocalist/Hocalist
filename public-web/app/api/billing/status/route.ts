@@ -86,6 +86,13 @@ export async function GET(request: Request) {
     {
       state: "ready",
       account: data.account ?? null,
+      effective_plan: data.effective_plan ?? null,
+      entitlement: data.entitlement ?? null,
+      standard_rates: Array.isArray(data.standard_rates) ? data.standard_rates : [],
+      standard_deposits_enabled: data.standard_deposits_enabled === true,
+      plan_fee_rates: Array.isArray(data.plan_fee_rates) ? data.plan_fee_rates : [],
+      subscription_price: data.subscription_price ?? null,
+      trial_days: data.trial_days ?? 0,
       plans: Array.isArray(data.plans) ? data.plans : [],
       options: Array.isArray(data.options) ? data.options : [],
       subscription: data.subscription ?? null,

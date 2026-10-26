@@ -59,9 +59,9 @@ export default function PricingPage() {
               <h2>Choose the room you need.</h2>
               <p>
                 Monthly prices in USD. Seller plans and HocaCredits are purchased from your seller
-                account on this website; billing runs in TEST mode until activation. HocaCredits
+                account on this website. HocaCredits
                 are separate from weekly target limits. Buyer rewards are separate from seller
-                credits. Annual plans and trials are not offered here.
+                credits. Your billing page shows available billing periods, trials and prices.
               </p>
             </div>
             <div className="pricing-proof-strip" aria-label="Seller pricing boundaries">

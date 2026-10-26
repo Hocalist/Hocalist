@@ -129,6 +129,7 @@ Deno.test("a configured deposit checkout selects the server amount and binds the
       match: /^checkout\/sessions$/,
       value: (path, params) => {
         assert.equal(params?.mode, "payment");
+        assert.equal(params?.["invoice_creation[enabled]"], "true");
         assert.equal(params?.["line_items[0][price_data][unit_amount]"], "2000");
         assert.equal(params?.["line_items[0][price_data][currency]"], "usd");
         assert.equal(params?.["metadata[kind]"], "credit_deposit");
@@ -252,3 +253,24 @@ Deno.test("disabled billing, wrong method and invalid request fail closed", asyn
   assert.equal(invalid.status, 400);
   assert.deepEqual(await invalid.json(), { error: "invalid_request" });
 });
+
+for (const status of ['expired','open','complete','foreign','live','unbound','different']) {
+ Deno.test(`retained checkout recovery verifies provider state: ${status}`,async()=>{
+  const api=new FakeBackend(); let begins=0;
+  api.rpcHandlers={
+   stripe_test_deposit_begin:(body)=>{begins++; if(begins===1)throw new BillingError('checkout_pending',409); if(status==='open'||status==='unbound')assert.equal(body.p_key,OPTION); return depositCheckout({session_id:status==='open'?'cs_test_session1':null});},
+   stripe_test_pending_checkout:()=>depositCheckout({kind:status==='expired'||status==='different'?'subscription':'credit_deposit',request_key:OPTION,session_id:status==='unbound'?null:'cs_test_session1'}),
+   stripe_test_checkout_expire:()=>null,
+   stripe_test_deposit_bind:()=>null,
+  };
+  api.stripeMatchers=[
+   {match:/^account$/,value:{id:ACCOUNT,livemode:false}},
+   {match:/^checkout\/sessions\//,value:session({status:status==='foreign'||status==='live'?'expired':status==='different'?'open':status,...(status==='foreign'?{customer:'cus_other'}:{}),...(status==='live'?{livemode:true}:{})})},
+   {match:/^checkout\/sessions$/,value:session()},
+  ];
+  const response=await createCheckoutHandler(api.asBackend(),config)(post({kind:'credit_deposit',option_id:OPTION,idempotency_key:KEY}));
+  assert.equal(response.status,['expired','open','unbound'].includes(status)?200:['complete','different'].includes(status)?409:503);
+  assert.equal(api.calls.rpc.filter(c=>c.name==='stripe_test_checkout_expire').length,status==='expired'?1:0);
+  assert.equal(api.calls.stripe.filter(c=>c.path==='checkout/sessions').length,['expired','unbound'].includes(status)?1:0);
+ });
+}

@@ -15,7 +15,9 @@ export type CheckoutRow = {
   credited_at?: string | null;
   batch_id?: string | null;
   option_id?: string | null;
+  standard_deposit?: boolean;
   plan_code?: string | null;
+  billing_interval?: "month" | "year";
 };
 
 export type CheckoutViewMode =

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatUsdMinor } from '../lib/website-rules';
 import { confirmationDelay, confirmationCopy } from '../lib/checkout-confirmation';
+import BillingLoading from './BillingLoading';
 import {
   resolveCheckoutView,
   type CheckoutRow,
@@ -119,8 +120,7 @@ export function CheckoutReturn({
     return (
       <section className="billing-section">
         <div className="billing-card billing-loading" aria-busy="true">
-          <span className="status-chip">Checking your checkout</span>
-          <p>Asking Hocalist for the verified state of this checkout…</p>
+          <BillingLoading label="Checking your payment…" />
         </div>
       </section>
     );
