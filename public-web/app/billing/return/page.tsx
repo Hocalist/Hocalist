@@ -1,6 +1,8 @@
 import { PageShell } from '../../site-content';
 import { CheckoutReturn } from '../CheckoutReturn';
 import { ReturnToApp } from '../ReturnToApp';
+import {redirect} from 'next/navigation';
+import {uuidHint} from '../../lib/website-rules';
 
 export const metadata = {
   title: 'Checkout status',
@@ -14,6 +16,8 @@ export default async function BillingReturnPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const setupId=uuidHint(params.paygo_setup);
+  if(setupId)redirect(`/billing?paygo_setup=${encodeURIComponent(setupId)}`);
   return (
     <PageShell>
       <main className="billing-page">

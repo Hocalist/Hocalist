@@ -1,0 +1,211 @@
+.billing-page{background:#fff;padding:24px 0 0;color:#000b42}
+body:has(.billing-page) .site-header{background:#fff;box-shadow:none;border-bottom:0}
+.billing-page .seller-billing-design{max-width:760px;gap:20px;margin-bottom:24px;padding:0}
+.seller-billing-design,.billing-dialog{--primary:#0061f4;--primary-bright:#0052f2}
+.illustrated-site .seller-billing-design .button.primary:not(:disabled),.illustrated-site .billing-dialog .button.primary:not(:disabled){background:#0061f4!important}
+.illustrated-site .seller-billing-design .plan-selection-action .button.primary:not(:disabled){background:linear-gradient(100deg,#0784ff,#0052f2)!important}
+.illustrated-site .seller-billing-design .button.primary:disabled,.illustrated-site .billing-dialog .button.primary:disabled{background:#e6eaf5!important;color:#5b6480!important}
+.seller-billing-design .billing-preview-banner{margin:0;font-size:11px;padding:8px 12px}
+.billing-overview-grid{display:grid;gap:20px;min-width:0}
+.seller-current-plan,.seller-fees{border:1px solid #e8e9ef;border-radius:20px;overflow:hidden;background:white;box-shadow:0 4px 16px #000b4206}
+.seller-current-plan-heading{position:relative;padding:24px;background:#f4f7ff}
+.seller-current-plan-heading>.billing-artwork{position:absolute;right:18px;top:18px}
+.seller-current-plan-heading h1{padding-right:90px}
+.tier-free .seller-current-plan-heading h1{padding-right:0}
+.tier-elite .seller-current-plan-heading{background:#fff9eb}
+.tier-free .seller-current-plan-heading{background:#fff}
+.tier-free .seller-current-plan-heading h1{font-size:36px;margin-bottom:0}
+.tier-free .plan-current-meta{position:absolute;right:18px;top:18px}
+.plan-kicker{text-transform:uppercase;font-size:12px;color:#686d8c;margin:0 0 6px;font-weight:600;letter-spacing:.02em}
+.seller-current-plan h1{font-size:clamp(27px,7vw,34px);line-height:1.12;margin:0 0 9px;color:#000638;font-weight:750;letter-spacing:-.04em}
+.plan-current-meta{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:20px;line-height:1.3}
+.plan-active{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;background:#defbeb;color:#00834d;border-radius:30px;font-size:14px;font-weight:650}
+.plan-access-label{font-size:11px;color:#686d8c;margin:0;padding:5px 20px 12px;line-height:1.4}
+.billing-artwork{position:relative;display:inline-block;overflow:hidden;flex-shrink:0;vertical-align:middle}
+.billing-artwork img{position:absolute;max-width:none;height:auto;display:block}
+.plan-benefits{margin:0;padding:0 20px;list-style:none}
+.plan-benefits li{display:flex;align-items:center;gap:12px;padding:5px 0;border-bottom:1px solid #f0f0f4;font-size:13px;line-height:1.4;min-width:0}
+.plan-benefits li:last-child{border-bottom:0}
+.free-benefits{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 14px 20px}
+.free-benefits li{flex-direction:column;text-align:center;gap:8px;justify-content:flex-start;padding:0 8px;border-bottom:0;border-right:1px solid #e7e8ee;font-size:12px;line-height:1.35}
+.free-benefits li:last-child{border:0}
+.seller-fees{padding:20px}
+.seller-fees summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;font-size:15px;text-transform:uppercase;color:#6c708e;font-weight:650;list-style:none}
+.seller-fees summary::-webkit-details-marker{display:none}
+.seller-fees summary>span{display:flex;align-items:center;gap:12px}
+.fees-toggle{width:9px;height:16px;object-fit:contain;transform:rotate(-90deg)}
+.seller-fees[open] .fees-toggle{transform:rotate(90deg)}
+.standard-fees{display:grid;grid-template-columns:minmax(0,1.12fr) repeat(2,minmax(0,1fr));gap:0;padding:16px 4px;background:#f4f7ff;border-radius:12px;margin-top:18px;align-items:center}
+.standard-fees>strong{font-size:15px;line-height:1.3;padding:0 10px;color:#000b65}
+.standard-fees>div{padding:0 8px;text-align:center;border-left:1px solid #e2e6ee;display:grid;gap:5px}
+.standard-fees>div>span{font-size:11px;white-space:nowrap}
+.standard-fees b{font-size:23px;line-height:1.2;letter-spacing:-.04em}
+.standard-fees small{display:block;font-size:10px;letter-spacing:0;font-weight:500;margin-top:3px}
+.wallet-savings{margin-top:16px;padding:14px 10px 10px;background:#f2f7ff;border-radius:12px}
+.wallet-savings h2{display:flex;align-items:center;gap:9px;font-size:16px;margin:0 0 12px;color:#003bba;letter-spacing:-.02em}
+.wallet-savings table{border-collapse:separate;border-spacing:0;width:100%;text-align:center;font-size:13px;table-layout:fixed;background:#fff;border-radius:9px;overflow:hidden}
+.wallet-savings th,.wallet-savings td{padding:9px 4px;line-height:1.3;border-bottom:1px solid #e5e8ef;border-right:1px solid #e5e8ef;font-weight:500}
+.wallet-savings thead{background:#eaf2ff;color:#002d9e}
+.wallet-savings th:last-child,.wallet-savings td:last-child{border-right:0}
+.wallet-savings tr:last-child th,.wallet-savings tr:last-child td{border-bottom:0}
+.fee-explanation{font-size:11px;line-height:1.6;color:#6a708c;margin:14px 0 0}
+.tier-elite .standard-fees,.tier-elite .wallet-savings{background:#fff9eb}
+.tier-elite .wallet-savings thead{background:#fff3d8}
+.wallet-credit-banner{display:flex;align-items:center;gap:14px;background:#0968f5;color:#fff;border-radius:17px;padding:18px}
+.wallet-credit-banner>div{flex:1;min-width:0}
+.wallet-credit-banner>div>span{text-transform:uppercase;font-size:12px;font-weight:650}
+.wallet-credit-banner p{font-size:14px;line-height:1.4;margin:4px 0 0}
+.wallet-credit-banner button{display:flex;align-items:center;justify-content:center;gap:14px;padding:15px 16px;border:0;border-radius:13px;background:white;color:#004bdc;font-weight:700;font-size:15px;cursor:pointer;white-space:nowrap}
+.billing-forward{width:9px;height:17px;object-fit:contain;transform:rotate(180deg);flex-shrink:0}
+.plan-choose-banner{display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid #e5eafa;background:#f2f6ff;padding:18px 20px;border-radius:16px;text-align:left;color:#000b65;cursor:pointer}
+.plan-choose-banner strong{display:block;font-size:18px}
+.plan-choose-banner small{display:block;font-size:13px;margin-top:4px;color:#6b7191}
+.seller-billing-design .billing-card{box-shadow:none;border:1px solid #e8e9ef;border-radius:20px;gap:16px;padding:22px}
+.seller-billing-design .billing-card h2{font-size:22px;letter-spacing:-.03em}
+.seller-billing-design .billing-card p{font-size:14px}
+.seller-billing-design .billing-plan-grid{grid-template-columns:minmax(0,1fr);gap:24px}
+.seller-billing-design .billing-pack-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.seller-billing-design .billing-plan{background:white;border-color:#e6ebfb;padding:0;border-radius:20px;gap:0;overflow:hidden}
+.seller-billing-design .billing-plan.tier-elite{background:white;border-color:#f1e9d8}
+.plan-option-heading{display:flex;align-items:center;gap:12px}
+.plan-option-heading{flex-wrap:wrap}
+.plan-option-heading h3{font-size:23px;margin:0}
+.seller-plan-identity{container-type:inline-size}
+.seller-plan-identity .seller-current-plan-heading h3{padding-right:90px;font-size:clamp(26px,7cqw,34px);line-height:1.15;margin:0 0 10px;letter-spacing:-.04em;color:#000638}
+.seller-plan-identity.tier-free .seller-current-plan-heading h3{padding-right:0;font-size:36px}
+.seller-plan-identity .plan-current-meta{max-width:calc(100% - 100px)}
+.seller-plan-identity.tier-free .plan-current-meta{max-width:none}
+.seller-plan-identity .plan-benefits:not(.free-benefits){padding-top:8px;padding-bottom:12px}
+.seller-billing-design .billing-plan .plan-benefits:not(.free-benefits) li{padding:5px 0}
+.seller-billing-design .comparison-targeting-fees{margin:12px 14px;border-radius:16px;padding:16px 12px;box-shadow:none}
+.seller-billing-design .billing-plan .standard-fees>strong{font-size:15px}
+.seller-billing-design .billing-plan .standard-fees{grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr))}
+.seller-billing-design .billing-plan .wallet-savings h2{font-size:16px}
+.plan-option-note{padding:0 18px}
+.plan-selection-action{padding:10px 14px 16px}
+.seller-billing-design .plan-selection-action .button{display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(100deg,#0784ff,#0052f2);padding:18px;font-size:15px;border-radius:15px}
+.plan-selection-action .billing-forward{filter:brightness(0) invert(1)}
+.plan-selection-bar{display:flex;align-items:center;gap:12px;background:#f1f7ff;border-radius:15px;padding:14px}
+.plan-selection-caption{flex:1;min-width:0;color:#001067;text-align:left}
+.plan-selection-caption>span{display:block;font-size:13px;text-transform:uppercase}
+.plan-selection-caption small{display:block;font-size:12px;line-height:1.4;margin-top:4px;color:#6b7191}
+.seller-billing-design .plan-selection-bar .button{width:auto;max-width:60%;min-width:0;flex:0 1 auto;padding:14px}
+.elite-plan-action .button>span:not(.billing-artwork){flex:1;text-align:center}
+@media(max-width:400px){.plan-selection-caption{display:none}.plan-selection-bar{gap:10px;padding:10px}.seller-billing-design .plan-selection-bar .button{flex:1;max-width:none;font-size:13px;padding:13px 10px}.seller-billing-design .plan-selection-action .button{font-size:13px}}
+@media(max-width:400px){.billing-plan .seller-current-plan-heading>.billing-artwork{transform:scale(.8);transform-origin:right top}}
+.seller-billing-design .billing-plan strong{font-size:22px}
+.seller-billing-design .billing-plan .button,.seller-billing-design .billing-pack .button{width:100%;border-radius:12px;background:#0061f4;color:white;border:0;padding:13px}
+.seller-billing-design .billing-plan .button:disabled,.seller-billing-design .billing-pack .button:disabled{background:#e6eaf5;color:#5b6480;opacity:1}
+.seller-billing-design .billing-plan .plan-selection-action .button:not(:disabled){background-image:linear-gradient(100deg,#0784ff,#0052f2)}
+.seller-billing-design .billing-pack{border-radius:14px;background:#f5f8ff;border-color:#e5eafa;padding:20px}
+.seller-billing-design .billing-pack .status-chip{background:#e7efff;color:#0042b8;border:0}
+.seller-billing-design .billing-history li{background:#f5f8ff}
+.billing-page .billing-boundary{width:min(760px,92%);display:grid;gap:18px;margin:0 auto 30px;padding:0}
+.billing-page .billing-boundary p{font-size:12px;line-height:1.5}
+#wallet-credits,#seller-plans{scroll-margin-top:105px}
+.billing-dialog{width:min(680px,calc(100% - 32px));max-height:calc(100dvh - 40px);box-sizing:border-box;border:1px solid #e5e8f2;border-radius:22px;padding:24px;background:white;color:#000638;box-shadow:0 24px 80px #000b4230;overflow:auto}
+.billing-dialog::backdrop{background:#000b4266;backdrop-filter:blur(3px)}
+.billing-dialog-heading{display:flex;justify-content:space-between;align-items:start;gap:16px}
+.billing-dialog-heading h2{margin:0;font-size:27px;letter-spacing:-.04em}
+.credit-funding-intro{font-size:14px;line-height:1.6;color:#626b89;margin:16px 0}
+.credit-funding-packs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.credit-funding-pack{background:#f4f7ff;border:1px solid #e1e8fa;border-radius:16px;padding:18px}
+.credit-funding-pack h3{font-size:28px;margin:0;color:#0039bb;letter-spacing:-.03em}
+.credit-funding-pack p{font-size:12px;color:#6b7290;margin:6px 0}
+.credit-funding-pack dl{display:grid;gap:8px;margin:18px 0}
+.credit-funding-pack dl div{display:flex;justify-content:space-between;gap:10px;font-size:12px}
+.credit-funding-pack dd{margin:0;font-weight:700}
+.billing-dialog .button.primary{background:#0061f4;color:white;border:0;border-radius:12px;width:100%;padding:13px;font-size:14px}
+.billing-dialog .button:disabled{opacity:.55}
+.credit-standard-choice{border-top:1px solid #e7e9f1;margin-top:22px;padding-top:20px}
+.credit-standard-choice h3{font-size:20px;margin:0 0 8px}
+.credit-standard-choice p{font-size:13px;line-height:1.6;color:#626b89}
+.billing-dialog .billing-paygo{display:grid;gap:14px;margin:18px 0 0;padding:0;border:0;background:none}
+.billing-dialog .billing-paygo h2{font-size:20px;margin:0;line-height:1.3;letter-spacing:-.03em}
+.billing-dialog .billing-paygo p{margin:0;line-height:1.6}
+.billing-dialog .billing-consent{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.6}
+.billing-dialog .billing-consent input{flex:0 0 18px;width:18px;height:18px;margin:2px 0 0;accent-color:#0061f4}
+.credit-standard-rates{display:flex;gap:24px;background:#f4f7ff;border-radius:12px;padding:14px;margin:14px 0}
+.credit-standard-rates div{flex:1;min-width:0}
+.credit-standard-rates dt{font-size:12px;color:#626b89}
+.credit-standard-rates dd{margin:5px 0 0;font-size:18px;font-weight:700;color:#0039bb}
+.credit-funding-method{display:flex;gap:20px;border-bottom:1px solid #e4e7f0;margin:16px 0}
+.credit-funding-method button{border:0;background:none;padding:10px 0;border-bottom:3px solid transparent;color:#6b7290;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.credit-funding-method button[aria-pressed=true]{color:#0055ed;border-bottom-color:#0055ed}
+.credit-standard-choice form{display:grid;gap:12px}
+.credit-standard-choice label{font-size:13px;font-weight:600}
+.credit-amount-input{display:flex;align-items:center;border:1px solid #d9deeb;border-radius:12px;overflow:hidden;min-width:0}
+.credit-amount-input span{padding-left:14px;font-size:14px;color:#6b7290}
+.credit-amount-input input{width:100%;min-width:0;border:0!important;box-shadow:none!important;background:white;padding:14px;font:inherit;outline-offset:-3px}
+@media(max-width:480px){.billing-dialog{padding:20px 16px;border-radius:18px}.credit-funding-packs{gap:10px}.credit-funding-pack{padding:14px 10px}.credit-funding-pack h3{font-size:24px}.credit-funding-pack dl div{font-size:11px;gap:5px}}
+@media(max-width:350px){.credit-funding-packs{grid-template-columns:1fr}}
+@media(max-width:600px){
+ .billing-page{padding-top:12px}
+ .seller-billing-design{width:calc(100% - 32px);gap:16px}
+ .seller-current-plan-heading{padding:18px}
+ .seller-fees{padding:16px 12px}
+ .seller-billing-design .billing-plan-grid,.seller-billing-design .billing-pack-grid{grid-template-columns:minmax(0,1fr)}
+ .wallet-credit-banner{gap:10px;padding:15px 12px;flex-wrap:nowrap}
+ .wallet-credit-banner>.billing-artwork{border-radius:12px}
+ .wallet-credit-banner>div{flex-basis:0}
+ .wallet-credit-banner p{font-size:13px}
+ .wallet-credit-banner button{margin-left:auto;font-size:13px;padding:12px 10px;gap:8px}
+ .seller-billing-design .billing-card{padding:20px 16px}
+ .billing-page .billing-boundary{width:calc(100% - 32px)}
+}
+@media(max-width:350px){
+ .seller-current-plan-heading>.billing-artwork{transform:scale(.8);transform-origin:right top}
+ .plan-current-meta{font-size:18px;gap:8px}.plan-active{font-size:12px;padding:4px 10px}
+ .standard-fees>strong{font-size:13px;padding:0 6px}
+ .standard-fees b{font-size:20px}
+ .standard-fees>div{padding:0 5px}
+ .standard-fees>div>span{font-size:10px}
+ .standard-fees>div>span{white-space:normal}
+ .seller-billing-design .billing-plan .standard-fees>strong{font-size:12px;padding:0 4px}
+ .seller-billing-design .billing-plan .standard-fees b{font-size:20px}
+ .wallet-savings{padding:12px 6px 6px}.wallet-savings table{font-size:11px}
+ .plan-benefits{padding:0 14px}.plan-benefits li{font-size:13px;gap:10px}
+ .free-benefits{padding:0 6px 16px}.free-benefits li{font-size:10px;padding:0 4px;gap:6px}
+ .wallet-credit-banner button{width:100%;margin:0}
+ .wallet-credit-banner{flex-wrap:wrap}.wallet-credit-banner>div{flex-basis:130px}
+}
+
+/* Desktop composition uses the available width; phone artwork/layout stays
+   in the base rules above. Each comparison column remains at least 330px. */
+@media(min-width:1200px){
+ .billing-page{padding-top:32px}
+ .billing-page .seller-billing-design{width:calc(100% - 80px);max-width:1320px;gap:28px;margin-inline:auto}
+ .billing-overview-grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:start}
+ .billing-overview-grid>.seller-current-plan,.billing-overview-grid>.seller-fees{height:100%;box-sizing:border-box}
+ .billing-overview-grid>.seller-fees:not([open]){height:auto;align-self:start}
+ .billing-overview-grid>.wallet-credit-banner,.billing-overview-grid>.plan-choose-banner{height:100%;box-sizing:border-box}
+ .billing-overview-grid .seller-current-plan-heading{padding:28px}
+ .billing-overview-grid .plan-benefits:not(.free-benefits){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px;padding:12px 24px}
+ .billing-overview-grid .plan-benefits li{font-size:14px;padding:10px 0}
+ .seller-billing-design .plan-selection-card{padding:28px}
+ .seller-billing-design .plan-selection-card>h2{font-size:28px}
+ .seller-billing-design .billing-plan-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:stretch}
+ .seller-billing-design .billing-plan{display:grid;grid-template-rows:1fr auto auto}
+ .billing-plan .seller-plan-identity{min-width:0}
+ .seller-billing-design .comparison-targeting-fees{align-self:start;height:auto}
+ .billing-plan .seller-current-plan-heading{min-height:150px;box-sizing:border-box;padding:22px 18px}
+ .billing-plan .seller-plan-identity .plan-current-meta{font-size:17px}
+ .billing-plan .free-benefits{display:block;padding:8px 20px 12px}
+ .billing-plan .free-benefits li{flex-direction:row;text-align:left;justify-content:flex-start;border-right:0;border-bottom:1px solid #f0f0f4;font-size:13px;padding:7px 0;gap:12px}
+ .billing-plan .free-benefits li:last-child{border-bottom:0}
+ .seller-billing-design .billing-plan .standard-fees>strong{font-size:13px;padding:0 6px}
+ .seller-billing-design .billing-plan .standard-fees b{font-size:21px}
+ .seller-billing-design .billing-plan .wallet-savings h2{font-size:14px}
+ .billing-plan .wallet-savings table{font-size:12px}
+ .plan-choice-footer{align-self:end}
+ .billing-plan>.plan-selection-action{align-self:end}
+ .plan-selection-caption{display:none}
+ .seller-billing-design .plan-selection-bar .button{max-width:none;flex:1;font-size:13px;padding:13px 10px}
+ .billing-page .billing-boundary{max-width:1320px;width:calc(100% - 80px)}
+}
+@supports(grid-template-rows:subgrid){
+ @media(min-width:1200px){
+  .seller-billing-design .billing-plan-grid{grid-template-rows:auto auto auto}
+  .seller-billing-design .billing-plan{grid-row:span 3;grid-template-rows:subgrid;row-gap:0}
+ }
+}

@@ -9,6 +9,8 @@
 
 export type PreviewKind =
   | "populated"
+  | 'free'
+  | 'elite'
   | "empty"
   | "pending"
   | "pending-subscription"
@@ -32,8 +34,8 @@ const MEMBERSHIP = "92000000-0000-4000-8000-000000000001";
 const option = {
   id: "90000000-0000-4000-8000-000000000001",
   amount_minor: 2000,
-  initial_fee_minor: 155,
-  winning_total_minor: 375,
+  initial_fee_minor: 175,
+  winning_total_minor: 460,
   rate_version: "deposit-20-preview",
   sort_order: 1,
 };
@@ -41,8 +43,8 @@ const option = {
 const secondOption = {
   id: "90000000-0000-4000-8000-000000000002",
   amount_minor: 4000,
-  initial_fee_minor: 145,
-  winning_total_minor: 325,
+  initial_fee_minor: 165,
+  winning_total_minor: 450,
   rate_version: "deposit-40-preview",
   sort_order: 2,
 };
@@ -50,6 +52,8 @@ const secondOption = {
 const plans = [
   { code: "pro", amount_minor: 1500, currency: "usd", enabled: true },
   { code: "elite", amount_minor: 3000, currency: "usd", enabled: true },
+  { code: "pro", amount_minor: 12000, currency: "usd", enabled: true, billing_interval: 'year' },
+  { code: "elite", amount_minor: 30000, currency: "usd", enabled: true, billing_interval: 'year' },
 ];
 
 const completedCheckout = {
@@ -114,6 +118,16 @@ function payload(changes: Record<string, unknown>) {
     deposits: [completedCheckout],
     selected: null,
     requires_review: false,
+    credit_purchase_allowed: true,
+    effective_plan: 'pro',
+    entitlement: {effective_source:'billing',policy:{earned_pro_threshold:7},plans:[{plan_code:'free',weekly_target_limit:10,store_listing_limit:3},{plan_code:'pro',weekly_target_limit:50,store_listing_limit:15},{plan_code:'elite',weekly_target_limit:100,store_listing_limit:50}]},
+    standard_rates: [{plan_code:'pro',initial_minor:190,winning_minor:475}],
+    plan_fee_rates: [
+      {plan_code:'free',initial_minor:200,winning_minor:500,deposits:[{amount_minor:2000,initial_fee_minor:195,winning_total_minor:475},{amount_minor:4000,initial_fee_minor:185,winning_total_minor:450}]},
+      {plan_code:'pro',initial_minor:190,winning_minor:475,deposits:[{amount_minor:2000,initial_fee_minor:175,winning_total_minor:460},{amount_minor:4000,initial_fee_minor:165,winning_total_minor:450}]},
+      {plan_code:'elite',initial_minor:180,winning_minor:450,deposits:[{amount_minor:2000,initial_fee_minor:155,winning_total_minor:375},{amount_minor:4000,initial_fee_minor:145,winning_total_minor:325}]},
+    ],
+    subscription_price: {amount_minor:1500,currency:'usd',billing_interval:'month'},
     ...changes,
   };
 }
@@ -125,10 +139,17 @@ export function previewStatus(kind: string): { status: number; body: Record<stri
         status: 200,
         body: payload({
           subscription: { ...subscription, plan: "free", provider_status: null, paid_until: null },
+          effective_plan: 'free',
+          standard_rates: [{plan_code:'free',initial_minor:200,winning_minor:500}],
+          subscription_price: null,
           options: [],
           deposits: [],
         }),
       };
+    case 'free':
+      return {status:200,body:payload({effective_plan:'free',subscription:null,subscription_price:null,standard_rates:[{plan_code:'free',initial_minor:200,winning_minor:500}],options:[{...option,initial_fee_minor:195,winning_total_minor:475},{...secondOption,initial_fee_minor:185,winning_total_minor:450}]})};
+    case 'elite':
+      return {status:200,body:payload({effective_plan:'elite',subscription:{...subscription,plan:'elite'},subscription_price:{amount_minor:3000,currency:'usd',billing_interval:'month'},standard_rates:[{plan_code:'elite',initial_minor:180,winning_minor:450}],options:[{...option,initial_fee_minor:155,winning_total_minor:375},{...secondOption,initial_fee_minor:145,winning_total_minor:325}]})};
     case "pending":
       return { status: 200, body: payload({ deposits: [openCheckout], selected: openCheckout }) };
     case "pending-subscription":

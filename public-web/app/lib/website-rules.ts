@@ -72,8 +72,9 @@ export function parseLoginBody(body: unknown): ParseResult<LoginRequest> {
 }
 
 export type CheckoutRequest =
-  | { kind: "subscription"; plan: "pro" | "elite"; idempotencyKey: string }
-  | { kind: "credit_deposit"; optionId: string; idempotencyKey: string };
+  | { kind: "subscription"; plan: "pro" | "elite"; idempotencyKey: string; interval?: "month" | "year" }
+  | { kind: "credit_deposit"; optionId: string; idempotencyKey: string }
+  | { kind: "credit_deposit"; amountMinor: number; idempotencyKey: string };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -93,6 +94,10 @@ export function parseCheckoutBody(body: unknown): ParseResult<CheckoutRequest> {
     return { ok: false, message: "Malformed checkout request." };
   }
   if (record.kind === "credit_deposit") {
+    if(record.amountMinor!==undefined){
+      if(record.optionId!==undefined||!Number.isSafeInteger(record.amountMinor)||(record.amountMinor as number)<50||(record.amountMinor as number)>=2000) return {ok:false,message:'Choose a standard wallet amount from 0.50 HC to 19.99 HC.'};
+      return {ok:true,value:{kind:'credit_deposit',amountMinor:record.amountMinor as number,idempotencyKey}};
+    }
     const optionId = typeof record.optionId === "string" ? record.optionId : "";
     if (!UUID_PATTERN.test(optionId)) {
       return { ok: false, message: "Choose a credit pack before continuing." };
@@ -103,7 +108,8 @@ export function parseCheckoutBody(body: unknown): ParseResult<CheckoutRequest> {
     if (record.plan !== "pro" && record.plan !== "elite") {
       return { ok: false, message: "Choose a seller plan before continuing." };
     }
-    return { ok: true, value: { kind: "subscription", plan: record.plan, idempotencyKey } };
+    if (record.interval !== undefined && record.interval !== "month" && record.interval !== "year") return {ok:false,message:"Choose monthly or annual billing."};
+    return { ok: true, value: { kind: "subscription", plan: record.plan, idempotencyKey, ...(record.interval ? {interval:record.interval as "month" | "year"} : {}) } };
   }
   return { ok: false, message: "Choose what you want to purchase." };
 }

@@ -61,11 +61,12 @@ export async function POST(request: Request) {
     ? {
       kind: "subscription",
       plan: parsed.value.plan,
+      ...(parsed.value.interval ? {interval:parsed.value.interval} : {}),
       idempotency_key: parsed.value.idempotencyKey,
     }
     : {
       kind: "credit_deposit",
-      option_id: parsed.value.optionId,
+      ...('amountMinor' in parsed.value?{amount_minor:parsed.value.amountMinor}:{option_id:parsed.value.optionId}),
       idempotency_key: parsed.value.idempotencyKey,
     };
 

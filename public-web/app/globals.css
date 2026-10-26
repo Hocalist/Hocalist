@@ -6627,6 +6627,32 @@ body main .page-section.safety-section,
   gap: 16px;
 }
 
+.billing-period-switch {
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid rgba(0, 3, 108, 0.12);
+  border-radius: 14px;
+  background: #f5f4ff;
+}
+.billing-period-switch button {
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 10px;
+  color: #00036c;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+}
+.billing-period-switch button[aria-pressed="true"] {
+  background: #fff;
+  color: #2915f4;
+  box-shadow: 0 2px 8px rgba(0,3,108,.08);
+}
+
 .billing-plan,
 .billing-pack {
   display: grid;
@@ -6712,9 +6738,33 @@ body main .page-section.safety-section,
   color: #6a6f95;
 }
 
+.billing-paygo {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 22px;
+  border-top: 1px solid rgba(0, 3, 108, 0.1);
+}
+.billing-paygo > .button { justify-self: start; }
+.billing-paygo-payments { display: grid; gap: 12px; min-width: 0; }
+.billing-paygo-payments h3 { margin: 0; color: #00036c; }
+.billing-paygo .billing-history li { display: grid; grid-template-columns: minmax(0,1fr) minmax(160px,1fr); align-items: start; }
+.billing-paygo .billing-history li div { min-width: 0; gap: 8px; }
+.billing-paygo .billing-history .button { justify-self: start; }
+.billing-consent { display: flex; gap: 10px; align-items: start; font-size: 14px; line-height: 1.6; }
+.billing-consent input { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 3px; accent-color: #2d19ff; }
+@media (max-width: 600px) {
+  .billing-paygo .billing-history li { grid-template-columns: minmax(0,1fr); }
+}
+
 .billing-loading {
   justify-items: start;
 }
+
+.billing-brand-loading { display:flex; align-items:center; gap:12px; min-height:56px; color:#565d85; }
+.billing-loading-mark { flex:none; object-fit:contain; animation:billing-mark-turn 1.8s linear infinite; }
+@keyframes billing-mark-turn { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .billing-loading-mark { animation:none; } }
 
 .billing-boundary {
   display: grid;
