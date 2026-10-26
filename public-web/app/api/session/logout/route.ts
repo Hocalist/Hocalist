@@ -9,7 +9,9 @@ import { REFRESH_COOKIE, SESSION_COOKIE } from "../../../lib/website-session";
 export async function POST(request: Request) {
   const guard = guardMutation(request, { policy: "session", json: false, maxBytes: 512 });
   if (!guard.ok) return guardFailure(guard);
-  const store = new NextRequest(request).cookies;
+  // Read only the cookie headers. Re-wrapping Next's incoming request body can
+  // cross its bundled Request implementations and throw before revocation.
+  const store = new NextRequest(request.url, { headers: request.headers }).cookies;
   const config = siteConfig();
   let access = store.get(SESSION_COOKIE)?.value;
   const refresh = store.get(REFRESH_COOKIE)?.value;
