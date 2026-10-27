@@ -201,7 +201,7 @@ export function CheckoutReturn({
           <p>
             Hocalist verified the payment event for this checkout and activated the {planName}
             {subscription?.paid_until
-              ? `, paid through ${new Date(subscription.paid_until).toLocaleDateString()}`
+              ? `, ${subscription.provider_status === 'trialing' ? 'trial ends' : 'current period ends'} ${new Date(subscription.paid_until).toLocaleDateString()}`
               : ''}. You can manage the payment method from the billing page.
           </p>
           <div className="billing-actions">

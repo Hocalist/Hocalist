@@ -84,7 +84,7 @@ export default function PaygoPaymentSetup({preview=false,setupOnly=false,onManag
  if(!setupOnly&&charges.length===0)return null;
  return <section className="billing-paygo" aria-labelledby={headingId}>
   {setupOnly&&<><p className="eyebrow">Pay as you go</p><h2 id={headingId}>{authorised?'Your card is ready':'Save a card for targeting fees'}</h2>
-  <p>Sending an offer does not charge the initial fee. It applies when the buyer replies in that deal’s conversation. The remaining winning fee applies after the purchase is confirmed with a PIN. Your plan’s rates apply to each deal.</p>
+  <p>Sending an offer does not charge the initial fee. For Free and Pro, it applies when the buyer replies in that deal’s conversation. Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline, with eligible no-purchase fees waived. The winning total includes the initial fee. Your plan’s rates apply to each deal.</p>
   {authorised?<><p>Use Manage payment to change your card or update its details.</p><button className="button secondary" disabled={busy||!onManage} onClick={onManage}>Manage payment</button></>:<>
    <label className="billing-consent"><input type="checkbox" checked={consent} disabled={busy} onChange={e=>setConsent(e.target.checked)}/> I authorise these future targeting charges. Saving my card does not charge it.</label>
    <button className="button" disabled={!consent||busy} onClick={()=>void act()}>{busy?'Opening secure setup…':'Save card securely'}</button>
