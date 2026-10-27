@@ -5,6 +5,13 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import SellerBillingOverview from '../app/billing/SellerBillingOverview';
 import PaygoPaymentSetup from '../app/billing/PaygoPaymentSetup';
 import {paygoReturn} from '../app/billing/paygo-return';
+import PlanTargetingFees from '../app/billing/PlanTargetingFees';
+
+test('Elite fee descriptions explain deferred timing on both current and comparison cards',()=>{
+ const html=renderToStaticMarkup(createElement(SellerBillingOverview,{plan:'elite',options:[],accessLabel:'Active',onAddCredits:()=>{},onSelectPlan:()=>{}}));
+ const comparison=renderToStaticMarkup(createElement(PlanTargetingFees,{rates:{plan_code:'elite',initial_minor:180,winning_minor:450,deposits:[]}}));
+ for(const text of [html,comparison]){assert.match(text,/seven-day deadline/);assert.match(text,/no initial fee if no purchase is confirmed/);assert.doesNotMatch(text,/reply triggers the initial fee/);}
+});
 
 test('card setup returns select their own controls and reject malformed setup identities',()=>{
  assert.equal(paygoReturn(new URLSearchParams('paygo_setup=90000000-0000-4000-8000-000000000002')).setupId,'90000000-0000-4000-8000-000000000002');
