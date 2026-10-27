@@ -20,4 +20,6 @@ test('session revocation uses local scope and reports provider failure', async (
   }) as typeof fetch;
   assert.equal(await revokeSession(config, 'synthetic', transport), true);
   assert.equal(await revokeSession(config, 'synthetic', (async () => new Response(null, { status: 500 })) as typeof fetch), false);
+  assert.equal(await revokeSession(config, 'synthetic', (async () => Response.json({code:'session_not_found'}, {status:403})) as typeof fetch), true);
+  assert.equal(await revokeSession(config, 'synthetic', (async () => Response.json({code:'forbidden'}, {status:403})) as typeof fetch), false);
 });

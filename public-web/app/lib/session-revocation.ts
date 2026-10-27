@@ -8,6 +8,13 @@ export async function revokeSession(
       method: 'POST', headers: { apikey: config.anonKey, Authorization: 'Bearer ' + accessToken },
       signal: AbortSignal.timeout(10000),
     });
-    return response.ok || response.status === 401;
+    if (response.ok || response.status === 401) return true;
+    // A session already removed by Auth has nothing left to revoke. Do not
+    // mistake this definitive response for a provider outage.
+    if (response.status === 403) {
+      const body = await response.json().catch(() => null);
+      return body?.code === 'session_not_found';
+    }
+    return false;
   } catch { return false; }
 }
