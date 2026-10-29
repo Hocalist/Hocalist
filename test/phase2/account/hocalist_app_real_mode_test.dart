@@ -16,6 +16,8 @@ import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
 import 'package:hocalist/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hocalist/features/account/real_account_gate.dart';
+import 'package:hocalist/data/phase2/trust/trust_backend.dart';
 
 import 'account_test_fakes.dart';
 
@@ -25,6 +27,24 @@ const signedInA = AuthIdentitySnapshot(
   userId: 'user-a',
   email: 'a@example.invalid',
 );
+
+class _AppealBackend implements TrustBackend {
+  int appeals = 0;
+  @override
+  Future<TrustStatusView> loadStatus() async => TrustStatusView(
+    emailVerified: true, phoneVerified: false, reviewStatus: 'pending', items: const [],
+    restrictions: [AccountRestrictionView(id: 'restriction-test', scope: 'seller',
+      reason: 'Synthetic restriction', createdAt: DateTime.utc(2026, 10, 29))],
+  );
+  @override
+  Future<void> submitAppeal({required String restrictionId, required String body, required String operationKey}) async {
+    expect(restrictionId, 'restriction-test');
+    expect(body, 'Please review this synthetic restriction.');
+    appeals++;
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class FakeAccountServices implements HocalistAccountServices {
   FakeAccountServices({
@@ -48,6 +68,36 @@ class FakeAccountServices implements HocalistAccountServices {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('restricted appeal backend resolves after provider initialization', (tester) async {
+    final pending = Completer<HocalistAccountServices>();
+    final accounts = FakeAccountRepository();
+    accounts.membershipHandler = (_) => RepositorySuccess(membership(status: MembershipStatus.restricted));
+    final auth = FakeAuthGateway(identity: signedInA);
+    addTearDown(auth.dispose);
+    final backend = _AppealBackend();
+    var ready = false;
+    var resolved = 0;
+    await tester.pumpWidget(HocalistRealProviderBootstrap(
+      publishableKey: 'sb_publishable_test', initialize: (_) => pending.future,
+      shellBuilder: (child) => MaterialApp(home: child),
+      activeBuilder: (_, controller) => const Text('UNEXPECTED ACTIVE APP'),
+      trustBackendFactory: () { expect(ready, isTrue); resolved++; return backend; },
+    ));
+    await tester.pump();
+    expect(resolved, 0);
+    ready = true;
+    pending.complete(FakeAccountServices(accountAuth: auth, accounts: accounts));
+    await tester.pumpAndSettle();
+    expect(resolved, greaterThan(0));
+    expect(find.byKey(const ValueKey('restricted-status-unavailable')), findsNothing);
+    expect(find.text('UNEXPECTED ACTIVE APP'), findsNothing);
+    await tester.enterText(find.byType(TextField).first, 'Please review this synthetic restriction.');
+    final submit = find.byKey(const ValueKey('restricted-appeal-submit'));
+    await tester.ensureVisible(submit); await tester.tap(submit); await tester.pumpAndSettle();
+    expect(backend.appeals, 1);
+    expect(tester.takeException(), isNull);
   });
 
   for (final sameUser in [true, false]) {

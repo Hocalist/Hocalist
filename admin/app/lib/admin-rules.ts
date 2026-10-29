@@ -12,6 +12,8 @@ export const ADMIN_RPC_ALLOWLIST = new Set([
   "admin_access_command",
   "support_list",
   "support_command",
+  "admin_report_credit_targets",
+  "admin_report_credit_return",
   "support_reasons",
   "admin_records",
   "admin_overview",

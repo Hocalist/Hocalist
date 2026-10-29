@@ -36,6 +36,7 @@ class HocalistRealProviderBootstrap extends StatefulWidget {
     this.initialize,
     this.shellBuilder,
     this.trustBackend,
+    this.trustBackendFactory,
     super.key,
   });
 
@@ -54,6 +55,9 @@ class HocalistRealProviderBootstrap extends StatefulWidget {
   /// Manual review status/appeal capability for restricted accounts. Null keeps
   /// the honest refresh/logout-only state.
   final TrustBackend? trustBackend;
+
+  /// Resolve only after provider initialization has made its client available.
+  final TrustBackend? Function()? trustBackendFactory;
 
   @override
   State<HocalistRealProviderBootstrap> createState() =>
@@ -143,7 +147,8 @@ class _HocalistRealProviderBootstrapState
             controller: controller,
             activeBuilder: widget.activeBuilder,
             shellBuilder: widget.shellBuilder,
-            trustBackend: widget.trustBackend,
+            trustBackend:
+                widget.trustBackend ?? widget.trustBackendFactory?.call(),
           ),
         );
       },

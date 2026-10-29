@@ -241,6 +241,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   bool _choosingLocation = false;
 
   bool _submitting = false;
+  bool _submissionCompleted = false;
   String? _submitError;
   bool _outcomeUncertain = false;
   RequestDraft? _pendingDraft;
@@ -473,6 +474,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   Future<void> _submitRealRequest() async {
+    // Pointer events can reuse the previous frame's enabled callback.
+    if (_submitting || _submissionCompleted) return;
     final submitter = widget.onSubmitDraft;
     if (submitter == null) return;
     final localError = _localValidationMessage();
@@ -524,6 +527,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     final result = await submitter(_pendingDraft!, _pendingOperationKey!);
     if (!mounted) return;
     if (result.isSuccess) {
+      _submissionCompleted = true;
       final created = result.request!;
       _pendingDraft = null;
       _pendingOperationKey = null;
