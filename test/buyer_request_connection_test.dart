@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:hocalist/domain/phase2/category_answers.dart';
 // Buyer request create/detail connection tests: complete draft submission,
 // operation-key reconciliation and real-mode detail updates. Fakes only.
@@ -90,6 +91,37 @@ Future<void> _postRequest(WidgetTester tester) async {
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+
+  testWidgets('rapid post taps and a stale success callback create once', (tester) async {
+    final pending = Completer<RequestSubmissionResult>();
+    var calls = 0;
+    await _pump(tester, ApprovedRequestFlowPage(
+      questionLoader: _noQuestions,
+      homeAddress: const PostalAddress(line1: 'Saved test address', country: 'US'),
+      accent: const Color(0xff1917ff), requestTitle: 'Synthetic rapid post', budget: '',
+      includeAppChrome: true,
+      onTitleChanged: (_) {}, onBudgetChanged: (_) {}, onBack: () {},
+      onNotifications: () {}, onSubmit: () {},
+      onSubmitDraft: (_, key) { calls++; return pending.future; },
+      categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
+    ));
+    final category = find.byKey(const Key('approved-request-category-select'));
+    await tester.ensureVisible(category); await tester.pumpAndSettle();
+    await tester.tap(category); await tester.pumpAndSettle();
+    await tester.tap(find.text('Electronics').last); await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Continue')); await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue')); await tester.pumpAndSettle();
+    final post = find.byKey(const Key('approvedRequestPostButton'));
+    await tester.ensureVisible(post); await tester.pumpAndSettle();
+    // No frame between taps: both use the previously enabled control.
+    await tester.tap(post); await tester.tap(post);
+    expect(calls, 1);
+    pending.complete(RequestSubmissionResult.success(_request()));
+    await tester.pumpAndSettle();
+    await tester.tap(post); await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('real requests never submit a missing home address', (
     tester,

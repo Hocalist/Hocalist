@@ -158,7 +158,7 @@ class HocalistApp extends StatelessWidget {
       publishableKey: resolved.publishableKey,
       initialize: connectionsInitializer,
       shellBuilder: _hocalistRealModeShell,
-      trustBackend: createConfiguredTrustBackend(),
+      trustBackendFactory: createConfiguredTrustBackend,
       // Keyed by identity so a replacement identity can never reuse the
       // previous account's navigation, forms or marketplace state.
       activeBuilder: (context, controller) => HocalistPrototype(
