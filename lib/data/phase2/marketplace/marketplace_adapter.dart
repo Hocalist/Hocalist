@@ -207,6 +207,9 @@ class MarketplaceDataAdapter
       'kind': requestKindToWire(draft.kind),
       'title': draft.title,
       'description': draft.description,
+      if (draft.imageMediaIds.isNotEmpty ||
+          const bool.fromEnvironment('HOCALIST_REQUEST_PHOTOS'))
+        'image_media_ids': draft.imageMediaIds,
       'condition': draft.condition == null
           ? null
           : productConditionToWire(draft.condition!),
@@ -221,6 +224,7 @@ class MarketplaceDataAdapter
       'category_id': draft.categoryId,
       'category_answers': categoryAnswerInput(draft.categoryAnswers),
       'use_home_address': location.useHomeAddress,
+      if (location.timezoneId != null) 'location_timezone': location.timezoneId,
       'address_line1': address?.line1,
       'address_line2': address?.line2,
       'city': address?.city,
@@ -885,6 +889,12 @@ class MarketplaceDataAdapter
   Future<RepositoryResult<Offer>> fetchOffer({required String offerId}) {
     return _read('marketplace_offer', {'p_offer': offerId}, decodeOfferJson);
   }
+
+  Future<RepositoryResult<PageSlice<Offer>>> fetchConversationDeals(
+    String conversationId,
+  ) => _readPage('chat_deals', {
+    'p_conversation': conversationId,
+  }, decodeOfferJson);
 
   @override
   Future<RepositoryResult<Offer>> submitOffer(SubmitOfferCommand command) {

@@ -117,11 +117,12 @@ Deno.test("details preserves session and attribution without extra billed fields
     );
     assert.equal(
       new Headers(init?.headers).get("X-Goog-FieldMask"),
-      "id,formattedAddress,addressComponents,location,attributions",
+      "id,formattedAddress,addressComponents,location,attributions,timeZone",
     );
     return json({
       id: "ChIJ_fixture",
       formattedAddress: "Public library",
+      timeZone: {id: "America/Chicago"},
       location: { latitude: 40, longitude: -73 },
       attributions: [{
         provider: "Example",
@@ -136,12 +137,23 @@ Deno.test("details preserves session and attribution without extra billed fields
     postalAddress: undefined,
     latitude: 40,
     longitude: -73,
+    timezoneId: "America/Chicago",
     attributions: [{ provider: "Example", uri: "https://example.com" }],
   });
 });
-Deno.test("rejects wrong place identity, malformed coordinates, unsafe attribution and invalid payloads", async () => {
+Deno.test("canonical address aliases retain the session-bound suggestion identity", async () => {
+  const result = await provider(async () => json({
+    id: "ChIJ_canonical_address",
+    formattedAddress: "350 Fifth Avenue, New York, NY",
+    location: { latitude: 40.7484, longitude: -73.9857 },
+    timeZone: { id: "America/New_York" },
+  }))(details);
+  assert.equal("placeId" in result && result.placeId, "ChIJ_fixture");
+  assert.equal("timezoneId" in result && result.timezoneId, "America/New_York");
+});
+Deno.test("rejects invalid place identity, malformed coordinates, unsafe attribution and invalid payloads", async () => {
   for (
-    const value of [{ id: "wrong", location: {} }, {
+    const value of [{ id: "bad/id", formattedAddress: "x", location: { latitude: 40, longitude: -73 } }, {
       id: "ChIJ_fixture",
       formattedAddress: "x",
       location: { latitude: 91, longitude: 0 },

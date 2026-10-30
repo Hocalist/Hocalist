@@ -190,7 +190,124 @@ Future<void> _pump(
 }
 
 void main() {
+  test(
+    'chat date separators use viewer calendar dates across month and year boundaries',
+    () {
+      final now = DateTime(2026, 1, 1, 0, 5);
+      expect(conversationTimeLabel(now), '12:05 AM');
+      expect(conversationTimeLabel(DateTime(2025, 12, 31, 14, 9)), '2:09 PM');
+      expect(conversationDateLabel(DateTime(2026, 1, 1), now: now), 'Today');
+      expect(
+        conversationDateLabel(DateTime(2025, 12, 31, 23, 59), now: now),
+        'Yesterday',
+      );
+      expect(
+        conversationDateLabel(DateTime(2025, 11, 15), now: now),
+        '15 November 2025',
+      );
+      expect(
+        sameConversationDay(DateTime(2026, 1, 1), DateTime(2026, 1, 1, 23)),
+        isTrue,
+      );
+      expect(sameConversationDay(null, now), isFalse);
+      expect(sameConversationDay(DateTime(2025, 12, 31), now), isFalse);
+    },
+  );
+
   setUpAll(loadHocalistTestFonts);
+
+  testWidgets('only the seller receives payment recovery navigation and the draft stays visible', (tester) async {
+    var opened=0;
+    Widget body(bool seller)=>ApprovedConversationBody(
+      onBack:(){},onPrimary:(){},onCall:(){},onMore:(){},onRequestChange:(){},onChangeLocation:(){},
+      onAttach:(){},onSend:(_){},onLearnMore:(){},realEntries:const[],viewerIsSeller:seller,
+      initialDraft:'Preserved draft',sendError:'This deal needs a payment update.',onManagePayment:()=>opened++,
+    );
+    await _pump(tester,body(true));
+    await tester.ensureVisible(find.byKey(const Key('approvedChatManagePayment')));
+    await tester.tap(find.byKey(const Key('approvedChatManagePayment')));
+    expect(opened,1);
+    expect(find.text('Preserved draft'),findsOneWidget);
+    await _pump(tester,body(false));
+    expect(find.byKey(const Key('approvedChatManagePayment')),findsNothing);
+  });
+
+  testWidgets(
+    'deal cards select their own notice and the chat header stays pinned',
+    (tester) async {
+      var selected = 'offer-a';
+      await _pump(
+        tester,
+        StatefulBuilder(
+          builder: (context, update) => ApprovedConversationBody(
+            onBack: () {},
+            onPrimary: () {},
+            onCall: () {},
+            onMore: () {},
+            onRequestChange: () {},
+            onChangeLocation: () {},
+            onAttach: () {},
+            onSend: (_) {},
+            onLearnMore: () {},
+            realContactName: 'Test counterpart',
+            realEntries: List.generate(
+              30,
+              (i) => ApprovedConversationEntry(
+                isOutgoing: i.isEven,
+                time: '10:00',
+                text: 'Synthetic message $i',
+                sentAt: DateTime.now(),
+              ),
+            ),
+            realDeals: const [
+              ApprovedDealView(
+                meetingId: 'meeting-a',
+                offerId: 'offer-a',
+                title: 'Deal A',
+                priceLabel: '100',
+                statusLabel: 'Waiting for acceptance',
+              ),
+              ApprovedDealView(
+                meetingId: 'meeting-b',
+                offerId: 'offer-b',
+                title: 'Deal B',
+                priceLabel: '200',
+                statusLabel: 'Meeting set',
+              ),
+            ],
+            selectedDealId: selected,
+            onSelectRealDeal: (id) => update(
+              () => selected = id == 'meeting-b' ? 'offer-b' : 'offer-a',
+            ),
+            onOpenRealDeal: (id) => openedDeal = id,
+          ),
+        ),
+      );
+      expect(find.text('Selected deal: Deal A'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Meeting not scheduled'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('active-deal-meeting-b')));
+      await tester.pumpAndSettle();
+      expect(find.text('Selected deal: Deal B'), findsOneWidget);
+      expect(find.textContaining('Notice for'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('deal-details-meeting-b')));
+      expect(openedDeal, 'meeting-b');
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      final before = tester.getTopLeft(find.text('Test counterpart')).dy;
+      await tester.drag(
+        find.byKey(const Key('approved-chat-scroll')),
+        const Offset(0, -500),
+      );
+      await tester.pumpAndSettle();
+      final after = tester.getTopLeft(find.text('Test counterpart')).dy;
+      expect((before - after).abs(), lessThanOrEqualTo(8));
+      expect(
+        find.byKey(const ValueKey('deal-details-meeting-b')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
   test('selected offer has a deal identity before a meeting exists', () {
     final offer = decodeOfferJson(
       marketplace.offerJson(
@@ -205,7 +322,8 @@ void main() {
     expect(view.meetingId, isNull);
     expect(view.offerId, offer.id);
     expect(view.priceLabel, BuyerOfferView.fromOffer(offer).priceLabel);
-    expect(view.statusLabel, contains('arrange meeting'));
+    expect(view.statusLabel, 'Awaiting buyer confirmation');
+    expect(view.actionLabel, 'Confirm seller');
   });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
@@ -481,6 +599,7 @@ void main() {
     expect(find.text('America/New_York'), findsOneWidget);
     expect(find.text('Synthetic place'), findsOneWidget);
     expect(find.text('Offline'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Inspect the item before paying the seller offline.')).dy, greaterThan(tester.getBottomLeft(find.byKey(const ValueKey('approved-real-deal-open-meeting'))).dy));
     expect(find.textContaining('15230'), findsNothing);
     await tester.tap(
       find.byKey(const ValueKey('approved-real-deal-open-meeting')),
@@ -517,9 +636,10 @@ void main() {
             realDeals: const [
               ApprovedDealView(
                 meetingId: 'long-place',
+                purchaseSelected: true,
                 title: 'Synthetic meeting',
                 priceLabel: r'$25',
-                statusLabel: 'Meeting set',
+                statusLabel: 'Waiting for the other person to accept',
                 statusTone: BuyerNoticeTone.success,
                 scheduleLabel: '2026-10-10 23:00',
                 zoneLabel: 'America/Chicago',
@@ -771,6 +891,7 @@ void main() {
     'completed-only conversation opens history instead of proposing another meeting',
     (tester) async {
       String? opened;
+      String? selected;
       var proposals = 0;
       await _pump(
         tester,
@@ -796,6 +917,7 @@ void main() {
             ),
           ],
           onOpenRealDeal: (id) => opened = id,
+          onSelectRealDeal: (id) => selected = id,
         ),
       );
       await tester.tap(
@@ -806,6 +928,7 @@ void main() {
       await tester.tap(find.text('View previous deal'));
       await tester.pumpAndSettle();
       expect(find.text('PIN confirmed'), findsOneWidget);
+      expect(selected, 'completed-meeting');
       await tester.tap(find.text('Open meeting details'));
       await tester.pumpAndSettle();
       expect(opened, 'completed-meeting');
@@ -1103,6 +1226,9 @@ void main() {
       ),
     );
     expect(find.text('Loop Resale'), findsOneWidget);
+    expect(find.text('2 unread'), findsNothing);
+    expect(find.text('Active conversation'), findsNothing);
+    expect(find.text('2'), findsOneWidget);
     expect(find.text('Northside Tech'), findsNothing);
     await tester.tap(find.text('Loop Resale'));
     await tester.pumpAndSettle();
@@ -1581,3 +1707,5 @@ void main() {
     expect(repository.hasUnconfirmedChatAttachment, isFalse);
   });
 }
+
+String? openedDeal;

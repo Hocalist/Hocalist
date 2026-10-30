@@ -41,7 +41,7 @@ function harness(options: {
     },
     rpc: async (name, params): Promise<PlacesRpcResult> => {
       calls.push({ name, params });
-      if (name === "places_gate") {
+      if (name === "places_gate" || name === 'places_coordinates_gate') {
         if (options.gateResult) return options.gateResult;
         if (options.gate === null) {
           return { ok: false, status: 500, data: null };
@@ -93,6 +93,20 @@ const autocomplete = { operation: "autocomplete", input: "library", sessionToken
 const details = { operation: "details", placeId: PLACE, sessionToken: SESSION };
 
 const bodyOf = async (response: Response) => await response.json();
+
+Deno.test('coordinate provider is gated by verified identity and shared ceilings', async()=>{
+  const query={operation:'coordinates',latitude:40,longitude:-74,sessionToken:SESSION};
+  for(const gate of [{decision:'membership_required'},{decision:'rate_limited'},{decision:'allowed',user_id:OTHER}]) {
+    const h=harness({gate});
+    assert.notEqual((await h.handler(post(query))).status,200);
+    assert.equal(h.providerCalls(),0);
+  }
+  const denied=harness({identity:{error:'unauthorized'}});
+  assert.equal((await denied.handler(post(query))).status,401); assert.equal(denied.calls.length,0);
+  const h=harness({provider:async()=>({placeId:PLACE,address:'Synthetic',latitude:40,longitude:-74,timezoneId:'America/New_York',attributions:[]})});
+  assert.equal((await h.handler(post(query))).status,200);
+  assert.deepEqual(h.calls,[{name:'places_coordinates_gate',params:{p_user:USER}}]);
+});
 
 Deno.test("non-POST, wrong content type and missing bearer are refused before any RPC", async () => {
   const { handler, calls, providerCalls } = harness();

@@ -208,12 +208,17 @@ abstract interface class MarketplaceMeetingsBackend {
 class MeetingActionResult {
   const MeetingActionResult.success(this.meeting)
     : error = null,
+      code = null,
       outcomeUncertain = false;
 
-  const MeetingActionResult.failure(this.error, {this.outcomeUncertain = false})
-    : meeting = null;
+  const MeetingActionResult.failure(
+    this.error, {
+    this.outcomeUncertain = false,
+    this.code,
+  }) : meeting = null;
 
   final MeetingView? meeting;
+  final String? code;
   final String? error;
   final bool outcomeUncertain;
 
@@ -293,6 +298,14 @@ abstract interface class MarketplaceChatBackend {
   });
 }
 
+/// Deal threads share a participant inbox but never share message history.
+abstract interface class MarketplaceDealChatBackend {
+  bool get dealThreadsEnabled;
+  Future<int> markDealRead(String conversationId,String offerId,String messageId);
+  Future<PageSlice<ConversationMessage>> loadDealMessagePage(String conversationId,String offerId,String? cursor);
+  Future<ConversationMessage> sendDealMessage({required String conversationId,required String offerId,required String text,required String clientMessageId,List<String> mediaIds=const []});
+}
+
 /// Optional extension of the chat backend for authorized image attachments.
 /// Older chat backends that do not implement it keep attachments visibly
 /// unavailable instead of pretending to send. `chatAttachmentsEnabled` is
@@ -351,13 +364,15 @@ class SellerOfferActionResult {
 class ChatSendResult {
   const ChatSendResult.success(this.message)
     : error = null,
+      code = null,
       outcomeUncertain = false;
 
-  const ChatSendResult.failure(this.error, {this.outcomeUncertain = false})
+  const ChatSendResult.failure(this.error, {this.outcomeUncertain = false, this.code})
     : message = null;
 
   final ConversationMessage? message;
   final String? error;
+  final String? code;
 
   /// True when the outcome is unknown and the send may have committed. Retry
   /// with the same client message id instead of composing a new message.
@@ -916,6 +931,17 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _notifyStore();
   }
 
+  /// Selects an already-loaded participant meeting for a revision-checked action.
+  MeetingView? focusCachedMeeting(String meetingId) {
+    final found = _meetings
+        .where((row) => row.meetingId == meetingId)
+        .firstOrNull;
+    if (found == null) return null;
+    ++_meetingDetailToken;
+    _meetingDetail = found;
+    return found;
+  }
+
   /// Loads the participant meetings, newest first.
   Future<void> refreshMeetings({String? status}) async {
     final backend = meetingsBackend;
@@ -983,7 +1009,9 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     final backend = meetingsBackend;
     if (backend == null) return null;
     final token = ++_meetingDetailToken;
-    _meetingDetail = null;
+    // Same-meeting refreshes must retain their verified identity and facts.
+    // A different destination still clears the previous record immediately.
+    if (_meetingDetail?.meetingId != meetingId) _meetingDetail = null;
     _meetingsError = null;
     _notifyStore();
     try {
@@ -1092,6 +1120,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       return MeetingActionResult.failure(
         error.message,
         outcomeUncertain: error.ambiguous,
+        code: error.code,
       );
     } finally {
       _notifyStore();
@@ -1425,7 +1454,28 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   bool _chatInboxLoading = false;
   String? _chatInboxError;
   int _chatInboxToken = 0;
+  int _chatReadToken = 0;
   String? _activeConversationId;
+  String? _activeChatOfferId;
+  String? get activeChatOfferId => _activeChatOfferId;
+  bool get dealThreadsActive => chatBackend is MarketplaceDealChatBackend && (chatBackend as MarketplaceDealChatBackend).dealThreadsEnabled;
+  String _chatScope(String conversationId,String? offerId) => offerId==null?conversationId:'$conversationId/$offerId';
+  String? get _activeChatScope => _activeConversationId==null?null:_chatScope(_activeConversationId!,_activeChatOfferId);
+  Future<void> selectChatDeal(String? offerId) async {
+    final backend=chatBackend;
+    if(backend is! MarketplaceDealChatBackend || !(backend as MarketplaceDealChatBackend).dealThreadsEnabled || _activeChatOfferId==offerId) return;
+    _activeChatOfferId=offerId;
+    _chatMessages=const [];
+    await refreshChatMessages();
+    if(_activeChatOfferId==offerId && _chatMessages.isNotEmpty) await markChatRead(_chatMessages.last.id);
+  }
+  Future<PageSlice<ConversationMessage>> _loadChatPage(MarketplaceChatBackend backend,String id,String? cursor) {
+    final offerId=_activeChatOfferId;
+    if(offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled) {
+      return (backend as MarketplaceDealChatBackend).loadDealMessagePage(id,offerId,cursor);
+    }
+    return (backend as MarketplacePagedChatBackend).loadMessagePage(id,cursor);
+  }
   List<ConversationMessage> _chatMessages = const <ConversationMessage>[];
   bool _chatMessagesLoading = false;
   String? _chatMessagesError;
@@ -1433,6 +1483,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   bool _chatMuted = false;
   bool _chatSending = false;
   final Map<String, ({String text, String key})> _pendingChatSends = {};
+  final Map<String, String> _paymentBlockedChatDrafts = {};
   final Map<String, ({String text, List<String> mediaIds, String key})>
   _pendingChatAttachments = {};
 
@@ -1456,7 +1507,8 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   bool get chatSending => _chatSending;
   String? get unconfirmedChatText =>
-      _pendingChatSends[_activeConversationId]?.text;
+      _pendingChatSends[_activeChatScope]?.text ?? _paymentBlockedChatDrafts[_activeChatScope];
+  bool get chatPaymentRequired => _paymentBlockedChatDrafts.containsKey(_activeChatScope);
 
   bool get isChatBacked => chatBackend != null;
 
@@ -1472,7 +1524,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   List<String> get unconfirmedChatAttachmentIds =>
-      _pendingChatAttachments[_activeConversationId]?.mediaIds ??
+      _pendingChatAttachments[_activeChatScope]?.mediaIds ??
       const <String>[];
   String? _chatHistoryCursor;
   bool _chatOlderLoading = false;
@@ -1490,7 +1542,8 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _chatOlderLoading = false;
     _chatOlderError = null;
     _chatMessagesError = message;
-    _pendingChatSends.remove(_activeConversationId);
+    _pendingChatSends.remove(_activeChatScope);
+    _paymentBlockedChatDrafts.remove(_activeChatScope);
     _notifyStore();
   }
 
@@ -1508,8 +1561,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _chatPollRunning = true;
     final token = _chatMessagesToken;
     try {
-      final page = await (backend as MarketplacePagedChatBackend)
-          .loadMessagePage(id, null);
+      final page = await _loadChatPage(backend!,id,null);
       if (_disposed ||
           token != _chatMessagesToken ||
           id != _activeConversationId) {
@@ -1568,8 +1620,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _chatOlderError = null;
     _notifyStore();
     try {
-      final slice = await (backend as MarketplacePagedChatBackend)
-          .loadMessagePage(id, cursor);
+      final slice = await _loadChatPage(backend!,id,cursor);
       if (_disposed ||
           token != _chatOlderToken ||
           id != _activeConversationId) {
@@ -1641,8 +1692,11 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   /// Opens one conversation and loads its history.
-  Future<void> openChatConversation(String conversationId) async {
+  Future<void> openChatConversation(String conversationId,{String? offerId}) async {
+    final resumedOffer = offerId ??
+        (_activeConversationId == conversationId ? _activeChatOfferId : null);
     _activeConversationId = conversationId;
+    _activeChatOfferId = resumedOffer;
     _chatMessages = const <ConversationMessage>[];
     _chatMuted = false;
     _notifyStore();
@@ -1664,7 +1718,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _notifyStore();
     try {
       final slice = backend is MarketplacePagedChatBackend
-          ? await (backend as MarketplacePagedChatBackend).loadMessagePage(
+          ? await _loadChatPage(backend,
               conversationId,
               null,
             )
@@ -1696,13 +1750,15 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   Future<ChatSendResult> sendChatMessage(String text) async {
     final backend = chatBackend;
     final conversationId = _activeConversationId;
+    final offerId = _activeChatOfferId;
     if (backend == null || conversationId == null) {
       throw const StoreBackendException('Chat is unavailable.');
     }
     if (_chatSending) {
       return const ChatSendResult.failure('A message is already being sent.');
     }
-    final pending = _pendingChatSends[conversationId];
+    final scope=_chatScope(conversationId,offerId);
+    final pending = _pendingChatSends[scope];
     if (pending != null && pending.text != text) {
       return const ChatSendResult.failure(
         'Retry the original unconfirmed message before sending a different one.',
@@ -1711,17 +1767,20 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     }
     final intent =
         pending ?? (text: text, key: newStoreOperationKey('chat-send'));
-    _pendingChatSends[conversationId] = intent;
+    _pendingChatSends[scope] = intent;
+    _paymentBlockedChatDrafts.remove(scope);
     _chatSending = true;
     _notifyStore();
     try {
-      final message = await backend.sendMessage(
+      final message = offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled
+      ? await (backend as MarketplaceDealChatBackend).sendDealMessage(conversationId:conversationId,offerId:offerId,text:text,clientMessageId:intent.key)
+      : await backend.sendMessage(
         conversationId: conversationId,
         text: text,
         clientMessageId: intent.key,
       );
-      _pendingChatSends.remove(conversationId);
-      if (!_disposed && _activeConversationId == conversationId) {
+      _pendingChatSends.remove(scope);
+      if (!_disposed && _activeConversationId == conversationId && _activeChatOfferId==offerId) {
         ++_chatMessagesToken;
         _chatMessagesLoading = false;
         _chatMessages = List<ConversationMessage>.unmodifiable([
@@ -1731,9 +1790,13 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       }
       return ChatSendResult.success(message);
     } on StoreBackendException catch (error) {
-      if (!error.ambiguous) _pendingChatSends.remove(conversationId);
+      if (!error.ambiguous) _pendingChatSends.remove(scope);
+      if (error.code == 'deal_payment_required') {
+        _paymentBlockedChatDrafts[scope] = text;
+      }
       return ChatSendResult.failure(
         error.message,
+        code: error.code,
         outcomeUncertain: error.ambiguous,
       );
     } catch (_) {
@@ -1759,9 +1822,11 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     required String text,
     required List<String> mediaIds,
     String? expectedConversationId,
+    String? expectedOfferId,
   }) async {
     final backend = chatBackend;
     final conversationId = _activeConversationId;
+    final offerId = _activeChatOfferId;
     final attachmentBackend = backend is MarketplaceChatAttachmentBackend
         ? backend as MarketplaceChatAttachmentBackend
         : null;
@@ -1773,10 +1838,12 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       );
     }
     if (mediaIds.isEmpty) return sendChatMessage(text);
+    final scope=_chatScope(conversationId,offerId);
     if (expectedConversationId != null &&
-        expectedConversationId != conversationId) {
-      if (!_pendingChatAttachments.containsKey(expectedConversationId)) {
-        _pendingChatAttachments[expectedConversationId] = (
+        (expectedConversationId != conversationId || expectedOfferId != offerId)) {
+      final expectedScope=_chatScope(expectedConversationId,expectedOfferId);
+      if (!_pendingChatAttachments.containsKey(expectedScope)) {
+        _pendingChatAttachments[expectedScope] = (
           text: text,
           mediaIds: List<String>.unmodifiable(mediaIds),
           key: newStoreOperationKey('chat-attachment'),
@@ -1784,13 +1851,13 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       }
       _notifyStore();
       return const ChatSendResult.failure(
-        'This chat changed. The photo is kept with the original conversation.',
+        'This deal changed. The photo is kept with the original conversation.',
       );
     }
     if (_chatSending) {
       return const ChatSendResult.failure('A message is already being sent.');
     }
-    final pending = _pendingChatAttachments[conversationId];
+    final pending = _pendingChatAttachments[scope];
     if (pending != null && !_sameAttachmentIntent(pending, text, mediaIds)) {
       return const ChatSendResult.failure(
         'Retry the original unconfirmed attachments before sending different ones.',
@@ -1804,18 +1871,20 @@ class LocalMarketplaceRepository extends ChangeNotifier {
           mediaIds: List<String>.unmodifiable(mediaIds),
           key: newStoreOperationKey('chat-attachment'),
         );
-    _pendingChatAttachments[conversationId] = intent;
+    _pendingChatAttachments[scope] = intent;
     _chatSending = true;
     _notifyStore();
     try {
-      final message = await attachmentBackend.sendAttachment(
+      final message = offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled
+      ? await (backend as MarketplaceDealChatBackend).sendDealMessage(conversationId:conversationId,offerId:offerId,text:intent.text,clientMessageId:intent.key,mediaIds:intent.mediaIds)
+      : await attachmentBackend.sendAttachment(
         conversationId: conversationId,
         text: intent.text,
         mediaIds: intent.mediaIds,
         clientMessageId: intent.key,
       );
-      _pendingChatAttachments.remove(conversationId);
-      if (!_disposed && _activeConversationId == conversationId) {
+      _pendingChatAttachments.remove(scope);
+      if (!_disposed && _activeConversationId == conversationId && _activeChatOfferId==offerId) {
         ++_chatMessagesToken;
         _chatMessagesLoading = false;
         _chatMessages = List<ConversationMessage>.unmodifiable([
@@ -1826,7 +1895,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       return ChatSendResult.success(message);
     } on StoreBackendException catch (error) {
       if (!error.ambiguous) {
-        _pendingChatAttachments.remove(conversationId);
+        _pendingChatAttachments.remove(scope);
       }
       return ChatSendResult.failure(
         error.message,
@@ -1872,13 +1941,13 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   bool get hasUnconfirmedChatAttachment =>
-      _pendingChatAttachments.containsKey(_activeConversationId);
+      _pendingChatAttachments.containsKey(_activeChatScope);
 
   /// Retries the retained attachment intent without uploading anything again:
   /// the repository reuses the stored media ids and client key.
   Future<ChatSendResult> retryChatAttachment() async {
     final conversationId = _activeConversationId;
-    final intent = _pendingChatAttachments[conversationId];
+    final intent = _pendingChatAttachments[_activeChatScope];
     if (conversationId == null || intent == null) {
       return const ChatSendResult.failure(
         'There is no unconfirmed photo to retry.',
@@ -1888,6 +1957,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       text: intent.text,
       mediaIds: intent.mediaIds,
       expectedConversationId: conversationId,
+      expectedOfferId: _activeChatOfferId,
     );
   }
 
@@ -1895,22 +1965,33 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   void discardChatAttachment() {
     final conversationId = _activeConversationId;
     if (conversationId == null) return;
-    if (_pendingChatAttachments.remove(conversationId) != null) {
+    if (_pendingChatAttachments.remove(_activeChatScope) != null) {
       _notifyStore();
     }
   }
 
   /// Marks the active conversation read up to [messageId].
-  Future<void> markChatRead(String messageId) async {
+  Future<bool> markChatRead(String messageId) async {
+    final readToken = ++_chatReadToken;
     final backend = chatBackend;
     final conversationId = _activeConversationId;
-    if (backend == null || conversationId == null) return;
+    if (backend == null || conversationId == null) return false;
+    final offerId=_activeChatOfferId;
     try {
+      final int unread;
+      if(offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled){
+        unread=await (backend as MarketplaceDealChatBackend).markDealRead(conversationId,offerId,messageId);
+      }else{
       await backend.markRead(
         conversationId: conversationId,
         messageId: messageId,
       );
-      if (_disposed) return;
+      unread=0;
+      }
+      if (_disposed) return false;
+      if (readToken != _chatReadToken) return true;
+      ++_chatInboxToken;
+      _chatInboxLoading = false;
       _chatInbox = _chatInbox
           .map(
             (row) => row.conversation.id == conversationId
@@ -1919,13 +2000,15 @@ class LocalMarketplaceRepository extends ChangeNotifier {
                     counterpartDisplayName: row.counterpartDisplayName,
                     counterpartProfileId: row.counterpartProfileId,
                     latestMessage: row.latestMessage,
-                    unreadCount: 0,
+                    unreadCount: unread,
                   )
                 : row,
           )
           .toList(growable: false);
+      return true;
     } catch (_) {
       // Read markers are best-effort; the inbox refresh reconciles them.
+      return false;
     } finally {
       _notifyStore();
     }
@@ -1954,6 +2037,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   List<Offer> _buyerOffers = const <Offer>[];
   bool _buyerOffersLoading = false;
+  bool _buyerOffersRefreshing = false;
   String? _buyerOffersError;
   int _buyerOffersToken = 0;
   String? _buyerOffersRequestId;
@@ -1971,26 +2055,43 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   /// Loads every offer for one buyer request. No-op without a backend;
   /// overlapping refreshes are versioned and a disposed repository applies
   /// nothing.
-  Future<void> refreshBuyerOffers(String requestId) async {
+  Future<void> refreshBuyerOffers(
+    String requestId, {
+    bool background = false,
+  }) async {
     final backend = buyerOffersBackend;
     if (backend == null) return;
+    if (background &&
+        (_buyerOffersRefreshing || _buyerOffersRequestId != requestId)) {
+      return;
+    }
     final token = ++_buyerOffersToken;
-    _buyerOffersLoading = true;
-    _buyerOffersError = null;
+    _buyerOffersRefreshing = true;
+    if (!background) {
+      _buyerOffersLoading = true;
+      _buyerOffersError = null;
+      if (_buyerOffersRequestId != requestId) {
+        _buyerOffers = const [];
+      }
+    }
     _buyerOffersRequestId = requestId;
-    _notifyStore();
+    if (!background) _notifyStore();
     try {
       final offers = await backend.loadRequestOffers(requestId);
       if (_disposed || token != _buyerOffersToken) return;
       _buyerOffers = offers;
+      _buyerOffersError = null;
     } catch (error) {
       if (_disposed || token != _buyerOffersToken) return;
-      _buyerOffersError = error is StoreBackendException
-          ? error.message
-          : 'Could not load offers. Pull to retry.';
+      if (!background) {
+        _buyerOffersError = error is StoreBackendException
+            ? error.message
+            : 'Could not load offers. Pull to retry.';
+      }
     } finally {
       if (!_disposed && token == _buyerOffersToken) {
         _buyerOffersLoading = false;
+        _buyerOffersRefreshing = false;
         _notifyStore();
       }
     }
@@ -2227,6 +2328,10 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   void _upsertBuyerRequest(MarketplaceRequest request) {
+    // Reads started before this acknowledged write must not replace it.
+    _buyerRequestsToken++;
+    _buyerRequestsLoading = false;
+    _buyerRequestsError = null;
     final next = List<MarketplaceRequest>.of(_buyerRequests);
     final index = next.indexWhere((row) => row.id == request.id);
     if (index < 0) {
@@ -2621,13 +2726,13 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     final index = _storeListings.indexWhere((item) => item.id == id);
     if (index < 0) {
       throw const StoreBackendException(
-        'That listing is no longer in your Store. Refresh and try again.',
+        'That listing is no longer in your Store. Please try again.',
       );
     }
     final previous = _storeListings[index];
     if (previous.revision < 1) {
       throw const StoreBackendException(
-        'Refresh your Store before changing this listing.',
+        'Open your Store again before changing this listing.',
       );
     }
     final optimistic = previous.copyWith(status: status, pendingSync: true);
@@ -2681,7 +2786,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     final index = _storeListings.indexWhere((item) => item.id == id);
     if (index < 0) {
       throw const StoreBackendException(
-        'That listing is no longer in your Store. Refresh and try again.',
+        'That listing is no longer in your Store. Please try again.',
       );
     }
     final source = _storeListings[index];
@@ -2734,7 +2839,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     if (previous.revision < 1) {
       _storeListings.insert(index.clamp(0, _storeListings.length), previous);
       throw const StoreBackendException(
-        'Refresh your Store before deleting this listing.',
+        'Open your Store again before deleting this listing.',
       );
     }
     final token = _nextMutationToken(id);

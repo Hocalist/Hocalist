@@ -17,6 +17,16 @@ Deno.test('unknown upload purposes are rejected before metadata',async()=>{
  const d=deps();d.rpc=async()=>{throw Error('must_not_call');};
  assert((await createMediaHandler(d)(request(undefined,'evidence'))).status===400);
 });
+Deno.test('request photos pass the verified user and purpose to the authorization gateway',async()=>{
+ const d=deps();let began=false;
+ d.rpc=async(user,action,input)=>{if(action==='begin'){assert(user==='a');assert(input.purpose==='request');began=true;}return{id,path:'a/image.jpg',state:'pending'};};
+ assert((await createMediaHandler(d)(request(undefined,'request'))).status===200);assert(began);
+});
+Deno.test('purchase review photos use a separate authorized purpose from verification evidence',async()=>{
+ const d=deps();let began=false;
+ d.rpc=async(user,action,input)=>{if(action==='begin'){assert(user==='a');assert(input.purpose==='purchase_review');began=true;}return{id,path:'a/image.jpg',state:'pending'};};
+ assert((await createMediaHandler(d)(request(undefined,'purchase_review'))).status===200);assert(began);
+});
 Deno.test('profile and chat uploads require UUID media keys, not marketplace text keys',async()=>{
  for(const purpose of ['profile','chat']){
   const d=deps();let began=false;

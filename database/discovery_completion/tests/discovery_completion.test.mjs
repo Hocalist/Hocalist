@@ -703,6 +703,63 @@ test('reviews: eligibility, idempotent submission, moderation and aggregate', as
   }
 });
 
+test('Hocatrends offer participants and listing owners share enquiry eligibility', async (t) => {
+  const db = await createDb();
+  try {
+    const req = (await command(db,A,'request.create','trend-request',requestInput()))[0].result;
+    const offer = (await command(db,B,'offer.submit','trend-offer',offerInput(req.id)))[0].result;
+    assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0,'reproduce listing-only omission');
+    const enquiryDefinition=(await db.query("SELECT pg_get_functiondef('hocalist.discovery_open_enquiry(text,jsonb)'::regprocedure) AS body")).rows[0].body;
+    await db.exec(enquiryDefinition.replace(/\n/g,'\r\n'));
+    await db.exec((await read('../../runtime_repairs/224_hocatrends_seller_eligibility.sql')).replace(/\r?\n/g,'\r\n'));
+    await t.test('recent offer seller is discoverable without a store listing',async()=>{
+      const data=(await topicSellers(db,A,CATEGORY))[0].data;
+      assert.equal(data.items.length,1); assert.equal(data.items[0].seller_profile_id,MB);
+      assert.equal(data.items[0].listing_id,null);
+      assert.doesNotMatch(JSON.stringify(data),/latitude|longitude|address|@|price_minor|message/);
+      assert.equal((await topicSellers(db,A,TOPIC))[0].data.items.length,0);
+    });
+    await t.test('discovered offer-only seller can open an enquiry with safe retry',async()=>{
+      const input={origin:'hocatrends_enquiry',topic_id:CATEGORY,seller_profile_id:MB};
+      const first=(await openEnquiry(db,A,'offer-only-enquiry',input))[0].data;
+      const retry=(await openEnquiry(db,A,'offer-only-enquiry',input))[0].data;
+      assert.equal(first.conversation_id,retry.conversation_id);
+      const members=(await db.query('SELECT user_id FROM hocalist.conversation_members WHERE conversation_id=$1',[first.conversation_id])).rows;
+      assert.deepEqual(members.map(row=>row.user_id).sort(),[A,B].sort());
+      await expectRejected(openEnquiry(db,A,'unrelated',{...input,seller_profile_id:MC}),'seller_not_eligible','P0001');
+    });
+    await t.test('old and withdrawn offers alone do not qualify',async()=>{
+      await db.query("UPDATE hocalist.offers SET created_at=now()-interval '31 days' WHERE id=$1",[offer.id]);
+      assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0);
+      await db.query("UPDATE hocalist.offers SET created_at=now(),status='withdrawn' WHERE id=$1",[offer.id]);
+      assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0);
+      await db.query("UPDATE hocalist.offers SET status='submitted' WHERE id=$1",[offer.id]);
+    });
+    await t.test('multiple matching listings and offers produce one seller',async()=>{
+      await db.exec(`INSERT INTO hocalist.store_listings(seller_user_id,seller_profile_id,kind,title,category_id,category_label,price_label,status,moderation_status)
+        SELECT '${B}','${MB}','product','Synthetic listing '||n,'${CATEGORY}','Electronics','Ask seller','active','approved' FROM generate_series(1,2) n;`);
+      const rows=(await topicSellers(db,A,CATEGORY))[0].data.items;
+      assert.equal(rows.length,1); assert.ok(rows[0].listing_id);
+    });
+    await t.test('inactive or restricted sellers cannot be discovered or contacted',async()=>{
+      for(const status of ['pending','restricted','disabled']) {
+        await db.query('UPDATE hocalist.memberships SET status=$1 WHERE id=$2',[status,MB]);
+        assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0);
+        await expectRejected(openEnquiry(db,A,`blocked-${status}`,{origin:'hocatrends_enquiry',topic_id:CATEGORY,seller_profile_id:MB}),'seller_not_eligible','P0001');
+      }
+      await db.query("UPDATE hocalist.memberships SET status='active' WHERE id=$1",[MB]);
+    });
+    await t.test('anonymous reads and direct internal-helper calls remain denied',async()=>{
+      await assert.rejects(callAs(db,'anon','', 'SELECT hocalist.hocatrends_topic_sellers($1,20)',[CATEGORY]),{code:'42501'});
+      await assert.rejects(callAs(db,'authenticated',A,'SELECT * FROM hocalist.discovery_topic_seller_candidates($1)',[CATEGORY]),{code:'42501'});
+    });
+    await t.test('migration safely reapplies without changing enquiry receipts',async()=>{
+      await db.exec(await read('../../runtime_repairs/224_hocatrends_seller_eligibility.sql'));
+      assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,1);
+    });
+  } finally { await db.close(); }
+});
+
 test('Hocatrends, Winners and discovery enquiry origin isolation', async (t) => {
   const db = await createDb();
   try {

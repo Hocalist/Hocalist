@@ -4,6 +4,41 @@ import 'package:hocalist/components/hocalist_motion.dart';
 import 'package:hocalist/components/hocalist_section_tabs.dart';
 
 void main() {
+  testWidgets(
+    'entrance becomes visible after ancestor movement without scrolling',
+    (tester) async {
+      final offset = ValueNotifier<double>(1000);
+      addTearDown(offset.dispose);
+      const card = HocalistEntrance(
+        child: SizedBox(height: 100, child: Text('Sent offer')),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ValueListenableBuilder<double>(
+                valueListenable: offset,
+                child: card,
+                builder: (_, value, child) =>
+                    Transform.translate(offset: Offset(0, value), child: child),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      offset.value = 0;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 300));
+      final opacity = find.ancestor(
+        of: find.text('Sent offer'),
+        matching: find.byType(Opacity),
+      );
+      expect(tester.widget<Opacity>(opacity.first).opacity, 1);
+    },
+  );
+
   testWidgets('entrance cards reveal when a retained tab becomes active', (
     tester,
   ) async {
@@ -17,7 +52,10 @@ void main() {
                 'Credits': [Text('Balance')],
                 'Activity': [
                   HocalistEntrance(
-                    child: SizedBox(height: 100, child: Text('Reserved target')),
+                    child: SizedBox(
+                      height: 100,
+                      child: Text('Reserved target'),
+                    ),
                   ),
                 ],
               },

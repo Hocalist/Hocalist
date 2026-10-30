@@ -1,5 +1,7 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../components/hocalist_reload_link.dart';
+import '../components/brand_home_link.dart';
 import 'package:flutter/material.dart';
 import '../components/notification_indicator.dart';
 import '../components/hocalist_motion.dart';
@@ -235,7 +237,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final reflow = metrics.accessibilityReflow;
-        final logo = Semantics(
+        final logo = BrandHomeLink(child: Semantics(
           image: true,
           label: 'Hocalist Reverse Marketplace',
           child: SizedBox(
@@ -253,7 +255,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
               excludeFromSemantics: true,
             ),
           ),
-        );
+        ));
         final mode = Container(
           key: modeKey,
           constraints: BoxConstraints(minHeight: metrics.geometry(38)),
@@ -390,6 +392,10 @@ class BuyerPrimaryButton extends StatelessWidget {
     final radius = accessibility.radiusOr(approvedRadius);
     final highContrast = accessibility.usesHighContrastButton;
     return Semantics(
+      container: true,
+      label: label,
+      onTap: onPressed,
+      excludeSemantics: true,
       button: true,
       enabled: onPressed != null,
       child: HocalistPressFeedback(
@@ -506,6 +512,10 @@ class BuyerSecondaryButton extends StatelessWidget {
     final accessibility = hocalistAccessibilityVisualsOf(context);
     final approvedRadius = metrics.geometry(13);
     return Semantics(
+      container: true,
+      label: label,
+      onTap: onPressed,
+      excludeSemantics: true,
       button: true,
       enabled: onPressed != null,
       child: HocalistPressFeedback(
@@ -1458,20 +1468,7 @@ class BuyerProgressStrip extends StatelessWidget {
         ],
         ClipRRect(
           borderRadius: BorderRadius.circular(99),
-          child: Semantics(
-            container: true,
-            label: 'Loading',
-            child: LinearProgressIndicator(
-              minHeight: metrics.geometry(5),
-              backgroundColor: HocalistPalette.surface(
-                context,
-                BuyerUiTokens.softSurface,
-              ),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                BuyerUiTokens.action,
-              ),
-            ),
-          ),
+          child: HocalistLoadingIndicator(),
         ),
       ],
     );

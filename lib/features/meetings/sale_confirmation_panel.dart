@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
 import 'package:flutter/services.dart';
 import '../../data/phase2/outcomes/sale_confirmation.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -45,11 +46,50 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
   String? error;
   int generation = 0;
   Timer? expiry;
+  Timer? statusPoll;
+  bool statusPolling = false;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     run('status');
+    statusPoll = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => _pollCompletion(),
+    );
+  }
+
+  Future<void> _pollCompletion() async {
+    if (!mounted ||
+        busy ||
+        statusPolling ||
+        result?.status == 'confirmed' ||
+        result?.status == 'completed_elsewhere' ||
+        (WidgetsBinding.instance.lifecycleState != null &&
+            WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed)) {
+      return;
+    }
+    final token = generation;
+    statusPolling = true;
+    try {
+      final value = await widget.adapter.call(widget.meetingId, 'status');
+      if (!mounted || token != generation) return;
+      if (value.status == 'confirmed' ||
+          value.status == 'completed_elsewhere') {
+        expiry?.cancel();
+        input.clear();
+        setState(() {
+          result = value;
+          error = null;
+        });
+        widget.onPurchaseConfirmed?.call();
+      }
+    } catch (_) {
+      // A background retry must not hide the user's PIN or interrupt input.
+    } finally {
+      statusPolling = false;
+    }
   }
 
   @override
@@ -60,7 +100,11 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
       input.clear();
       if (mounted) {
         setState(() {
-          result = null;
+          // Clear transient PIN data, but a confirmed purchase is terminal.
+          if (result?.status != 'confirmed' &&
+              result?.status != 'completed_elsewhere') {
+            result = null;
+          }
           busy = false;
         });
       }
@@ -71,6 +115,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
   void dispose() {
     generation++;
     expiry?.cancel();
+    statusPoll?.cancel();
     input.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -116,8 +161,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     } catch (_) {
       if (mounted && token == generation) {
         setState(
-          () => error =
-              'Could not confirm the result. Retry or refresh the status.',
+          () => error = 'Could not confirm the result. Please try again.',
         );
       }
     } finally {
@@ -266,22 +310,10 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
               ),
           ],
           SizedBox(height: metrics.spacing(8)),
-          if (widget.isBuyer)
-            BuyerSecondaryButton(
-              key: const Key('saleConfirmationRefresh'),
-              label: 'Refresh purchase status',
-              onPressed: busy
-                  ? null
-                  : () => run('status', refreshMeeting: true),
-            )
-          else
-            SellerSecondaryButton(
-              key: const Key('saleConfirmationRefresh'),
-              label: 'Refresh purchase status',
-              onPressed: busy
-                  ? null
-                  : () => run('status', refreshMeeting: true),
-            ),
+          PullRefreshAction(
+            key: const Key('saleConfirmationRefresh'),
+            onRefresh: busy ? null : () => run('status', refreshMeeting: true),
+          ),
         ],
       ),
     );

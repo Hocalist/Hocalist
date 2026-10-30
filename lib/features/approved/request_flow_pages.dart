@@ -1,10 +1,16 @@
 import 'dart:convert';
+import 'dart:async';
+import '../../data/phase2/maps/places_repository.dart';
+import '../../data/phase2/maps/places_contract.dart';
+import '../account/private_contact_editor.dart' show contactAddressFromPlace;
 import '../../domain/phase2/category_answers.dart';
 import 'category_question_editor.dart';
+import '../../domain/phase2/us_states.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/notification_indicator.dart';
+import '../media/request_photo_gallery.dart';
 
 import '../../data/local_marketplace_repository.dart';
 import '../../domain/phase2/common.dart';
@@ -165,12 +171,16 @@ class ApprovedRequestFlowPage extends StatefulWidget {
     this.onRefreshCategories,
     this.initialDescription = '',
     this.homeAddress,
+    this.homeTimezoneId,
+    this.onManageHomeAddress,
     this.onChooseLocation,
+    this.places,
     this.questionLoader = loadCategoryQuestions,
     super.key,
   });
 
   final CategoryQuestionLoader questionLoader;
+  final PlacesRepository? places;
   final Color accent;
   final String requestTitle;
   final String budget;
@@ -205,6 +215,8 @@ class ApprovedRequestFlowPage extends StatefulWidget {
   /// Buyer home address shown on the location step. Null uses the approved
   /// prototype display value.
   final PostalAddress? homeAddress;
+  final String? homeTimezoneId;
+  final VoidCallback? onManageHomeAddress;
   final Future<RequestLocation?> Function(BuildContext context)?
   onChooseLocation;
 
@@ -347,7 +359,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                 ? null
                 : Money(minorUnits: maximum, currencyCode: 'USD'),
           );
-    var location = const RequestLocation.homeAddress();
+    var location = RequestLocation.homeAddress(
+      timezoneId: widget.homeTimezoneId,
+    );
     if (!_useHomeAddress) {
       final address = PostalAddress(
         line1: _addressLine1,
@@ -387,6 +401,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   bool _sameDraft(RequestDraft left, RequestDraft right) =>
+      left.imageMediaIds.join(',') == right.imageMediaIds.join(',') &&
       left.kind == right.kind &&
       left.title == right.title &&
       left.description == right.description &&
@@ -402,16 +417,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
 
   String? _detailsValidationMessage() {
     if (widget.requestTitle.trim().isEmpty) return 'Add a clear request title.';
-    if (widget.usesRealSubmission &&
-        (_categoryId == null ||
-            !widget.categories.any(
-              (c) =>
-                  c.id == _categoryId &&
-                  c.isActive &&
-                  (_kind == ApprovedRequestKind.product
-                      ? c.supportsProduct
-                      : c.supportsService),
-            ))) {
+    if (widget.usesRealSubmission && (_categoryId == null || !widget.categories.any((c) => c.id == _categoryId && c.isActive && (_kind == ApprovedRequestKind.product ? c.supportsProduct : c.supportsService)))) {
       return 'Choose an active category before continuing.';
     }
     final questionError = _questionKey.currentState?.validationMessage();
@@ -666,10 +672,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
               _ApprovedKindPicker(
                 selected: _kind,
                 onChanged: (value) => setState(() {
-                  if (_kind != value) {
-                    _categoryId = null;
-                    _categoryAnswers = const [];
-                  }
+                  if (_kind != value) { _categoryId = null; _categoryAnswers = const []; }
                   _kind = value;
                 }),
               ),
@@ -713,6 +716,15 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       selectedMapAddress: !_useHomeAddress
                           ? _mapLocation?.address?.line1
                           : null,
+                      places:widget.places,
+                      onResolvedLocation:(location)=>setState(() {
+                        _mapLocation=location;
+                        final address=location.address!;
+                        _addressLine1=address.line1;_addressLine2=address.line2;
+                        _city=address.city;_state=address.state;_postalCode=address.postalCode;_country=address.country;
+                        _useHomeAddress=false;_submitError=null;
+                      }),
+                      onManageHomeAddress: widget.onManageHomeAddress,
                       homeAddressLine1:
                           widget.homeAddress?.line1 ??
                           (widget.usesRealSubmission
@@ -1144,7 +1156,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
               : 'Describe what you need, preferred outcome, specific requirements, etc.',
           controller: descriptionController,
           maxLines: 3,
-          counterText: '0/500',
+          counterText: '500',
         ),
         const SizedBox.shrink(),
         _ApprovedResponsiveGrid(
@@ -1238,6 +1250,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     required this.onBack,
     required this.onSubmit,
     this.isProduct = false,
+    this.onManageHomeAddress,
     this.homeAddressLine1 = '123 Main Street',
     this.homeAddressLine2 = 'Miami, FL 33101, USA',
     this.countryLabel = 'United States',
@@ -1254,6 +1267,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     this.onChooseLocation,
     this.selectedMapAddress,
     this.customAddress,
+    this.places,
+    this.onResolvedLocation,
     super.key,
   });
 
@@ -1262,6 +1277,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onSubmit;
   final bool isProduct;
+  final VoidCallback? onManageHomeAddress;
   final String homeAddressLine1;
   final String homeAddressLine2;
   final String countryLabel;
@@ -1287,6 +1303,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
   final VoidCallback? onChooseLocation;
   final String? selectedMapAddress;
   final PostalAddress? customAddress;
+  final PlacesRepository? places;
+  final ValueChanged<RequestLocation>? onResolvedLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -1319,6 +1337,12 @@ class ApprovedLocationRequestStep extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Use my home address', style: _sectionStyle(context)),
+              if (onManageHomeAddress != null &&
+                  homeAddressLine1 == 'No saved home address')
+                TextButton(
+                  onPressed: onManageHomeAddress,
+                  child: const Text('Add home address'),
+                ),
               SizedBox(height: metrics.geometry(3)),
               Text(
                 'This is your default address in settings.',
@@ -1326,7 +1350,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(6)),
               InkWell(
-                onTap: () => onUseHomeAddressChanged(true),
+                onTap: () => onUseHomeAddressChanged(!useHomeAddress),
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
                 child: Container(
                   padding: metrics.geometryInsets(
@@ -1447,22 +1471,6 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           ],
         ),
         SizedBox(height: metrics.geometry(10)),
-        if (onChooseLocation != null || selectedMapAddress != null) ...[
-          if (onChooseLocation != null)
-            OutlinedButton(
-              key: const Key('requestChooseMapLocation'),
-              onPressed: onChooseLocation,
-              child: const Text('Choose location on map'),
-            ),
-          if (selectedMapAddress != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'Selected: $selectedMapAddress\nEditing an address field below replaces this selection.',
-                style: _smallStyle(context),
-              ),
-            ),
-        ],
         _ApprovedSurface(
           referenceVerticalPadding: 14,
           child: Column(
@@ -1475,11 +1483,11 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                 style: _smallStyle(context),
               ),
               SizedBox(height: metrics.geometry(6)),
-              _ApprovedAddressField(
-                label: 'Street address',
+              _RequestStreetSearch(
+                places:places,
                 value: customAddress?.line1,
-                hint: '123 Main St',
                 onChanged: onAddressLine1Changed,
+                onResolved:onResolvedLocation,
               ),
               SizedBox(height: metrics.geometry(5)),
               _ApprovedAddressField(
@@ -1504,6 +1512,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                   Expanded(
                     child: _ApprovedAddressField(
                       label: 'State',
+                      countryCode: customAddress?.country ?? 'US',
                       value: customAddress?.state,
                       hint: 'Select state',
                       dropdown: true,
@@ -2064,11 +2073,14 @@ class _ApprovedBuyerRequestDetailsPageState
                 ).copyWith(counterText: ''),
               ),
             ),
+            RequestPhotoGallery(
+              ids: widget.request?.draft.imageMediaIds ?? const [],
+            ),
             if (widget.usesRealRequest &&
                 widget.request!.draft.categoryId != null)
               CategoryQuestionEditor(
                 key: _questionKey,
-                loader: widget.questionLoader,
+                              loader: widget.questionLoader,
                 categoryId: widget.request!.draft.categoryId!,
                 answers: _categoryAnswers,
                 onChanged: (answers) =>
@@ -2710,7 +2722,7 @@ class _ApprovedStepDot extends StatelessWidget {
   }
 }
 
-class _ApprovedFieldCard extends StatelessWidget {
+class _ApprovedFieldCard extends StatefulWidget {
   const _ApprovedFieldCard({
     required this.title,
     required this.helper,
@@ -2734,6 +2746,21 @@ class _ApprovedFieldCard extends StatelessWidget {
   final String? counterText;
 
   @override
+  State<_ApprovedFieldCard> createState() => _ApprovedFieldCardState();
+}
+
+class _ApprovedFieldCardState extends State<_ApprovedFieldCard> {
+  String get title => widget.title;
+  String get helper => widget.helper;
+  String get iconAsset => widget.iconAsset;
+  String get hint => widget.hint;
+  String? get initialValue => widget.initialValue;
+  TextEditingController? get controller => widget.controller;
+  int get maxLines => widget.maxLines;
+  String? get counterText => widget.counterText;
+  int _length = 0;
+
+  @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     final multiline = maxLines > 1;
@@ -2742,7 +2769,11 @@ class _ApprovedFieldCard extends StatelessWidget {
     final input = TextFormField(
       initialValue: controller == null ? initialValue : null,
       controller: controller,
-      onChanged: onChanged,
+      onChanged: (value) {
+        setState(() => _length = value.characters.length);
+        widget.onChanged?.call(value);
+      },
+      maxLength: counterText == null ? null : int.parse(counterText!),
       minLines: effectiveLines,
       maxLines: effectiveLines,
       textAlignVertical: multiline
@@ -2751,6 +2782,7 @@ class _ApprovedFieldCard extends StatelessWidget {
       style: _requestInputStyle(context),
       decoration: _inputDecoration(context).copyWith(
         hintText: hint,
+        counterText: '',
         hintMaxLines: effectiveLines,
         hintStyle: _requestHintStyle(context),
         contentPadding: multiline
@@ -2818,7 +2850,7 @@ class _ApprovedFieldCard extends StatelessWidget {
                       bottom: metrics.geometry(7),
                       child: IgnorePointer(
                         child: Text(
-                          counterText!,
+                          '${controller?.text.characters.length ?? _length}/$counterText',
                           style: _smallStyle(context).copyWith(
                             color: HocalistPalette.text(context, _approvedNavy),
                             fontWeight: FontWeight.w700,
@@ -2831,6 +2863,14 @@ class _ApprovedFieldCard extends StatelessWidget {
             )
           else
             input,
+          if (!metrics.screenshotLocked && counterText != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${controller?.text.characters.length ?? _length}/$counterText',
+                style: _smallStyle(context),
+              ),
+            ),
         ],
       ),
     );
@@ -3946,6 +3986,64 @@ class _ApprovedLocationActions extends StatelessWidget {
   }
 }
 
+class _RequestStreetSearch extends StatefulWidget {
+  const _RequestStreetSearch({this.places,this.value,this.onChanged,this.onResolved});
+  final PlacesRepository? places;
+  final String? value;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<RequestLocation>? onResolved;
+  @override
+  State<_RequestStreetSearch> createState()=>_RequestStreetSearchState();
+}
+class _RequestStreetSearchState extends State<_RequestStreetSearch> {
+  Timer? debounce;
+  int epoch=0;
+  PlacesSession? session;
+  List<PlaceSuggestion> suggestions=const [];
+  String? error;
+  bool busy=false;
+  @override
+  void dispose(){debounce?.cancel();super.dispose();}
+  void changed(String text){
+    widget.onChanged?.call(text);
+    debounce?.cancel();final run=++epoch;
+    setState((){suggestions=const [];error=null;busy=false;});
+    final places=widget.places;
+    if(places==null || text.trim().length<3)return;
+    debounce=Timer(const Duration(milliseconds:350),()async{
+      try{
+        if(session==null || session!.isExpiredAt(DateTime.now()))session=PlacesSession.start();
+        final result=await places.search(input:text.trim(),session:session!);
+        if(mounted && run==epoch)setState(()=>suggestions=result);
+      }catch(_){if(mounted && run==epoch)setState((){session=null;error='Address search could not finish. Complete the fields below.';});}
+    });
+  }
+  Future<void> select(PlaceSuggestion suggestion)async{
+    final places=widget.places;final current=session;
+    if(places==null || current==null)return;
+    final run=++epoch;setState(()=>busy=true);
+    try{
+      final place=await places.resolve(placeId:suggestion.placeId,session:current);
+      if(!mounted || run!=epoch)return;
+      widget.onResolved?.call(RequestLocation.custom(address:contactAddressFromPlace(place),
+        coordinates:RequestCoordinates(latitude:place.latitude,longitude:place.longitude),timezoneId:place.timezoneId));
+      setState((){suggestions=const [];session=null;});
+    }catch(_){if(mounted && run==epoch)setState((){error='Choose the address again or complete its details below.';session=null;});}
+    finally{if(mounted && run==epoch)setState(()=>busy=false);}
+  }
+  @override
+  Widget build(BuildContext context)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    _ApprovedAddressField(label:'Street address',hint:'Search your street address',value:widget.value,onChanged:changed),
+    if(busy)const BuyerProgressStrip(label:'Finding address details…'),
+    if(error!=null)Text(error!,style:_smallStyle(context)),
+    for(final suggestion in suggestions)Material(color:Colors.transparent,child:InkWell(
+      key:ValueKey('buyerAddress-${suggestion.placeId}'),onTap:busy?null:()=>select(suggestion),
+      borderRadius:BorderRadius.circular(10),child:Padding(padding:const EdgeInsets.all(10),
+        child:Row(children:[const Icon(Icons.place_outlined,color:_approvedBlue),const SizedBox(width:8),Expanded(child:Text(suggestion.label,style:_bodyStyle(context)))])),
+    )),
+  ]);
+}
+
 class _ApprovedAddressField extends StatefulWidget {
   const _ApprovedAddressField({
     required this.label,
@@ -3953,6 +4051,7 @@ class _ApprovedAddressField extends StatefulWidget {
     this.value,
     this.dropdown = false,
     this.countryOptions = false,
+    this.countryCode,
     this.onChanged,
   });
 
@@ -3961,6 +4060,7 @@ class _ApprovedAddressField extends StatefulWidget {
   final String? value;
   final bool dropdown;
   final bool countryOptions;
+  final String? countryCode;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -3978,7 +4078,12 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
       _selectedValue = widget.value;
-      _fieldController.text = widget.value ?? '';
+      // The parent echoes each keystroke into value. Do not reset selection
+      // and the web/mobile composing range when the controller already has it.
+      final next=widget.value ?? '';
+      if (_fieldController.text != next) {
+        _fieldController.value=TextEditingValue(text:next,selection:TextSelection.collapsed(offset:next.length));
+      }
     }
   }
 
@@ -4006,6 +4111,31 @@ class _ApprovedAddressFieldState extends State<_ApprovedAddressField> {
   }
 
   Future<String?> _chooseEditableValue() {
+    if (widget.label == 'State' && widget.countryCode?.toUpperCase() == 'US') {
+      return showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) => BuyerModalSheet(
+          title: 'Choose state',
+          icon: Icons.location_on_outlined,
+          onClose: () => Navigator.pop(sheetContext),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .6,
+            child: ListView(
+              children: [
+                for (final state in usStates.entries)
+                  ListTile(
+                    title: Text(state.value),
+                    trailing: Text(state.key),
+                    onTap: () => Navigator.pop(sheetContext, state.key),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return showModalBottomSheet<String>(
       context: context,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
@@ -4952,7 +5082,7 @@ class _ApprovedSavePanel extends StatelessWidget {
               Text('Save changes', style: _sectionStyle(context)),
               SizedBox(height: metrics.geometry(2)),
               Text(
-                'Updating your request may refresh offers and estimated rewards.',
+                'Updating your request may change offers and estimated rewards.',
                 style: _smallStyle(context),
               ),
             ],

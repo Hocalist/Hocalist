@@ -177,7 +177,7 @@ class Phase2DiscoveryBackend
             'This $scope view is not available for your account.',
           RepositoryFailureKind.notFound => 'This $scope view is unavailable.',
           RepositoryFailureKind.conflict =>
-            'That change conflicts with a newer server state. Reload and retry.',
+            'That change conflicts with a newer server state. Please try again.',
           _ => 'Could not load $scope. Try again.',
         },
         ambiguous:

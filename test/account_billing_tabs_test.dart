@@ -40,18 +40,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('creditBatch-bt-1')), findsNothing);
-    expect(find.byKey(const Key('creditWalletNoPacks')), findsNothing);
+    expect(find.byKey(const Key('creditBatch-bt-1')), findsOneWidget);
+    expect(find.byKey(const Key('creditWalletNoPacks')), findsOneWidget);
     expect(find.text('Refresh credits'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('section-tab-Activity')));
     await tester.pumpAndSettle();
     expect(find.text('Reserved camera'), findsOneWidget);
     expect(find.text('Charged camera'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('section-tab-Reserved')));
+    await tester.tap(find.byTooltip('Filter activity'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reserved').last);
     await tester.pumpAndSettle();
     expect(find.text('Reserved camera'), findsOneWidget);
     expect(find.text('Charged camera'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('section-tab-Charged')));
+    await tester.tap(find.byTooltip('Filter activity'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Charged').last);
     await tester.pumpAndSettle();
     expect(find.text('Reserved camera'), findsNothing);
     expect(find.text('Charged camera'), findsOneWidget);
@@ -116,13 +120,13 @@ void main() {
         ),
       );
       expect(find.text('Sold camera'), findsNothing);
-      expect(find.byKey(const Key('creditBatch-bt-1')), findsNothing);
+      expect(find.byKey(const Key('creditBatch-bt-1')), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(const Key('creditDepositDetailsToggle')),
       );
       await tester.tap(find.byKey(const Key('creditDepositDetailsToggle')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('creditBatch-bt-1')), findsOneWidget);
+      expect(find.byKey(const Key('creditBatch-bt-1')), findsNothing);
       await tester.ensureVisible(
         find.byKey(const ValueKey('section-tab-Activity')),
       );
@@ -213,6 +217,7 @@ void main() {
         var edits = 0;
         final page = seller
             ? ApprovedSellerSettingsPage(
+                contactEditor: const Text('Saved business address fields'),
                 darkMode: false,
                 textSizeLabel: 'Default',
                 onBack: () {},
@@ -223,6 +228,7 @@ void main() {
                 onAccountLifecycle: () {},
               )
             : BuyerSettingsPage(
+                contactEditor: const Text('Saved home address fields'),
                 darkMode: false,
                 textSize: AppTextSize.medium,
                 onEditProfile: () => edits++,
@@ -236,6 +242,22 @@ void main() {
             home: Scaffold(body: SingleChildScrollView(child: page)),
           ),
         );
+        await tester.pumpAndSettle();
+        if (seller) {
+          expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
+          expect(find.text('Public Seller visibility'), findsNothing);
+          expect(find.text('Service-area privacy'), findsNothing);
+          expect(find.text('Saved business address fields'), findsOneWidget);
+          expect(find.text('Appearance'), findsOneWidget);
+          expect(find.text('Account data & deletion'), findsOneWidget);
+          await tester.tap(find.text('Password & security'));
+          expect(edits, 1);
+          return;
+        }
+        await tester.tap(find.byKey(const ValueKey('section-tab-Private contact')));
+        await tester.pumpAndSettle();
+        expect(find.text(seller ? 'Saved business address fields' : 'Saved home address fields'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('section-tab-Security')));
         await tester.pumpAndSettle();
         expect(find.text('Appearance'), findsNothing);
         expect(find.text('Account data & deletion'), findsOneWidget);

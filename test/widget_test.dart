@@ -919,7 +919,7 @@ void main() {
     );
     expect(find.text('Northside Tech'), findsOneWidget);
     expect(find.text('Loop Resale'), findsOneWidget);
-    expect(find.text('Selected seller'), findsOneWidget);
+    expect(find.text('Selected seller'), findsNothing);
 
     await tapVisible(tester, 'Northside Tech');
     await tester.tap(find.byKey(const Key('active-deal-ipad')));
@@ -1173,9 +1173,7 @@ void main() {
 
     expect(find.text('Account Settings'), findsOneWidget);
     expect(find.text('Seller information'), findsNothing);
-    expect(find.byKey(const ValueKey('section-tab-Security')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
-    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('section-tab-Security')), findsNothing);
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Accessibility'), findsOneWidget);
   });

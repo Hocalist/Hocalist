@@ -188,7 +188,7 @@ class _SellerOfferRevisionEditorState extends State<SellerOfferRevisionEditor> {
                     : () => setState(() {
                         _uncertain = null;
                         _error =
-                            'The previous update may have succeeded. Refresh your offers before starting a different update.';
+                            'The previous update may have succeeded. Check your offers before starting a different update.';
                       }),
               ),
             ],

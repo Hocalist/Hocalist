@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hocalist/components/pull_refresh.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/domain/phase2/discovery.dart';
 import 'package:hocalist/features/seller/approved_seller_home_page.dart';
@@ -61,13 +62,8 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.text('Checking your account…'), findsOneWidget);
-        final busyButton = tester.widget<OutlinedButton>(
-          find.descendant(
-            of: find.byKey(const Key('sellerAccountHealthRefresh')),
-            matching: find.byType(OutlinedButton),
-          ),
-        );
-        expect(busyButton.onPressed, isNull);
+        final busyRefresh = tester.widget<PullRefreshAction>(find.byKey(const Key('sellerAccountHealthRefresh')));
+        expect(busyRefresh.onRefresh, isNull);
         expect(tester.takeException(), isNull);
 
         state.value = (
@@ -110,10 +106,8 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Email verified'), findsOneWidget);
-        await tester.ensureVisible(
-          find.byKey(const Key('sellerAccountHealthRefresh')),
-        );
-        await tester.tap(find.byKey(const Key('sellerAccountHealthRefresh')));
+        final refresh = tester.widget<PullRefreshAction>(find.byKey(const Key('sellerAccountHealthRefresh')));
+        refresh.onRefresh!();
         await tester.pump();
         expect(refreshes, 1);
         expect(tester.takeException(), isNull);

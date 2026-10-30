@@ -24,6 +24,7 @@ import {
   type RewardPolicyDraft,
 } from "../../lib/admin-commercial";
 import { AdminIntent } from "../../lib/admin-intent";
+import { PlanDepositRates } from "./plan-deposit-rates";
 
 export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }) {
   const [config, setConfig] = useState(initial);
@@ -211,6 +212,9 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </div>
       )}
       {message && <p role="status">{message}</p>}
+      {config.paygo_plan_rates && <PlanDepositRates prepaid={false} rows={config.paygo_plan_rates.map(r=>({plan_code:r.plan_code,amount_minor:0,initial_fee_minor:r.initial_minor,winning_total_minor:r.winning_minor,rate_version:'paygo',revision:r.revision}))} busy={busy||!!retry} onSave={input=>execute("paygo_plan_rate.set",input)} />}
+      {config.plan_deposit_rates && <PlanDepositRates rows={config.plan_deposit_rates} busy={busy || !!retry} onSave={input=>execute("plan_deposit_rate.set",input)} />}
+      {config.plan_deposit_rates && <p>Set new-deposit fees in “Fees by seller plan” above. The pack controls below manage availability and order; their previous fee fields are historical and do not set the plan rates.</p>}
       {retry && (
         <div className="form-actions">
           <button disabled={busy} onClick={() => void execute(retry.operation, retry.input)}>
@@ -322,7 +326,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
         </div>
       )}
 
-      <div className="fee-help-line"><FieldHelp label="Initial and winning fees">The initial fee is charged when an offer is sent. The total winning fee includes it. For example, an initial fee of 1.55 and total winning fee of 3.75 means another 2.20 is charged on a win. These are examples, not a change to your saved rates.</FieldHelp><span>How initial and winning fees work</span></div><form className="form-grid" onSubmit={saveOption}>
+      <div className="fee-help-line"><FieldHelp label="Initial and winning fees">The initial fee is charged after the buyer replies to the seller for that deal. The total winning fee includes it. For example, an initial fee of 1.55 and total winning fee of 3.75 means another 2.20 is charged on a win. These are examples, not a change to your saved rates.</FieldHelp><span>How initial and winning fees work</span></div><form className="form-grid" onSubmit={saveOption}>
         <fieldset disabled={busy || !!retry || depositStale} style={{ display: "contents" }}>
           <label>
             Amount
@@ -340,6 +344,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
               inputMode="decimal"
               maxLength={16}
               placeholder="1.55"
+              disabled={!!config.plan_deposit_rates}
               value={draft.initialFee}
               onChange={(event) => setDraft({ ...draft, initialFee: event.target.value })}
             />
@@ -350,6 +355,7 @@ export function CommercialConfigPanel({ initial }: { initial: CommercialConfig }
               inputMode="decimal"
               maxLength={16}
               placeholder="3.75"
+              disabled={!!config.plan_deposit_rates}
               value={draft.winningTotal}
               onChange={(event) => setDraft({ ...draft, winningTotal: event.target.value })}
             />

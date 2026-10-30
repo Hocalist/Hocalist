@@ -173,15 +173,13 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('approved-request-address-state')));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('approved-request-state-picker-input')),
-      'New York',
+    await tester.scrollUntilVisible(
+      find.text('New York'),
+      200,
+      scrollable: find.byType(Scrollable).last,
     );
-    tester.testTextInput.hide();
+    await tester.tap(find.text('New York'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Use state'));
-    await tester.tap(find.text('Use state'));
-    await tester.pumpAndSettle();
-    expect(find.text('New York'), findsOneWidget);
+    expect(find.text('NY'), findsOneWidget);
   });
 }

@@ -77,7 +77,11 @@ ApprovedBuyerHomePage _page({
   bool activityLoading = false,
   String? activityError,
   VoidCallback? onRefreshActivity,
+  ValueChanged<ApprovedActivityView>? onOpenActivity,
+  Future<void> Function()? onRefresh,
 }) => ApprovedBuyerHomePage(
+  onOpenActivity: onOpenActivity,
+  onRefresh: onRefresh,
   name: 'Maya Chen',
   requestTitle: 'Prototype request',
   requestPosted: false,
@@ -102,6 +106,30 @@ ApprovedBuyerHomePage _page({
 );
 
 void main() {
+  testWidgets('home shows newest four and View all reveals older requests', (
+    tester,
+  ) async {
+    final rows = List.generate(
+      5,
+      (i) => BuyerRequestView(
+        requestId: 'request-$i',
+        revision: 1,
+        title: 'Request $i',
+        budgetLabel: 'Budget',
+        statusLabel: 'Active request',
+        createdAt: DateTime.utc(2026, 10, i + 1),
+      ),
+    );
+    await _pump(tester, _page(realRequests: rows));
+    expect(find.text('Request 0'), findsNothing);
+    expect(find.text('Request 4'), findsOneWidget);
+    await tester.ensureVisible(find.text('View all').first);
+    await tester.tap(find.text('View all').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Request 0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   setUpAll(loadHocalistTestFonts);
 
   testWidgets('real dashboard uses ledger rewards and hides prototype payout', (
@@ -225,9 +253,11 @@ void main() {
     expect(find.text('Recent activity'), findsOneWidget);
     expect(find.text('No recent activity yet'), findsOneWidget);
 
+    ApprovedActivityView? openedActivity;
     await _pump(
       tester,
       _page(
+        onOpenActivity: (item) => openedActivity = item,
         realRequests: const [],
         realActivity: [
           ApprovedActivityView.fromNotification(
@@ -235,6 +265,7 @@ void main() {
               id: 'n-1',
               kind: 'new_offer',
               title: 'A seller sent you an offer',
+              activitySummary: 'Oct 20 · 4:00 PM America/Chicago',
               createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
             ),
           ),
@@ -242,7 +273,14 @@ void main() {
       ),
     );
     expect(find.text('A seller sent you an offer'), findsOneWidget);
-    expect(find.byKey(const ValueKey('buyerActivityUnreadDot')), findsOneWidget);
+    await tester.ensureVisible(find.text('A seller sent you an offer'));
+    await tester.tap(find.text('A seller sent you an offer'));
+    expect(openedActivity?.id, 'n-1');
+    expect(find.text('Oct 20 · 4:00 PM America/Chicago'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('buyerActivityUnreadDot')),
+      findsOneWidget,
+    );
 
     await _pump(
       tester,
@@ -261,6 +299,7 @@ void main() {
   ) async {
     final meeting = MeetingView(
       meetingId: 'meeting-42',
+      meetingExpiresAt: DateTime.now().add(const Duration(days: 1)),
       conversationId: 'conversation-42',
       requestId: 'request-42',
       offerId: 'offer-42',
@@ -343,6 +382,7 @@ void main() {
       _request(status: RequestStatus.closed, minimum: 12000, maximum: 12000),
     );
     expect(view.statusLabel, 'Closed request');
+    expect(view.canViewOffers, false);
     expect(view.budgetLabel, r'$120 - $120');
     expect(view.revision, 1);
   });

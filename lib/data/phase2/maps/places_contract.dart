@@ -117,6 +117,7 @@ class PlaceDetails {
     required String address,
     required this.latitude,
     required this.longitude,
+    this.timezoneId,
     this.postalAddress,
     List<PlaceAttribution> attributions = const [],
   }) : placeId = _requireText(placeId, 'placeId', 256),
@@ -134,6 +135,7 @@ class PlaceDetails {
   final String address;
   final double latitude;
   final double longitude;
+  final String? timezoneId;
   final PostalAddress? postalAddress;
 
   /// Provider attributions that must stay visible where the place is shown.

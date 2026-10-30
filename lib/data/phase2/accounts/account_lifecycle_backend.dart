@@ -340,7 +340,7 @@ class Phase2AccountLifecycleBackend implements AccountLifecycleBackend {
       if (error.code == 'P0001' &&
           error.message.contains('idempotency_conflict')) {
         throw const AccountLifecycleUnavailableException(
-          'This request conflicts with an earlier attempt. Reload and retry.',
+          'This request conflicts with an earlier attempt. Please try again.',
         );
       }
       throw AccountLifecycleUnavailableException(

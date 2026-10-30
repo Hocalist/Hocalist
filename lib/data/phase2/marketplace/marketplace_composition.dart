@@ -151,6 +151,22 @@ MarketplaceChatBackend? createConfiguredMarketplaceChatBackend({
   try {
     final client = Supabase.instance.client;
     return Phase2MarketplaceChatBackend(
+      dealRpc: const bool.fromEnvironment('HOCALIST_DEAL_CHAT_THREADS')
+          ? (name,args) async {
+              try {return await client.schema('hocalist').rpc(name,params:args);}
+              on PostgrestException catch(error) {
+                if (error.message.contains('deal_payment_required')) {
+                  throw const StoreBackendException(
+                    'This deal’s payment needs attention. The seller can update or approve it in Manage payment before chatting continues.',
+                    code: 'deal_payment_required',
+                  );
+                }
+                throw StoreBackendException('Could not access this deal.',
+                  code:error.code=='42501'?'chat_access_denied':null,
+                  ambiguous:error.code!='42501' && error.code!='22023');
+              }
+            }
+          : null,
       identity: () => client.auth.currentUser?.id,
       requestReader: createMarketplaceDataAdapter(
         client: client,

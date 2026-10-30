@@ -4,12 +4,95 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/phase2/outcomes/sale_confirmation.dart';
 import 'package:hocalist/data/phase2/marketplace/marketplace_transport.dart';
 import 'package:hocalist/features/meetings/sale_confirmation_panel.dart';
+import 'package:hocalist/components/pull_refresh.dart';
 import '../marketplace/support/marketplace_fakes.dart';
 
 void main() {
   for (final buyer in [true, false]) {
     testWidgets(
-      'explicit refresh reloads meeting before purchase buyer=$buyer',
+      'completed purchase stays terminal after background buyer=$buyer',
+      (tester) async {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        final transport = FakeMarketplaceTransport()
+          ..handler = (_) => const MarketplaceTransportData({
+            'status': 'confirmed',
+            'outcome_id': '11111111-1111-4111-8111-111111111111',
+            'confirmed_at': '2026-10-17T00:00:00Z',
+          });
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SaleConfirmationPanel(
+                adapter: SaleConfirmationAdapter(
+                  transport: transport,
+                  session: FakeMarketplaceSession('a'),
+                ),
+                meetingId: 'm',
+                isBuyer: buyer,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        await tester.pump();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pump();
+        expect(find.textContaining('Purchase confirmed.'), findsOneWidget);
+        expect(find.text('Confirm completed purchase'), findsNothing);
+        expect(find.text('Show my purchase PIN'), findsNothing);
+        expect(find.byType(TextField), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+  testWidgets(
+    'buyer learns seller confirmation without losing state to a manual refresh',
+    (tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      var confirmed = false;
+      var callbacks = 0;
+      final transport = FakeMarketplaceTransport()
+        ..handler = (_) => MarketplaceTransportData({
+          'status': confirmed ? 'confirmed' : 'unconfirmed',
+          if (confirmed) 'outcome_id': '11111111-1111-4111-8111-111111111111',
+          if (confirmed) 'confirmed_at': '2026-10-17T00:00:00Z',
+        });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SaleConfirmationPanel(
+              adapter: SaleConfirmationAdapter(
+                transport: transport,
+                session: FakeMarketplaceSession('a'),
+              ),
+              meetingId: 'm',
+              isBuyer: true,
+              onPurchaseConfirmed: () => callbacks++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      confirmed = true;
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pumpAndSettle();
+      expect(callbacks, 1);
+      expect(find.textContaining('Purchase confirmed.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 8));
+      expect(callbacks, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  for (final buyer in [true, false]) {
+    testWidgets(
+      'registered refresh reloads meeting before purchase buyer=$buyer',
       (tester) async {
         final order = <String>[];
         final gate = Completer<void>();
@@ -21,30 +104,36 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: SaleConfirmationPanel(
-                adapter: SaleConfirmationAdapter(
-                  transport: transport,
-                  session: FakeMarketplaceSession('a'),
+              body: PullRefreshHost(
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SaleConfirmationPanel(
+                    adapter: SaleConfirmationAdapter(
+                      transport: transport,
+                      session: FakeMarketplaceSession('a'),
+                    ),
+                    meetingId: 'm',
+                    isBuyer: buyer,
+                    meetingAccepted: false,
+                    onRefreshMeeting: () async {
+                      order.add('meeting');
+                      await gate.future;
+                    },
+                  ),
                 ),
-                meetingId: 'm',
-                isBuyer: buyer,
-                meetingAccepted: false,
-                onRefreshMeeting: () async {
-                  order.add('meeting');
-                  await gate.future;
-                },
               ),
             ),
           ),
         );
         await tester.pumpAndSettle();
         expect(order, ['purchase']);
-        await tester.tap(
-          find.descendant(
-            of: find.byKey(const Key('saleConfirmationRefresh')),
-            matching: find.byType(TextButton),
-          ),
-        );
+        // Host registration and gestures are covered by pull_refresh_test.
+        // This contract verifies the panel reads the meeting before purchase.
+        tester
+            .widget<PullRefreshAction>(
+              find.byKey(const Key('saleConfirmationRefresh')),
+            )
+            .onRefresh!();
         await tester.pump();
         expect(order, ['purchase', 'meeting']);
         gate.complete();

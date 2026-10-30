@@ -162,7 +162,10 @@ export function createPlacesHandler(
         return json({ error: "invalid_input" }, 400);
       }
 
-      const gate = await config.rpc("places_gate", {
+      const locationLookup = query.operation === 'coordinates' || query.operation === 'address';
+      const gate = await config.rpc(locationLookup ? 'places_coordinates_gate' : "places_gate", locationLookup ? {
+        p_user: identity.userId,
+      } : {
         p_user: identity.userId,
         p_operation: query.operation,
         p_session_token: query.sessionToken,
@@ -186,6 +189,7 @@ export function createPlacesHandler(
 
       try {
         const result = await config.provider(raw);
+        if (locationLookup) return json(result);
         if ("suggestions" in result) {
           const placeIds = result.suggestions.map((item) => item.placeId);
           if (placeIds.length > 0) {

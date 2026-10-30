@@ -127,7 +127,7 @@ class Phase2ProfileCategoriesBackend implements ProfileCategoriesBackend {
       if (error.code == 'P0001' &&
           error.message.contains('idempotency_conflict')) {
         throw const ProfileCategoriesUnavailableException(
-          'This change conflicts with an earlier attempt. Reload and try again.',
+          'This change conflicts with an earlier attempt. Please try again.',
         );
       }
       throw ProfileCategoriesUnavailableException(

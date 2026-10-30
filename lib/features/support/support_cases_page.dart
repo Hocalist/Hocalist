@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
 import '../../components/hocalist_section_intro.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../data/phase2/support/support_adapter.dart';
@@ -401,9 +402,8 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
           HocalistSectionIntro(
             title: 'Your cases',
             icon: Icons.inbox_outlined,
-            trailing: TextButton(
-              onPressed: _loading ? null : () => _load(),
-              child: const Text('Refresh'),
+            trailing: PullRefreshAction(
+              onRefresh: _loading ? null : () => _load(),
             ),
           ),
           if (!_loading && _error == null && _cases.isEmpty)

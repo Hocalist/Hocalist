@@ -109,7 +109,7 @@ class Phase2MarketplaceNotificationsBackend
         'You do not have access to these notifications.',
       RepositoryFailureKind.notFound => 'This notification is unavailable.',
       RepositoryFailureKind.conflict =>
-        'Preferences changed on another device. Refresh and try again.',
+        'Preferences changed on another device. Please try again.',
       RepositoryFailureKind.network =>
         'Notifications could not be loaded. Retry to check safely.',
       RepositoryFailureKind.validation =>

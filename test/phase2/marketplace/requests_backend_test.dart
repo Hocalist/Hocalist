@@ -234,6 +234,29 @@ void main() {
       expect(input['use_home_address'], true);
     });
 
+    test(
+      'selected request timezone is sent and restored from the owner read',
+      () async {
+        transport.handler = (call) {
+          final json = requestJson();
+          (json['location'] as Map)['timezone_id'] = 'America/Chicago';
+          return MarketplaceTransportData(json);
+        };
+        final result = await backend.createRequest(
+          draft: draft().copyWith(
+            location: RequestLocation.custom(
+              address: PostalAddress(city: 'Chicago'),
+              timezoneId: 'America/Chicago',
+            ),
+          ),
+          operationKey: 'request-zone',
+        );
+        final input = transport.calls.single.params['p_input'] as Map;
+        expect(input['location_timezone'], 'America/Chicago');
+        expect(result.draft.location.timezoneId, 'America/Chicago');
+      },
+    );
+
     test('update carries the expected revision', () async {
       transport.handler = (call) =>
           MarketplaceTransportData(requestJson(revision: 4));
@@ -297,6 +320,17 @@ void main() {
           ),
         ),
       );
+    });
+    test('active request cap keeps the actionable server-mapped explanation', () async {
+      transport.handler = (_) => const MarketplaceTransportError(
+        kind: MarketplaceTransportErrorKind.server,
+        message: 'active_request_limit_reached:4', code: 'P0001',
+      );
+      await expectLater(backend.createRequest(draft: draft(), operationKey: 'cap-test'),
+        throwsA(isA<StoreBackendException>()
+          .having((e) => e.message, 'message', contains('4 active requests'))
+          .having((e) => e.message, 'action', contains('Close a request'))
+          .having((e) => e.ambiguous, 'ambiguous', isFalse)));
     });
   });
 }

@@ -65,7 +65,9 @@ class SupabaseAccountAuthGateway implements AccountAuthGateway {
   }
 
   AuthIdentitySnapshot _snapshot(User? user, {AuthChangeEvent? event}) {
-    if (user == null) return const AuthIdentitySnapshot.signedOut();
+    if (user == null || (user.email != null && user.emailConfirmedAt == null)) {
+      return const AuthIdentitySnapshot.signedOut();
+    }
     final metadata = user.userMetadata;
     final name = metadata?['full_name'] ?? metadata?['name'];
     return AuthIdentitySnapshot(

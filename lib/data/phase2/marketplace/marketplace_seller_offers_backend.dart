@@ -111,7 +111,7 @@ class Phase2MarketplaceSellerOffersBackend
       RepositoryFailureKind.permissionDenied => 'You cannot change this offer.',
       RepositoryFailureKind.notFound => 'This offer is no longer available.',
       RepositoryFailureKind.conflict =>
-        'This offer changed. Refresh and try again.',
+        'This offer changed. Please try again.',
       RepositoryFailureKind.network =>
         'The change could not be confirmed. Retry to check it safely.',
       RepositoryFailureKind.validation =>

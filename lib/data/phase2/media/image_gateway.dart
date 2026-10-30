@@ -23,7 +23,7 @@ String photoUploadFailureMessage(Object error) {
     'signed_out' || 'session_changed' =>
       'Your session changed. Sign in again before uploading a photo.',
     'invalid_upload_key' =>
-      'The photo upload could not start. Refresh the app and try again.',
+      'The photo upload could not start. Please try again.',
     'upload_unauthorized' =>
       'Your session could not authorize the upload. Sign in again.',
     'upload_rejected' =>
@@ -66,6 +66,8 @@ const Set<String> hocalistMediaUploadPurposes = {
   'chat',
   'review',
   'report',
+  'request',
+  'purchase_review',
 };
 
 ImageUpload? configuredImageUpload(String purpose) {

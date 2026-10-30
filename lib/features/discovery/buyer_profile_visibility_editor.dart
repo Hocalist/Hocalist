@@ -1,3 +1,5 @@
+import '../../components/pull_refresh.dart';
+import '../../components/hocalist_account_field.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../data/local_marketplace_repository.dart';
@@ -27,7 +29,7 @@ class _BuyerProfileVisibilityEditorState
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool preserveChoices = false}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -36,7 +38,11 @@ class _BuyerProfileVisibilityEditorState
       final value = await widget.backend.loadConsent();
       if (!mounted) return;
       setState(() {
-        _adopt(value);
+        if (preserveChoices) {
+          _base = value;
+        } else {
+          _adopt(value);
+        }
         _pending = null;
         _key = null;
       });
@@ -47,6 +53,14 @@ class _BuyerProfileVisibilityEditorState
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _pull() async {
+    if (_loading || _saving || _pending != null) return;
+    final base = _base;
+    final dirty = base != null && (_public != base.isPublic || _name != base.showDisplayName ||
+      _area != base.showArea || _categories != base.showCategories);
+    await _load(preserveChoices: dirty);
   }
 
   void _adopt(BuyerPublicProfileConsent value) {
@@ -100,7 +114,7 @@ class _BuyerProfileVisibilityEditorState
       if (mounted) {
         setState(
           () => _error =
-              'Save was not confirmed. Retry the same visibility change or reload to check its result.',
+              'Save was not confirmed. Retry the same change or discard your changes.',
         );
       }
     } finally {
@@ -109,69 +123,150 @@ class _BuyerProfileVisibilityEditorState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PullRefreshAction(onRefresh: _loading || _saving ? null : _pull, child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     final enabled = !_loading && !_saving && _base != null && _pending == null;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: HocalistPalette.surface(context, BuyerUiTokens.surface),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: HocalistPalette.border(context, BuyerUiTokens.border),
-        ),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const BuyerSectionHeading(title: 'Public profile visibility'),
-            const Text(
-              'Your profile is private unless you choose to share it. Contact details and exact addresses are never included.',
+    return HocalistAccountFormCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const BuyerSectionHeading(title: 'Buyer profile sharing'),
+          const SizedBox(height: 8),
+          Text(
+            'Choose what sellers can see. Your contact details and exact address stay private.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          if (_loading)
+            const BuyerProgressStrip(label: 'Loading sharing preferences…'),
+          _choice(
+            context,
+            label: 'Share my buyer profile',
+            description: _public
+                ? 'Your selected details can be seen by sellers.'
+                : 'Your buyer profile is private.',
+            selected: _public,
+            enabled: enabled,
+            onChanged: (value) => setState(() => _public = value),
+            primary: true,
+          ),
+          if (_public) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Details to share',
+              style: Theme.of(context).textTheme.titleSmall,
             ),
-            if (_loading)
-              const BuyerProgressStrip(label: 'Loading visibility…'),
-            SwitchListTile.adaptive(
-              title: const Text('Share my buyer profile'),
-              value: _public,
-              onChanged: enabled ? (v) => setState(() => _public = v) : null,
+            const SizedBox(height: 8),
+            _choice(
+              context,
+              label: 'Display name',
+              description: 'The name on your buyer profile.',
+              selected: _name,
+              enabled: enabled,
+              onChanged: (v) => setState(() => _name = v),
             ),
-            for (final field in <(String, bool, ValueChanged<bool>)>[
-              ('Display name', _name, (v) => setState(() => _name = v)),
-              ('Approximate area', _area, (v) => setState(() => _area = v)),
-              (
-                'Request categories',
-                _categories,
-                (v) => setState(() => _categories = v),
-              ),
-            ])
-              CheckboxListTile(
-                title: Text(field.$1),
-                value: field.$2,
-                onChanged: enabled && _public
-                    ? (v) => field.$3(v ?? false)
-                    : null,
-              ),
-            if (_error != null)
-              BuyerStateNotice(
-                icon: Icons.info_outline,
-                title: _error!,
-                tone: BuyerNoticeTone.warning,
-              ),
-            BuyerPrimaryButton(
-              label: _saving
-                  ? 'Saving…'
-                  : _pending == null
-                  ? 'Save visibility'
-                  : 'Retry visibility save',
-              onPressed: _loading || _saving || _base == null ? null : _save,
+            _choice(
+              context,
+              label: 'Approximate area',
+              description: 'Your area, never your exact address.',
+              selected: _area,
+              enabled: enabled,
+              onChanged: (v) => setState(() => _area = v),
             ),
-            HocalistReloadLink(
-              onPressed: _saving ? null : _load,
-              description: 'Reload visibility and discard unsaved choices',
-              loading: _loading,
+            _choice(
+              context,
+              label: 'Request categories',
+              description: 'The types of products or services you need.',
+              selected: _categories,
+              enabled: enabled,
+              onChanged: (v) => setState(() => _categories = v),
             ),
           ],
+          const SizedBox(height: 16),
+          if (_error != null)
+            BuyerStateNotice(
+              icon: Icons.info_outline,
+              title: _error!,
+              tone: BuyerNoticeTone.warning,
+            ),
+          BuyerPrimaryButton(
+            label: _saving
+                ? 'Saving…'
+                : _pending == null
+                ? 'Save visibility'
+                : 'Retry visibility save',
+            onPressed: _loading || _saving || _base == null ? null : _save,
+          ),
+          HocalistReloadLink(
+            onPressed: _saving ? null : _load,
+            description: 'Reload visibility and discard unsaved choices',
+            loading: _loading,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _choice(
+    BuildContext context, {
+    required String label,
+    required String description,
+    required bool selected,
+    required bool enabled,
+    required ValueChanged<bool> onChanged,
+    bool primary = false,
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: HocalistPalette.surface(
+          context,
+          selected ? const Color(0xfff2efff) : Colors.white,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: selected
+                ? accent.withValues(alpha: .45)
+                : HocalistPalette.border(context, BuyerUiTokens.border),
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: enabled ? () => onChanged(!selected) : null,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (primary)
+                  Switch(value: selected, onChanged: enabled ? onChanged : null)
+                else
+                  Checkbox(
+                    value: selected,
+                    onChanged: enabled ? (v) => onChanged(v ?? false) : null,
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

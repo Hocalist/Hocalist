@@ -101,6 +101,8 @@ function post(body: unknown, method = "POST"): Request {
 }
 
 Deno.test("checkout input keeps the reviewed subscription body and adds deposits", () => {
+  assert.deepEqual(parseCheckoutInput({kind:'credit_deposit',amount_minor:1250,idempotency_key:KEY}),{kind:'credit_deposit',amount:1250,key:KEY});
+  for(const amount_minor of [49,2000,12.5,'1250',null])assert.throws(()=>parseCheckoutInput({kind:'credit_deposit',amount_minor,idempotency_key:KEY}));
   assert.deepEqual(parseCheckoutInput({ idempotency_key: KEY, plan: "pro" }), {
     kind: "subscription", plan: "pro", key: KEY,
   });
@@ -114,6 +116,14 @@ Deno.test("checkout input keeps the reviewed subscription body and adds deposits
     { idempotency_key: KEY },
     { idempotency_key: "x", plan: "pro" },
   ]) assert.throws(() => parseCheckoutInput(body), BillingError);
+});
+
+Deno.test('a standard wallet checkout uses the server snapshot and remains a credit purchase',async()=>{
+ const api=new FakeBackend();
+ api.rpcHandlers={stripe_test_standard_deposit_begin:(body)=>{assert.equal(body.p_amount,1250);return depositCheckout({option_id:null,standard_deposit:true,amount_minor:1250,initial_fee_minor:200,winning_total_minor:500});},stripe_test_deposit_bind:()=>null};
+ api.stripeMatchers=[{match:/^account$/,value:{id:ACCOUNT,livemode:false}},{match:/^checkout\/sessions$/,value:(_path,params)=>{assert.equal(params?.['line_items[0][price_data][unit_amount]'],'1250');assert.equal(params?.['metadata[option_id]'],'standard');return session();}}];
+ const response=await createCheckoutHandler(api.asBackend(),config)(post({kind:'credit_deposit',amount_minor:1250,idempotency_key:KEY}));
+ assert.equal(response.status,200);assert.equal(api.calls.rpc.filter(c=>c.name==='stripe_test_deposit_begin').length,0);
 });
 
 Deno.test("a configured deposit checkout selects the server amount and binds the session", async () => {
@@ -237,6 +247,23 @@ Deno.test("checkout preserves subscription behavior and safe failure states", as
   );
   assert.equal(deniedResponse.status, 403);
   assert.deepEqual(await deniedResponse.json(), { error: "billing_access_denied" });
+});
+
+Deno.test("annual trial checkout uses verified yearly price and a single trial grant", async () => {
+  const api=new FakeBackend();
+  api.rpcHandlers={stripe_test_subscription_begin:()=>subscriptionCheckout({billing_interval:"year",trial_days:14,amount_minor:12000}),stripe_test_checkout_bind:()=>null};
+  api.stripeMatchers=[
+    {match:/^account$/,value:{id:ACCOUNT,livemode:false}},
+    {match:/^subscriptions\?/,value:{data:[],has_more:false}},
+    {match:/^prices\//,value:{active:true,livemode:false,currency:"usd",unit_amount:12000,recurring:{interval:"year",interval_count:1}}},
+    {match:/^checkout\/sessions$/,value:(_path,params)=>{assert.equal(params?.["subscription_data[trial_period_days]"],"14");return session();}},
+  ];
+  const response=await createCheckoutHandler(api.asBackend(),config)(post({kind:"subscription",plan:"pro",interval:"year",idempotency_key:KEY}));
+  assert.equal(response.status,200);
+  assert.equal(api.calls.rpc.find(c=>c.name==="stripe_test_subscription_begin")?.body.p_interval,"year");
+  api.stripeMatchers[1].value={data:[{id:"sub_prior",status:"canceled"}],has_more:false};
+  const repeated=await createCheckoutHandler(api.asBackend(),config)(post({kind:"subscription",plan:"pro",interval:"year",idempotency_key:KEY}));
+  assert.equal(repeated.status,409);
 });
 
 Deno.test("disabled billing, wrong method and invalid request fail closed", async () => {

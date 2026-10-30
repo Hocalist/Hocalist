@@ -162,8 +162,6 @@ class _HocalistEntranceState extends State<HocalistEntrance>
     vsync: this,
     duration: const Duration(milliseconds: 260),
   );
-  ScrollPosition? _position;
-  BuildContext? _viewportContext;
   bool _revealed = false;
   bool _checkScheduled = false;
   bool _presentationEnabled = true;
@@ -174,13 +172,6 @@ class _HocalistEntranceState extends State<HocalistEntrance>
     // Retained tabs are laid out offstage. Observe their TickerMode so a card
     // gets another visibility check when its tab becomes active.
     _presentationEnabled = TickerMode.valuesOf(context).enabled;
-    final scrollable = Scrollable.maybeOf(context);
-    if (_position != scrollable?.position) {
-      _position?.removeListener(_scheduleCheck);
-      _position = scrollable?.position;
-      _position?.addListener(_scheduleCheck);
-    }
-    _viewportContext = scrollable?.context;
     if (HocalistMotion.reduced(context)) {
       _revealed = true;
       _controller.value = 1;
@@ -195,26 +186,17 @@ class _HocalistEntranceState extends State<HocalistEntrance>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkScheduled = false;
       if (!mounted || _revealed || !_presentationEnabled) return;
-      final box = context.findRenderObject();
-      final viewport = _viewportContext?.findRenderObject();
-      if (box is! RenderBox || !box.hasSize) return;
-      bool visible = true;
-      if (viewport is RenderBox && viewport.hasSize) {
-        final origin = box.localToGlobal(Offset.zero);
-        final viewportOrigin = viewport.localToGlobal(Offset.zero);
-        visible = (origin & box.size).overlaps(viewportOrigin & viewport.size);
-      }
-      if (visible) {
-        _revealed = true;
-        _position?.removeListener(_scheduleCheck);
-        _controller.forward();
-      }
+      // Ancestor route/layout animations can move a card into view without a
+      // scroll notification. Content must never remain transparent waiting for
+      // a gesture: enter on the first active frame instead of gating visibility
+      // on a single measurement of the ancestor's transient geometry.
+      _revealed = true;
+      _controller.forward();
     });
   }
 
   @override
   void dispose() {
-    _position?.removeListener(_scheduleCheck);
     _controller.dispose();
     super.dispose();
   }

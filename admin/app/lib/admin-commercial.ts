@@ -36,8 +36,19 @@ export type RewardPolicy = {
 };
 
 export type CommercialConfig = {
+  plan_deposit_rates?: PlanDepositRate[];
+  paygo_plan_rates?: {plan_code:'free'|'pro'|'elite';initial_minor:number;winning_minor:number;revision:number}[];
   deposit_options: DepositOptionRow[];
   reward_policy: RewardPolicy | null;
+};
+
+export type PlanDepositRate = {
+  plan_code: "free" | "pro" | "elite";
+  amount_minor: number;
+  initial_fee_minor: number;
+  winning_total_minor: number;
+  rate_version: string;
+  revision: number;
 };
 
 export function decodeCommercialConfig(value: unknown): CommercialConfig | null {
@@ -112,7 +123,36 @@ export function decodeCommercialConfig(value: unknown): CommercialConfig | null 
       updated_at: row.updated_at,
     };
   }
-  return { deposit_options: options, reward_policy: policy };
+  let rates: PlanDepositRate[] | undefined;
+  if (record.plan_deposit_rates !== undefined) {
+    if (!Array.isArray(record.plan_deposit_rates) || record.plan_deposit_rates.length !== 6) return null;
+    const keys = new Set<string>();
+    rates = [];
+    for (const raw of record.plan_deposit_rates) {
+      if (!raw || typeof raw !== "object") return null;
+      const r = raw as Record<string, unknown>;
+      if ((r.plan_code !== "free" && r.plan_code !== "pro" && r.plan_code !== "elite") ||
+          (r.amount_minor !== 2000 && r.amount_minor !== 4000) ||
+          !isMinor(r.initial_fee_minor) || !isMinor(r.winning_total_minor) ||
+          r.winning_total_minor < r.initial_fee_minor || r.winning_total_minor > r.amount_minor ||
+          !isText(r.rate_version,100) || !isCount(r.revision) || r.revision < 1) return null;
+      const key = `${r.plan_code}:${r.amount_minor}`;
+      if (keys.has(key)) return null;
+      keys.add(key);
+      rates.push(r as PlanDepositRate);
+    }
+  }
+  let paygo: CommercialConfig['paygo_plan_rates'];
+  if(record.paygo_plan_rates!==undefined){
+    if(!Array.isArray(record.paygo_plan_rates)||record.paygo_plan_rates.length!==3)return null;
+    paygo=[];const plans=new Set<string>();
+    for(const raw of record.paygo_plan_rates){
+      if(!raw||typeof raw!=='object')return null;const r=raw as Record<string,unknown>;
+      if(!['free','pro','elite'].includes(String(r.plan_code))||plans.has(String(r.plan_code))||!isMinor(r.initial_minor)||r.initial_minor<50||!isMinor(r.winning_minor)||r.winning_minor<r.initial_minor||(r.winning_minor!==r.initial_minor&&r.winning_minor-r.initial_minor<50)||!isCount(r.revision)||r.revision<1)return null;
+      plans.add(String(r.plan_code));paygo.push(r as NonNullable<CommercialConfig['paygo_plan_rates']>[number]);
+    }
+  }
+  return { deposit_options: options, reward_policy: policy, ...(rates ? {plan_deposit_rates: rates} : {}), ...(paygo?{paygo_plan_rates:paygo}:{}) };
 }
 
 // Structural input guard, not a business limit: rejects sizes that would

@@ -1,6 +1,7 @@
 import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/hocalist_section_intro.dart';
@@ -99,10 +100,8 @@ class _PublicSellerListingsState extends State<PublicSellerListings> {
       HocalistSectionIntro(
         title: 'Published listings',
         icon: Icons.storefront_outlined,
-        trailing: IconButton(
-          tooltip: 'Refresh published listings',
-          onPressed: _loading ? null : () => _load(),
-          icon: const Icon(Icons.refresh_rounded, size: 20),
+        trailing: PullRefreshAction(
+          onRefresh: _loading ? null : () => _load(),
         ),
       ),
       if (_loading) const BuyerProgressStrip(label: 'Updating listings…'),

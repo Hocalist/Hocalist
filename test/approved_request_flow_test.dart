@@ -20,6 +20,22 @@ void main() {
 
   setUpAll(loadHocalistTestFonts);
 
+  testWidgets('request description counter follows typing and deletion', (
+    tester,
+  ) async {
+    await _pumpState(tester, state: _ProofState.product, width: 390);
+    final description = find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.maxLines == 3,
+    );
+    expect(description, findsOneWidget);
+    await tester.enterText(description, 'Looking for a desk');
+    await tester.pump();
+    expect(find.text('18/500'), findsOneWidget);
+    await tester.enterText(description, 'Desk');
+    await tester.pump();
+    expect(find.text('4/500'), findsOneWidget);
+  });
+
   for (final width in <double>[304, 320, 360, 390, 430, 600, 768, 980]) {
     testWidgets('approved request states fit ${width.toInt()} logical pixels', (
       tester,

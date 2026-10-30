@@ -17,6 +17,11 @@ NotificationInboxItem item(
 );
 
 void main() {
+  test('chat notifications retain their exact validated deal identity', () {
+    final destination=NotificationDestination.fromInbox(item('new_message','hocalist://chat/$id',payload:{'offer_id':id}));
+    expect(destination!.offerId,id);
+    expect(NotificationDestination.fromInbox(item('new_message','hocalist://chat/$id',payload:{'offer_id':'bad'}))!.offerId,isNull);
+  });
   test('recognizes the three deployed producer destinations', () {
     expect(
       NotificationDestination.fromInbox(

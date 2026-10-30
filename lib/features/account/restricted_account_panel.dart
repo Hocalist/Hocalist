@@ -6,6 +6,8 @@
 /// which are authorized independently of marketplace access.
 library;
 
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
+
 import 'package:hocalist/theme/adaptive_palette.dart';
 
 import 'package:flutter/material.dart';
@@ -156,7 +158,7 @@ class _RestrictedAccountPanelState extends State<RestrictedAccountPanel> {
           'submit one appeal, and sign out. App content stays unavailable '
           'until the restriction is lifted.',
       children: [
-        if (_loading) const LinearProgressIndicator(),
+        if (_loading) const HocalistLoadingIndicator(),
         if (_loadError != null)
           _PanelNote(
             key: const ValueKey('restricted-status-error'),
@@ -170,7 +172,7 @@ class _RestrictedAccountPanelState extends State<RestrictedAccountPanel> {
             key: ValueKey('restricted-status-unavailable'),
             text:
                 'Review details and appeals are not available in this build '
-                'yet. Refresh to check again, or sign out.',
+                'yet. You can check the account status again, or sign out.',
           ),
         if (status != null) ...[
           if (status.restrictions.isEmpty)
@@ -178,7 +180,7 @@ class _RestrictedAccountPanelState extends State<RestrictedAccountPanel> {
               key: ValueKey('restricted-none-active'),
               title: 'No active restriction on this role',
               lines: [
-                'The selected role is not active. Refresh after a reviewer '
+                'The selected role is not active. Check again after a reviewer '
                     'decision, or switch role from the log-in screen.',
               ],
             ),
@@ -208,7 +210,7 @@ class _RestrictedAccountPanelState extends State<RestrictedAccountPanel> {
         const SizedBox(height: 8),
         BuyerPrimaryButton(
           key: const ValueKey('restricted-refresh'),
-          label: controller.busy ? 'Checking...' : 'Refresh status',
+          label: controller.busy ? 'Checking...' : 'Check account status',
           onPressed: controller.busy ? null : _refresh,
         ),
         if (widget.onSupport != null) ...[

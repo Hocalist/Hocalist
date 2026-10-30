@@ -47,3 +47,16 @@ Deno.test('unknown event ignored, failure retried, wrong method and oversized bo
   assert.equal((await handler(new Request('http://localhost'))).status,405);
   assert.equal((await handler(new Request('http://localhost',{method:'POST',headers:{'stripe-signature':'x'},body:'x'.repeat(262145)}))).status,413);
 });
+Deno.test('paygo signed receipts use their isolated inbox only when enabled',async()=>{
+ let normal=0;const receipts:Receipt[]=[];
+ const value=event({type:'payment_intent.succeeded',data:{object:{id:'pi_Paygo',livemode:false,metadata:{app:'hocalist',kind:'paygo_targeting'}}}});
+ const handler=createHandler({signingSecret:secret,receive:async()=>{normal++;},receivePaygo:async r=>{receipts.push(r);}});
+ assert.equal((await handler(await request(value))).status,200);assert.equal(normal,0);assert.equal(receipts.length,1);
+ assert.equal(receipts[0].p_object_id,'pi_Paygo');assert.ok(!JSON.stringify(receipts).includes('metadata'));
+ const disabled=createHandler({signingSecret:secret,receive:async()=>{normal++;}});
+ assert.equal((await disabled(await request(value))).status,200);assert.equal(normal,0);
+ assert.equal((await handler(await request(event({type:'payment_intent.succeeded',data:{object:{id:'pi_Subscription',livemode:false}}})))).status,200);
+ assert.equal(receipts.length,1,'subscription or unrelated payment intents do not enter paygo inbox');
+ const failure=createHandler({signingSecret:secret,receive:async()=>{},receivePaygo:async()=>{throw new Error('unavailable');}});
+ assert.equal((await failure(await request(value))).status,503,'provider retries when durable receipt fails');
+});

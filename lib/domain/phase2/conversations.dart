@@ -91,6 +91,8 @@ class ConversationMessage {
     List<MediaReference> attachments = const [],
     required DateTime sentAt,
     this.clientMessageId,
+    this.offerId,
+    this.readByCounterpart = false,
   }) : id = requireNonBlank(id, 'id'),
        conversationId = requireNonBlank(conversationId, 'conversationId'),
        senderUserId = requireNonBlank(senderUserId, 'senderUserId'),
@@ -123,6 +125,8 @@ class ConversationMessage {
 
   /// Client-generated deduplication key, echoed by the server when present.
   final String? clientMessageId;
+  final String? offerId;
+  final bool readByCounterpart;
 
   @override
   String toString() =>

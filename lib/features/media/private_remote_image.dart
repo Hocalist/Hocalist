@@ -1,7 +1,9 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/phase2/media/image_gateway.dart';
+import 'photo_preview.dart';
 
 class PrivateRemoteImage extends StatefulWidget {
   const PrivateRemoteImage({
@@ -70,7 +72,10 @@ class _PrivateRemoteImageState extends State<PrivateRemoteImage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done &&
             snapshot.hasData) {
-          return Image.memory(snapshot.data!, fit: BoxFit.cover);
+          return PhotoPreview(
+            bytes: snapshot.data!,
+            child: Image.memory(snapshot.data!, fit: BoxFit.cover),
+          );
         }
         if (snapshot.hasError) {
           return TextButton(
@@ -78,7 +83,7 @@ class _PrivateRemoteImageState extends State<PrivateRemoteImage> {
             child: const Text('Retry photo'),
           );
         }
-        return const Center(child: CircularProgressIndicator());
+        return const Center(child: HocalistLoadingIndicator());
       },
     ),
   );

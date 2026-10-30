@@ -124,12 +124,13 @@ void main() {
     for (final width in const [320.0, 430.0]) {
       await pumpSurface(
         tester,
-        ApprovedSellerTutorialPage(onContinue: () {}, onClose: () {}),
+        ApprovedSellerTutorialPage(name: 'TEST Seller Three', onContinue: () {}, onClose: () {}),
         width: width,
         height: 720,
       );
 
-      expect(find.text('Welcome, Jonathan'), findsOneWidget);
+      expect(find.text('Welcome, TEST Seller Three'), findsOneWidget);
+      expect(find.textContaining('Jonathan'), findsNothing);
       expect(find.text('As a seller, you will:'), findsOneWidget);
       expect(
         find.bySemanticsLabel('Seller tutorial video preview'),
@@ -149,7 +150,7 @@ void main() {
       );
       expect(find.bySemanticsLabel('Tutorial page 1 of 3'), findsNothing);
 
-      final welcomeBefore = tester.getTopLeft(find.text('Welcome, Jonathan'));
+      final welcomeBefore = tester.getTopLeft(find.text('Welcome, TEST Seller Three'));
       final videoBefore = tester.getTopLeft(
         find.bySemanticsLabel('Seller tutorial video preview'),
       );
@@ -159,7 +160,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.getTopLeft(find.text('Welcome, Jonathan')), welcomeBefore);
+      expect(tester.getTopLeft(find.text('Welcome, TEST Seller Three')), welcomeBefore);
       expect(
         tester.getTopLeft(
           find.bySemanticsLabel('Seller tutorial video preview'),
@@ -182,7 +183,7 @@ void main() {
       );
 
       final scroll = find.byKey(const Key('sellerTutorialScroll'));
-      final welcome = find.text('Welcome, Jonathan');
+      final welcome = find.text('Welcome to Hocalist');
       final welcomeBefore = tester.getTopLeft(welcome).dy;
       await tester.drag(scroll, const Offset(0, -420));
       await tester.pumpAndSettle();
@@ -267,7 +268,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('approved-account-primary-action')));
     await tester.pumpAndSettle();
-    expect(find.text('Welcome, Jonathan'), findsOneWidget);
+    expect(find.text('Welcome to Hocalist'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('sellerTutorialContinue')),

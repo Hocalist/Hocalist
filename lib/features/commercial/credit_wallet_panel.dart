@@ -8,6 +8,7 @@ import '../../data/phase2/commercial/commercial_wallet_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_payment_panel.dart';
+import 'wallet_history_list.dart';
 
 /// Seller credit wallet over the authoritative ledger read.
 ///
@@ -29,19 +30,11 @@ String _hc(int minor) =>
     '${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')} HC';
 
 String _targetLabel(CreditTargetStatus status) => switch (status) {
-  CreditTargetStatus.reserved => 'Reserved — awaiting qualification',
+  CreditTargetStatus.reserved => 'Reserved',
   CreditTargetStatus.initialCharged => 'Initial fee charged',
-  CreditTargetStatus.won => 'Won — full fee charged',
+  CreditTargetStatus.won => 'Completed',
   CreditTargetStatus.released => 'Released',
   CreditTargetStatus.refunded => 'Refunded',
-};
-
-SellerNoticeTone _targetTone(CreditTargetStatus status) => switch (status) {
-  CreditTargetStatus.reserved => SellerNoticeTone.brand,
-  CreditTargetStatus.initialCharged => SellerNoticeTone.warning,
-  CreditTargetStatus.won => SellerNoticeTone.success,
-  CreditTargetStatus.released => SellerNoticeTone.neutral,
-  CreditTargetStatus.refunded => SellerNoticeTone.neutral,
 };
 
 class _CreditWalletPanelState extends State<CreditWalletPanel> {
@@ -119,6 +112,7 @@ class _CreditWalletPanelState extends State<CreditWalletPanel> {
         ],
         if (widget.additionalSections != null)
           HocalistSectionTabs(
+            subtle: true,
             accent: SellerUiColors.primaryBright,
             sections: {
               'Credits': [
@@ -308,6 +302,16 @@ class _WalletBody extends StatelessWidget {
                     color: SellerUiColors.muted,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Resets ${MaterialLocalizations.of(context).formatMediumDate(value.weekly.resetsAt)} · 00:00 UTC',
+                  key: const Key('creditWeeklyReset'),
+                  style: sellerText(
+                    metrics ?? _fallbackMetrics(context),
+                    12,
+                    color: SellerUiColors.muted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -358,13 +362,13 @@ class _CreditPackDetails extends StatefulWidget {
 }
 
 class _CreditPackDetailsState extends State<_CreditPackDetails> {
-  bool expanded = false;
+  bool expanded = true;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       SellerSectionHeading(
-        title: 'Credit packs',
+        title: 'Prepaid wallet savings',
         actionKey: const Key('creditPacksToggle'),
         actionLabel: expanded ? 'Hide details' : 'View details',
         onAction: () => setState(() => expanded = !expanded),
@@ -382,9 +386,13 @@ class _CreditPackDetailsState extends State<_CreditPackDetails> {
                       body: 'Available packs will appear here.',
                     )
                   else ...[
-                    for (final option in widget.value.depositOptions)
-                      _OptionCard(option: option),
-                    const SellerPaymentPanel(creditPurchase: true),
+                    _WalletFeeTable(options: widget.value.depositOptions),
+                    const SizedBox(height: 14),
+                    const SellerPaymentPanel(
+                      creditPurchase: true,
+                      compact: true,
+                      label: 'Add credits',
+                    ),
                   ],
                 ],
               )
@@ -394,24 +402,135 @@ class _CreditPackDetailsState extends State<_CreditPackDetails> {
   );
 }
 
-class _TargetActivity extends StatelessWidget {
+class _TargetActivity extends StatefulWidget {
   const _TargetActivity({required this.value, required this.compact});
   final CreditWalletView value;
   final bool compact;
   @override
-  Widget build(BuildContext context) => HocalistSectionTabs(
-    accent: SellerUiColors.primaryBright,
-    sections: {
-      'Recent': _cards(value.targets),
-      'Reserved': _cards(
-        value.targets.where((t) => t.reservedMinor > 0).toList(),
+  State<_TargetActivity> createState() => _TargetActivityState();
+}
+
+class _TargetActivityState extends State<_TargetActivity> {
+  String filter = 'Recent';
+  Future<void> chooseFilter() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      'Charged': _cards(
-        value.targets.where((t) => t.chargedMinor > 0).toList(),
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      builder: (context) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Filter activity',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close filters',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Show activity',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              for (final choice in ['Recent', 'Reserved', 'Charged'])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: HocalistPalette.surface(
+                      context,
+                      filter == choice ? SellerUiColors.lavender : Colors.white,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Navigator.pop(context, choice),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                choice,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              filter == choice
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
+                              color: SellerUiColors.primaryBright,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
-    },
+    );
+    if (mounted && selected != null) setState(() => filter = selected);
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              filter,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Filter activity',
+            onPressed: chooseFilter,
+            icon: const Icon(
+              Icons.tune_rounded,
+              color: SellerUiColors.primaryBright,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      ..._rows(switch (filter) {
+        'Reserved' =>
+          widget.value.targets.where((t) => t.reservedMinor > 0).toList(),
+        'Charged' =>
+          widget.value.targets.where((t) => t.chargedMinor > 0).toList(),
+        _ => widget.value.targets,
+      }, filter.toLowerCase()),
+    ],
   );
-  List<Widget> _cards(List<CreditTargetView> targets) => targets.isEmpty
+  List<Widget> _rows(List<CreditTargetView> targets, String filter) =>
+      targets.isEmpty
       ? [
           const SellerStateNotice(
             key: Key('creditWalletNoTargets'),
@@ -421,8 +540,32 @@ class _TargetActivity extends StatelessWidget {
           ),
         ]
       : [
-          for (final target in targets)
-            _TargetCard(target: target, compact: compact),
+          WalletHistoryList(
+            key: ValueKey('activity-$filter'),
+            kind: 'creditTarget-$filter',
+            entries: [
+              for (final target in targets)
+                WalletHistoryEntry(
+                  id: target.id,
+                  title: target.requestTitle ?? 'Request',
+                  date: target.createdAt,
+                  amount: _hc(
+                    target.chargedMinor > 0
+                        ? target.chargedMinor
+                        : target.reservedMinor,
+                  ),
+                  status: _targetLabel(target.status),
+                  facts: {
+                    'Initial bid': _hc(target.initialMinor),
+                    'Winning total': _hc(target.winningMinor),
+                    'Total charged': _hc(target.chargedMinor),
+                    'Still reserved': _hc(target.reservedMinor),
+                  },
+                  note:
+                      'The winning total includes the initial bid. Your deposit’s saved rates apply.',
+                ),
+            ],
+          ),
         ];
 }
 
@@ -435,7 +578,7 @@ class _DepositBatchDetails extends StatefulWidget {
 }
 
 class _DepositBatchDetailsState extends State<_DepositBatchDetails> {
-  bool expanded = false;
+  bool expanded = true;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -447,291 +590,101 @@ class _DepositBatchDetailsState extends State<_DepositBatchDetails> {
         onAction: () => setState(() => expanded = !expanded),
       ),
       HocalistExpand(
-        child: expanded
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (widget.value.batches.isEmpty)
-                    const SellerStateNotice(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'No deposits yet',
-                      body: 'Deposits and their fixed rates appear here.',
-                    )
-                  else
-                    for (final batch in widget.value.batches)
-                      _BatchCard(batch: batch, compact: widget.compact),
-                ],
+        child: !expanded
+            ? const SizedBox.shrink()
+            : widget.value.batches.isEmpty
+            ? const SellerStateNotice(
+                icon: Icons.inventory_2_outlined,
+                title: 'No deposits yet',
+                body: 'Deposits and their fixed rates appear here.',
               )
-            : const SizedBox.shrink(),
+            : WalletHistoryList(
+                kind: 'creditBatch',
+                entries: [
+                  for (final batch in widget.value.batches)
+                    WalletHistoryEntry(
+                      id: batch.id,
+                      title:
+                          '${_hc(batch.originalMinor)} ${batch.fundingKind == 'paygo' ? 'funding' : 'deposit'}',
+                      date: batch.createdAt,
+                      amount: _hc(batch.availableMinor),
+                      status: batch.balanceMinor == 0 ? 'Used' : 'Available',
+                      facts: {
+                        'Deposited': _hc(batch.originalMinor),
+                        'Available': _hc(batch.availableMinor),
+                        'Reserved': _hc(batch.reservedMinor),
+                        'Remaining': _hc(batch.balanceMinor),
+                        'Charged': _hc(batch.chargedMinor),
+                        'Initial bid': _hc(batch.initialFeeMinor),
+                        'Winning total': _hc(batch.winningTotalMinor),
+                      },
+                      note:
+                          'These rates were saved with this deposit and stay attached to its credits.',
+                    ),
+                ],
+              ),
       ),
     ],
   );
 }
 
-class _BatchCard extends StatelessWidget {
-  const _BatchCard({required this.batch, required this.compact});
-
-  final CreditBatchView batch;
-  final bool compact;
+class _WalletFeeTable extends StatelessWidget {
+  const _WalletFeeTable({required this.options});
+  final List<DepositOptionView> options;
 
   @override
   Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.maybeOf(context) ?? _fallback(context);
-    return HocalistEntrance(
-      child: Container(
-        key: Key('creditBatch-${batch.id}'),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: HocalistPalette.surface(context, SellerUiColors.white),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: HocalistPalette.border(context, SellerUiColors.line),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Deposited ${_hc(batch.originalMinor)}',
-                    style: sellerText(
-                      metrics,
-                      14,
-                      weight: FontWeight.w800,
-                      color: SellerUiColors.ink,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: SellerStatusChip(
-                    label: 'Deposit pricing',
-                    icon: Icons.lock_outline_rounded,
-                    tone: SellerNoticeTone.brand,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                SellerMetricTile(
-                  label: 'Available',
-                  value: _hc(batch.availableMinor),
-                ),
-                SellerMetricTile(
-                  label: 'Reserved',
-                  value: _hc(batch.reservedMinor),
-                ),
-                SellerMetricTile(
-                  label: 'Remaining',
-                  value: _hc(batch.balanceMinor),
-                ),
-                SellerMetricTile(
-                  label: 'Charged',
-                  value: _hc(batch.chargedMinor),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Immutable batch rates: initial '
-              '${_hc(batch.initialFeeMinor)} · winning total '
-              '${_hc(batch.winningTotalMinor)}',
-              style: sellerText(
-                metrics,
-                compact ? 11 : 12,
-                color: SellerUiColors.muted,
-              ),
-            ),
-          ],
+    final line = HocalistPalette.border(context, SellerUiColors.line);
+    Widget cell(String text, {bool heading = false}) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.4,
+          fontWeight: heading ? FontWeight.w700 : FontWeight.w600,
         ),
       ),
     );
-  }
-
-  static ApprovedReplicaMetrics _fallback(BuildContext context) {
-    final media = MediaQuery.of(context);
-    return ApprovedReplicaMetrics.resolve(
-      brightness: Theme.of(context).brightness,
-      availableWidth: media.size.width,
-      textScaler: media.textScaler,
-    );
-  }
-}
-
-class _OptionCard extends StatelessWidget {
-  const _OptionCard({required this.option});
-
-  final DepositOptionView option;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.maybeOf(context) ?? _fallback(context);
-    return HocalistEntrance(
-      child: Container(
-        key: Key('creditOption-${option.id}'),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: HocalistPalette.surface(context, SellerUiColors.lavender),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: HocalistPalette.border(
-              context,
-              SellerUiColors.lavenderBorder,
-            ),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${_hc(option.amountMinor)} pack',
-                    style: sellerText(
-                      metrics,
-                      14,
-                      weight: FontWeight.w800,
-                      color: SellerUiColors.ink,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: SellerStatusChip(
-                    label: 'Pack pricing',
-                    tone: SellerNoticeTone.brand,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Initial ${_hc(option.initialFeeMinor)} · '
-              'winning total ${_hc(option.winningTotalMinor)}',
-              style: sellerText(metrics, 12, color: SellerUiColors.body),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Checkout confirms these pack rates before payment.',
-              style: sellerText(metrics, 11, color: SellerUiColors.muted),
-            ),
-          ],
-        ),
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, Colors.white),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: line),
       ),
-    );
-  }
-
-  static ApprovedReplicaMetrics _fallback(BuildContext context) {
-    final media = MediaQuery.of(context);
-    return ApprovedReplicaMetrics.resolve(
-      brightness: Theme.of(context).brightness,
-      availableWidth: media.size.width,
-      textScaler: media.textScaler,
-    );
-  }
-}
-
-class _TargetCard extends StatelessWidget {
-  const _TargetCard({required this.target, required this.compact});
-
-  final CreditTargetView target;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.maybeOf(context) ?? _fallback(context);
-    return HocalistEntrance(
-      child: Container(
-        key: Key('creditTarget-${target.id}'),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: HocalistPalette.surface(context, SellerUiColors.white),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: HocalistPalette.border(context, SellerUiColors.line),
+      child: Table(
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        border: TableBorder(
+          horizontalInside: BorderSide(color: line),
+          verticalInside: BorderSide(color: line),
+        ),
+        children: [
+          TableRow(
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(context, const Color(0xFFEAF3FF)),
+            ),
+            children: [
+              cell('Wallet', heading: true),
+              cell('Initial bid', heading: true),
+              cell('Winning total', heading: true),
+            ],
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+          for (final option in options)
+            TableRow(
+              key: ValueKey('creditOption-${option.id}'),
               children: [
-                Expanded(
-                  child: Text(
-                    target.requestTitle ?? 'Request',
-                    style: sellerText(
-                      metrics,
-                      13,
-                      weight: FontWeight.w700,
-                      color: SellerUiColors.ink,
-                    ),
-                  ),
+                KeyedSubtree(
+                  key: ValueKey('creditOption-${option.id}'),
+                  child: cell(_hc(option.amountMinor)),
                 ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: SellerStatusChip(
-                    key: Key('creditTargetStatus-${target.id}'),
-                    label: _targetLabel(target.status),
-                    tone: _targetTone(target.status),
-                  ),
-                ),
+                cell(_hc(option.initialFeeMinor)),
+                cell(_hc(option.winningTotalMinor)),
               ],
             ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                SellerMetricTile(
-                  label: 'Initial',
-                  value: _hc(target.initialMinor),
-                ),
-                SellerMetricTile(
-                  label: 'Winning total',
-                  value: _hc(target.winningMinor),
-                ),
-                SellerMetricTile(
-                  label: 'Charged',
-                  value: _hc(target.chargedMinor),
-                ),
-                SellerMetricTile(
-                  label: 'Reserved',
-                  value: _hc(target.reservedMinor),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Reserved pricing'
-              '${target.qualifiedAt == null ? '' : ' · qualified'}',
-              style: sellerText(
-                metrics,
-                compact ? 11 : 12,
-                color: SellerUiColors.muted,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
-    );
-  }
-
-  static ApprovedReplicaMetrics _fallback(BuildContext context) {
-    final media = MediaQuery.of(context);
-    return ApprovedReplicaMetrics.resolve(
-      brightness: Theme.of(context).brightness,
-      availableWidth: media.size.width,
-      textScaler: media.textScaler,
     );
   }
 }

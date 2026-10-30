@@ -280,6 +280,49 @@ void main() {
       );
     });
 
+    test(
+      'duplicate offer explains the existing offer without claiming a changed request',
+      () async {
+        transport.handler = (call) => const MarketplaceTransportError(
+          kind: MarketplaceTransportErrorKind.server,
+          message: 'offer_exists',
+          code: 'P0001',
+        );
+        await expectLater(
+          backend.submitOffer(
+            requestId: requestId,
+            terms: terms(),
+            operationKey: 'duplicate-key',
+          ),
+          throwsA(
+            isA<StoreBackendException>()
+                .having(
+                  (error) => error.toString(),
+                  'message',
+                  contains('already sent an offer'),
+                )
+                .having((error) => error.ambiguous, 'ambiguous', isFalse),
+          ),
+        );
+      },
+    );
+
+    for (final gate in {
+      'weekly_target_limit': 'weekly targeting limit',
+      'insufficient_single_batch': 'prepaid credits cannot cover',
+    }.entries) {
+      test('explains ${gate.key} without treating it as a pending offer', () async {
+        transport.handler = (call) => MarketplaceTransportError(
+          kind: MarketplaceTransportErrorKind.server, code: 'P0001', message: gate.key,
+        );
+        await expectLater(backend.submitOffer(requestId: requestId, terms: terms(), operationKey: 'blocked-offer'),
+          throwsA(isA<StoreBackendException>()
+            .having((error) => error.message, 'message', contains(gate.value))
+            .having((error) => error.ambiguous, 'ambiguous', isFalse)),
+        );
+      });
+    }
+
     test('maps a network failure to an ambiguous outcome', () async {
       transport.handler = (call) => const MarketplaceTransportError(
         kind: MarketplaceTransportErrorKind.connectivity,

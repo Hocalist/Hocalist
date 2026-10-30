@@ -70,7 +70,7 @@ class BuyerBottomNavigation extends StatelessWidget {
       _BuyerNavItem(
         ApprovedBuyerNavSelection.chats,
         'Chats',
-        'assets/buyer_nav/buyer-nav-chats.png',
+        'assets/approved_seller/nav/seller-nav-chats.png',
         callbacks.onChats,
       ),
       _BuyerNavItem(
@@ -167,15 +167,19 @@ class _BuyerBottomNavItem extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(metrics.geometry(8)),
                 ),
-                child: BuyerAssetIcon(
+                child: Transform.translate(
+                  offset: item.selection == ApprovedBuyerNavSelection.chats
+                      ? Offset(metrics.artSize(-0.8), metrics.artSize(-6)) : Offset.zero,
+                  child: BuyerAssetIcon(
                   asset: item.asset,
+                  opticalScale: item.selection == ApprovedBuyerNavSelection.chats ? 1.75 : null,
                   slotSize: metrics.artSize(
                     selected
                         ? BuyerIconTokens.navigation
                         : BuyerIconTokens.navigation - 1,
                   ),
                   color: HocalistPalette.text(context, color),
-                ),
+                )),
               ),
               SizedBox(height: metrics.geometry(1.5)),
               Text(

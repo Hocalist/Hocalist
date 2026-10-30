@@ -9,6 +9,7 @@ library;
 import 'package:hocalist/theme/adaptive_palette.dart';
 
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
 
 import '../../data/phase2/trust/trust_backend.dart';
 import '../../domain/phase2/profiles.dart';
@@ -174,11 +175,9 @@ class AccountHealthStatusCard extends StatelessWidget {
             ),
           ),
           if (onRefresh != null)
-            IconButton(
+            PullRefreshAction(
               key: const ValueKey('accountHealthStatusRefresh'),
-              tooltip: 'Refresh account health',
-              onPressed: busy ? null : onRefresh,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
+              onRefresh: busy ? null : onRefresh,
             ),
         ],
       ),

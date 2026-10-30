@@ -1,0 +1,45 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {createCommercialDb,callAs,IDS} from '../commercial_completion/tests/fixture.mjs';
+const read=p=>readFile(new URL(p,import.meta.url),'utf8');
+test('annual and trial intent are server-priced, retry-bound and private',async()=>{
+ const db=await createCommercialDb();
+ try {
+  for(const p of ['../commercial/094_deposit_checkout.sql','../website_completion/172_website_purchase_status.sql','../website_completion/173_website_checkout_context.sql','./194_credit_subscription.sql','./206_credit_access.sql','./226_checkout_recovery.sql','./227_plan_deposit_rates.sql','./229_earned_pro_policy.sql','./230_subscription_periods.sql']) await db.exec(await read(p));
+  await db.exec(await read('./239_billing_design_read_model.sql'));
+  const run=(key,period)=>callAs(db,'service_role',null,'SELECT hocalist.stripe_test_subscription_begin($1,$2,$3,$4) AS d',[IDS.seller,'pro',key,period]).then(r=>r[0].d);
+  await assert.rejects(run(crypto.randomUUID(),'year'),/invalid_plan_or_key/);
+  await db.exec("UPDATE hocalist.subscription_price_options SET price_id='price_TestAnnual',enabled=true WHERE code='pro' AND billing_interval='year'");
+  const key=crypto.randomUUID(),first=await run(key,'year');
+  assert.equal(first.amount_minor,12000);assert.equal(first.billing_interval,'year');assert.equal(first.trial_days,14);
+  assert.equal((await run(key,'year')).checkout_id,first.checkout_id);
+  await assert.rejects(run(key,'month'),/idempotency_conflict|invalid_plan_or_key/);
+  const status=(await callAs(db,'authenticated',IDS.seller,'SELECT hocalist.website_purchase_status() AS d'))[0].d;
+  assert.equal(status.plans.some(p=>p.billing_interval==='year'&&p.amount_minor===12000),true);
+  assert.equal(status.effective_plan,'free');assert.equal(status.trial_days,14);
+  assert.equal(status.entitlement.plans.find(p=>p.plan_code==='free').weekly_target_limit,10);
+  assert.equal(status.subscription_price,null,'no billing period is guessed from a selected plan');
+  await assert.rejects(callAs(db,'authenticated',IDS.seller,'SELECT hocalist.stripe_test_subscription_begin($1,$2,$3,$4)',[IDS.seller,'pro',key,'year']),/permission denied/);
+  const context=(await db.query("SELECT hocalist.stripe_test_customer_context('cus_missing') AS d")).rows[0].d;
+  assert.equal(context,null);
+  await db.query("INSERT INTO hocalist.stripe_test_customers(membership_id,customer_id) VALUES($1,'cus_TrialContext')",[IDS.sellerMembership]);
+  const provider=(await db.query("SELECT hocalist.website_checkout_context('cus_TrialContext') AS d")).rows[0].d;
+  assert.equal(provider.checkouts[0].billing_interval,'year');assert.equal(provider.checkouts[0].trial_days,14);
+  await db.query("UPDATE hocalist.stripe_test_checkouts SET state='expired' WHERE id=$1",[first.checkout_id]);
+  await db.query("INSERT INTO hocalist.subscription_trials(user_id,subscription_id) VALUES($1,'sub_PreviousTrial')",[IDS.seller]);
+  const next=await run(crypto.randomUUID(),'year');
+  assert.equal(next.trial_days,0,'a retained trial claim prevents repeat trials');
+  await db.query("INSERT INTO hocalist.stripe_test_subscriptions(membership_id,subscription_id,plan_code,provider_status,paid_until,cancel_at_period_end) VALUES($1,'sub_TrialActive','pro','trialing',now()+interval '2 days',false)",[IDS.sellerMembership]);
+  const entitlement=async()=>(await callAs(db,'authenticated',IDS.seller,'SELECT hocalist.account_entitlement() AS d'))[0].d;
+  assert.equal((await entitlement()).effective_plan,'pro');
+  await db.query("UPDATE hocalist.stripe_test_subscriptions SET paid_until=now()-interval '1 minute' WHERE membership_id=$1",[IDS.sellerMembership]);
+  assert.equal((await entitlement()).effective_plan,'free','expired trials do not retain paid benefits');
+  await callAs(db,'service_role',null,"SELECT hocalist.receive_stripe_test_event('acct_1Le6hqDmHEV44E5Y','evt_DesignSnapshot','invoice.paid','in_DesignSnapshot',12345,false)");
+  const claim=(await callAs(db,'service_role',null,'SELECT hocalist.stripe_test_claim() AS d'))[0].d;
+  await callAs(db,'service_role',null,'SELECT hocalist.stripe_test_finish($1,$2,$3,$4::jsonb,NULL)',[claim.token,claim.event_id,'cus_TrialContext',JSON.stringify({subscription_id:'sub_TrialActive',checkout_id:next.checkout_id,plan_code:'pro',status:'active',paid_until:new Date(Date.now()+30*86400000).toISOString(),cancel_at_period_end:false,requires_review:false})]);
+  const design=(await callAs(db,'authenticated',IDS.seller,'SELECT hocalist.website_purchase_status() AS d'))[0].d;
+  assert.deepEqual(design.subscription_price,{amount_minor:12000,currency:'usd',billing_interval:'year'});
+  assert.equal(design.entitlement.effective_plan,'pro');
+ }finally{await db.close();}
+});

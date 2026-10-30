@@ -1,0 +1,46 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {createCommercialDb,IDS,callAs} from '../commercial_completion/tests/fixture.mjs';
+test('pay-as-you-go authorisation is provider-bound, private, replay-safe and revocable',async()=>{
+ const db=await createCommercialDb();
+ try{
+  await db.exec(await readFile(new URL('./235_paygo_payment_setup.sql',import.meta.url),'utf8'));
+  const begin=(key,consent='paygo-v1')=>callAs(db,'service_role',null,'SELECT hocalist.paygo_setup_begin($1,$2,$3) AS d',[IDS.seller,key,consent]).then(r=>r[0].d);
+  await assert.rejects(begin(crypto.randomUUID(),'missing'),/consent_required/);
+  await assert.rejects(begin(crypto.randomUUID()),/billing_customer_required/);
+  await db.query("INSERT INTO hocalist.stripe_test_customers(membership_id,customer_id) VALUES($1,'cus_PaygoTest')",[IDS.sellerMembership]);
+  const key=crypto.randomUUID(),setup=await begin(key);
+  assert.equal((await begin(key)).setup_id,setup.setup_id);
+  assert.equal((await begin(crypto.randomUUID())).setup_id,setup.setup_id,'a reload resumes the same pending setup');
+  await assert.rejects(callAs(db,'authenticated',IDS.seller,'SELECT hocalist.paygo_setup_begin($1,$2,$3)',[IDS.seller,key,'paygo-v1']),/permission denied/);
+  await callAs(db,'service_role',null,'SELECT hocalist.paygo_setup_bind($1,$2,$3,$4)',[setup.setup_id,'cus_PaygoTest','cs_test_Paygo','https://checkout.stripe.com/c/paygo']);
+  const finish=(customer='cus_PaygoTest',method='pm_PaygoTest')=>callAs(db,'service_role',null,'SELECT hocalist.paygo_setup_finish($1,$2,$3,$4,false)',[setup.setup_id,customer,'cs_test_Paygo',method]);
+  await assert.rejects(finish('cus_Foreign'),/setup_identity_mismatch/);
+  await finish();await finish();
+  await assert.rejects(finish('cus_PaygoTest','pm_Changed'),/idempotency_conflict/);
+  const status=async user=>(await callAs(db,'authenticated',user,'SELECT hocalist.paygo_payment_status() AS d'))[0].d;
+  assert.deepEqual(await status(IDS.seller),{authorised:true,consent_version:'paygo-v1'});
+  assert.equal((await status(IDS.seller2)).authorised,false);
+  await assert.rejects(callAs(db,'authenticated',IDS.seller,'SELECT * FROM hocalist.paygo_payment_methods'),/permission denied/);
+  await db.exec(await readFile(new URL('./243_managed_paygo_card.sql',import.meta.url),'utf8'));
+  await assert.rejects(callAs(db,'authenticated',IDS.seller,'SELECT hocalist.paygo_card_context($1)',[IDS.seller]),/permission denied/);
+  const refresh=(customer,previous,method)=>callAs(db,'service_role',null,'SELECT hocalist.paygo_card_refresh($1,$2,$3,$4)',[IDS.seller,customer,previous,method]);
+  await assert.rejects(refresh('cus_Foreign','pm_Test','pm_New'),/payment_method_changed/);
+  const existing=(await callAs(db,'service_role',null,'SELECT hocalist.paygo_card_context($1) AS d',[IDS.seller]))[0].d;
+  await refresh(existing.customer_id,existing.payment_method_id,'pm_New');
+  await assert.rejects(refresh(existing.customer_id,existing.payment_method_id,'pm_Stale'),/payment_method_changed/);
+  await refresh(existing.customer_id,'pm_New',existing.payment_method_id);
+  await callAs(db,'authenticated',IDS.seller,'SELECT hocalist.paygo_payment_revoke()');
+  assert.equal((await status(IDS.seller)).authorised,false);
+  await assert.rejects(refresh(existing.customer_id,existing.payment_method_id,'pm_Revived'),/payment_method_changed/);
+  await finish();
+  assert.equal((await status(IDS.seller)).authorised,false,'replaying a completed confirmation cannot undo revocation');
+  const pending=await begin(crypto.randomUUID());
+  await callAs(db,'service_role',null,'SELECT hocalist.paygo_setup_bind($1,$2,$3,$4)',[pending.setup_id,'cus_PaygoTest','cs_test_Second','https://checkout.stripe.com/c/paygo']);
+  await db.query("UPDATE hocalist.memberships SET status='restricted' WHERE user_id=$1",[IDS.seller]);
+  await callAs(db,'authenticated',IDS.seller,'SELECT hocalist.paygo_payment_revoke()');
+  await assert.rejects(callAs(db,'service_role',null,'SELECT hocalist.paygo_setup_finish($1,$2,$3,$4,false)',[pending.setup_id,'cus_PaygoTest','cs_test_Second','pm_Second']),/invalid_payment_method/);
+  assert.equal(Number((await db.query('SELECT count(*) AS n FROM hocalist.credit_batches')).rows[0].n),0,'saving a card cannot create funded credits');
+ }finally{await db.close();}
+});

@@ -59,7 +59,7 @@ class _HocalistWordmarkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
+    return BrandHomeLink(child: Image.asset(
       'assets/brand/hocalist-wordmark.png',
       color: Theme.of(context).brightness == Brightness.dark
           ? const Color(0xfff3f3ff)
@@ -68,7 +68,7 @@ class _HocalistWordmarkImage extends StatelessWidget {
       alignment: Alignment.topLeft,
       filterQuality: FilterQuality.high,
       excludeFromSemantics: true,
-    );
+    ));
   }
 }
 
@@ -98,7 +98,11 @@ class HocalistGlobalHeader extends StatelessWidget {
     final media = MediaQuery.of(context);
     final compact = media.size.width < 430;
     final logoWidth = logoSlotReferenceWidth == null
-        ? (compact ? 138.0 : 126.0)
+        ? ApprovedReplicaMetrics.resolve(
+            brightness: Theme.of(context).brightness,
+            availableWidth: media.size.width,
+            textScaler: media.textScaler,
+          ).artSize(104)
         : ApprovedReplicaMetrics.resolve(
             brightness: Theme.of(context).brightness,
             availableWidth: media.size.width,
@@ -2557,7 +2561,7 @@ class LoadingStatePanel extends StatelessWidget {
           SizedBox(
             width: 24,
             height: 24,
-            child: CircularProgressIndicator(color: accent, strokeWidth: 3),
+            child: HocalistLoadingIndicator(color: accent, strokeWidth: 3),
           ),
           const SizedBox(width: 12),
           Expanded(

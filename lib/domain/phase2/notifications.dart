@@ -16,6 +16,7 @@ class NotificationInboxItem {
     required String kind,
     required String title,
     this.body = '',
+    this.activitySummary = '',
     this.deepLink,
     String? sourceId,
     this.payload,
@@ -39,6 +40,9 @@ class NotificationInboxItem {
   final String kind;
   final String title;
   final String body;
+
+  /// Short authenticated inbox context for the home activity row.
+  final String activitySummary;
 
   /// In-app route link (`hocalist://...`), when the server supplied one.
   final String? deepLink;

@@ -26,6 +26,9 @@ class FakeBackend {
   event: ObjectMap = {};
   session: ObjectMap = {};
   context: unknown = null;
+  subscriptions: ObjectMap[] = [];
+  invoice: ObjectMap = {};
+  invoices: ObjectMap[] = [];
   depositResult: unknown = { status: "complete", checkout_id: CHECKOUT, batch_id: "b".repeat(8) };
   depositCalls: Call[] = [];
   finishCalls: Call[] = [];
@@ -58,7 +61,9 @@ class FakeBackend {
     if (path === "account") return { id: ACCOUNT, livemode: false };
     if (path.startsWith("events/")) return this.event;
     if (path.startsWith("checkout/sessions/")) return this.session;
-    if (path.startsWith("subscriptions?")) return { data: [], has_more: false };
+    if (path.startsWith("subscriptions?")) return { data: this.subscriptions, has_more: false };
+    if (path.startsWith("invoices/")) return this.invoice;
+    if (path.startsWith("invoices?")) return {data:this.invoices,has_more:false};
     throw new Error(`unexpected stripe ${path}`);
   }
 
@@ -131,6 +136,20 @@ function depositApi(): FakeBackend {
   api.context = contextOf();
   return api;
 }
+
+Deno.test('provider-verified card setup cannot quarantine a customer or grant a purchase',async()=>{
+  for(const metadata of [{app:'hocalist',kind:'paygo_setup'}, {app:'hocalist',kind:'credit_deposit',checkout_id:CHECKOUT}]) {
+    const api=depositApi();
+    api.session={...depositSession(),mode:'setup',metadata,amount_total:null,payment_intent:null};
+    api.context=contextOf({checkouts:[]});
+    const response=await handler(api)(post());
+    assert.equal(response.status,200);
+    assert.equal((await response.json()).status,'ignored_card_setup');
+    assert.equal(api.depositCalls.length,0);
+    assert.equal(api.rpcCalls.some(call=>call.name==='website_checkout_context'),false);
+    assert.deepEqual(api.finishCalls.map(call=>call.body),[{p_token:TOKEN,p_event:EVENT,p_customer:null,p_snapshot:null}]);
+  }
+});
 
 Deno.test("a verified paid deposit event credits exactly one batch", async () => {
   const api = depositApi();
@@ -273,6 +292,62 @@ Deno.test("an unmapped customer is explicitly ignored", async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { status: "ignored_unmapped_customer", event_id: EVENT });
   assert.equal(api.depositCalls.length, 0);
+});
+
+Deno.test("a verified annual trial grants only its provider-confirmed end and rejects altered terms",async()=>{
+ const api=new FakeBackend();
+ api.event=eventOf("checkout.session.completed",SESSION);
+ api.session={id:SESSION,livemode:false,customer:CUSTOMER,metadata:{app:"hocalist",checkout_id:CHECKOUT,membership_id:MEMBERSHIP}};
+ api.context={...contextOf({checkouts:[storedCheckout({kind:"subscription",plan_code:"pro",price_id:"price_annual",amount_minor:12000,billing_interval:"year",trial_days:14})]}),plans:[{code:"pro"}]};
+ const start=Math.floor(Date.now()/1000),end=start+14*86400;
+ api.subscriptions=[{id:"sub_trial",livemode:false,customer:CUSTOMER,status:"trialing",cancel_at_period_end:false,trial_start:start,trial_end:end,metadata:{app:"hocalist",membership_id:MEMBERSHIP,checkout_id:CHECKOUT},items:{data:[{quantity:1,price:{id:"price_annual",currency:"usd",unit_amount:12000,recurring:{interval:"year",interval_count:1}}}],has_more:false}}];
+ assert.equal((await handler(api)(post())).status,200);
+ const snapshot=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+ assert.equal(snapshot.status,"trialing");assert.equal(snapshot.paid_until,new Date(end*1000).toISOString());
+ api.subscriptions[0].trial_end=end+86400;
+ await handler(api)(post());
+ assert.equal(api.finishCalls.at(-1)?.body.p_error,"review_required");
+});
+
+Deno.test('portal changes use configured prices and preserve only a verified paid downgrade period', async () => {
+  const api = new FakeBackend();
+  const end = Math.floor(Date.now()/1000)+30*86400;
+  api.claim={token:TOKEN,event_id:EVENT,event_type:'customer.subscription.updated',object_id:'sub_portal'};
+  api.event=eventOf('customer.subscription.updated','sub_portal');
+  api.context={...contextOf({checkouts:[storedCheckout({kind:'subscription',plan_code:'pro',price_id:'price_pro',amount_minor:1500})]}),
+    plans:[{code:'pro'},{code:'elite'}],price_options:[{code:'elite',price_id:'price_elite',amount_minor:3000,billing_interval:'month',enabled:true}],
+    subscription:{subscription_id:'sub_portal',provider_status:'trialing',requires_review:false,paid_until:new Date(end*1000).toISOString(),amount_minor:1500}};
+  api.subscriptions=[{id:'sub_portal',livemode:false,customer:CUSTOMER,status:'active',current_period_end:end,latest_invoice:'in_portal',cancel_at_period_end:false,
+    metadata:{app:'hocalist',membership_id:MEMBERSHIP,checkout_id:CHECKOUT},
+    items:{data:[{quantity:1,price:{id:'price_elite',currency:'usd',unit_amount:3000,recurring:{interval:'month',interval_count:1}}}],has_more:false}}];
+  api.invoice={livemode:false,customer:CUSTOMER,subscription:'sub_portal',status:'paid',paid:true,currency:'usd',amount_paid:3000,
+    lines:{data:[{subscription:'sub_portal',price:'price_elite',quantity:1,proration:false,period:{end}}],has_more:false}};
+  assert.equal((await handler(api)(post())).status,200);
+  let result=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+  assert.equal(result.plan_code,'elite'); assert.equal(result.checkout_id,CHECKOUT);
+  assert.equal(result.paid_until,new Date(end*1000).toISOString());
+  (api.context as ObjectMap).price_options=[];
+  await handler(api)(post()); assert.equal(api.finishCalls.at(-1)?.body.p_error,'review_required');
+  (api.context as ObjectMap).price_options=[{code:'elite',price_id:'price_elite',amount_minor:3000,billing_interval:'month',enabled:true}];
+  api.invoice.amount_paid=0;
+  await handler(api)(post());
+  result=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+  assert.equal(result.paid_until,null,'an unpaid trial does not fund a zero-dollar switch');
+  (api.context as ObjectMap).subscription={subscription_id:'sub_portal',provider_status:'active',requires_review:false,paid_until:new Date(end*1000).toISOString(),amount_minor:5000};
+  await handler(api)(post()); result=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+  assert.equal(result.paid_until,new Date(end*1000).toISOString());
+  (api.context as ObjectMap).subscription={subscription_id:'sub_portal',provider_status:'active',requires_review:true,paid_until:null};
+  api.invoices=[{...api.invoice,amount_paid:3000}];
+  await handler(api)(post()); result=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+  assert.equal(result.paid_until,new Date(end*1000).toISOString(),'paid provider history repairs an out-of-order downgrade');
+  api.invoices=[{...api.invoice,amount_paid:3000,subscription:'sub_other'}];
+  await handler(api)(post()); result=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+  assert.equal(result.paid_until,null,'unrelated subscription funding is rejected');
+  api.invoices=[];
+  api.subscriptions[0].current_period_end=end+86400;
+  (api.invoice.lines as ObjectMap).data=[{subscription:'sub_portal',price:'price_elite',quantity:1,proration:true,period:{end:end+86400}}];
+  await handler(api)(post()); result=api.finishCalls.at(-1)?.body.p_snapshot as ObjectMap;
+  assert.equal(result.paid_until,null,'a zero-dollar change never extends the previously paid period');
 });
 
 Deno.test("authorization, method, idle and identity mismatches are safe", async () => {

@@ -1,3 +1,4 @@
+import 'package:hocalist/components/pull_refresh.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -32,12 +33,15 @@ void main() {
             textScaler: TextScaler.linear(scale),
           ),
           child: Scaffold(
-            body: SingleChildScrollView(
-              child: RepaintBoundary(
-                key: const Key('capture'),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: CreditWalletPanel(load: load),
+            body: PullRefreshHost(
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: RepaintBoundary(
+                  key: const Key('capture'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: CreditWalletPanel(load: load),
+                  ),
                 ),
               ),
             ),
@@ -59,7 +63,8 @@ void main() {
     expect(find.byKey(const Key('creditWalletError')), findsOneWidget);
     expect(find.textContaining('HC'), findsNothing);
     expect(find.byKey(const Key('creditWalletAvailable')), findsNothing);
-    await tester.tap(find.byKey(const Key('creditWalletRefresh')));
+    expect(find.text('Reload'), findsNothing);
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, 400));
     await tester.pumpAndSettle();
     expect(calls, 2);
   });
@@ -80,23 +85,22 @@ void main() {
     expect(find.text('2.20 HC'), findsWidgets);
     expect(find.text('5.30 HC'), findsWidgets);
     expect(find.text('2 / 10'), findsOneWidget);
+    expect(find.text('Resets Mon, Sep 28 · 00:00 UTC'), findsOneWidget);
     expect(find.byKey(const Key('creditWalletWeekly')), findsOneWidget);
-    expect(find.byKey(const Key('creditBatch-bt-1')), findsNothing);
-    expect(find.byKey(const Key('creditWalletNoPacks')), findsNothing);
-    await tester.ensureVisible(
-      find.byKey(const Key('creditDepositDetailsToggle')),
-    );
-    await tester.tap(find.byKey(const Key('creditDepositDetailsToggle')));
-    await tester.pumpAndSettle();
     expect(find.byKey(const Key('creditBatch-bt-1')), findsOneWidget);
-    expect(find.text('Deposit pricing'), findsWidgets);
-    expect(find.textContaining('rate v40'), findsNothing);
-    expect(find.textContaining('Immutable batch rates'), findsWidgets);
-    expect(find.byKey(const Key('creditTarget-tg-1')), findsOneWidget);
-    expect(find.text('Sold camera'), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const Key('creditPacksToggle')));
-    await tester.tap(find.byKey(const Key('creditPacksToggle')));
+    expect(find.byKey(const Key('creditWalletNoPacks')), findsOneWidget);
+    expect(find.byKey(const Key('creditBatch-bt-1')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('creditBatch-bt-1')));
+    await tester.tap(find.byKey(const Key('creditBatch-bt-1')));
     await tester.pumpAndSettle();
+    expect(find.text('Winning total'), findsOneWidget);
+    expect(find.textContaining('These rates were saved'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('rate v40'), findsNothing);
+    expect(find.textContaining('Immutable batch rates'), findsNothing);
+    expect(find.byKey(const Key('creditTarget-recent-tg-1')), findsOneWidget);
+    expect(find.text('Sold camera'), findsOneWidget);
     // No packs are configured, so no pack rate may appear.
     expect(find.byKey(const Key('creditWalletNoPacks')), findsOneWidget);
     expect(find.textContaining('No credit packs available'), findsOneWidget);
@@ -115,8 +119,6 @@ void main() {
       ),
     );
     await pump(tester, () async => view);
-    await tester.tap(find.byKey(const Key('creditDepositDetailsToggle')));
-    await tester.pumpAndSettle();
     expect(find.text('No deposits yet'), findsOneWidget);
     expect(find.byKey(const Key('creditWalletNoTargets')), findsOneWidget);
     expect(find.text('0.00 HC'), findsWidgets);
@@ -143,21 +145,44 @@ void main() {
       ),
     );
     await pump(tester, () async => view);
-    expect(find.byKey(const Key('creditOption-opt-1')), findsNothing);
+    // Pricing is visible immediately; closing and reopening retains it.
+    expect(find.byKey(const Key('creditOption-opt-1')), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('creditPacksToggle')));
     await tester.tap(find.byKey(const Key('creditPacksToggle')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('creditOption-opt-1')), findsNothing);
+    await tester.tap(find.byKey(const Key('creditPacksToggle')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('creditOption-opt-1')), findsOneWidget);
-    expect(find.textContaining('40.00 HC pack'), findsOneWidget);
-    expect(find.textContaining('Initial 1.45 HC'), findsOneWidget);
+    expect(find.text('40.00 HC'), findsWidgets);
+    expect(find.text('1.45 HC'), findsOneWidget);
+    expect(find.text('Winning total'), findsOneWidget);
     expect(find.byKey(const Key('creditWalletNoPacks')), findsNothing);
   });
 
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
       testWidgets('wallet content fits $width at $scale', (tester) async {
-        final view = CreditWalletView.fromJson(creditWalletJson());
+        final view = CreditWalletView.fromJson(
+          creditWalletJson(
+            optionsConfigured: true,
+            options: [
+              {
+                'id': 'opt-1',
+                'amount_minor': 4000,
+                'initial_fee_minor': 145,
+                'winning_total_minor': 325,
+                'rate_version': 'v40',
+                'active': true,
+                'revision': 1,
+                'sort_order': 0,
+              },
+            ],
+          ),
+        );
         await pump(tester, () async => view, width: width, scale: scale);
+        expect(find.byKey(const Key('creditBatch-bt-1')), findsOneWidget);
+        expect(find.byKey(const Key('walletPage-creditBatch')), findsOneWidget);
         expect(tester.takeException(), isNull);
         expect(find.byKey(const Key('creditWalletPanel')), findsOneWidget);
         expect(find.byKey(const Key('creditWalletWeekly')), findsOneWidget);

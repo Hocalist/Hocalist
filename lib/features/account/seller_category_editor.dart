@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
 
 import '../../data/phase2/accounts/profile_categories_backend.dart';
 import '../../domain/phase2/account_completion.dart';
@@ -58,7 +59,8 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool preserveChoices = false}) async {
+    final choices = Set<String>.of(_selected);
     final run = ++_generation;
     setState(() {
       _busy = true;
@@ -69,7 +71,7 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
       if (!mounted || run != _generation) return;
       setState(() {
         _selection = selection;
-        _selected = selection.selected.map((option) => option.id).toSet();
+        _selected = preserveChoices ? choices : selection.selected.map((option) => option.id).toSet();
         _pendingIds = null;
       });
     } catch (_) {
@@ -78,6 +80,13 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
     } finally {
       if (mounted && run == _generation) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _pull() async {
+    if (_busy || _pendingIds != null) return;
+    final saved = _selection?.selected.map((option) => option.id).toSet() ?? <String>{};
+    final dirty = saved.length != _selected.length || !saved.containsAll(_selected);
+    await _load(preserveChoices: dirty);
   }
 
   List<SellerCategoryOption> get _visibleAvailable {
@@ -121,7 +130,7 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
         _pendingIds = null;
         _message = null;
         _error =
-            'Your profile changed on another device. Reload and choose again.';
+            'Your profile changed on another device. Please try again.';
       });
     } on ProfileCategoriesUnavailableException catch (failure) {
       if (!mounted) return;
@@ -144,7 +153,7 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
-    return Padding(
+    return PullRefreshAction(onRefresh: _busy ? null : _pull, child: Padding(
       padding: const EdgeInsets.all(14),
       key: const ValueKey('sellerCategoryEditor'),
       child: Column(
@@ -194,7 +203,7 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
                 icon: Icons.hourglass_empty_rounded,
                 tone: SellerNoticeTone.neutral,
                 title: 'Seller categories are not loaded yet.',
-                body: 'Reload to load the active catalogue.',
+                body: 'The available categories could not be loaded. Please try again.',
               ),
             ),
           if (selection != null) ...[
@@ -307,11 +316,11 @@ class _SellerCategoryEditorState extends State<SellerCategoryEditor> {
                       });
                       _load();
                     },
-              label: 'Reload saved categories',
+              label: 'Discard changes',
             ),
           ],
         ],
       ),
-    );
+    ));
   }
 }

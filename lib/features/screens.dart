@@ -7558,7 +7558,7 @@ class _SaveChangesPanel extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                'Updating your request may refresh offers and estimated rewards.',
+                'Updating your request may change offers and estimated rewards.',
               ),
             ],
           );
@@ -8970,6 +8970,7 @@ class _BuyerChatThreadCard extends StatelessWidget {
           textScaler: MediaQuery.textScalerOf(context),
         );
     return Material(
+      clipBehavior: Clip.antiAlias,
       color: HocalistPalette.surface(context, Colors.white),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
@@ -8984,17 +8985,17 @@ class _BuyerChatThreadCard extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(metrics.spacing(12)),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               CircleAvatar(
-                radius: metrics.artSize(21),
+                radius: metrics.artSize(25),
                 backgroundColor: HocalistPalette.surface(
                   context,
-                  data.active ? Colors.black : BuyerUiTokens.softSurface,
+                  BuyerUiTokens.softSurface,
                 ),
                 foregroundColor: HocalistPalette.text(
                   context,
-                  data.active ? Colors.white : BuyerUiTokens.text,
+                  BuyerUiTokens.action,
                 ),
                 child: Text(
                   data.initials,
@@ -9002,7 +9003,7 @@ class _BuyerChatThreadCard extends StatelessWidget {
                     context,
                     metrics,
                     BuyerTextRole.badgeStatus,
-                    color: data.active ? Colors.white : BuyerUiTokens.text,
+                    color: BuyerUiTokens.action,
                     weight: FontWeight.w800,
                   ),
                 ),
@@ -9060,6 +9061,7 @@ class _BuyerChatThreadCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                    if (data.request.trim().isNotEmpty) ...[
                     SizedBox(height: metrics.spacing(3)),
                     Text(
                       data.request,
@@ -9073,7 +9075,8 @@ class _BuyerChatThreadCard extends StatelessWidget {
                         weight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(height: metrics.spacing(5)),
+                    ],
+                    SizedBox(height: metrics.spacing(3)),
                     Text(
                       data.preview,
                       maxLines: 2,
@@ -9084,19 +9087,7 @@ class _BuyerChatThreadCard extends StatelessWidget {
                         BuyerTextRole.secondaryBody,
                       ),
                     ),
-                    SizedBox(height: metrics.spacing(7)),
-                    Wrap(
-                      spacing: metrics.spacing(6),
-                      runSpacing: metrics.spacing(5),
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _ChatThreadChip(
-                          label: data.status,
-                          active: data.active,
-                        ),
-                        _ChatThreadChip(label: data.price),
-                      ],
-                    ),
+
                   ],
                 ),
               ),
@@ -9106,46 +9097,6 @@ class _BuyerChatThreadCard extends StatelessWidget {
               ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatThreadChip extends StatelessWidget {
-  const _ChatThreadChip({required this.label, this.active = false});
-
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics =
-        ApprovedReplicaScope.maybeOf(context) ??
-        ApprovedReplicaMetrics.resolve(
-          brightness: Theme.of(context).brightness,
-          availableWidth: MediaQuery.sizeOf(context).width,
-          textScaler: MediaQuery.textScalerOf(context),
-        );
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: metrics.geometry(8),
-        vertical: metrics.geometry(4),
-      ),
-      decoration: BoxDecoration(
-        color: HocalistPalette.surface(
-          context,
-          active ? BuyerUiTokens.softSurface : const Color(0xfff5f6fb),
-        ),
-        borderRadius: BorderRadius.circular(metrics.geometry(999)),
-      ),
-      child: Text(
-        label,
-        style: BuyerTypography.style(
-          context,
-          metrics,
-          BuyerTextRole.badgeStatus,
-          color: active ? BuyerUiTokens.action : BuyerUiTokens.muted,
         ),
       ),
     );
@@ -11726,9 +11677,21 @@ class _BuyerSubpageBlock extends StatelessWidget {
                           child is _BuyerSubpageSection &&
                           child.title != 'Account' &&
                           child.title != 'Account Management' &&
-                          child.title != 'Preferences',
+                          child.title != 'Preferences' &&
+                          child.title != 'Private contact',
                     )
                     .toList(),
+                if (children.any(
+                  (c) =>
+                      c is _BuyerSubpageSection && c.title == 'Private contact',
+                ))
+                  'Private contact': children
+                      .where(
+                        (c) =>
+                            c is _BuyerSubpageSection &&
+                            c.title == 'Private contact',
+                      )
+                      .toList(),
               },
             )
           else
@@ -11989,6 +11952,7 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
     this.securityStatus,
     this.pendingEmailChange,
     this.onAccountLifecycle,
+    this.contactEditor,
   });
 
   final VoidCallback? onBack;
@@ -12003,6 +11967,7 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
   final String? securityStatus;
   final String? pendingEmailChange;
   final VoidCallback? onAccountLifecycle;
+  final Widget? contactEditor;
 
   @override
   Widget build(BuildContext context) {
@@ -12012,6 +11977,11 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
       title: 'Account Settings',
       subtitle: 'Manage your Buyer account, preferences, and privacy.',
       children: [
+        if (contactEditor != null)
+          _BuyerSubpageSection(
+            title: 'Private contact',
+            children: [contactEditor!],
+          ),
         _BuyerSubpageSection(
           title: 'Account',
           children: [
@@ -12204,7 +12174,7 @@ class _BuyerNotificationPreferencesPageState
                   child: SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                    child: HocalistLoadingIndicator(strokeWidth: 2.4),
                   ),
                 ),
               )
@@ -12317,6 +12287,7 @@ class BuyerSettingsPage extends StatelessWidget {
     this.securityStatus,
     this.pendingEmailChange,
     this.onAccountLifecycle,
+    this.contactEditor,
     super.key,
   });
 
@@ -12338,6 +12309,7 @@ class BuyerSettingsPage extends StatelessWidget {
 
   /// Consent, export and deletion-request entry.
   final VoidCallback? onAccountLifecycle;
+  final Widget? contactEditor;
 
   @override
   Widget build(BuildContext context) {
@@ -12353,6 +12325,7 @@ class BuyerSettingsPage extends StatelessWidget {
       securityStatus: securityStatus,
       pendingEmailChange: pendingEmailChange,
       onAccountLifecycle: onAccountLifecycle,
+      contactEditor: contactEditor,
     );
   }
 }

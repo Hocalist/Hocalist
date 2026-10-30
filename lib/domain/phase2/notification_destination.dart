@@ -6,11 +6,17 @@ enum NotificationDestinationKind { offer, chat, meeting, billing, account }
 /// Only recognized inbox routes become navigation intents. An intent never
 /// grants access: the destination must still be loaded through authorized RPCs.
 class NotificationDestination {
-  const NotificationDestination(this.kind, this.id, {this.requestId});
+  const NotificationDestination(
+    this.kind,
+    this.id, {
+    this.requestId,
+    this.offerId,
+  });
 
   final NotificationDestinationKind kind;
   final String id;
   final String? requestId;
+  final String? offerId;
 
   static final _uuid = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -53,6 +59,11 @@ class NotificationDestination {
       kind,
       uri.pathSegments.single,
       requestId: requestId is String ? requestId : null,
+      offerId:
+          item.payload?['offer_id'] is String &&
+              _uuid.hasMatch(item.payload!['offer_id'] as String)
+          ? item.payload!['offer_id'] as String
+          : null,
     );
   }
 }

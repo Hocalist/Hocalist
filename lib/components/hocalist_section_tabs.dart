@@ -24,12 +24,16 @@ class HocalistSectionTabs extends StatefulWidget {
     required this.sections,
     required this.accent,
     this.persistenceId,
+    this.subtle = false,
+    this.underlined = false,
     super.key,
   });
 
   final Map<String, List<Widget>> sections;
   final Color accent;
   final String? persistenceId;
+  final bool subtle;
+  final bool underlined;
 
   @override
   State<HocalistSectionTabs> createState() => _HocalistSectionTabsState();
@@ -142,11 +146,15 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
+          padding: EdgeInsets.all(widget.underlined ? 0 : 5),
+          decoration: widget.underlined ? BoxDecoration(
+            border: Border(bottom: BorderSide(color: HocalistPalette.border(context, widget.accent.withValues(alpha: .12)))),
+          ) : BoxDecoration(
             color: HocalistPalette.surface(
               context,
-              widget.accent.withValues(alpha: .06),
+              widget.subtle
+                  ? Colors.white
+                  : widget.accent.withValues(alpha: .06),
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
@@ -186,21 +194,35 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
                               decoration: BoxDecoration(
                                 color: HocalistPalette.surface(
                                   context,
-                                  selected == index
-                                      ? widget.accent
+                                  !widget.underlined && selected == index
+                                      ? widget.subtle
+                                            ? widget.accent.withValues(
+                                                alpha: .09,
+                                              )
+                                            : widget.accent
                                       : Colors.transparent,
                                 ),
-                                borderRadius: BorderRadius.circular(11),
+                                borderRadius: widget.underlined ? null : BorderRadius.circular(11),
+                                border: widget.underlined ? Border(bottom: BorderSide(
+                                  color: selected == index ? widget.accent : Colors.transparent,
+                                  width: 2,
+                                )) : null,
                               ),
                               child: TextButton(
                                 key: ValueKey('section-tab-${labels[index]}'),
                                 onPressed: () =>
                                     unawaited(_select(index, labels[index])),
                                 style: TextButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
                                   foregroundColor: HocalistPalette.text(
                                     context,
                                     selected == index
-                                        ? Colors.white
+                                        ? widget.subtle || widget.underlined
+                                              ? widget.accent
+                                              : Colors.white
                                         : Theme.of(context).brightness ==
                                               Brightness.dark
                                         ? Theme.of(
@@ -214,6 +236,12 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
                                     vertical: 12,
                                   ),
                                   textStyle: tabStyle,
+                                ).copyWith(
+                                  overlayColor: WidgetStateProperty.resolveWith(
+                                    (states) => states.contains(WidgetState.pressed)
+                                        ? widget.accent.withValues(alpha: .08)
+                                        : Colors.transparent,
+                                  ),
                                 ),
                                 child: Text(
                                   labels[index],

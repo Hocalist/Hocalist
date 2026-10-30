@@ -17,6 +17,24 @@ import {
 } from "../app/lib/admin-commercial";
 
 const OPTION_ID = "70000000-0000-4000-8000-00000000000a";
+test('standard rate configuration is complete, unique and compatible with card minimums',()=>{
+ const rows=['free','pro','elite'].map(plan_code=>({plan_code,initial_minor:200,winning_minor:500,revision:1}));
+ const base={deposit_options:[],reward_policy:null,paygo_plan_rates:rows};
+ assert.equal(decodeCommercialConfig(base)?.paygo_plan_rates?.length,3);
+ assert.equal(decodeCommercialConfig({...base,paygo_plan_rates:[rows[0],rows[0],rows[2]]}),null);
+ assert.equal(decodeCommercialConfig({...base,paygo_plan_rates:rows.map(r=>({...r,winning_minor:220}))}),null);
+ assert.equal(decodeCommercialConfig({...base,paygo_plan_rates:rows.map(r=>({...r,initial_minor:20}))}),null);
+});
+
+test("plan rates reject duplicate or incomplete pack matrices", () => {
+  const rows = ["free", "pro", "elite"].flatMap(plan_code => [2000,4000].map(amount_minor => ({
+    plan_code, amount_minor, initial_fee_minor:150, winning_total_minor:300, rate_version:"test", revision:1,
+  })));
+  const base={deposit_options:[],reward_policy:null,plan_deposit_rates:rows};
+  assert.equal(decodeCommercialConfig(base)?.plan_deposit_rates?.length,6);
+  assert.equal(decodeCommercialConfig({...base,plan_deposit_rates:rows.slice(1)}),null);
+  assert.equal(decodeCommercialConfig({...base,plan_deposit_rates:[...rows.slice(1),rows[1]]}),null);
+});
 
 const validConfig = {
   deposit_options: [

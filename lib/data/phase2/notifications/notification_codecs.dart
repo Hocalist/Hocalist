@@ -62,6 +62,9 @@ NotificationInboxItem decodeNotificationItemJson(
       kind: kind,
       title: title,
       body: body is String ? body : '',
+      activitySummary: row['activity_summary'] is String
+          ? (row['activity_summary'] as String)
+          : '',
       deepLink: deepLink is String ? deepLink : null,
       sourceId: sourceId is String ? sourceId : null,
       payload: payload is Map

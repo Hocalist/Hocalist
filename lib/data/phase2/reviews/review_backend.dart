@@ -34,6 +34,18 @@ abstract interface class ReviewBackend {
 }
 
 class ReviewDataAdapter {
+  static List<String> _images(Map<String, Object?> row, String context) {
+    final value = row['image_media_ids'];
+    if (value == null) return const [];
+    if (value is! List ||
+        value.length > 4 ||
+        value.any((id) => id is! String || id.trim().isEmpty) ||
+        value.toSet().length != value.length) {
+      throw ReviewDecodeException('$context.image_media_ids');
+    }
+    return List<String>.unmodifiable(value.cast<String>());
+  }
+
   ReviewDataAdapter({
     required this.transport,
     required this.session,
@@ -127,46 +139,32 @@ class ReviewDataAdapter {
 
   Future<RepositoryResult<ReviewEligibilityView>> fetchEligibility(
     String requestId,
-  ) => _read(
-    'review_status',
-    {'p_request': requestId},
-    _decodeEligibility,
-  );
+  ) => _read('review_status', {'p_request': requestId}, _decodeEligibility);
 
-  Future<RepositoryResult<OutcomeReview>> submit(
-    SubmitReviewCommand command,
-  ) => _keyedCommand(
-    'review_submit',
-    command.idempotencyKey,
-    {
-      'request_id': command.requestId,
-      'rating': command.rating,
-      'body': command.body,
-    },
-    _decodeReview,
-  );
+  Future<RepositoryResult<OutcomeReview>> submit(SubmitReviewCommand command) =>
+      _keyedCommand('review_submit', command.idempotencyKey, {
+        'request_id': command.requestId,
+        'rating': command.rating,
+        'body': command.body,
+        if (command.imageMediaIds.isNotEmpty)
+          'image_media_ids': command.imageMediaIds,
+      }, _decodeReview);
 
-  Future<RepositoryResult<OutcomeReview>> update(
-    UpdateReviewCommand command,
-  ) => _keyedCommand(
-    'review_update',
-    command.idempotencyKey,
-    {
-      'review_id': command.reviewId,
-      'expected_revision': command.expectedRevision,
-      'rating': command.rating,
-      'body': command.body,
-    },
-    _decodeReview,
-  );
+  Future<RepositoryResult<OutcomeReview>> update(UpdateReviewCommand command) =>
+      _keyedCommand('review_update', command.idempotencyKey, {
+        'review_id': command.reviewId,
+        'expected_revision': command.expectedRevision,
+        'rating': command.rating,
+        'body': command.body,
+        if (command.imageMediaIds != null)
+          'image_media_ids': command.imageMediaIds,
+      }, _decodeReview);
 
   Future<RepositoryResult<PublicSellerReputation>> fetchReputation(
     String sellerProfileId,
-  ) => _read(
-    'seller_public_reputation',
-    {'p_seller_profile': sellerProfileId},
-    _decodeReputation,
-  );
+  ) => _read('seller_public_reputation', {
+    'p_seller_profile': sellerProfileId,
+  }, _decodeReputation);
 
   OutcomeReview _decodeReview(Map<String, Object?> row, String context) {
     final id = row['id'];
@@ -195,6 +193,7 @@ class ReviewDataAdapter {
       requestId: requestId,
       rating: rating,
       body: body,
+      imageMediaIds: _images(row, context),
       status: decodedStatus,
       revision: revision,
       createdAt: DateTime.parse(createdAt),
@@ -237,10 +236,7 @@ class ReviewDataAdapter {
     final sum = row['rating_sum'];
     final count = row['rating_count'];
     final deals = row['completed_deals'];
-    if (profileId is! String ||
-        sum is! int ||
-        count is! int ||
-        deals is! int) {
+    if (profileId is! String || sum is! int || count is! int || deals is! int) {
       throw ReviewDecodeException(context);
     }
     final available = row['available'];
@@ -274,6 +270,7 @@ class ReviewDataAdapter {
           id: id,
           rating: rating,
           body: body,
+          imageMediaIds: _images(entry, entryContext),
           reviewerLabel: label,
           createdAt: DateTime.parse(createdAt).toUtc(),
         ),
@@ -343,7 +340,7 @@ class Phase2ReviewBackend implements ReviewBackend {
         'This $scope action is not available for your account.',
       RepositoryFailureKind.notFound => 'This $scope is no longer available.',
       RepositoryFailureKind.conflict =>
-        'That $scope conflicts with a newer server state. Reload and retry.',
+        'That $scope conflicts with a newer server state. Please try again.',
       _ => 'Could not save the $scope. Try again.',
     },
     ambiguous:
@@ -353,4 +350,3 @@ class Phase2ReviewBackend implements ReviewBackend {
     code: code,
   );
 }
-

@@ -110,7 +110,7 @@ String accountActionMessage(String code) {
       'Contacts are available only while a role is active.',
     'membership_exists' => 'A membership for this role already exists.',
     'revision_conflict' =>
-      'The profile changed on another device. Refresh and try again.',
+      'The profile changed on another device. Please try again.',
     'idempotency_conflict' =>
       'A different change already used this request. Try again.',
     'profile_unavailable' => 'The role profile is not loaded yet. Try again.',
@@ -129,6 +129,14 @@ String accountActionMessage(String code) {
 }
 
 class HocalistAccountController extends ChangeNotifier {
+  HocalistRole? _introductionRole;
+  bool get needsIntroduction => _introductionRole == _selectedRole;
+
+  void finishIntroduction() {
+    _introductionRole = null;
+    _notify();
+  }
+
   bool returnToLogin = false;
   factory HocalistAccountController({
     required AccountAuthGateway auth,
@@ -757,6 +765,7 @@ class HocalistAccountController extends ChangeNotifier {
       _onboardKey = null;
       _onboardPayload = null;
       _suggestedDisplayName = trimmed;
+      _introductionRole = _selectedRole;
       await _loadSelectedRole();
     });
   }
@@ -980,6 +989,7 @@ class HocalistAccountController extends ChangeNotifier {
   }
 
   void _clearMembershipState() {
+    _introductionRole = null;
     _membership = null;
     _profile = null;
     _contact = null;

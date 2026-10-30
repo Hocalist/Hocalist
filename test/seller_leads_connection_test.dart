@@ -1,5 +1,6 @@
 // Seller leads connection tests: real leads rendering, loading/error states,
 // projection mapping and real offer submission with timezone handling.
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -56,10 +57,12 @@ SellerLeadView view({
   String request = 'Synthetic request',
   String initials = 'BA',
   String? categoryId,
+  String? buyerLocationTimezone,
 }) => SellerLeadView(
   requestId: requestId,
   requestRevision: 3,
   categoryId: categoryId,
+  buyerLocationTimezone: buyerLocationTimezone,
   name: 'Buyer A',
   initials: initials,
   city: 'Yonkers, NY',
@@ -98,7 +101,11 @@ Future<void> pumpLeads(
 }
 
 Future<void> openOfferSheet(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('Prepare offer').first);
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Prepare offer').first);
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.byKey(const Key('sellerOfferPrice')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('sellerOfferPrice')), '550');
   FocusManager.instance.primaryFocus?.unfocus();
@@ -123,6 +130,137 @@ Future<void> tapSubmit(WidgetTester tester) async {
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  for(final width in [320.0,360.0,390.0,430.0]) {
+    for(final scale in [1.0,1.15,1.3,1.6]) {
+      testWidgets('offer fee breakdown fits $width at $scale',(tester)async{
+        tester.view.physicalSize=Size(width,900);
+        tester.view.devicePixelRatio=1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(MaterialApp(
+          builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),child:child!),
+          home:Scaffold(body:ApprovedSellerLeadsPage(leads:[view()],
+            offerPresentation:const SellerOfferPresentation.real(planLabel:'Free · Wallet rates',
+              initialBid:'1.85 HC',winningBid:'4.50 HC',remainingWinningBid:'2.65 HC',
+              rateHint:'Your deposit keeps the rates saved when it was added.'))),
+        ));
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('Prepare offer'),250,
+          scrollable:find.byWidgetPredicate((widget)=>widget is Scrollable&&widget.axisDirection==AxisDirection.down).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Prepare offer').first);
+        await tester.pumpAndSettle();
+        expect(find.text('Initial bid 1.85 HC'),findsOneWidget);
+        expect(find.text('Winning total 4.50 HC'),findsOneWidget);
+        expect(find.text('At purchase 2.65 HC'),findsNothing);
+        expect(tester.takeException(),isNull);
+      });
+    }
+  }
+  testWidgets(
+    'automatic timezone uses the saved business location without a picker',
+    (tester) async {
+      final submitted = <OfferTerms>[];
+      await pumpLeads(
+        tester,
+        ApprovedSellerLeadsPage(
+          leads: [view()],
+          onRefreshLeads: () {},
+          automaticTimezone: true,
+          readBusinessAddress: () => 'TEST Chicago business',
+          resolveBusinessPlace: (_) async => const SellerOfferPlace(
+            name: 'TEST business',
+            address: 'TEST Chicago address',
+            timezoneId: 'America/Chicago',
+          ),
+          onSubmitOffer: (lead, terms, key) async {
+            submitted.add(terms);
+            return OfferSubmissionResult.success(_offer());
+          },
+        ),
+      );
+      tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+      addTearDown(tester.view.resetViewPadding);
+      await openOfferSheet(tester);
+      expect(find.byKey(const Key('sellerOfferTimezone')), findsNothing);
+      expect(find.text('Meeting timezone: America/Chicago'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const Key('sellerSendOfferCancel')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getBottomRight(find.byKey(const Key('sellerSendOfferCancel')))
+            .dy,
+        lessThan(844 - 48),
+      );
+      await tapSubmit(tester);
+      expect(submitted.single.schedule.timezoneId, 'America/Chicago');
+      expect(submitted.single.place.address, 'TEST Chicago address');
+    },
+  );
+
+  testWidgets(
+    'buyer location shows shared area and supplies its saved timezone',
+    (tester) async {
+      final submitted = <OfferTerms>[];
+      await pumpLeads(
+        tester,
+        ApprovedSellerLeadsPage(
+          leads: [view(buyerLocationTimezone: 'America/New_York')],
+          offerTimezones: const ['America/New_York'],
+          onRefreshLeads: () {},
+          onSubmitOffer: (lead, terms, key) async {
+            submitted.add(terms);
+            return OfferSubmissionResult.success(_offer());
+          },
+        ),
+      );
+      await openOfferSheet(tester);
+      final choice = find.byKey(const Key('sellerMeetupBuyer'));
+      await tester.ensureVisible(choice);
+      await tester.pumpAndSettle();
+      await tester.tap(choice);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(
+          'Yonkers, NY. Exact address shared after selection.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Times are scheduled in America/New_York'),
+        findsOneWidget,
+      );
+      tester.view.physicalSize = const Size(320, 900);
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tapSubmit(tester);
+      expect(submitted.single.place.choice, MeetupPlaceChoice.buyerLocation);
+      expect(submitted.single.place.label, 'Yonkers, NY');
+      expect(submitted.single.place.address, isNull);
+      expect(submitted.single.schedule.timezoneId, 'America/New_York');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('an existing active offer disables a second offer form', (
+    tester,
+  ) async {
+    await pumpLeads(
+      tester,
+      ApprovedSellerLeadsPage(
+        leads: [view()],
+        offeredRequestIds: {view().requestId!},
+        onRefreshLeads: () {},
+      ),
+    );
+    expect(find.text('Offer sent'), findsOneWidget);
+    expect(find.text('Prepare offer'), findsNothing);
+    expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsNothing);
+  });
 
   testWidgets('an unavailable refreshed lead never opens the offer form', (
     tester,
@@ -316,7 +454,136 @@ void main() {
     expect(submitted, hasLength(1));
     expect(submitted.single.schedule.timezoneId, 'America/New_York');
     expect(find.byKey(const Key('sellerOfferSubmittedNotice')), findsOneWidget);
+    expect(find.text('Offer sent'), findsOneWidget);
+    expect(find.text('Prepare offer'), findsNothing);
   });
+
+  testWidgets('selected place automatically fills the meeting timezone', (
+    tester,
+  ) async {
+    await pumpLeads(
+      tester,
+      ApprovedSellerLeadsPage(
+        leads: [view()],
+        onRefreshLeads: () {},
+        offerTimezones: const ['America/New_York'],
+        onChooseSpecificLocation: (_) async => const SellerOfferPlace(
+          name: 'Synthetic meeting place',
+          address: 'Synthetic address',
+          timezoneId: 'America/New_York',
+        ),
+        onSubmitOffer: (lead, terms, key) async =>
+            OfferSubmissionResult.success(_offer()),
+      ),
+    );
+    await openOfferSheet(tester);
+    final launcher = find.byKey(const Key('sellerOfferSpecificLocation'));
+    await tester.ensureVisible(launcher);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: launcher, matching: find.byType(TextButton)),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Times are scheduled in America/New_York'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cancel during submission ignores a late successful response', (
+    tester,
+  ) async {
+    final completion = Completer<OfferSubmissionResult>();
+    await pumpLeads(
+      tester,
+      ApprovedSellerLeadsPage(
+        leads: [view()],
+        onRefreshLeads: () {},
+        offerTimezones: const ['America/New_York'],
+        onSubmitOffer: (lead, terms, key) => completion.future,
+      ),
+    );
+    await openOfferSheet(tester);
+    await selectNewYorkTimezone(tester);
+    await tapSubmit(tester);
+    await tester.ensureVisible(find.byKey(const Key('sellerSendOfferClose')));
+    await tester.tap(find.byKey(const Key('sellerSendOfferClose')));
+    await tester.pump(const Duration(milliseconds: 1));
+    completion.complete(OfferSubmissionResult.success(_offer()));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ApprovedSellerLeadsPage), findsOneWidget);
+    expect(find.byKey(const Key('sellerOfferSubmittedNotice')), findsNothing);
+  });
+
+  testWidgets(
+    'first successful submission closes safely with a focused input',
+    (tester) async {
+      final completion = Completer<OfferSubmissionResult>();
+      await pumpLeads(
+        tester,
+        ApprovedSellerLeadsPage(
+          leads: [view()],
+          onRefreshLeads: () {},
+          offerTimezones: const ['America/New_York'],
+          onSubmitOffer: (lead, terms, key) => completion.future,
+        ),
+      );
+      await openOfferSheet(tester);
+      await selectNewYorkTimezone(tester);
+      await tester.enterText(
+        find.byKey(const Key('sellerOfferMessage')),
+        'Synthetic offer',
+      );
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('sellerSendOfferSubmit')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('sellerSendOfferSubmit')));
+      await tester.pump();
+      completion.complete(OfferSubmissionResult.success(_offer()));
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('sellerOfferSubmittedNotice')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'rejected offer can close without an inherited-widget assertion',
+    (tester) async {
+      await pumpLeads(
+        tester,
+        ApprovedSellerLeadsPage(
+          leads: [view()],
+          onRefreshLeads: () {},
+          offerTimezones: const ['America/New_York'],
+          onSubmitOffer: (lead, terms, key) async =>
+              const OfferSubmissionResult.failure(
+                'This request changed. Refresh and try again.',
+              ),
+        ),
+      );
+      await openOfferSheet(tester);
+      await selectNewYorkTimezone(tester);
+      await tapSubmit(tester);
+      expect(find.byKey(const Key('sellerOfferSubmitError')), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('sellerSendOfferClose')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('sellerSendOfferClose')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('specific location opens through keyboard activation', (
     tester,
@@ -399,6 +666,11 @@ void main() {
       findsOneWidget,
     );
 
+    await Scrollable.ensureVisible(
+      tester.element(find.byKey(const Key('sellerOfferOccurrenceEarlier'))),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sellerOfferOccurrenceEarlier')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('sellerSendOfferSubmit')));

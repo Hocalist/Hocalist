@@ -13,12 +13,14 @@ import '../../../domain/phase2/repositories.dart';
 import '../../../domain/phase2/offers.dart';
 import '../../../domain/phase2/requests.dart';
 import '../../local_marketplace_repository.dart';
+import '../chat/chat_codecs.dart';
 
 class Phase2MarketplaceChatBackend
     implements
         MarketplaceChatBackend,
         MarketplaceChatRequestBackend,
         MarketplacePagedChatBackend,
+        MarketplaceDealChatBackend,
         MarketplaceChatAttachmentBackend {
   Phase2MarketplaceChatBackend({
     required this.conversations,
@@ -27,7 +29,103 @@ class Phase2MarketplaceChatBackend
     this.requestReader,
     this.identity,
     this.attachmentsEnabled = false,
+    this.dealRpc,
   });
+  final Future<Object?> Function(String, Map<String, Object?>)? dealRpc;
+  @override
+  bool get dealThreadsEnabled => dealRpc != null;
+  @override
+  Future<int> markDealRead(
+    String conversationId,
+    String offerId,
+    String messageId,
+  ) async {
+    final result = await _dealCall('chat_deal_mark_read', {
+      'p_conversation': conversationId,
+      'p_offer': offerId,
+      'p_last_read': messageId,
+    });
+    final unread = result['unread_count'];
+    if (unread is! int || unread < 0) {
+      throw const StoreBackendException('Could not confirm read status.');
+    }
+    return unread;
+  }
+
+  Future<Map<String, Object?>> _dealCall(
+    String name,
+    Map<String, Object?> args,
+  ) async {
+    if (dealRpc == null || (identity != null && identity!() != currentUserId)) {
+      throw const StoreBackendException('Your session changed.');
+    }
+    try {
+      final result = await dealRpc!(name, args);
+      if (identity != null && identity!() != currentUserId) {
+        throw const StoreBackendException('Your session changed.');
+      }
+      if (result is! Map) throw const FormatException('Invalid deal response');
+      return Map<String, Object?>.from(result);
+    } on StoreBackendException {
+      rethrow;
+    } catch (_) {
+      throw const StoreBackendException(
+        'Could not confirm this deal action. Please retry.',
+        ambiguous: true,
+      );
+    }
+  }
+
+  @override
+  Future<PageSlice<ConversationMessage>> loadDealMessagePage(
+    String conversationId,
+    String offerId,
+    String? cursor,
+  ) async {
+    final page = decodeMessagePage(
+      await _dealCall('chat_deal_messages', {
+        'p_conversation': conversationId,
+        'p_offer': offerId,
+        'p_page_size': 100,
+        'p_before_message': cursor,
+      }),
+    );
+    if (page.items.any(
+      (m) => m.conversationId != conversationId || m.offerId != offerId,
+    )) {
+      throw const StoreBackendException('Could not verify this deal.');
+    }
+    return page;
+  }
+
+  @override
+  Future<ConversationMessage> sendDealMessage({
+    required String conversationId,
+    required String offerId,
+    required String text,
+    required String clientMessageId,
+    List<String> mediaIds = const [],
+  }) async {
+    if (mediaIds.isNotEmpty && !attachmentsEnabled) {
+      throw const StoreBackendException('Image attachments are unavailable.');
+    }
+    final message = decodeMessageJson(
+      await _dealCall(
+        mediaIds.isEmpty ? 'chat_deal_send' : 'chat_deal_send_attachment',
+        {
+          'p_conversation': conversationId,
+          'p_offer': offerId,
+          'p_key': clientMessageId,
+          'p_text': text,
+          if (mediaIds.isNotEmpty) 'p_media_ids': mediaIds,
+        },
+      ),
+    );
+    if (message.conversationId != conversationId || message.offerId != offerId) {
+      throw const StoreBackendException('Could not verify this deal.');
+    }
+    return message;
+  }
 
   final ConversationRepository conversations;
   final String currentUserId;
@@ -115,7 +213,7 @@ class Phase2MarketplaceChatBackend
         (offer.conversationId != null &&
             offer.conversationId != conversationId)) {
       throw const StoreBackendException(
-        'Refresh the conversation before proposing a meeting.',
+        'Open the conversation again before proposing a meeting.',
       );
     }
     return offer;
@@ -336,9 +434,9 @@ class Phase2MarketplaceChatBackend
         'This conversation is unavailable. Your access may have changed.',
       RepositoryFailureKind.notFound => 'This conversation is unavailable.',
       RepositoryFailureKind.conflict =>
-        'This conversation changed. Refresh and try again.',
+        'This conversation changed. Please try again.',
       RepositoryFailureKind.network =>
-        'The message could not be confirmed. Retry to check it safely.',
+        'Could not reach your conversations. Retry when you are connected. If you sent a message, retry to check its status safely.',
       RepositoryFailureKind.validation =>
         'This message could not be sent. Check it and try again.',
       _ => 'The conversation action could not be completed. Try again.',

@@ -27,3 +27,17 @@ abstract interface class PlacesTransport {
     required String sessionToken,
   });
 }
+
+/// Optional capability for resolving a moved pin/current location. Kept
+/// separate so search-only transports cannot silently guess a timezone.
+abstract interface class CoordinatePlacesTransport {
+  Future<PlacesTransportResult> coordinates({
+    required double latitude,
+    required double longitude,
+    required String sessionToken,
+  });
+}
+
+abstract interface class AddressPlacesTransport {
+  Future<PlacesTransportResult> address({required String address, required String sessionToken});
+}

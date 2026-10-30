@@ -19,8 +19,8 @@ import {
 // additive: the server selects the option and amount, and the browser never
 // supplies a price, currency or customer.
 type Input =
-  | { kind: "subscription"; plan: string; key: string }
-  | { kind: "credit_deposit"; option: string; key: string };
+  | { kind: "subscription"; plan: string; key: string; interval?: "month" | "year" }
+  | { kind: "credit_deposit"; option?: string; amount?:number; key: string };
 
 export type CheckoutConfig = {
   enabled: boolean;
@@ -29,16 +29,21 @@ export type CheckoutConfig = {
 };
 
 export function parseCheckoutInput(input: Record<string, unknown>): Input {
-  const keys = Object.keys(input).sort().join(",");
+  const keys = Object.keys(input).filter(k => k !== "interval").sort().join(",");
   const key = input.idempotency_key;
   if (keys === "idempotency_key,plan" || (keys === "idempotency_key,kind,plan" && input.kind === "subscription")) {
     if (!["pro", "elite"].includes(String(input.plan))) {
       throw new BillingError("invalid_request", 400);
     }
-    return { kind: "subscription", plan: String(input.plan), key: uuid(key) };
+    if (input.interval !== undefined && input.interval !== "month" && input.interval !== "year") throw new BillingError("invalid_request",400);
+    return { kind: "subscription", plan: String(input.plan), key: uuid(key), ...(input.interval ? {interval: input.interval as "month" | "year"} : {}) };
   }
   if (keys === "idempotency_key,kind,option_id" && input.kind === "credit_deposit") {
+    if (input.interval !== undefined) throw new BillingError("invalid_request",400);
     return { kind: "credit_deposit", option: uuid(input.option_id), key: uuid(key) };
+  }
+  if(keys==='amount_minor,idempotency_key,kind'&&input.kind==='credit_deposit'&&input.interval===undefined&&Number.isSafeInteger(input.amount_minor)&&Number(input.amount_minor)>=50&&Number(input.amount_minor)<2000){
+    return {kind:'credit_deposit',amount:Number(input.amount_minor),key:uuid(key)};
   }
   throw new BillingError("invalid_request", 400);
 }
@@ -131,7 +136,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
           if (!(error instanceof BillingError) || error.code !== 'checkout_pending') throw error;
           const pending = object(await api.rpc('stripe_test_pending_checkout', { p_user: user }));
           const sameChoice = input.kind === pending.kind &&
-            (input.kind === 'credit_deposit' ? input.option === pending.option_id : input.plan === pending.plan_code);
+            (input.kind === 'credit_deposit' ? input.amount!==undefined?pending.standard_deposit===true&&input.amount===pending.amount_minor:pending.standard_deposit!==true&&input.option === pending.option_id : input.plan === pending.plan_code && (input.interval ?? 'month') === (pending.billing_interval ?? 'month'));
           if (!pending.session_id) {
             if (!sameChoice) throw error;
             return await api.rpc(name, { ...body, p_key: uuid(pending.request_key) });
@@ -153,9 +158,9 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
 
       if (input.kind === "credit_deposit") {
         const checkout = object(
-          await begin("stripe_test_deposit_begin", {
+          await begin(input.amount!==undefined?"stripe_test_standard_deposit_begin":"stripe_test_deposit_begin", {
             p_user: user,
-            p_option: input.option,
+            ...(input.amount!==undefined?{p_amount:input.amount}:{p_option:input.option}),
             p_key: input.key,
           }),
         );
@@ -181,7 +186,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
           "metadata[kind]": "credit_deposit",
           "metadata[membership_id]": String(checkout.membership_id),
           "metadata[checkout_id]": String(checkout.checkout_id),
-          "metadata[option_id]": String(checkout.option_id ?? input.option),
+          "metadata[option_id]": String(checkout.option_id ?? input.option ?? 'standard'),
           "metadata[amount_minor]": String(amount),
         }, `hocalist-deposit-checkout-${checkout.checkout_id}`);
         if (session.livemode !== false || !/^cs_test_[A-Za-z0-9]+$/.test(String(session.id))) {
@@ -198,10 +203,11 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
       }
 
       const checkout = object(
-        await begin("stripe_test_checkout_begin", {
+        await begin(input.interval ? "stripe_test_subscription_begin" : "stripe_test_checkout_begin", {
           p_user: user,
           p_plan: input.plan,
           p_key: input.key,
+          ...(input.interval ? {p_interval: input.interval} : {}),
         }),
       );
       const metadata = {
@@ -228,9 +234,12 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
       if (
         price.active !== true || price.livemode !== false ||
         price.currency !== "usd" || price.unit_amount !== checkout.amount_minor ||
-        object(price.recurring).interval !== "month" ||
+        object(price.recurring).interval !== (checkout.billing_interval ?? "month") ||
         object(price.recurring).interval_count !== 1
       ) throw new Error("configuration_unavailable");
+      const trialDays = Number(checkout.trial_days ?? 0);
+      if (![0,14].includes(trialDays)) throw new Error("configuration_unavailable");
+      if (trialDays && subscriptions.length > 0) throw new BillingError("trial_already_used",409);
       const session = await api.stripe("checkout/sessions", {
         mode: "subscription",
         customer,
@@ -245,6 +254,7 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
         "subscription_data[metadata][app]": "hocalist",
         "subscription_data[metadata][membership_id]": String(checkout.membership_id),
         "subscription_data[metadata][checkout_id]": String(checkout.checkout_id),
+        ...(trialDays ? {"subscription_data[trial_period_days]":String(trialDays)} : {}),
       }, `hocalist-checkout-${checkout.checkout_id}`);
       if (
         session.livemode !== false || typeof session.url !== "string" ||
