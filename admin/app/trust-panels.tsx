@@ -105,7 +105,6 @@ export function TrustPanel() {
     if (busy || retry) return;
     filters.current = { ...filters.current, ...next };
     setFilterUi(filters.current);
-    setData(null);
     loaded.current = null;
     void load(true);
   }
