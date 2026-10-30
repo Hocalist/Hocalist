@@ -65,18 +65,33 @@ async function snapshot(
   const checkout = checkouts.find((c) => c.id === metadata.checkout_id);
   const plans = (context.plans as unknown[]).map(object);
   const items = rows(selected.items);
-  const plan = plans.find((p) => p.code === checkout?.plan_code);
-  if (!checkout || !plan || items.length !== 1 || items[0].quantity !== 1) {
+  const prior = context.subscription && typeof context.subscription === 'object'
+    ? object(context.subscription) : null;
+  const price = items.length === 1 ? object(items[0].price) : {};
+  const sameCheckoutPrice = price.id === checkout?.price_id;
+  const configured = (Array.isArray(context.price_options) ? context.price_options : [])
+    .map(object).find((p) => p.enabled === true && p.price_id === price.id);
+  // An original checkout remains the ownership anchor. A portal change must
+  // additionally match the server-owned catalogue; never trust plan metadata.
+  const terms = sameCheckoutPrice ? checkout : configured;
+  const plan = plans.find((p) => p.code === (sameCheckoutPrice ? checkout?.plan_code : configured?.code));
+  if (!checkout || !plan || !terms || items.length !== 1 || items[0].quantity !== 1 ||
+      (!sameCheckoutPrice && prior?.subscription_id !== selected.id)) {
     throw new Error("review_required");
   }
-  const price = object(items[0].price);
   if (
-    price.id !== checkout.price_id || price.currency !== "usd" ||
-    price.unit_amount !== checkout.amount_minor ||
-    object(price.recurring).interval !== "month" ||
+    price.id !== terms.price_id || price.currency !== "usd" ||
+    price.unit_amount !== terms.amount_minor ||
+    object(price.recurring).interval !== (terms.billing_interval ?? "month") ||
     object(price.recurring).interval_count !== 1
   ) throw new Error("review_required");
   let paidUntil: string | null = null;
+  if (selected.status === "trialing") {
+    const start=Number(selected.trial_start),end=Number(selected.trial_end);
+    if (checkout.trial_days !== 14 || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+        end-start !== 14*86400 || end<=start) throw new Error("review_required");
+    paidUntil=new Date(end*1000).toISOString();
+  }
   if (selected.status === "active" && selected.latest_invoice) {
     const invoice = await api.stripe(
       `invoices/${encodeURIComponent(id(selected.latest_invoice))}`,
@@ -85,7 +100,7 @@ async function snapshot(
     const periodEnd = Number(selected.current_period_end);
     const paidLine = lines.find((line) =>
       id(line.subscription) === selected.id &&
-      id(line.price) === checkout.price_id &&
+      id(line.price) === terms.price_id &&
       object(line.period).end === periodEnd && line.quantity === 1 &&
       line.proration === false
     );
@@ -97,9 +112,46 @@ async function snapshot(
       invoice.status === "paid" && invoice.paid === true &&
       invoice.currency === "usd" &&
       typeof invoice.amount_paid === "number" &&
-      invoice.amount_paid >= Number(checkout.amount_minor) && paidLine &&
+      invoice.amount_paid >= Number(terms.amount_minor) && paidLine &&
       Number.isSafeInteger(periodEnd) && periodEnd > 0
     ) paidUntil = new Date(periodEnd * 1000).toISOString();
+    // A paid downgrade can produce a zero-dollar invoice after crediting the
+    // unused old plan. Preserve only the already verified paid period; this
+    // cannot create or extend access from an unpaid trial or unknown price.
+    const priorEnd = prior?.paid_until ? Date.parse(String(prior.paid_until)) : NaN;
+    const priorAmount = Number(prior?.amount_minor);
+    const updatedLine = lines.some((line) => id(line.subscription) === selected.id &&
+      id(line.price) === terms.price_id && line.quantity === 1 &&
+      object(line.period).end === periodEnd);
+    if (!paidUntil && prior?.subscription_id === selected.id && prior?.provider_status === 'active' &&
+        prior?.requires_review === false && Number.isFinite(priorEnd) &&
+        priorEnd === periodEnd * 1000 && priorEnd > Date.now() &&
+        Number.isSafeInteger(priorAmount) && Number(terms.amount_minor) <= priorAmount &&
+        invoice.status === 'paid' && invoice.paid === true && invoice.currency === 'usd' &&
+        typeof invoice.amount_paid === 'number' && invoice.amount_paid >= 0 && updatedLine) {
+      paidUntil = new Date(priorEnd).toISOString();
+    }
+    // Recovery after a portal update may run before the preceding paid event.
+    // Verify a provider-paid invoice for this same subscription and period,
+    // never a customer balance, event assertion or unrelated old payment.
+    if (!paidUntil && prior?.subscription_id === selected.id && updatedLine &&
+        invoice.status === 'paid' && invoice.paid === true && invoice.currency === 'usd' &&
+        typeof invoice.amount_paid === 'number' && invoice.amount_paid >= 0 &&
+        Number.isSafeInteger(periodEnd) && periodEnd * 1000 > Date.now()) {
+      const history = rows(await api.stripe(`invoices?subscription=${encodeURIComponent(String(selected.id))}&status=paid&limit=100`));
+      const catalogue = (Array.isArray(context.price_options) ? context.price_options : []).map(object);
+      const funded = history.some((paid) => paid.livemode === false && id(paid.customer) === customer &&
+        id(paid.subscription) === selected.id && paid.status === 'paid' && paid.paid === true &&
+        paid.currency === 'usd' && typeof paid.amount_paid === 'number' &&
+        rows(paid.lines).some((line) => {
+          const known = catalogue.find((p) => p.enabled === true && p.price_id === id(line.price));
+          return known && Number(known.amount_minor) >= Number(terms.amount_minor) &&
+            (paid.amount_paid as number) >= Number(known.amount_minor) &&
+            id(line.subscription) === selected.id && line.quantity === 1 && line.proration === false &&
+            object(line.period).end === periodEnd;
+        }));
+      if (funded) paidUntil = new Date(periodEnd * 1000).toISOString();
+    }
   }
   if (typeof selected.cancel_at_period_end !== "boolean") {
     throw new Error("review_required");
@@ -108,6 +160,9 @@ async function snapshot(
     subscription_id: selected.id,
     checkout_id: checkout.id,
     plan_code: plan.code,
+    price_id: terms.price_id,
+    amount_minor: terms.amount_minor,
+    billing_interval: terms.billing_interval ?? 'month',
     status: selected.status,
     paid_until: paidUntil,
     cancel_at_period_end: selected.cancel_at_period_end,
@@ -253,6 +308,17 @@ export function createReconcileHandler(deps: {
           : session?.customer
             ? id(session.customer)
             : null;
+      }
+
+      // A provider-verified setup session saves a card; it never purchases
+      // credits or a subscription. Its own setup flow confirms ownership.
+      // Do not quarantine an otherwise healthy customer for an intentionally
+      // absent purchase-checkout binding, or clear an existing customer hold.
+      if(session?.mode==='setup') {
+        await api.rpc('stripe_test_finish',{
+          p_token:claim.token,p_event:claim.event_id,p_customer:null,p_snapshot:null,
+        });
+        return json({status:'ignored_card_setup',event_id:claim.event_id});
       }
 
       const context = customer

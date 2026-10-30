@@ -24,7 +24,7 @@ export function createMediaHandler(deps:ImageGateway){return async(req:Request):
   }
   if(action!=='upload'||req.headers.get('content-type')!=='image/jpeg')return json({error:'jpeg_required'},400);
   const key=req.headers.get('x-upload-key')??'';const purpose=req.headers.get('x-media-purpose')??'';
-  if(!uuid.test(key)||!['offer','store','profile','chat','review','report'].includes(purpose))return json({error:'invalid_input'},400);
+  if(!uuid.test(key)||!['offer','store','profile','chat','review','report','request','purchase_review'].includes(purpose))return json({error:'invalid_input'},400);
   if(Number(req.headers.get('content-length'))>MAX)return json({error:'too_large'},413);
   const reader=req.body?.getReader();if(!reader)return json({error:'empty_image'},400);
   const chunks:Uint8Array[]=[];let size=0;

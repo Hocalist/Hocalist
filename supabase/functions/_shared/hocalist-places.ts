@@ -36,16 +36,30 @@ function placeId(value: unknown): string {
 }
 export type PlacesQuery =
   | { operation: "autocomplete"; input: string; sessionToken: string }
+  | { operation: "coordinates"; latitude: number; longitude: number; sessionToken: string }
+  | { operation: "address"; address: string; sessionToken: string }
   | { operation: "details"; placeId: string; sessionToken: string };
 export function parsePlacesQuery(value: unknown): PlacesQuery {
   const input = object(value);
   const allowed = input.operation === "autocomplete"
     ? ["operation", "input", "sessionToken"]
+    : input.operation === "coordinates"
+    ? ["operation", "latitude", "longitude", "sessionToken"]
+    : input.operation === 'address' ? ['operation','address','sessionToken']
     : ["operation", "placeId", "sessionToken"];
   if (Object.keys(input).some((key) => !allowed.includes(key))) {
     throw new PlacesFailure("invalid_input");
   }
   const sessionToken = token(input.sessionToken);
+  if (input.operation === 'address') return {operation:'address',address:text(input.address,1000),sessionToken};
+  if (input.operation === "coordinates") {
+    const { latitude, longitude } = input;
+    if (typeof latitude !== 'number' || !Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
+        typeof longitude !== 'number' || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+      throw new PlacesFailure('invalid_input');
+    }
+    return {operation: 'coordinates', latitude, longitude, sessionToken};
+  }
   if (input.operation === "autocomplete") {
     return {
       operation: "autocomplete",
@@ -91,6 +105,7 @@ export type PlacesResult =
     postalAddress?: {line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string};
     latitude: number;
     longitude: number;
+    timezoneId?: string;
     attributions: { provider: string; uri: string }[];
   };
 
@@ -102,6 +117,8 @@ export function createPlacesProvider(config: {
   regionCode?: string;
   fetcher?: PlacesFetch;
   timeoutMs?: number;
+  coordinateProvider?: (latitude: number, longitude: number) => Promise<PlacesResult>;
+  addressProvider?: (address: string) => Promise<PlacesResult>;
 }) {
   if (
     !config.apiKey.trim() ||
@@ -120,6 +137,14 @@ export function createPlacesProvider(config: {
   }
   return async (raw: unknown): Promise<PlacesResult> => {
     const query = parsePlacesQuery(raw);
+    if (query.operation === 'address') {
+      if (!config.addressProvider) throw new PlacesFailure('maps_unconfigured');
+      return config.addressProvider(query.address);
+    }
+    if (query.operation === 'coordinates') {
+      if (!config.coordinateProvider) throw new PlacesFailure('maps_unconfigured');
+      return config.coordinateProvider(query.latitude, query.longitude);
+    }
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeoutMs);
     try {
@@ -138,7 +163,7 @@ export function createPlacesProvider(config: {
           "X-Goog-Api-Key": apiKey,
           "X-Goog-FieldMask": autocomplete
             ? "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text"
-            : "id,formattedAddress,addressComponents,location,attributions",
+            : "id,formattedAddress,addressComponents,location,attributions,timeZone",
         },
         ...(autocomplete
           ? {
@@ -207,8 +232,12 @@ export function createPlacesProvider(config: {
       const location = object(data.location);
       const latitude = location.latitude;
       const longitude = location.longitude;
+      // Google may canonicalise an address alias to a different valid ID.
+      // The authenticated session still binds the requested suggestion; keep
+      // that identity in our response rather than rejecting Google's details.
+      placeId(data.id);
       if (
-        data.id !== query.placeId || typeof latitude !== "number" ||
+        typeof latitude !== "number" ||
         typeof longitude !== "number" ||
         !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
         Math.abs(latitude) > 90 || Math.abs(longitude) > 180
@@ -223,6 +252,7 @@ export function createPlacesProvider(config: {
         postalAddress: structuredAddress(data.addressComponents),
         latitude,
         longitude,
+        ...(data.timeZone != null ? {timezoneId: text(object(data.timeZone).id, 100)} : {}),
         attributions: attributions.map((item) => {
           const entry = object(item);
           const uri = text(entry.providerUri, 2000);

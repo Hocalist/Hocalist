@@ -9,6 +9,7 @@
 import { createPlacesHandler } from "./handler.ts";
 import type { PlacesRpcResult } from "./handler.ts";
 import { createPlacesProvider } from "../_shared/hocalist-places.ts";
+import { createCoordinatePlaceProvider, createAddressPlaceProvider } from "../_shared/hocalist-coordinate-place.ts";
 import { createPlacesAuthVerifier } from "./auth.ts";
 import { placesPreflight, withPlacesCors } from "./cors.ts";
 
@@ -71,6 +72,12 @@ Deno.serve(async (request) => {
         apiKey,
         regionCodes: [],
         regionCode: "us",
+        // Separate reviewed activation/key for the two billed pin lookups.
+        ...(Deno.env.get('HOCALIST_COORDINATE_LOOKUP_ENABLED') === 'true' &&
+            Deno.env.get('HOCALIST_GOOGLE_LOCATION_SERVER_API_KEY')
+          ? {coordinateProvider:createCoordinatePlaceProvider({apiKey:Deno.env.get('HOCALIST_GOOGLE_LOCATION_SERVER_API_KEY')!}),
+             addressProvider:createAddressPlaceProvider({apiKey:Deno.env.get('HOCALIST_GOOGLE_LOCATION_SERVER_API_KEY')!})}
+          : {}),
       }),
       rpc,
     });

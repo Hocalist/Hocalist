@@ -1,12 +1,12 @@
 import {sanitizeImage} from './sanitize.ts';
 import {createMediaHandler} from './handler.ts';
 import {createPlacesAuthVerifier} from '../hocalist-places/auth.ts';
-import {mediaCors} from './cors.ts';
+import {mediaCors, mediaOriginAllowed} from './cors.ts';
 const project='https://icqwbzswokoulatomgql.supabase.co';
 const bucket='hocalist-images';
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return mediaCors(req);
- if(req.headers.has('Origin')&&req.headers.get('Origin')!=='http://127.0.0.1:7359')return mediaCors(req);
+ if(!mediaOriginAllowed(req.headers.get('Origin')))return mediaCors(req);
  const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')??'';
  if(Deno.env.get('HOCALIST_MEDIA_ENABLED')!=='true'||Deno.env.get('SUPABASE_URL')!==project||!service)return mediaCors(req,new Response(null,{status:404}));
  const headers={apikey:service,Authorization:`Bearer ${service}`};
