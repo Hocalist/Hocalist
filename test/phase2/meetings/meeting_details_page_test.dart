@@ -37,6 +37,8 @@ MeetingView _meeting({
   String status = 'proposed',
   bool withSummary = true,
   bool withPending = true,
+  bool declined = false,
+  bool purchaseSelected = true,
   MeetingScheduleView? acceptedSchedule,
   DateTime? meetingExpiresAt,
 }) => MeetingView(
@@ -48,6 +50,7 @@ MeetingView _meeting({
   sellerUserId: 'user-b',
   status: status,
   revision: 1,
+  purchaseSelected: purchaseSelected,
   meetingExpiresAt: meetingExpiresAt,
   offerSummary: withSummary
       ? const MeetingOfferSummary(
@@ -61,7 +64,7 @@ MeetingView _meeting({
       ? acceptedSchedule ?? _schedule(status: 'accepted')
       : null,
   pendingSchedule: withPending ? _schedule() : null,
-  revisions: [_schedule()],
+  revisions: [_schedule(status: declined ? 'rejected' : 'proposed')],
 );
 
 Future<void> _pump(
@@ -96,6 +99,103 @@ Future<void> _pump(
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  testWidgets('completed elsewhere names the other seller outcome', (tester) async {
+    await _pump(tester, ApprovedMeetingDetailsPage(
+      onBack: () {}, onConfirm: () {}, purchaseConfirmed: true,
+      meeting: _meeting(status: 'cancelled', purchaseSelected: false),
+    ));
+    expect(find.text('Purchased from another seller'), findsOneWidget);
+    expect(find.text('Purchase completed'), findsNothing);
+  });
+  testWidgets(
+    'declined first proposal offers a new time without confirmation or directions',
+    (tester) async {
+      var opened = false;
+      await _pump(
+        tester,
+        ApprovedMeetingDetailsPage(
+          onBack: () {},
+          onConfirm: () {},
+          meeting: _meeting(withPending: false, declined: true),
+          viewerUserId: 'user-b',
+          onReschedule: () => opened = true,
+        ),
+      );
+      expect(find.text('Meeting time declined'), findsOneWidget);
+      expect(find.text('Confirm meeting'), findsNothing);
+      expect(find.text('View directions in Hocalist'), findsNothing);
+      final action = find.text('Propose another time');
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      expect(opened, isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  for (final width in [320.0, 360.0, 390.0, 430.0]) {
+    for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+      testWidgets('manage meeting actions fit $width/$scale', (tester) async {
+        await _pump(
+          tester,
+          ApprovedMeetingDetailsPage(
+            onBack: () {},
+            onConfirm: () {},
+            onCancel: () {},
+            onDirections: () {},
+            onReschedule: () {},
+            viewerUserId: 'user-a',
+            meeting: _meeting(status: 'accepted', withPending: false),
+          ),
+        );
+        tester.view.physicalSize = Size(width, 900);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Manage meeting'));
+        await tester.ensureVisible(find.text('Reschedule meeting'));
+        expect(find.text('Cancel meeting'), findsOneWidget);
+        expect(
+          tester
+              .getTopLeft(find.byKey(const ValueKey('meeting-safety-caution')))
+              .dy,
+          greaterThan(tester.getBottomLeft(find.text('Cancel meeting')).dy),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('saved proposal history stays on meeting details', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      ApprovedMeetingDetailsPage(
+        meeting: _meeting(),
+        onBack: () {},
+        onConfirm: () {},
+        viewerUserId: 'user-b',
+      ),
+    );
+    final history = find.byKey(const ValueKey('meeting-deal-history'));
+    await tester.ensureVisible(history);
+    await tester.tap(find.text('Deal history'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Meeting proposal · Waiting for acceptance'),
+      findsOneWidget,
+    );
+    await tester.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(0, -250),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(0, 250),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'confirmed purchase keeps meeting facts without cancel or reschedule',
@@ -107,11 +207,34 @@ void main() {
           onConfirm: () {},
           onCancel: () {},
           onReschedule: () {},
+          onDirections: () =>
+              fail('Completed purchases must not open directions'),
+          onReviewPurchase: () {},
           meeting: _meeting(status: 'accepted', withPending: false),
           purchaseConfirmed: true,
         ),
       );
       expect(find.text('Loop Resale iPad Air'), findsOneWidget);
+      expect(find.text('Purchase completed'), findsOneWidget);
+      expect(find.text('Review your purchase'), findsOneWidget);
+      final caution = find.byKey(const ValueKey('meeting-safety-caution'));
+      expect(
+        tester.getTopLeft(caution).dy,
+        greaterThan(tester.getBottomLeft(find.text('Review your purchase')).dy),
+      );
+      expect(
+        tester.getTopLeft(caution).dy,
+        greaterThan(
+          tester
+              .getBottomLeft(find.byKey(const ValueKey('meeting-deal-history')))
+              .dy,
+        ),
+      );
+      expect(find.text('Meeting note'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('approved-meeting-directions')),
+        findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('approved-cancel-meeting-button')),
         findsNothing,
@@ -155,10 +278,10 @@ void main() {
         field.initialValue,
         'Buyer location — confirm the address in chat',
       );
-      final directions = tester.widget<TextButton>(
+      final directions = tester.widget<InkWell>(
         find.byKey(const ValueKey('approved-meeting-directions')),
       );
-      expect(directions.onPressed, isNull);
+      expect(directions.onTap, isNull);
       expect(opened, false);
     },
   );
@@ -264,6 +387,16 @@ void main() {
     await tester.tap(find.byKey(const Key('sellerMeetFilterCompleted')));
     await tester.pumpAndSettle();
     expect(find.text('Loop Resale iPad Air'), findsOneWidget);
+    expect(
+      find.byKey(ValueKey('sellerRealMeetDirections-${meeting.meetingId}')),
+      findsNothing,
+    );
+    expect(
+      find.text(
+        'Directions need a confirmed meeting destination. Video calling is not enabled.',
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('real empty seller list keeps the approved tabs and empty card', (
@@ -324,12 +457,15 @@ void main() {
       ValueKey('sellerRealMeetMessage-${second.meetingId}'),
     );
     await tester.ensureVisible(message);
+    await tester.pumpAndSettle();
     await tester.tap(message);
     expect(messaged, second.conversationId);
     expect(genericMessages, 0);
     final directions = find.byKey(
       ValueKey('sellerRealMeetDirections-${second.meetingId}'),
     );
+    await tester.ensureVisible(directions);
+    await tester.pumpAndSettle();
     await tester.tap(directions);
     expect(directed, second.meetingId);
   });
@@ -402,6 +538,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Repeated time'), findsNothing);
+      expect(find.text('Use ordinary time'), findsNothing);
       await tester.ensureVisible(find.byKey(const Key('sellerSendReschedule')));
       await tester.tap(find.byKey(const Key('sellerSendReschedule')));
       await tester.pumpAndSettle();

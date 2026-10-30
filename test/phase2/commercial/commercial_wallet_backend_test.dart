@@ -5,6 +5,17 @@ import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'support/commercial_payloads.dart';
 
 void main() {
+  test('seller homepage totals are authenticated and strictly decoded',()async {
+    final backend=Phase2CommercialWalletBackend(identity:()=>'seller',rpc:(function,params)async{
+      expect(function,'seller_home_summary');expect(params,isEmpty);
+      return {'leads_targeted':147,'deals_closed':9,'month_start':'2026-10-01T00:00:00Z',
+        'month_end':'2026-11-01T00:00:00Z','timezone':'UTC'};
+    });
+    final result=await backend.loadSellerHomeSummary();
+    expect(result.leadsTargeted,147); expect(result.dealsClosed,9);
+    expect(()=>SellerHomeSummaryView.fromJson({'leads_targeted':-1,'deals_closed':9,
+      'month_start':'2026-10-01','month_end':'2026-11-01','timezone':'UTC'}),throwsA(isA<CommercialContractError>()));
+  });
   group('CommercialWalletBackend', () {
     test('loads typed ledger reads and keeps the session fence', () async {
       String? user = 'user-1';

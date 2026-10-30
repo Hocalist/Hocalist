@@ -44,6 +44,8 @@ dependencies:
   google_maps_flutter: ^2.18.1
   geolocator: ^14.0.3
   image_picker: ^1.2.3
+  image_picker_android: ^0.8.13+23
+  image_picker_platform_interface: ^2.11.1
   image: ^4.10.1
   flutter_webrtc: ^1.6.2+hotfix.3
 
@@ -114,6 +116,7 @@ flutter:
     - assets/approved_trends_notifications/
     - assets/approved_trends_notifications/transparent/
     - assets/approved_seller/
+    - assets/approved_seller/billing/
     - assets/approved_seller/nav/
     - assets/approved_seller/chat/
     - assets/approved_seller/onboarding_home/

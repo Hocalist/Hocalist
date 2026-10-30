@@ -1,3 +1,4 @@
+import 'package:hocalist/components/pull_refresh.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -185,23 +186,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Reload'));
+      tester.widget<PullRefreshAction>(find.byType(PullRefreshAction).first).onRefresh!();
       await tester.pump();
       expect(find.text('Actual saved request'), findsOneWidget);
       expect(find.text('Updating your saved content…'), findsOneWidget);
-      expect(
-        tester
-            .widget<TextButton>(
-              find.widgetWithText(TextButton, 'Loading…'),
-            )
-            .onPressed,
-        isNull,
-      );
+      expect(tester.widget<PullRefreshAction>(find.byType(PullRefreshAction).first).onRefresh, isNull);
       refresh.completeError(StateError('offline'));
       await tester.pumpAndSettle();
       expect(find.text('Actual saved request'), findsOneWidget);
       expect(find.text('Nothing saved yet'), findsNothing);
-      await tester.tap(find.text('Reload'));
+      tester.widget<PullRefreshAction>(find.byType(PullRefreshAction).first).onRefresh!();
       await tester.pumpAndSettle();
       expect(calls, 3);
       expect(find.text('Could not load saved items. Try again.'), findsNothing);

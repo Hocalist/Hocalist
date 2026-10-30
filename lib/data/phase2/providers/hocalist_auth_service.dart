@@ -85,10 +85,18 @@ class HocalistAuthService {
     // Wait for onAuthStateChange in the composition; opening Google is not login.
   });
 
-  Future<AuthResponse> emailLogin(String email, String password) => _run(
-    () =>
-        client.auth.signInWithPassword(email: email.trim(), password: password),
-  );
+  Future<AuthResponse> emailLogin(String email, String password) =>
+      _run(() async {
+        final response = await client.auth.signInWithPassword(
+          email: email.trim(),
+          password: password,
+        );
+        if (response.user != null && response.user!.emailConfirmedAt == null) {
+          await client.auth.signOut(scope: SignOutScope.local);
+          throw const ProviderOperationException('email_not_confirmed');
+        }
+        return response;
+      });
 
   Future<AuthResponse> emailSignup({
     required String email,

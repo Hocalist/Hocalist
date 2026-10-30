@@ -1,3 +1,4 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import '../components/hocalist_reload_link.dart';
 import 'dart:math' as math;
 
@@ -235,6 +236,10 @@ class SellerPrimaryButton extends StatelessWidget {
     final radius = accessibility.radiusOr(approvedRadius);
     final highContrast = accessibility.usesHighContrastButton;
     return Semantics(
+      container: true,
+      label: label,
+      onTap: onPressed,
+      excludeSemantics: true,
       button: true,
       enabled: onPressed != null,
       child: HocalistPressFeedback(
@@ -345,6 +350,10 @@ class SellerSecondaryButton extends StatelessWidget {
     final accessibility = hocalistAccessibilityVisualsOf(context);
     final approvedRadius = metrics.geometry(13);
     return Semantics(
+      container: true,
+      label: label,
+      onTap: onPressed,
+      excludeSemantics: true,
       button: true,
       enabled: onPressed != null,
       child: HocalistPressFeedback(
@@ -986,20 +995,7 @@ class SellerProgressStrip extends StatelessWidget {
         ],
         ClipRRect(
           borderRadius: BorderRadius.circular(99),
-          child: Semantics(
-            container: true,
-            label: 'Loading',
-            child: LinearProgressIndicator(
-              minHeight: metrics.geometry(5),
-              backgroundColor: HocalistPalette.surface(
-                context,
-                SellerUiColors.lavender,
-              ),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                SellerUiColors.primaryBright,
-              ),
-            ),
-          ),
+          child: HocalistLoadingIndicator(),
         ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
+import '../../components/brand_home_link.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_bottom_navigation.dart';
@@ -61,11 +62,16 @@ class SellerAppHeader extends StatelessWidget {
           ),
           textScaler: MediaQuery.textScalerOf(context),
         );
-        final logo = Image.asset(
-          SellerAssets.brandWordmark,
-          width: metrics.artSize(104),
-          fit: BoxFit.contain,
-          semanticLabel: 'Hocalist Reverse Marketplace',
+        final logo = BrandHomeLink(
+          child: Image.asset(
+            SellerAssets.brandWordmark,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xfff3f3ff)
+                : null,
+            width: metrics.artSize(104),
+            fit: BoxFit.contain,
+            semanticLabel: 'Hocalist Reverse Marketplace',
+          ),
         );
         final mode = _SellerModePill(metrics: metrics);
         final notification = _SellerNotificationButton(

@@ -583,6 +583,7 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
   }
   return RequestDraft(
     kind: kind,
+    imageMediaIds: _optionalStringList(row, 'image_media_ids'),
     title: _requireString(row, 'title', '$context.title'),
     description: _requireString(
       row,
@@ -606,8 +607,14 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
     categoryId: _optionalString(row, 'category_id'),
     categoryAnswers: _categoryAnswers(row),
     location: useHomeAddress
-        ? const RequestLocation.homeAddress()
-        : RequestLocation.custom(address: address, coordinates: coordinates),
+        ? RequestLocation.homeAddress(
+            timezoneId: _optionalString(locationMap, 'timezone_id'),
+          )
+        : RequestLocation.custom(
+            address: address,
+            coordinates: coordinates,
+            timezoneId: _optionalString(locationMap, 'timezone_id'),
+          ),
   );
 }
 
@@ -688,6 +695,8 @@ SellerLeadProjection decodeLeadJson(Map<String, Object?> row, String context) {
       '$context.buyer_display_name',
     ),
     areaLabel: _optionalString(row, 'area_label'),
+    locationTimezone: _optionalString(row, 'location_timezone'),
+    imageMediaIds: _optionalStringList(row, 'image_media_ids'),
     requestRevision: _requirePositiveInt(
       row,
       'request_revision',

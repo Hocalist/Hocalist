@@ -171,7 +171,7 @@ class Phase2MarketplaceStoreBackend implements MarketplaceStoreBackend {
   }) async {
     if (expectedRevision < 1) {
       throw const StoreBackendException(
-        'Refresh your Store before changing this listing.',
+        'Open your Store again before changing this listing.',
       );
     }
     final result = await adapter.setStoreListingPublication(
@@ -221,7 +221,7 @@ class Phase2MarketplaceStoreBackend implements MarketplaceStoreBackend {
   }) async {
     if (expectedRevision < 1) {
       throw const StoreBackendException(
-        'Refresh your Store before deleting this listing.',
+        'Open your Store again before deleting this listing.',
       );
     }
     final result = await adapter.archiveStoreListing(
@@ -311,7 +311,7 @@ class Phase2MarketplaceStoreBackend implements MarketplaceStoreBackend {
       RepositoryFailureKind.network =>
         'The change could not be confirmed. Retry to check it safely.',
       RepositoryFailureKind.conflict =>
-        'The listing changed on another device. Refresh and try again.',
+        'The listing changed on another device. Please try again.',
       RepositoryFailureKind.validation =>
         'Check the listing details and try again.',
       _ => 'Your Store change could not be saved. Try again.',

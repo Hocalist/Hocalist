@@ -37,12 +37,24 @@ class MarketplaceErrorMapper {
     }
     final message = error.message ?? '';
     if (message.contains('active_request_limit_reached:')) {
-      final limit = int.tryParse(RegExp(r'active_request_limit_reached:(\d+)').firstMatch(message)?.group(1) ?? '');
+      final limit = int.tryParse(
+        RegExp(
+              r'active_request_limit_reached:(\d+)',
+            ).firstMatch(message)?.group(1) ??
+            '',
+      );
       return ValidationError(
-        issues: [ValidationIssue(field: 'request', code: 'active_request_limit_reached',
-          message: limit == null ? 'You have reached your active request limit. Close a request before adding another.'
-              : 'You have reached the limit of $limit active requests. Close a request before adding another.')],
-        debugMessage: 'The buyer has reached the configured active request limit.',
+        issues: [
+          ValidationIssue(
+            field: 'request',
+            code: 'active_request_limit_reached',
+            message: limit == null
+                ? 'You have reached your active request limit. Close a request before adding another.'
+                : 'You have reached the limit of $limit active requests. Close a request before adding another.',
+          ),
+        ],
+        debugMessage:
+            'The buyer has reached the configured active request limit.',
       );
     }
     if (_has(message, 'request_access_denied')) {
@@ -127,6 +139,18 @@ class MarketplaceErrorMapper {
         debugMessage:
             'Your prepaid credits cannot cover this interaction. Add credits before targeting.',
       );
+    }
+    if (_has(message, 'payment_permission_required')) {
+      return const ConflictError(conflictCode: 'payment_permission_required');
+    }
+    if (_has(message, 'deal_payment_required')) {
+      return const ConflictError(
+        conflictCode: 'deal_payment_required',
+        debugMessage: 'This deal’s targeting payment needs attention. The seller can update or approve payment in Manage payment before chatting continues.',
+      );
+    }
+    if (_has(message, 'billing_review_required')) {
+      return const ConflictError(conflictCode: 'billing_review_required');
     }
     if (_has(message, 'idempotency_conflict')) {
       return const ConflictError(
@@ -247,7 +271,7 @@ class MarketplaceErrorMapper {
             field: 'categoryAnswers',
             code: ValidationCodes.requiredField,
             message:
-                'Category questions have changed. Reload them and answer the required questions.',
+                'Category questions have changed. Open the category again and answer the required questions.',
           ),
         ],
       );
@@ -259,7 +283,7 @@ class MarketplaceErrorMapper {
             field: 'categoryAnswers',
             code: ValidationCodes.invalidValue,
             message:
-                'A selected category choice is no longer available. Reload the questions and choose again.',
+                'A selected category choice is no longer available. Open the category again and choose an available answer.',
           ),
         ],
       );

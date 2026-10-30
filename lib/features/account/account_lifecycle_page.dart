@@ -6,6 +6,7 @@
 /// Scope is Hocalist account records; provider sign-in identity removal is
 /// handled separately by the account lifecycle service.
 library;
+import '../../components/pull_refresh.dart';
 
 import 'package:hocalist/theme/adaptive_palette.dart';
 
@@ -136,7 +137,7 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
       setState(() {
         _consentDocument = null;
         _consentKey = null;
-        _error = 'The consent version changed. Reload and review it again.';
+        _error = 'The consent version changed. Please review the current version.';
       });
     } on AccountLifecycleUnavailableException catch (failure) {
       if (!mounted) return;
@@ -278,7 +279,7 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
       await _load();
       if (!mounted) return;
       setState(
-        () => _deleteError = 'The request changed. Reload and try again.',
+        () => _deleteError = 'The request changed. Please try again.',
       );
     } on AccountLifecycleUnavailableException catch (failure) {
       if (!mounted) return;
@@ -289,7 +290,9 @@ class _AccountLifecyclePageState extends State<AccountLifecyclePage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PullRefreshAction(onRefresh: _busy ? null : _load, child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     final backend = widget.backend;
     return Scaffold(
       body: SafeArea(

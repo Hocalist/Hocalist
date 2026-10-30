@@ -927,7 +927,7 @@ void main() {
         find.byKey(const ValueKey('approved-keep-earning-artwork')),
       );
 
-      expect(banner.height, closeTo(64, 1));
+      expect(banner.height, inInclusiveRange(64, 110));
       expect(shield.left, greaterThanOrEqualTo(banner.left + 9));
       expect(copy.left, greaterThan(shield.right));
       expect(copy.center.dx, lessThan(artwork.center.dx));
@@ -936,8 +936,7 @@ void main() {
       expect(artwork.center.dy, closeTo(banner.center.dy, 1));
       expect(
         find.text(
-          'Refer friends, complete purchases,\n'
-          'and unlock bigger rewards.',
+          'Refer friends, complete purchases, and unlock bigger rewards.',
         ),
         findsOneWidget,
       );

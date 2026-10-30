@@ -1,3 +1,6 @@
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'package:hocalist/data/phase2/media/image_gateway.dart';
+import 'support/synthetic_image_picker.dart';
 // Store connection tests: user-visible acknowledgement, pending review and
 // retry behavior in the approved Store screen. Fakes only.
 import 'package:flutter/material.dart';
@@ -99,6 +102,7 @@ void main() {
     WidgetTester tester,
     LocalMarketplaceRepository repository, {
     String? sellerName,
+    ImageUpload? imageUpload,
   }) async {
     await repository.refreshStore();
     await tester.binding.setSurfaceSize(const Size(390, 900));
@@ -121,9 +125,10 @@ void main() {
               ),
               onNotifications: () {},
               child: ApprovedSellerStorePage(
-                questionLoader: (_) async => [],
+            questionLoader: (_) async => [],
                 repository: repository,
                 sellerName: sellerName,
+                imageUpload: imageUpload,
                 onStoreSettings: () {},
               ),
             ),
@@ -137,6 +142,7 @@ void main() {
   Future<void> openEditorAndPreview(
     WidgetTester tester, {
     required String title,
+    Future<void> Function()? beforePreview,
   }) async {
     await tester.tap(find.byKey(const Key('sellerStoreAddListing')));
     await _settle(tester);
@@ -158,6 +164,7 @@ void main() {
     await _settle(tester);
     await tester.tap(find.text('Electronics').last);
     await _settle(tester);
+    await beforePreview?.call();
     await tester.ensureVisible(find.text('Preview listing'));
     await _settle(tester);
     await tester.tap(find.text('Preview listing'));
@@ -172,6 +179,52 @@ void main() {
     await tester.tap(find.byKey(const Key('sellerStorePublishListing')));
     await _settle(tester);
   }
+
+  testWidgets('Store photo picker uploads and saved image IDs survive reload', (
+    tester,
+  ) async {
+    final previous = ImagePickerPlatform.instance;
+    final picker = SyntheticImagePicker();
+    ImagePickerPlatform.instance = picker;
+    addTearDown(() => ImagePickerPlatform.instance = previous);
+    final backend = _WidgetStoreBackend();
+    backend.onSave = (listing, key) async {
+      final stored = listing.copyWith(id: 'server-photo', revision: 1);
+      backend.listings = [stored];
+      return StoreWriteResult(listing: stored);
+    };
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    var uploads = 0;
+    await pumpStore(
+      tester,
+      repository,
+      imageUpload: (bytes, key) async {
+        uploads++;
+        expect(bytes.take(2).toList(), [255, 216]);
+        return 'synthetic-image-id';
+      },
+    );
+    await openEditorAndPreview(
+      tester,
+      title: 'TEST photo listing',
+      beforePreview: () async {
+        await tester.ensureVisible(find.text('Add photo'));
+        await _settle(tester);
+        await tester.tap(find.text('Add photo'));
+        await _settle(tester);
+      },
+    );
+    await tapPublish(tester);
+    expect(picker.calls, 1);
+    expect(uploads, 1);
+    expect(backend.listings.single.imageMediaIds, ['synthetic-image-id']);
+    await repository.refreshStore();
+    expect(repository.storeListings.single.imageMediaIds, [
+      'synthetic-image-id',
+    ]);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('a failed save keeps the editor open with its inputs', (
     tester,

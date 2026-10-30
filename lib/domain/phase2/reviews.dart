@@ -36,6 +36,7 @@ class OutcomeReview {
     required String requestId,
     required this.rating,
     this.body = '',
+    this.imageMediaIds = const [],
     required this.status,
     required this.revision,
     required DateTime createdAt,
@@ -57,6 +58,7 @@ class OutcomeReview {
   final String requestId;
   final int rating;
   final String body;
+  final List<String> imageMediaIds;
   final ReviewModerationState status;
   final int revision;
   final DateTime createdAt;
@@ -93,6 +95,7 @@ class SubmitReviewCommand {
     required String requestId,
     required this.rating,
     this.body = '',
+    this.imageMediaIds = const [],
     required String idempotencyKey,
   }) : requestId = requireNonBlank(requestId, 'requestId'),
        idempotencyKey = requireNonBlank(idempotencyKey, 'idempotencyKey') {
@@ -107,6 +110,7 @@ class SubmitReviewCommand {
   final String requestId;
   final int rating;
   final String body;
+  final List<String> imageMediaIds;
   final String idempotencyKey;
 }
 
@@ -117,6 +121,7 @@ class UpdateReviewCommand {
     required this.expectedRevision,
     required this.rating,
     this.body = '',
+    this.imageMediaIds,
     required String idempotencyKey,
   }) : reviewId = requireNonBlank(reviewId, 'reviewId'),
        idempotencyKey = requireNonBlank(idempotencyKey, 'idempotencyKey') {
@@ -139,6 +144,7 @@ class UpdateReviewCommand {
   final int expectedRevision;
   final int rating;
   final String body;
+  final List<String>? imageMediaIds;
   final String idempotencyKey;
 }
 
@@ -148,6 +154,7 @@ class PublicReviewExcerpt {
     required this.id,
     required this.rating,
     this.body = '',
+    this.imageMediaIds = const [],
     required this.reviewerLabel,
     required this.createdAt,
   });
@@ -155,6 +162,7 @@ class PublicReviewExcerpt {
   final String id;
   final int rating;
   final String body;
+  final List<String> imageMediaIds;
 
   /// Masked label (`Hocalist buyer`) until the buyer opts in.
   final String reviewerLabel;

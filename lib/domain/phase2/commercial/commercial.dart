@@ -123,6 +123,9 @@ class WeeklyQuotaView {
   final int used;
   final int limit;
 
+  /// The server groups usage by Monday 00:00 UTC, not a rolling seven days.
+  DateTime get resetsAt => weekStart.add(const Duration(days: 7));
+
   factory WeeklyQuotaView.fromJson(Map<String, Object?> json) {
     final rawWeek = _string(json, 'week_start');
     final week = DateTime.tryParse(rawWeek);
@@ -191,6 +194,7 @@ class CreditBatchView {
     required this.winningTotalMinor,
     required this.rateVersion,
     required this.createdAt,
+    this.fundingKind = 'prepaid',
   });
 
   final String id;
@@ -203,6 +207,7 @@ class CreditBatchView {
   final int winningTotalMinor;
   final String rateVersion;
   final DateTime createdAt;
+  final String fundingKind;
 
   factory CreditBatchView.fromJson(Map<String, Object?> json) {
     final batch = CreditBatchView(
@@ -216,10 +221,18 @@ class CreditBatchView {
       winningTotalMinor: _int(json, 'winning_total_minor', minimum: 0),
       rateVersion: _string(json, 'rate_version'),
       createdAt: _dateTime(json, 'created_at'),
+      fundingKind: json['funding_kind'] == null
+          ? 'prepaid'
+          : _enumValue(_string(json, 'funding_kind'), const {
+              'prepaid': 'prepaid',
+              'paygo': 'paygo',
+              'standard': 'standard',
+            }, 'funding_kind'),
     );
     if (batch.reservedMinor > batch.balanceMinor ||
         batch.availableMinor != batch.balanceMinor - batch.reservedMinor ||
-        batch.winningTotalMinor > batch.originalMinor) {
+        (batch.fundingKind == 'prepaid' &&
+            batch.winningTotalMinor > batch.originalMinor)) {
       throw const CommercialContractError('batch_shape');
     }
     return batch;
@@ -291,6 +304,33 @@ class CreditTargetView {
   }
 }
 
+class PaygoTermsView {
+  const PaygoTermsView({
+    required this.enabled,
+    required this.authorised,
+    required this.initialMinor,
+    required this.winningMinor,
+    required this.lateWindowHours,
+    required this.lateTotalMinor,
+  });
+  final bool enabled, authorised;
+  final int initialMinor, winningMinor, lateWindowHours, lateTotalMinor;
+  factory PaygoTermsView.fromJson(Map<String, Object?> json) {
+    final value = PaygoTermsView(
+      enabled: _bool(json, 'enabled'),
+      authorised: _bool(json, 'authorised'),
+      initialMinor: _int(json, 'initial_minor', minimum: 0),
+      winningMinor: _int(json, 'winning_minor', minimum: 0),
+      lateWindowHours: _int(json, 'late_window_hours', minimum: 1),
+      lateTotalMinor: _int(json, 'late_total_minor', minimum: 1),
+    );
+    if (value.winningMinor < value.initialMinor) {
+      throw const CommercialContractError('paygo_shape');
+    }
+    return value;
+  }
+}
+
 class CreditWalletView {
   const CreditWalletView({
     required this.currency,
@@ -305,6 +345,7 @@ class CreditWalletView {
     required this.batches,
     required this.targets,
     required this.depositOptionsConfigured,
+    this.paygo,
   });
 
   final String currency;
@@ -319,6 +360,7 @@ class CreditWalletView {
   final List<CreditBatchView> batches;
   final List<CreditTargetView> targets;
   final bool depositOptionsConfigured;
+  final PaygoTermsView? paygo;
 
   factory CreditWalletView.fromJson(Map<String, Object?> json) {
     final currency = _string(json, 'currency');
@@ -338,6 +380,9 @@ class CreditWalletView {
       availableMinor: available,
       chargedMinor: _int(json, 'charged_minor', minimum: 0),
       depositedMinor: _int(json, 'deposited_minor', minimum: 0),
+      paygo: json['paygo'] == null
+          ? null
+          : PaygoTermsView.fromJson(_map(json, 'paygo')),
       reversalHoldMinor: _int(json, 'reversal_hold_minor', minimum: 0),
       weekly: WeeklyQuotaView.fromJson(_map(json, 'weekly')),
       depositOptions: _rows(
@@ -764,6 +809,20 @@ class DealSummaryView {
         active: _int(json, 'active', minimum: 0),
         attention: _int(json, 'attention', minimum: 0),
       );
+}
+
+class SellerHomeSummaryView {
+  const SellerHomeSummaryView({required this.leadsTargeted,required this.dealsClosed,required this.monthStart,required this.monthEnd,required this.timezone});
+  final int leadsTargeted,dealsClosed;
+  final DateTime monthStart,monthEnd;
+  final String timezone;
+  factory SellerHomeSummaryView.fromJson(Map<String,Object?> json) {
+    final start=DateTime.tryParse(_string(json,'month_start'));
+    final end=DateTime.tryParse(_string(json,'month_end'));
+    if (start==null || end==null || !end.isAfter(start)) throw const CommercialContractError('seller_home_period');
+    return SellerHomeSummaryView(leadsTargeted:_int(json,'leads_targeted',minimum:0),
+      dealsClosed:_int(json,'deals_closed',minimum:0),monthStart:start,monthEnd:end,timezone:_string(json,'timezone'));
+  }
 }
 
 class SaleScheduleView {

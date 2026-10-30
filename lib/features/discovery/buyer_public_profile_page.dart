@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
 import '../../domain/phase2/discovery.dart';
 import '../../theme/seller_ui_foundation.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -46,7 +47,7 @@ class _BuyerPublicProfilePageState extends State<BuyerPublicProfilePage> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => PullRefreshAction(onRefresh: loading ? null : refresh, child: Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       BuyerNestedHeader(
@@ -137,5 +138,5 @@ class _BuyerPublicProfilePageState extends State<BuyerPublicProfilePage> {
         ),
       ),
     ],
-  );
+  ));
 }

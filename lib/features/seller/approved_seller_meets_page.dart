@@ -1,3 +1,5 @@
+import '../../components/pull_refresh.dart';
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
@@ -344,8 +346,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
     bool upcoming(MeetingView meeting) =>
         active(meeting) &&
         !completedIds.contains(meeting.meetingId) &&
-        (meeting.meetingExpiresAt == null ||
-            meeting.meetingExpiresAt!.isAfter(now));
+        meeting.isUpcomingAt(now);
     bool today(MeetingView meeting) {
       if (!active(meeting) || completedIds.contains(meeting.meetingId)) {
         return false;
@@ -384,7 +385,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
         .toList(growable: false);
 
     return SellerResponsivePage(
-      builder: (context, metrics) => RefreshIndicator(
+      builder: (context, metrics) => PullRefreshAction(
         onRefresh: widget.onRefresh ?? () async {},
         child: ListView(
           key: const Key('sellerRealMeets'),
@@ -405,7 +406,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
             if (widget.loading && rows.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: LinearProgressIndicator(
+                child: HocalistLoadingIndicator(
                   key: Key('sellerMeetingsLoading'),
                 ),
               ),
@@ -1450,20 +1451,22 @@ class _RealMeetingCard extends StatelessWidget {
                         onTap: onMessage,
                       ),
                     ),
-                    SizedBox(width: metrics.geometry(6)),
-                    Expanded(
-                      child: _MeetAction(
-                        key: ValueKey(
-                          'sellerRealMeetDirections-${meeting.meetingId}',
+                    if (!completed) ...[
+                      SizedBox(width: metrics.geometry(6)),
+                      Expanded(
+                        child: _MeetAction(
+                          key: ValueKey(
+                            'sellerRealMeetDirections-${meeting.meetingId}',
+                          ),
+                          icon: Icons.map_outlined,
+                          label: 'Directions',
+                          color: directionsAvailable
+                              ? SellerUiColors.primaryBright
+                              : SellerUiColors.muted,
+                          onTap: directionsAvailable ? onDirections : null,
                         ),
-                        icon: Icons.map_outlined,
-                        label: 'Directions',
-                        color: directionsAvailable
-                            ? SellerUiColors.primaryBright
-                            : SellerUiColors.muted,
-                        onTap: directionsAvailable ? onDirections : null,
                       ),
-                    ),
+                    ],
                     SizedBox(width: metrics.geometry(6)),
                     Expanded(
                       child: _MeetAction(
@@ -1480,7 +1483,7 @@ class _RealMeetingCard extends StatelessWidget {
                 ),
                 SizedBox(height: metrics.geometry(6)),
                 Text(
-                  directionsAvailable
+                  completed || directionsAvailable
                       ? 'Video calling is not enabled.'
                       : 'Directions need a confirmed meeting destination. Video calling is not enabled.',
                   style: sellerText(
@@ -1888,40 +1891,6 @@ class _SellerPinEntryContent extends StatelessWidget {
             ),
           ),
         ],
-        SizedBox(height: metrics.spacing(10)),
-        Container(
-          padding: EdgeInsets.all(metrics.spacing(10)),
-          decoration: BoxDecoration(
-            color: HocalistPalette.surface(
-              context,
-              SellerUiColors.amberSurface,
-            ),
-            borderRadius: BorderRadius.circular(metrics.geometry(10)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: metrics.artSize(20),
-                color: HocalistPalette.text(context, SellerUiColors.amber),
-              ),
-              SizedBox(width: metrics.geometry(7)),
-              Expanded(
-                child: Text(
-                  'Only enter the PIN after the buyer has inspected the item and paid you offline.',
-                  style: sellerText(
-                    metrics,
-                    11,
-                    weight: FontWeight.w700,
-                    color: SellerUiColors.body,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
         SizedBox(height: metrics.spacing(14)),
         SellerPrimaryButton(
           key: const Key('sellerVerifyBuyerPin'),
@@ -1955,6 +1924,40 @@ class _SellerPinEntryContent extends StatelessWidget {
             textStyle: sellerText(metrics, 14, weight: FontWeight.w700),
           ),
           child: const Text('Cancel'),
+        ),
+        SizedBox(height: metrics.spacing(10)),
+        Container(
+          padding: EdgeInsets.all(metrics.spacing(10)),
+          decoration: BoxDecoration(
+            color: HocalistPalette.surface(
+              context,
+              SellerUiColors.amberSurface,
+            ),
+            borderRadius: BorderRadius.circular(metrics.geometry(10)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                size: metrics.artSize(20),
+                color: HocalistPalette.text(context, SellerUiColors.amber),
+              ),
+              SizedBox(width: metrics.geometry(7)),
+              Expanded(
+                child: Text(
+                  'Only enter the PIN after the buyer has inspected the item and paid you offline.',
+                  style: sellerText(
+                    metrics,
+                    11,
+                    weight: FontWeight.w700,
+                    color: SellerUiColors.body,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

@@ -14,6 +14,54 @@ class PlacesRepository {
 
   final PlacesTransport transport;
 
+  Future<PlaceDetails> resolveAddress(String address) async {
+    final query=address.trim();
+    if (query.isEmpty || query.length>1000) throw const PlacesFailure(PlacesFailureCode.invalidInput);
+    final resolver=transport;
+    if (resolver is! AddressPlacesTransport) throw const PlacesFailure(PlacesFailureCode.unconfigured);
+    final result=await (resolver as AddressPlacesTransport).address(address:query,sessionToken:PlacesSession.start().token);
+    final place=_details(result.data);
+    if (place.timezoneId==null || place.timezoneId!.trim().isEmpty) throw const PlacesFailure(PlacesFailureCode.invalidResponse);
+    return place;
+  }
+
+  Future<PlaceDetails> resolveCoordinates({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (!latitude.isFinite || latitude.abs() > 90 ||
+        !longitude.isFinite || longitude.abs() > 180) {
+      throw const PlacesFailure(PlacesFailureCode.invalidInput);
+    }
+    final coordinateTransport = transport;
+    if (coordinateTransport is! CoordinatePlacesTransport) {
+      throw const PlacesFailure(PlacesFailureCode.unconfigured);
+    }
+    final result = await (coordinateTransport as CoordinatePlacesTransport).coordinates(
+      latitude: latitude, longitude: longitude,
+      sessionToken: PlacesSession.start().token,
+    );
+    final place = _details(result.data);
+    if (place.latitude != latitude || place.longitude != longitude ||
+        place.timezoneId == null || place.timezoneId!.trim().isEmpty) {
+      throw const PlacesFailure(PlacesFailureCode.invalidResponse);
+    }
+    return place;
+  }
+
+  /// Resolve a saved address only when the provider returns one unambiguous
+  /// match. Multiple matches stay in the picker for the user to choose.
+  Future<PlaceDetails?> resolveSavedAddress(String address) async {
+    final query = address.trim();
+    if (query.length < 3 || query.length > placesMaxQueryLength) return null;
+    final session = PlacesSession.start();
+    final suggestions = await search(input: query, session: session);
+    if (suggestions.length != 1) return null;
+    final result = await resolve(placeId: suggestions.single.placeId, session: session);
+    if (result.timezoneId == null || result.timezoneId!.trim().isEmpty) return null;
+    return result;
+  }
+
   /// Autocomplete suggestions for [input]. Blank or oversized input is
   /// rejected before any provider call.
   Future<List<PlaceSuggestion>> search({
@@ -46,12 +94,15 @@ class PlacesRepository {
       placeId: placeId,
       sessionToken: session.token,
     );
-    final data = result.data;
+    return _details(result.data, expectedId: placeId);
+  }
+
+  PlaceDetails _details(Map<String, Object?> data, {String? expectedId}) {
     final id = data['placeId'];
     final address = data['address'];
     final latitude = data['latitude'];
     final longitude = data['longitude'];
-    if (id is! String || id != placeId || address is! String) {
+    if (id is! String || (expectedId != null && id != expectedId) || address is! String) {
       throw const PlacesFailure(PlacesFailureCode.invalidResponse);
     }
     if (latitude is! num || longitude is! num) {
@@ -80,6 +131,9 @@ class PlacesRepository {
         address: address,
         latitude: latitude.toDouble(),
         longitude: longitude.toDouble(),
+        timezoneId: data['timezoneId'] is String
+            ? data['timezoneId'] as String
+            : null,
         postalAddress: components == null
             ? null
             : PostalAddress(
@@ -134,15 +188,15 @@ class PlacesRepository {
 String placesFailureMessage(PlacesFailure failure) => switch (failure.code) {
   PlacesFailureCode.invalidInput => 'Check the search text and try again.',
   PlacesFailureCode.unconfigured =>
-    'Place search is not configured yet. Enter the place manually.',
+    'Address search is unavailable. Complete the address details and try again.',
   PlacesFailureCode.rateLimited =>
-    'Too many place searches right now. Try again shortly or enter it manually.',
+    'Too many address searches right now. Please try again shortly.',
   PlacesFailureCode.unavailable =>
-    'Place search is unavailable. Enter the place manually.',
+    'Address search is unavailable. Complete the address details and try again.',
   PlacesFailureCode.invalidResponse =>
-    'Place search returned an unexpected result. Enter the place manually.',
+    'The address could not be checked. Complete its details and try again.',
   PlacesFailureCode.sessionExpired =>
-    'The place search expired. Search again or enter the place manually.',
+    'The address search expired. Please try again.',
   PlacesFailureCode.suggestionRequired =>
-    'Search again and pick a fresh result, or enter the place manually.',
+    'Search again and choose a matching address.',
 };

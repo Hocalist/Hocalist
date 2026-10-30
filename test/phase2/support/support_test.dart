@@ -1,3 +1,4 @@
+import 'package:hocalist/components/pull_refresh.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -302,8 +303,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Refresh'));
-    await tester.tap(find.text('Refresh'));
+    tester.widget<PullRefreshAction>(find.byType(PullRefreshAction).first).onRefresh!();
     await tester.pumpAndSettle();
     expect(find.text('Existing case details'), findsOneWidget);
     expect(find.text('Support could not be loaded'), findsOneWidget);

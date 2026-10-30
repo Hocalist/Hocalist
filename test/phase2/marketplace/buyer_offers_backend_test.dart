@@ -1,5 +1,6 @@
 // Buyer offers backend tests: per-request reads, selection with conversation
 // opening, ambiguous outcomes and repository caching. Fakes only.
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/data/phase2/marketplace/marketplace_adapter.dart';
@@ -54,7 +55,11 @@ class FakeBuyerOffersBackend implements MarketplaceBuyerOffersBackend {
     required String operationKey,
   }) {
     purchaseSelectionKeys.add(operationKey);
-    return onSelectPurchase?.call(offerId, expectedOfferRevision, operationKey) ??
+    return onSelectPurchase?.call(
+          offerId,
+          expectedOfferRevision,
+          operationKey,
+        ) ??
         Future.value(selectedOffer().copyWith(purchaseSelected: true));
   }
 }
@@ -114,6 +119,81 @@ RecordStamp stamp({int revision = 1}) => RecordStamp(
 
 void main() {
   group('LocalMarketplaceRepository buyer offers', () {
+    test('switching request clears old offers before the new read completes', () async {
+      final backend = FakeBuyerOffersBackend()
+        ..onLoad = (_) async => [decodeOfferForTest()];
+      final repository = LocalMarketplaceRepository(buyerOffersBackend: backend);
+      await repository.refreshBuyerOffers(requestId);
+      expect(repository.buyerOffers, hasLength(1));
+      final pending = Completer<List<Offer>>();
+      backend.onLoad = (_) => pending.future;
+      final loading = repository.refreshBuyerOffers('different-request');
+      expect(repository.buyerOffers, isEmpty);
+      expect(repository.buyerOffersLoading, isTrue);
+      pending.completeError(const StoreBackendException('Offline'));
+      await loading;
+      expect(repository.buyerOffers, isEmpty);
+      expect(repository.buyerOffersError, 'Offline');
+      repository.dispose();
+    });
+    test(
+      'background refresh discovers offers without clearing rows or showing a loader',
+      () async {
+        final backend = FakeBuyerOffersBackend();
+        final repository = LocalMarketplaceRepository(
+          buyerOffersBackend: backend,
+        );
+        await repository.refreshBuyerOffers(requestId);
+        final pending = Completer<List<Offer>>();
+        var calls = 0;
+        backend.onLoad = (_) {
+          calls++;
+          return pending.future;
+        };
+        final refreshing = repository.refreshBuyerOffers(
+          requestId,
+          background: true,
+        );
+        expect(repository.buyerOffersLoading, isFalse);
+        await repository.refreshBuyerOffers(requestId, background: true);
+        expect(calls, 1);
+        pending.complete([decodeOfferForTest()]);
+        await refreshing;
+        expect(repository.buyerOffers, hasLength(1));
+        backend.onLoad = (_) async =>
+            throw const StoreBackendException('Offline');
+        await repository.refreshBuyerOffers(requestId, background: true);
+        expect(repository.buyerOffers, hasLength(1));
+        expect(repository.buyerOffersError, isNull);
+        repository.dispose();
+      },
+    );
+
+    test(
+      'background refresh cannot replace another request or a newer explicit load',
+      () async {
+        final backend = FakeBuyerOffersBackend();
+        final repository = LocalMarketplaceRepository(
+          buyerOffersBackend: backend,
+        );
+        await repository.refreshBuyerOffers(requestId);
+        final pending = Completer<List<Offer>>();
+        backend.onLoad = (_) => pending.future;
+        final refreshing = repository.refreshBuyerOffers(
+          requestId,
+          background: true,
+        );
+        backend.onLoad = (_) async => [];
+        await repository.refreshBuyerOffers('other-request');
+        pending.complete([decodeOfferForTest()]);
+        await refreshing;
+        expect(repository.buyerOffersRequestId, 'other-request');
+        expect(repository.buyerOffers, isEmpty);
+        await repository.refreshBuyerOffers(requestId, background: true);
+        expect(repository.buyerOffersRequestId, 'other-request');
+        repository.dispose();
+      },
+    );
     test('loads and caches request offers', () async {
       final backend = FakeBuyerOffersBackend()
         ..onLoad = (requestId) async => [decodeOfferForTest()];
@@ -194,10 +274,11 @@ void main() {
 
     test('purchase designation reports an uncertain outcome', () async {
       final backend = FakeBuyerOffersBackend()
-        ..onSelectPurchase = (_, _, _) async => throw const StoreBackendException(
-          'The choice could not be confirmed. Retry to check it safely.',
-          ambiguous: true,
-        );
+        ..onSelectPurchase = (_, _, _) async =>
+            throw const StoreBackendException(
+              'The choice could not be confirmed. Retry to check it safely.',
+              ambiguous: true,
+            );
       final repository = LocalMarketplaceRepository(
         buyerOffersBackend: backend,
       );
@@ -292,24 +373,27 @@ void main() {
       },
     );
 
-    test('purchase designation carries the offer and carried revision', () async {
-      transport.handler = (call) =>
-          MarketplaceTransportData(offerJson(purchaseSelected: true));
-      final offer = await backend.selectPurchaseSeller(
-        offerId: offerId,
-        expectedOfferRevision: 3,
-        operationKey: 'purchase-key',
-      );
-      expect(offer.purchaseSelected, isTrue);
-      expect(transport.calls, hasLength(1));
-      expect(transport.calls.single.function, 'marketplace_command');
-      expect(transport.calls.single.params['p_operation'], 'purchase.select');
-      expect(transport.calls.single.params['p_key'], 'purchase-key');
-      final input =
-          transport.calls.single.params['p_input']! as Map<String, Object?>;
-      expect(input['offer_id'], offerId);
-      expect(input['expected_offer_revision'], 3);
-    });
+    test(
+      'purchase designation carries the offer and carried revision',
+      () async {
+        transport.handler = (call) =>
+            MarketplaceTransportData(offerJson(purchaseSelected: true));
+        final offer = await backend.selectPurchaseSeller(
+          offerId: offerId,
+          expectedOfferRevision: 3,
+          operationKey: 'purchase-key',
+        );
+        expect(offer.purchaseSelected, isTrue);
+        expect(transport.calls, hasLength(1));
+        expect(transport.calls.single.function, 'marketplace_command');
+        expect(transport.calls.single.params['p_operation'], 'purchase.select');
+        expect(transport.calls.single.params['p_key'], 'purchase-key');
+        final input =
+            transport.calls.single.params['p_input']! as Map<String, Object?>;
+        expect(input['offer_id'], offerId);
+        expect(input['expected_offer_revision'], 3);
+      },
+    );
 
     test('maps a network failure to an ambiguous outcome', () async {
       transport.handler = (call) => const MarketplaceTransportError(

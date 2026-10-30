@@ -1,3 +1,5 @@
+import '../../components/pull_refresh.dart';
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5,6 +7,7 @@ import '../../data/phase2/providers/stripe_test_billing_service.dart';
 import '../../data/phase2/commercial/entitlement_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../../theme/seller_ui_foundation.dart';
+import 'seller_plan_summary.dart';
 
 /// Read-only subscription status; credit batches and weekly slots stay separate.
 class SellerSubscriptionPanel extends StatefulWidget {
@@ -83,12 +86,14 @@ class _SellerSubscriptionPanelState extends State<SellerSubscriptionPanel> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PullRefreshAction(onRefresh: _loading ? null : _load, child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     if (_loading) {
       return const SellerStateNotice(
         icon: Icons.workspace_premium_outlined,
         title: 'Loading your plan…',
-        trailing: CircularProgressIndicator(),
+        trailing: HocalistLoadingIndicator(),
       );
     }
     if (_failed) {
@@ -103,24 +108,7 @@ class _SellerSubscriptionPanelState extends State<SellerSubscriptionPanel> {
     }
     final entitlement = _entitlement;
     if (entitlement != null) {
-      final plan = switch (entitlement.effectivePlan) {
-        PlanCode.free => 'Free',
-        PlanCode.pro => 'Pro',
-        PlanCode.elite => 'Elite',
-      };
-      final source = switch (entitlement.effectiveSource) {
-        EntitlementSource.free => 'Free access',
-        EntitlementSource.billing => 'Verified subscription',
-        EntitlementSource.admin => 'Approved plan access',
-        EntitlementSource.earned => 'Earned plan access',
-      };
-      return SellerStateNotice(
-        icon: Icons.workspace_premium_outlined,
-        title: '$plan Seller plan',
-        tone: SellerNoticeTone.brand,
-        body:
-            '$source. Credit batches and weekly targeting capacity stay separate.',
-      );
+      return SellerPlanSummary(value: entitlement);
     }
     final status = _status;
     if (status == null) {

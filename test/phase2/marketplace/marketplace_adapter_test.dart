@@ -184,6 +184,34 @@ void main() {
   });
 
   group('marketplace adapter', () {
+    test('request photographs survive transport and decoded edits', () async {
+      const photo = 'bbbbbbbb-0000-4000-8000-000000000001';
+      transport.handler = (_) =>
+          data(requestJson()..['image_media_ids'] = [photo]);
+      final draft = RequestDraft(
+        kind: RequestKind.product,
+        title: 'Photo request',
+        condition: ProductCondition.used,
+        imageMediaIds: [photo],
+      );
+      await adapter.createRequest(
+        CreateRequestCommand(idempotencyKey: 'photo-request', draft: draft),
+      );
+      final input = transport.calls.single.params['p_input'] as Map;
+      expect(input['image_media_ids'], [photo]);
+      final decoded = decodeRequestJson(
+        requestJson()..['image_media_ids'] = [photo],
+        'request',
+      );
+      expect(decoded.draft.copyWith(title: 'Updated title').imageMediaIds, [
+        photo,
+      ]);
+      expect(
+        () => decoded.draft.imageMediaIds.add('other'),
+        throwsUnsupportedError,
+      );
+      expect(decoded.draft.copyWith(imageMediaIds: []).imageMediaIds, isEmpty);
+    });
     test('request create posts the reviewed wire fields', () async {
       transport.handler = (call) => data(requestJson());
       final result = await adapter.createRequest(

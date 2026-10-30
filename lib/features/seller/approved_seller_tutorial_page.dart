@@ -8,11 +8,13 @@ class ApprovedSellerTutorialPage extends StatefulWidget {
   const ApprovedSellerTutorialPage({
     required this.onContinue,
     required this.onClose,
+    this.name = '',
     super.key,
   });
 
   final VoidCallback onContinue;
   final VoidCallback onClose;
+  final String name;
 
   @override
   State<ApprovedSellerTutorialPage> createState() =>
@@ -133,7 +135,7 @@ class _ApprovedSellerTutorialPageState
                       SizedBox(height: metrics.spacing(14)),
                       Transform.translate(
                         offset: Offset(-metrics.geometry(9), 0),
-                        child: const _TutorialWelcome(),
+                        child: _TutorialWelcome(name: widget.name),
                       ),
                       SizedBox(height: metrics.spacing(18)),
                       Padding(
@@ -190,7 +192,7 @@ class _ApprovedSellerTutorialPageState
               SizedBox(height: metrics.spacing(14)),
               Transform.translate(
                 offset: Offset(-metrics.geometry(9), 0),
-                child: const _TutorialWelcome(),
+                child: _TutorialWelcome(name: widget.name),
               ),
               SizedBox(height: metrics.spacing(18)),
               Padding(
@@ -309,7 +311,8 @@ class _TutorialClose extends StatelessWidget {
 }
 
 class _TutorialWelcome extends StatelessWidget {
-  const _TutorialWelcome();
+  const _TutorialWelcome({required this.name});
+  final String name;
 
   @override
   Widget build(BuildContext context) {
@@ -320,14 +323,16 @@ class _TutorialWelcome extends StatelessWidget {
         width: metrics.artSize(82),
         height: metrics.artSize(82),
         fit: BoxFit.cover,
-        semanticLabel: 'Jonathan seller portrait',
+        semanticLabel: 'Seller welcome illustration',
       ),
     );
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Welcome, Jonathan',
+          name.trim().isEmpty ? 'Welcome to Hocalist' : 'Welcome, ${name.trim()}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: sellerText(metrics, 23, weight: FontWeight.w800),
         ),
         SizedBox(height: metrics.geometry(6)),

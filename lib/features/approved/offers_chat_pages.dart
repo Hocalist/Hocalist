@@ -1,3 +1,4 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
@@ -52,19 +53,65 @@ String _initialsFor(String name) {
   return initials.isEmpty ? 'NT' : initials;
 }
 
+/// Compare calendar days in the viewer's timezone, including DST boundaries.
+bool sameConversationDay(DateTime? first, DateTime? second) {
+  if (first == null || second == null) return false;
+  final a = first.toLocal();
+  final b = second.toLocal();
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+String conversationTimeLabel(DateTime timestamp) {
+  final local = timestamp.toLocal();
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour:$minute ${local.hour >= 12 ? 'PM' : 'AM'}';
+}
+
+String conversationDateLabel(DateTime timestamp, {DateTime? now}) {
+  final date = timestamp.toLocal();
+  final today = (now ?? DateTime.now()).toLocal();
+  final days = DateTime.utc(
+    today.year,
+    today.month,
+    today.day,
+  ).difference(DateTime.utc(date.year, date.month, date.day)).inDays;
+  if (days == 0) return 'Today';
+  if (days == 1) return 'Yesterday';
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return '${date.day} ${months[date.month - 1]} ${date.year}';
+}
+
 @immutable
 class ApprovedConversationEntry {
   const ApprovedConversationEntry({
     required this.isOutgoing,
     required this.time,
     this.text = '',
+    this.sentAt,
     this.attachmentLabel,
     this.attachmentIsImage = false,
     this.attachmentMediaIds = const <String>[],
+    this.isRead = false,
   });
 
   final bool isOutgoing;
+  final bool isRead;
   final String time;
+  final DateTime? sentAt;
   final String text;
   final String? attachmentLabel;
   final bool attachmentIsImage;
@@ -446,7 +493,9 @@ class _ApprovedOffersReceivedPageState
   }
 
   List<Widget> _realOfferCards(BuildContext context) {
-    final source = widget.realOffers ?? const <BuyerOfferView>[];
+    final source = widget.requestClosed
+        ? const <BuyerOfferView>[]
+        : widget.realOffers ?? const <BuyerOfferView>[];
     final visible = _underFourHundredOnly
         ? source.where((offer) {
             final value = double.tryParse(
@@ -637,6 +686,7 @@ class ApprovedViewOfferPage extends StatelessWidget {
     this.selectionError,
     this.selectionUncertain = false,
     this.onChoosePurchaseSeller,
+    this.onArrangeMeeting,
     this.purchaseBusy = false,
     this.purchaseError,
     super.key,
@@ -661,6 +711,7 @@ class ApprovedViewOfferPage extends StatelessWidget {
   /// Buyer designates the accepted seller as the final purchase. Null hides
   /// the action (prototype mode or an unavailable server path).
   final VoidCallback? onChoosePurchaseSeller;
+  final VoidCallback? onArrangeMeeting;
   final bool purchaseBusy;
   final String? purchaseError;
 
@@ -745,6 +796,11 @@ class ApprovedViewOfferPage extends StatelessWidget {
                 )
               else
                 _OfferClosedNotice(status: real.status),
+              if (real?.purchaseSelected == true && onArrangeMeeting != null)
+                BuyerPrimaryButton(
+                  label: 'Review meeting details',
+                  onPressed: onArrangeMeeting,
+                ),
             ],
           ),
         ),
@@ -830,14 +886,12 @@ class _PurchaseSellerPanel extends StatelessWidget {
     final compact =
         MediaQuery.sizeOf(context).width <= 320 &&
         !_usesAccessibilityReflow(context);
-    final title = purchaseSelected
-        ? 'Your purchase seller'
-        : 'Who did you purchase from?';
+    final title = purchaseSelected ? 'Seller confirmed' : 'Confirm your seller';
     final body = purchaseSelected
         ? 'Only this seller can confirm the purchase with your request PIN. '
               'Other negotiations close if you confirm with them.'
-        : 'Accepted sellers each keep their own chat and meeting. When you '
-              'choose one here, only that seller can complete your PIN.';
+        : 'Confirm this seller before arranging your meeting. Each deal stays '
+              'separate inside your conversation. Item payment stays offline.';
     return _Surface(
       padding: EdgeInsets.all(compact ? 5 : 7),
       child: Column(
@@ -866,7 +920,7 @@ class _PurchaseSellerPanel extends StatelessWidget {
             SizedBox(height: compact ? 4 : 6),
             _PrimaryButton(
               key: const Key('approved-choose-purchase-seller'),
-              label: busy ? 'Choosing…' : 'Choose for final purchase',
+              label: busy ? 'Confirming…' : 'Confirm seller',
               onPressed: busy ? null : onChoose,
               height: compact ? 32 : 44,
             ),
@@ -962,19 +1016,31 @@ class ApprovedDealView {
     this.placeLabel,
     this.pendingLabel,
     this.purchaseSelected = false,
+    this.actionLabel,
+    this.completed = false,
+    this.meetingAccepted = false,
   }) : assert(meetingId != null || offerId != null);
 
   final String? meetingId;
   final String? offerId;
   String get id => meetingId ?? offerId!;
 
-  factory ApprovedDealView.fromSelectedOffer(Offer offer) {
+  factory ApprovedDealView.fromSelectedOffer(Offer offer, {bool buyer = true}) {
     final terms = (offer.acceptedRevision ?? offer.latestRevision).terms;
     return ApprovedDealView(
       offerId: offer.id,
       title: offer.requestTitle ?? 'Selected offer',
       priceLabel: BuyerOfferView._formatMoney(terms.price),
-      statusLabel: 'Offer selected · arrange meeting',
+      statusLabel: offer.purchaseSelected
+          ? 'Seller confirmed · review offered meeting'
+          : 'Awaiting buyer confirmation',
+      actionLabel: offer.purchaseSelected
+          ? 'Review offered meeting'
+          : buyer
+          ? 'Confirm seller'
+          : 'Waiting for buyer',
+      scheduleLabel: "${terms.schedule.date} · ${terms.schedule.startTime}",
+      zoneLabel: terms.schedule.timezoneId,
       placeLabel: BuyerOfferView._formatPlace(terms.place),
       purchaseSelected: offer.purchaseSelected,
     );
@@ -988,6 +1054,9 @@ class ApprovedDealView {
   final String? placeLabel;
   final String? pendingLabel;
   final bool purchaseSelected;
+  final String? actionLabel;
+  final bool completed;
+  final bool meetingAccepted;
 }
 
 class ApprovedBuyerChatPage extends StatelessWidget {
@@ -1019,6 +1088,8 @@ class ApprovedBuyerChatPage extends StatelessWidget {
     this.previousDeals,
     this.onRefreshRealDeals,
     this.onOpenRealDeal,
+    this.selectedDealId,
+    this.onSelectRealDeal,
     this.messagesLoading = false,
     this.messagesError,
     this.onRefreshMessages,
@@ -1082,6 +1153,8 @@ class ApprovedBuyerChatPage extends StatelessWidget {
 
   /// Opens the authoritative meeting/management surface for one deal card.
   final ValueChanged<String>? onOpenRealDeal;
+  final String? selectedDealId;
+  final ValueChanged<String>? onSelectRealDeal;
   final bool messagesLoading;
   final String? messagesError;
   final VoidCallback? onRefreshMessages;
@@ -1153,6 +1226,8 @@ class ApprovedBuyerChatPage extends StatelessWidget {
         previousDeals: previousDeals,
         onRefreshRealDeals: onRefreshRealDeals,
         onOpenRealDeal: onOpenRealDeal,
+        selectedDealId: selectedDealId,
+        onSelectRealDeal: onSelectRealDeal,
         messagesLoading: messagesLoading,
         messagesError: messagesError,
         onRefreshMessages: onRefreshMessages,
@@ -1220,6 +1295,8 @@ class ApprovedConversationBody extends StatefulWidget {
     this.previousDeals,
     this.onRefreshRealDeals,
     this.onOpenRealDeal,
+    this.selectedDealId,
+    this.onSelectRealDeal,
     this.messagesLoading = false,
     this.messagesError,
     this.onRefreshMessages,
@@ -1228,6 +1305,7 @@ class ApprovedConversationBody extends StatefulWidget {
     this.olderError,
     this.sending = false,
     this.sendError,
+    this.onManagePayment,
     this.onSubmitMessage,
     this.initialDraft,
     this.muted,
@@ -1295,6 +1373,8 @@ class ApprovedConversationBody extends StatefulWidget {
 
   /// Opens the authoritative meeting/management surface for one deal card.
   final ValueChanged<String>? onOpenRealDeal;
+  final String? selectedDealId;
+  final ValueChanged<String>? onSelectRealDeal;
   final bool messagesLoading;
   final String? messagesError;
   final VoidCallback? onRefreshMessages;
@@ -1303,6 +1383,7 @@ class ApprovedConversationBody extends StatefulWidget {
   final String? olderError;
   final bool sending;
   final String? sendError;
+  final VoidCallback? onManagePayment;
   final Future<bool> Function(String)? onSubmitMessage;
   final String? initialDraft;
 
@@ -1343,7 +1424,17 @@ class ApprovedConversationBody extends StatefulWidget {
 }
 
 class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
+  ApprovedDealView? get _selectedRealDeal =>
+      <ApprovedDealView>[...?widget.realDeals, ...?widget.previousDeals]
+          .where(
+            (deal) =>
+                deal.id == widget.selectedDealId ||
+                deal.offerId == widget.selectedDealId,
+          )
+          .firstOrNull ??
+      widget.realDeals?.firstOrNull;
   final _controller = TextEditingController();
+  final Map<String?,String> _dealDrafts = {};
   bool _messagesMuted = false;
   bool _muteWritePending = false;
   bool _secondDealAdded = false;
@@ -1363,6 +1454,10 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
   @override
   void didUpdateWidget(covariant ApprovedConversationBody oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if(widget.usesRealEntries && widget.selectedDealId!=oldWidget.selectedDealId) {
+      _dealDrafts[oldWidget.selectedDealId]=_controller.text;
+      _controller.text=widget.initialDraft ?? _dealDrafts[widget.selectedDealId] ?? '';
+    }
     for (final entry in widget.sentEntries) {
       final alreadyPresent = _sentEntries.any(
         (existing) =>
@@ -1446,7 +1541,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     }
     final submit = widget.onSubmitMessage;
     if (submit == null) {
-      _message('Chat is unavailable. Refresh the conversation and try again.');
+      _message('Chat is unavailable. Please try again.');
       return;
     }
     const prefix = 'Change request: ';
@@ -2062,6 +2157,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
           onClose: () => Navigator.pop(sheetContext),
           onOpenDeal: (meetingId) {
             Navigator.pop(sheetContext);
+            widget.onSelectRealDeal?.call(meetingId);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) unawaited(_showRealDealDetails(meetingId));
             });
@@ -2109,130 +2205,198 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                  sliver: PinnedHeaderSliver(
+                    child: ColoredBox(
+                      color: HocalistPalette.surface(context, Colors.white),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight:
+                              (MediaQuery.sizeOf(context).height -
+                                  MediaQuery.viewInsetsOf(context).bottom) *
+                              (MediaQuery.textScalerOf(context).scale(16) / 16 >
+                                      1.3
+                                  ? .8
+                                  : .65),
+                        ),
+                        child: SingleChildScrollView(
+                          key: const Key('chat-pinned-header-scroll'),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _ChatHeader(
+                                prototypeStatus: !widget.usesRealEntries,
+                                onBack: widget.onBack,
+                                onCall: widget.onCall,
+                                callLabel: widget.viewerIsSeller
+                                    ? 'Call buyer'
+                                    : 'Call seller',
+                                onMore: _showConversationMenu,
+                                contactName: widget.usesRealEntries
+                                    ? (widget.realContactName
+                                                  ?.trim()
+                                                  .isNotEmpty ==
+                                              true
+                                          ? widget.realContactName!.trim()
+                                          : (widget.viewerIsSeller
+                                                ? 'Buyer'
+                                                : 'Seller'))
+                                    : widget.contactName,
+                                contactRoleLabel: widget.usesRealEntries
+                                    ? 'Conversation'
+                                    : widget.contactRoleLabel,
+                                contactInitials: widget.usesRealEntries
+                                    ? (widget.viewerIsSeller ? 'B' : 'S')
+                                    : widget.contactInitials,
+                              ),
+                              if (!widget.usesRealEntries &&
+                                  widget.viewerIsSeller &&
+                                  widget.requestChangePending) ...[
+                                const SizedBox(height: 10),
+                                _RequestUpdatedNotice(
+                                  onContinue:
+                                      widget.onContinueWithRequest ?? () {},
+                                  onWithdraw:
+                                      widget.onWithdrawFromRequest ?? () {},
+                                ),
+                              ],
+                              const SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      widget.usesRealEntries
+                                          ? ((widget.realDeals?.isEmpty ?? true)
+                                                ? 'Active Deals'
+                                                : 'Active Deals (${widget.realDeals!.length})')
+                                          : 'Active Deals (${_secondDealAdded ? 2 : 1})',
+                                      style: _text(
+                                        context,
+                                        size: 15,
+                                        weight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    key: const Key(
+                                      'approved-manage-conversation-deals',
+                                    ),
+                                    onPressed: _showConversationDeals,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: HocalistPalette.text(
+                                        context,
+                                        _blue,
+                                      ),
+                                      minimumSize: const Size(44, 40),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                    ),
+                                    icon: BuyerGlyphIcon(
+                                      icon: Icons.tune_rounded,
+                                      slotSize: 18,
+                                      glyphSize: 18,
+                                      color: HocalistPalette.text(
+                                        context,
+                                        _blue,
+                                      ),
+                                    ),
+                                    label: Text(
+                                      'Manage',
+                                      style: _text(
+                                        context,
+                                        size: 11,
+                                        weight: FontWeight.w800,
+                                        color: _blue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              if (!widget.usesRealEntries)
+                                _ActiveDealsPanel(
+                                  offer: widget.offer,
+                                  viewerIsSeller: widget.viewerIsSeller,
+                                  meetingConfirmed: widget.meetingConfirmed,
+                                  offerRevisionPending:
+                                      widget.offerRevisionPending,
+                                  secondDealAdded: _secondDealAdded,
+                                  onOpenDeal: _showDealDetails,
+                                  onLongPressDeal: _showDealDetails,
+                                  onAddDeal: () {
+                                    setState(() => _secondDealAdded = true);
+                                    _message(
+                                      'A second deal was added to this conversation.',
+                                    );
+                                  },
+                                )
+                              else
+                                _RealActiveDealsPanel(
+                                  deals: widget.realDeals,
+                                  selectedDealId: widget.selectedDealId,
+                                  loading: widget.realDealsLoading,
+                                  error: widget.realDealsError,
+                                  onRefresh: widget.onRefreshRealDeals,
+                                  onViewDeal: (id) {
+                                    final open = widget.onOpenRealDeal;
+                                    if (open != null) {
+                                      open(id);
+                                    } else {
+                                      unawaited(_showRealDealDetails(id));
+                                    }
+                                  },
+                                  onOpenDeal: (meetingId) {
+                                    if (widget.onSelectRealDeal != null) {
+                                      widget.onSelectRealDeal!(meetingId);
+                                    } else {
+                                      unawaited(
+                                        _showRealDealDetails(meetingId),
+                                      );
+                                    }
+                                  },
+                                ),
+                              const SizedBox(height: 12),
+                              if (widget.usesRealEntries) ...[
+                                if (_selectedRealDeal != null)
+                                  Text(
+                                    'Selected deal: ${_selectedRealDeal!.title}',
+                                    key: const Key('chat-selected-deal'),
+                                    style: _text(
+                                      context,
+                                      size: 12,
+                                      weight: FontWeight.w800,
+                                    ),
+                                  ),
+                              ],
+                              if (widget.usesRealEntries &&
+                                  widget.blockState != null &&
+                                  (widget.blockState!.isBlockedByMe ||
+                                      widget
+                                          .blockState!
+                                          .blockedByCounterpart)) ...[
+                                _BlockedConversationNotice(
+                                  blockedByMe: widget.blockState!.isBlockedByMe,
+                                  onUnblock: widget.blockState!.isBlockedByMe
+                                      ? () => _showUnblockConfirmation(
+                                          widget.viewerIsSeller
+                                              ? 'buyer'
+                                              : 'seller',
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                   sliver: SliverList.list(
                     children: [
-                      _ChatHeader(
-                        prototypeStatus: !widget.usesRealEntries,
-                        onBack: widget.onBack,
-                        onCall: widget.onCall,
-                        callLabel: widget.viewerIsSeller
-                            ? 'Call buyer'
-                            : 'Call seller',
-                        onMore: _showConversationMenu,
-                        contactName: widget.usesRealEntries
-                            ? (widget.realContactName?.trim().isNotEmpty == true
-                                  ? widget.realContactName!.trim()
-                                  : (widget.viewerIsSeller
-                                        ? 'Buyer'
-                                        : 'Seller'))
-                            : widget.contactName,
-                        contactRoleLabel: widget.usesRealEntries
-                            ? 'Conversation'
-                            : widget.contactRoleLabel,
-                        contactInitials: widget.usesRealEntries
-                            ? (widget.viewerIsSeller ? 'B' : 'S')
-                            : widget.contactInitials,
-                      ),
-                      if (!widget.usesRealEntries &&
-                          widget.viewerIsSeller &&
-                          widget.requestChangePending) ...[
-                        const SizedBox(height: 10),
-                        _RequestUpdatedNotice(
-                          onContinue: widget.onContinueWithRequest ?? () {},
-                          onWithdraw: widget.onWithdrawFromRequest ?? () {},
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.usesRealEntries
-                                  ? ((widget.realDeals?.isEmpty ?? true)
-                                        ? 'Active Deals'
-                                        : 'Active Deals (${widget.realDeals!.length})')
-                                  : 'Active Deals (${_secondDealAdded ? 2 : 1})',
-                              style: _text(
-                                context,
-                                size: 15,
-                                weight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          TextButton.icon(
-                            key: const Key(
-                              'approved-manage-conversation-deals',
-                            ),
-                            onPressed: _showConversationDeals,
-                            style: TextButton.styleFrom(
-                              foregroundColor: HocalistPalette.text(
-                                context,
-                                _blue,
-                              ),
-                              minimumSize: const Size(44, 40),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                              ),
-                            ),
-                            icon: BuyerGlyphIcon(
-                              icon: Icons.tune_rounded,
-                              slotSize: 18,
-                              glyphSize: 18,
-                              color: HocalistPalette.text(context, _blue),
-                            ),
-                            label: Text(
-                              'Manage',
-                              style: _text(
-                                context,
-                                size: 11,
-                                weight: FontWeight.w800,
-                                color: _blue,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      if (!widget.usesRealEntries)
-                        _ActiveDealsPanel(
-                          offer: widget.offer,
-                          viewerIsSeller: widget.viewerIsSeller,
-                          meetingConfirmed: widget.meetingConfirmed,
-                          offerRevisionPending: widget.offerRevisionPending,
-                          secondDealAdded: _secondDealAdded,
-                          onOpenDeal: _showDealDetails,
-                          onLongPressDeal: _showDealDetails,
-                          onAddDeal: () {
-                            setState(() => _secondDealAdded = true);
-                            _message(
-                              'A second deal was added to this conversation.',
-                            );
-                          },
-                        )
-                      else
-                        _RealActiveDealsPanel(
-                          deals: widget.realDeals,
-                          loading: widget.realDealsLoading,
-                          error: widget.realDealsError,
-                          onRefresh: widget.onRefreshRealDeals,
-                          onOpenDeal: (meetingId) =>
-                              unawaited(_showRealDealDetails(meetingId)),
-                        ),
-                      const SizedBox(height: 12),
-                      if (widget.usesRealEntries &&
-                          widget.blockState != null &&
-                          (widget.blockState!.isBlockedByMe ||
-                              widget.blockState!.blockedByCounterpart)) ...[
-                        _BlockedConversationNotice(
-                          blockedByMe: widget.blockState!.isBlockedByMe,
-                          onUnblock: widget.blockState!.isBlockedByMe
-                              ? () => _showUnblockConfirmation(
-                                  widget.viewerIsSeller ? 'buyer' : 'seller',
-                                )
-                              : null,
-                        ),
-                        const SizedBox(height: 10),
-                      ],
                       if (widget.usesRealEntries) ...[
                         if (widget.olderError != null) Text(widget.olderError!),
                         if (widget.onLoadOlder != null)
@@ -2266,7 +2430,44 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                 'conversation.',
                           )
                         else
-                          for (final entry in widget.realEntries!) ...[
+                          for (final (index, entry)
+                              in widget.realEntries!.indexed) ...[
+                            if (entry.sentAt != null &&
+                                (index == 0 ||
+                                    !sameConversationDay(
+                                      widget.realEntries![index - 1].sentAt,
+                                      entry.sentAt,
+                                    )))
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: Center(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: HocalistPalette.surface(
+                                        context,
+                                        _lavender,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      child: Text(
+                                        conversationDateLabel(entry.sentAt!),
+                                        style: _text(
+                                          context,
+                                          size: 11,
+                                          weight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             const SizedBox(height: 6),
                             if (entry.isOutgoing)
                               _OutgoingMessage(
@@ -2275,6 +2476,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                     : entry.text,
                                 time: entry.time,
                                 attachmentMediaIds: entry.attachmentMediaIds,
+                                isRead: entry.isRead,
                               )
                             else
                               _IncomingMessage(
@@ -2302,6 +2504,14 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                               color: const Color(0xFFD32F2F),
                             ),
                           ),
+                          if (widget.viewerIsSeller && widget.onManagePayment != null) ...[
+                            const SizedBox(height: 8),
+                            BuyerPrimaryButton(
+                              key: const Key('approvedChatManagePayment'),
+                              onPressed: widget.onManagePayment,
+                              label: 'Manage payment',
+                            ),
+                          ],
                         ],
                       ] else ...[
                         const _DateDivider(),
@@ -3774,8 +3984,13 @@ class _OfferSellerSummary extends StatelessWidget {
                         const SizedBox(height: 3),
                         if (realMode)
                           Text(
-                            'Offer received. Seller details appear after you '
-                            'select this seller.',
+                            offer?.status == LocalOfferStatus.completed
+                                ? 'Purchase completed with this seller.'
+                                : offer?.status == LocalOfferStatus.selected ||
+                                      offer?.status ==
+                                          LocalOfferStatus.meetingConfirmed
+                                ? 'Selected for discussion. Review the agreed deal details below.'
+                                : 'Offer received. Select this seller to open your conversation.',
                             style: _text(
                               context,
                               size: compact ? 8 : 9,
@@ -5121,24 +5336,28 @@ class _NewDealCard extends StatelessWidget {
 class _RealActiveDealsPanel extends StatelessWidget {
   const _RealActiveDealsPanel({
     required this.deals,
+    this.selectedDealId,
     required this.loading,
     required this.error,
     required this.onRefresh,
     required this.onOpenDeal,
+    required this.onViewDeal,
   });
 
   final List<ApprovedDealView>? deals;
+  final String? selectedDealId;
   final bool loading;
   final String? error;
   final VoidCallback? onRefresh;
   final ValueChanged<String> onOpenDeal;
+  final ValueChanged<String> onViewDeal;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final spacing = constraints.maxWidth < 330 ? 6.0 : 9.0;
-        final baseHeight = constraints.maxWidth < 330 ? 118.0 : 134.0;
+        final baseHeight = constraints.maxWidth < 330 ? 148.0 : 164.0;
         final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
         final height = baseHeight + ((textScale - 1).clamp(0, 1) * 68);
         final list = deals;
@@ -5185,7 +5404,12 @@ class _RealActiveDealsPanel extends StatelessWidget {
                   child: _RealDealCard(
                     key: ValueKey('active-deal-${deal.id}'),
                     deal: deal,
+                    selected:
+                        selectedDealId == null ||
+                        deal.id == selectedDealId ||
+                        deal.offerId == selectedDealId,
                     onTap: () => onOpenDeal(deal.id),
+                    onViewDetails: () => onViewDeal(deal.id),
                   ),
                 ),
                 SizedBox(width: spacing),
@@ -5207,7 +5431,12 @@ class _RealActiveDealsPanel extends StatelessWidget {
                   child: _RealDealCard(
                     key: ValueKey('active-deal-${deal.id}'),
                     deal: deal,
+                    selected:
+                        deal.id == selectedDealId ||
+                        deal.offerId == selectedDealId ||
+                        (selectedDealId == null && deal == list.first),
                     onTap: () => onOpenDeal(deal.id),
+                    onViewDetails: () => onViewDeal(deal.id),
                   ),
                 ),
                 SizedBox(width: spacing),
@@ -5301,10 +5530,18 @@ class _RealDealStateCard extends StatelessWidget {
 /// meeting/offer projection carries no media reference, and a prototype image
 /// must never stand in for real inventory.
 class _RealDealCard extends StatelessWidget {
-  const _RealDealCard({required this.deal, required this.onTap, super.key});
+  const _RealDealCard({
+    required this.deal,
+    required this.onTap,
+    required this.onViewDetails,
+    this.selected = false,
+    super.key,
+  });
 
   final ApprovedDealView deal;
+  final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -5338,8 +5575,11 @@ class _RealDealCard extends StatelessWidget {
               padding: EdgeInsets.all(compact ? 7 : 9),
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: HocalistPalette.border(context, _blue),
-                  width: 1.2,
+                  color: HocalistPalette.border(
+                    context,
+                    selected ? _blue : const Color(0xffd8d9e5),
+                  ),
+                  width: selected ? 2.2 : 1.2,
                 ),
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -5434,13 +5674,37 @@ class _RealDealCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          deal.scheduleLabel ?? 'Meeting not scheduled',
+                          deal.scheduleLabel ??
+                              (deal.meetingId != null
+                                  ? 'Meeting time unavailable'
+                                  : deal.purchaseSelected
+                                  ? 'Ready to propose meeting'
+                                  : 'Buyer confirmation pending'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: _text(context, size: compact ? 7 : 8.5),
                         ),
                       ),
                     ],
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      key: ValueKey('deal-details-${deal.id}'),
+                      onPressed: onViewDetails,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: HocalistPalette.text(context, _blue),
+                        textStyle: _text(
+                          context,
+                          size: compact ? 10 : 11,
+                          weight: FontWeight.w800,
+                        ),
+                      ),
+                      child: const Text('View details'),
+                    ),
                   ),
                 ],
               ),
@@ -5590,7 +5854,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
               tone: BuyerNoticeTone.error,
               title: 'Active deals may be out of date',
               body: error,
-              actionLabel: onRefresh == null ? null : 'Refresh',
+              actionLabel: onRefresh == null ? null : 'Try again',
               onAction: onRefresh,
             ),
           ],
@@ -5805,7 +6069,9 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                       ),
                     ),
                     SizedBox(height: metrics.geometry(6)),
-                    Row(
+                    Wrap(
+                      spacing: metrics.geometry(6),
+                      runSpacing: metrics.geometry(6),
                       children: [
                         Container(
                           padding: metrics.geometryInsets(
@@ -5832,7 +6098,6 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                           ),
                         ),
                         if (deal.purchaseSelected) ...[
-                          SizedBox(width: metrics.geometry(6)),
                           Container(
                             padding: metrics.geometryInsets(
                               const EdgeInsets.symmetric(
@@ -5900,19 +6165,16 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(height: metrics.geometry(12)),
-          Text(
-            'Inspect the item before paying the seller offline.',
-            style: _text(context, size: 10.5, color: _muted, height: 1.35),
-          ),
           SizedBox(height: metrics.geometry(16)),
           BuyerPrimaryButton(
             key: const ValueKey('approved-real-deal-open-meeting'),
-            label: deal.meetingId == null
-                ? 'Arrange meeting'
-                : viewerIsSeller
-                ? 'Review meeting details'
-                : 'Open meeting details',
+            label:
+                deal.actionLabel ??
+                (deal.meetingId == null
+                    ? 'Arrange meeting'
+                    : viewerIsSeller
+                    ? 'Review meeting details'
+                    : 'Open meeting details'),
             onPressed: onOpenMeeting,
           ),
           if (onOpenMeeting == null) ...[
@@ -5932,6 +6194,13 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
               onPressed: onViewOriginalRequest,
             ),
           ],
+          SizedBox(height: metrics.geometry(12)),
+          Text(
+            deal.completed
+                ? 'This purchase is complete. Item payment was handled offline.'
+                : 'Inspect the item before paying the seller offline.',
+            style: _text(context, size: 10.5, color: _muted, height: 1.35),
+          ),
         ],
       ),
     );
@@ -6372,16 +6641,6 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
                         ? 'Today • 5:00 PM'
                         : '${widget.offer!.meetingDate} • ${widget.offer!.meetingTime}',
                   ),
-                  SizedBox(height: metrics.geometry(5)),
-                  Text(
-                    'Inspect the item before paying the seller offline.',
-                    style: _text(
-                      context,
-                      size: 10.5,
-                      color: _muted,
-                      height: 1.35,
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -6446,6 +6705,14 @@ class _ApprovedDealDetailsSheetState extends State<_ApprovedDealDetailsSheet> {
             TextButton(
               onPressed: widget.onRequestChange,
               child: const Text('Request different terms'),
+            ),
+          ],
+          if (_showMeetingDetails) ...[
+            SizedBox(height: metrics.geometry(12)),
+            Text(
+              'Inspect the item before paying the seller offline.',
+              key: const ValueKey('deal-safety-caution'),
+              style: _text(context, size: 10.5, color: _muted, height: 1.35),
             ),
           ],
         ],
@@ -6820,7 +7087,7 @@ class _ApprovedSearchConversationSheetState
                 child: SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                  child: HocalistLoadingIndicator(strokeWidth: 2.4),
                 ),
               ),
             ] else if (_serverError != null) ...[
@@ -8078,11 +8345,13 @@ class _OutgoingMessage extends StatelessWidget {
     required this.text,
     required this.time,
     this.attachmentMediaIds = const <String>[],
+    this.isRead = false,
     super.key,
   });
   final String text;
   final String time;
   final List<String> attachmentMediaIds;
+  final bool isRead;
 
   @override
   Widget build(BuildContext context) {
@@ -8152,10 +8421,13 @@ class _OutgoingMessage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 5),
-                _asset(
-                  'chat-checks.png',
-                  width: compact ? 16 : 19,
-                  height: compact ? 12 : 14,
+                Semantics(
+                  label: isRead ? 'Read' : 'Sent',
+                  child: Icon(
+                    isRead ? Icons.done_all : Icons.done,
+                    size: compact ? 14 : 17,
+                    color: isRead ? const Color(0xFF9FF5DA) : Colors.white70,
+                  ),
                 ),
               ],
             ),

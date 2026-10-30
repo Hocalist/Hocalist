@@ -57,6 +57,20 @@ class FakePlacesTransport implements PlacesTransport {
 }
 
 void main() {
+  test('saved addresses resolve their timezone only for one provider match', () async {
+    final transport = FakePlacesTransport()
+      ..onDetails = (id, token) async => PlacesTransportResult({
+        'placeId': id,'address':'123 Synthetic Ave','latitude':40.9,'longitude':-73.8,
+        'timezoneId':'America/New_York','attributions':<Object?>[],
+      });
+    final repository=PlacesRepository(transport:transport);
+    expect((await repository.resolveSavedAddress('123 Synthetic Ave'))?.timezoneId,'America/New_York');
+    expect(transport.sessionTokens.toSet().length,1);
+    transport.onSearch = (_, token) async => const PlacesTransportResult({'suggestions':[
+      {'placeId':'one','label':'First address'},{'placeId':'two','label':'Second address'},
+    ]});
+    expect(await repository.resolveSavedAddress('Ambiguous Street'),isNull);
+  });
   group('PlacesSession', () {
     test('generates a UUID v4 token and expires after the max age', () {
       final session = PlacesSession.start(now: DateTime.utc(2026, 5, 1, 12));

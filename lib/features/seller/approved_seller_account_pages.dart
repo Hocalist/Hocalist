@@ -1,7 +1,9 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../components/hocalist_paged_list.dart';
 import '../account/device_push_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -157,6 +159,7 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
     this.securityStatus,
     this.pendingEmailChange,
     this.onAccountLifecycle,
+    this.contactEditor,
     super.key,
   });
 
@@ -179,11 +182,12 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
 
   /// Consent, export and deletion-request entry.
   final VoidCallback? onAccountLifecycle;
+  final Widget? contactEditor;
 
   @override
   Widget build(BuildContext context) {
     return _SellerSubpageBlock(
-      tabbed: true,
+      tabbed: false,
       key: const Key('approvedSellerSettingsPage'),
       title: 'Account Settings',
       subtitle: 'Manage your Seller account, preferences, and privacy.',
@@ -230,27 +234,11 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
             ),
           ],
         ),
-        _SellerSubpageSection(
-          title: 'Marketplace privacy',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.visibility_outlined,
-              title: 'Public Seller visibility',
-              body:
-                  'Buyers see trust and service details without private contact information.',
-              status: 'Manage public profile',
-              onTap: onEditProfile,
-            ),
-            _SellerSubpageRow(
-              icon: Icons.location_on_outlined,
-              title: 'Service-area privacy',
-              body:
-                  'Only your approximate service area is shown before a meeting is confirmed.',
-              status: 'Manage service area',
-              onTap: onEditProfile,
-            ),
-          ],
-        ),
+        if (contactEditor != null)
+          _SellerSubpageSection(
+            title: 'Private contact',
+            children: [contactEditor!],
+          ),
         if (onAccountLifecycle != null)
           _SellerSubpageSection(
             title: 'Account management',
@@ -664,19 +652,18 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
                 context,
                 title: 'How targeting credits work',
                 answer:
-                    'Targeting fees use HocaCredits bought through deposits. '
+                    'Targeting fees are recorded in HocaCredits. '
                     'Each successful deposit creates its own batch with frozen '
                     'rates. Hocalist spends from the oldest batch that can cover '
-                    'the full fee for one customer and never combines batches. '
-                    'The full winning fee is reserved when an offer is accepted. '
-                    'The initial fee is charged once both parties message, '
+                    'the full fee for one customer. Pay as you go uses an '
+                    'authorised card and any eligible returned credits. '
+                    'Sending an offer does not charge the initial fee. '
+                    'For Free and Pro, the buyer\'s reply triggers it for that deal. '
+                    'Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline; eligible no-purchase fees are waived, '
                     'and a confirmed purchase charges only the difference up to that '
                     'batch\'s winning total. One targeted customer uses one '
                     'weekly slot; credits and weekly slots are separate. '
                     'Unused batch remainders stay in your balance. '
-                    'Example for the Elite deposit batches: a \$20 deposit holds '
-                    'the 1.55 HC initial / 3.75 HC winning rates, and a \$40 '
-                    'deposit holds the 1.45 HC initial / 3.25 HC winning rates. '
                     'See Plans & credits for your batch history and weekly usage.',
               ),
             ),
@@ -1442,7 +1429,7 @@ class _ApprovedSellerNotificationsPageState
                       child: SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                        child: HocalistLoadingIndicator(strokeWidth: 2.4),
                       ),
                     ),
                   );
@@ -1470,7 +1457,8 @@ class _ApprovedSellerNotificationsPageState
                     ],
                   );
                 }
-                if (_visible.isEmpty) {
+                if (_visible.isEmpty &&
+                    !(repository?.notificationsHasMore ?? false)) {
                   final filtered = _filter != _SellerNotificationFilter.all;
                   final label = _label(_filter);
                   return Padding(
@@ -1523,14 +1511,18 @@ class _ApprovedSellerNotificationsPageState
                     ),
                   );
                 }
-                return Column(
-                  children: [
-                    for (final item in _visible)
-                      _SellerNotificationRow(
-                        item: item,
-                        onTap: () => unawaited(_openItem(item)),
-                      ),
-                  ],
+                return HocalistPagedList<_SellerNotificationData>(
+                  items: _visible,
+                  resetKey: _filter,
+                  hasMore: _realMode && repository!.notificationsHasMore,
+                  loadedCount: repository?.notifications.length,
+                  loadMore: _realMode
+                      ? repository!.loadMoreNotifications
+                      : null,
+                  itemBuilder: (context, item) => _SellerNotificationRow(
+                    item: item,
+                    onTap: () => unawaited(_openItem(item)),
+                  ),
                 );
               },
             ),
@@ -1804,7 +1796,7 @@ class _ApprovedSellerNotificationPreferencesPageState
                   child: SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                    child: HocalistLoadingIndicator(strokeWidth: 2.4),
                   ),
                 ),
               )
@@ -2294,8 +2286,9 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
             _SellerSubpageSection(
               title: 'Your offers',
               children: [
-                for (final offer in realOffers!)
-                  _SellerSubpageRow(
+                HocalistPagedList<SellerOfferView>(
+                  items: realOffers!,
+                  itemBuilder: (context, offer) => _SellerSubpageRow(
                     icon: Icons.tablet_mac_outlined,
                     title: offer.requestTitle,
                     body: '${offer.priceLabel}  ${offer.placeLabel}',
@@ -2309,6 +2302,7 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
                       }
                     },
                   ),
+                ),
               ],
             ),
         ] else ...[
@@ -2353,6 +2347,7 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
     this.withdrawError,
     this.onWithdraw,
     this.onEdit,
+    this.onArrangeMeeting,
     super.key,
   });
 
@@ -2366,6 +2361,7 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
   final String? withdrawError;
   final VoidCallback? onWithdraw;
   final VoidCallback? onEdit;
+  final VoidCallback? onArrangeMeeting;
 
   @override
   Widget build(BuildContext context) {
@@ -2457,6 +2453,11 @@ class ApprovedSellerOfferDetailPage extends StatelessWidget {
             ),
           ),
         ],
+        if (offer?.purchaseSelected == true && onArrangeMeeting != null)
+          SellerPrimaryButton(
+            label: 'Review meeting details',
+            onPressed: onArrangeMeeting,
+          ),
         SellerPrimaryButton(
           key: const Key('sellerOfferDetailChat'),
           label: 'Open conversation',
@@ -3347,7 +3348,7 @@ class ApprovedSellerOriginalRequestPage extends StatelessWidget {
         subtitle: 'Latest request details shared by the buyer.',
         onBack: onBack,
         children: [
-          if (loading) const Center(child: CircularProgressIndicator()),
+          if (loading) const Center(child: HocalistLoadingIndicator()),
           if (!loading && (error != null || record == null)) ...[
             Text(error ?? 'This conversation has no available request.'),
             if (onRetry != null)
@@ -3907,7 +3908,17 @@ class _SellerSubpageBlock extends StatelessWidget {
               ? ['Credits', 'Activity', 'Plans']
               : editing
               ? ['Seller info', 'Categories', 'Private contact']
-              : ['Security', 'Preferences', 'Privacy'])
+              : [
+                  'Security',
+                  'Preferences',
+                  'Privacy',
+                  if (children.any(
+                    (c) =>
+                        c is _SellerSubpageSection &&
+                        c.title == 'Private contact',
+                  ))
+                    'Private contact',
+                ])
         label: [],
     };
     for (final child in children) {
@@ -3932,6 +3943,8 @@ class _SellerSubpageBlock extends StatelessWidget {
                 : section == 'Seller categories'
                 ? 'Categories'
                 : 'Private contact')
+          : section == 'Private contact'
+          ? 'Private contact'
           : (section == 'Account' || section == 'Account management'
                 ? 'Security'
                 : section == 'Preferences'

@@ -22,6 +22,7 @@ class ApprovedSellerStorePage extends StatefulWidget {
     required this.onStoreSettings,
     this.sellerName,
     this.sellerProfileId,
+    this.imageUpload,
     this.questionLoader = loadCategoryQuestions,
     super.key,
   });
@@ -32,6 +33,7 @@ class ApprovedSellerStorePage extends StatefulWidget {
   /// Authoritative seller display name for the real public preview.
   final String? sellerName;
   final String? sellerProfileId;
+  final ImageUpload? imageUpload;
   final CategoryQuestionLoader questionLoader;
 
   @override
@@ -88,6 +90,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _AddStoreListingSheet(
+        imageUpload: widget.imageUpload,
         initialListing: listing,
         storeBacked: widget.repository.isStoreBacked,
         questionLoader: widget.questionLoader,
@@ -1552,6 +1555,7 @@ class _AddStoreListingSheet extends StatefulWidget {
     required this.initialListing,
     required this.onSave,
     this.storeBacked = false,
+    this.imageUpload,
     this.questionLoader = loadCategoryQuestions,
     this.categories = const <StoreCategoryOption>[],
     this.onReconcile,
@@ -1560,6 +1564,7 @@ class _AddStoreListingSheet extends StatefulWidget {
   final LocalStoreListing? initialListing;
   final _StoreEditorSave onSave;
   final bool storeBacked;
+  final ImageUpload? imageUpload;
   final CategoryQuestionLoader questionLoader;
   final List<StoreCategoryOption> categories;
   final VoidCallback? onReconcile;
@@ -1993,15 +1998,30 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
                 )
                 .toList(),
           ),
-          if (configuredImageUpload('store') case final upload?)
+          if ((widget.imageUpload ?? configuredImageUpload('store'))
+              case final upload?)
             PrivateImagePicker(
               upload: upload,
+              existingImageCount: _existingImageIds.length,
               maxImages: 10 - _existingImageIds.length,
               onPendingChanged: (value) =>
                   setState(() => _imagePending = value),
               enabled: !_saving && !_ambiguous,
               onChanged: (ids) => setState(() => _newImageIds = ids),
+            )
+          else ...[
+            const SellerStateNotice(
+              icon: Icons.photo_library_outlined,
+              tone: SellerNoticeTone.error,
+              title: 'Photo tools could not be loaded',
+              body:
+                  'Retry to restore the photo picker. Your listing details are kept.',
             ),
+            SellerSecondaryButton(
+              label: 'Retry photo tools',
+              onPressed: () => setState(() {}),
+            ),
+          ],
         ] else
           OutlinedButton.icon(
             key: const Key('sellerStoreAddImages'),
@@ -2579,7 +2599,7 @@ class _StorePendingNotice extends StatelessWidget {
         children: [
           Text(
             'We could not confirm the previous save. Retry to check it safely, '
-            'or discard it and refresh.',
+            'or discard the pending change.',
             style: sellerText(
               metrics,
               10,

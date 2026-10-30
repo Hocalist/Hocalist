@@ -1,3 +1,7 @@
+import 'dart:async';
+import '../../data/phase2/maps/places_repository.dart';
+import '../../data/phase2/maps/places_contract.dart';
+import '../../domain/phase2/common.dart';
 import '../../components/hocalist_account_field.dart';
 import 'package:flutter/material.dart';
 import '../../domain/phase2/account_contacts.dart';
@@ -7,14 +11,33 @@ import '../../theme/buyer_ui_foundation.dart';
 import '../approved/approved_replica_metrics.dart';
 import 'hocalist_account_controller.dart';
 
+PostalAddress contactAddressFromPlace(PlaceDetails place) {
+  final value=place.postalAddress;
+  return PostalAddress(
+    line1:value?.line1?.trim().isNotEmpty==true ? value!.line1 : place.address,
+    line2:value?.line2,city:value?.city,state:value?.state,
+    postalCode:value?.postalCode,country:value?.country,
+  );
+}
+
 class PrivateContactEditor extends StatefulWidget {
   const PrivateContactEditor({
     required this.readCurrent,
     required this.onSave,
     this.seller = false,
+    this.places,
+    this.onResolvedAddress,
+    this.onDiscard,
+    this.addressTitle,
+    this.showPhone = true,
     super.key,
   });
   final bool seller;
+  final String? addressTitle;
+  final bool showPhone;
+  final PlacesRepository? places;
+  final ValueChanged<PlaceDetails>? onResolvedAddress;
+  final VoidCallback? onDiscard;
   final PrivateContactRecord? Function() readCurrent;
   final Future<void> Function(UpdateContactCommand) onSave;
   @override
@@ -27,13 +50,44 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
   UpdateContactCommand? pending;
   bool busy = false;
   String? message;
+  List<String> _loadedValues = const [];
+  Timer? _searchDebounce;
+  int _addressEpoch = 0;
+  PlacesSession? _addressSession;
+  List<PlaceSuggestion> _addressSuggestions = const [];
+  bool _resolvingAddress = false;
+  String? _addressSearchError;
   @override
   void initState() {
     super.initState();
     load();
   }
 
+  @override
+  void didUpdateWidget(covariant PrivateContactEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final latest = widget.readCurrent();
+    final clean =
+        _loadedValues.length == fields.length &&
+        List.generate(
+          fields.length,
+          (i) => fields[i].text == _loadedValues[i],
+        ).every((same) => same);
+    if (!busy &&
+        pending == null &&
+        (latest?.userId != base?.userId ||
+            (clean && latest?.stamp.revision != base?.stamp.revision))) {
+      load();
+    }
+  }
+
   void load() {
+    _searchDebounce?.cancel();
+    _addressEpoch++;
+    _addressSession=null;
+    _addressSuggestions=const [];
+    _resolvingAddress=false;
+    _addressSearchError=null;
     base = widget.readCurrent();
     final c = base?.contact;
     final values = [
@@ -48,14 +102,72 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
     for (var i = 0; i < fields.length; i++) {
       fields[i].text = values[i] ?? '';
     }
+    _loadedValues = fields.map((field) => field.text).toList();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     for (final f in fields) {
       f.dispose();
     }
     super.dispose();
+  }
+
+  void streetChanged(String value) {
+    _searchDebounce?.cancel();
+    final epoch=++_addressEpoch;
+    setState(() { _addressSuggestions=const []; _addressSearchError=null; });
+    final places=widget.places;
+    final query=value.trim();
+    if (places==null || query.length<3) return;
+    _searchDebounce=Timer(const Duration(milliseconds:350),() async {
+      try {
+        final session=_addressSession;
+        if (session==null || session.isExpiredAt(DateTime.now())) _addressSession=PlacesSession.start();
+        final suggestions=await places.search(input:query,session:_addressSession!);
+        if (!mounted || epoch!=_addressEpoch) return;
+        setState(() { _addressSuggestions=suggestions; });
+      } catch (_) {
+        if (!mounted || epoch!=_addressEpoch) return;
+        setState(() { _addressSession=null; _addressSearchError='Address search could not finish. You can complete the fields below.'; });
+      }
+    });
+  }
+
+  Future<void> selectStreet(PlaceSuggestion suggestion) async {
+    final places=widget.places;
+    final session=_addressSession;
+    if (places==null || session==null || busy || pending!=null) return;
+    final userId=base?.userId;
+    _searchDebounce?.cancel();
+    final epoch=++_addressEpoch;
+    setState(() { _resolvingAddress=true; _addressSearchError=null; });
+    try {
+      final place=await places.resolve(placeId:suggestion.placeId,session:session);
+      if (!mounted || epoch!=_addressEpoch || widget.readCurrent()?.userId!=userId) return;
+      final address=contactAddressFromPlace(place);
+      setState(() {
+        fields[1].text=address.line1 ?? '';
+        fields[2].text=address.line2 ?? '';
+        fields[3].text=address.city ?? '';
+        fields[4].text=address.state ?? '';
+        fields[5].text=address.postalCode ?? '';
+        fields[6].text=address.country ?? '';
+        _addressSuggestions=const [];
+        _addressSession=null;
+      });
+      widget.onResolvedAddress?.call(place);
+    } catch (_) {
+      if (!mounted || epoch!=_addressEpoch) return;
+      setState(() {
+        _addressSearchError='This address could not be loaded. Search again or complete the fields below.';
+        _addressSession=null;
+        _addressSuggestions=const [];
+      });
+    } finally {
+      if (mounted && epoch==_addressEpoch) setState(() { _resolvingAddress=false; });
+    }
   }
 
   Patch<String> patch(int i) => fields[i].text.trim().isEmpty
@@ -127,10 +239,11 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const BuyerSectionHeading(title: 'Private contact details'),
+          BuyerSectionHeading(title: widget.addressTitle ?? 'Private contact details'),
           Text(
-            'Used for your home address. Saving a phone number here does not '
-            'verify it for login.',
+            widget.showPhone
+              ? 'Your saved home address. Saving a phone number here does not verify it for login.'
+              : 'Your saved business address. Search for the street or complete the fields below.',
             style: BuyerTypography.style(
               context,
               ApprovedReplicaScope.maybeOf(context) ??
@@ -149,10 +262,10 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
                 icon: Icons.contact_page_outlined,
                 tone: BuyerNoticeTone.warning,
                 title: 'Contact details are not loaded',
-                body: 'Reload to try again.',
+                body: 'Please try again.',
               ),
             ),
-          for (var i = 0; i < fields.length; i++)
+          for (var i = widget.showPhone ? 0 : 1; i < fields.length; i++) ...[
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: HocalistAccountField(
@@ -160,11 +273,31 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
                 label: labels[i],
                 seller: widget.seller,
                 controller: fields[i],
-                readOnly: busy || pending != null,
+                readOnly: busy || pending != null || _resolvingAddress,
+                onChanged: i==1 && widget.places!=null ? streetChanged : null,
                 maxLength: limits[i],
                 keyboardType: i == 0 ? TextInputType.phone : TextInputType.text,
               ),
             ),
+            if (i==1 && _resolvingAddress)
+              const BuyerProgressStrip(label:'Finding address details…'),
+            if (i==1 && _addressSearchError!=null)
+              Padding(padding:const EdgeInsets.only(top:8),child:Text(_addressSearchError!)),
+            if (i==1)
+              for (final suggestion in _addressSuggestions)
+                Padding(padding:const EdgeInsets.only(top:6),child:Material(
+                  color:Colors.transparent,
+                  child:InkWell(
+                    key:ValueKey('contactAddress-${suggestion.placeId}'),
+                    borderRadius:BorderRadius.circular(9),
+                    onTap:_resolvingAddress ? null : ()=>selectStreet(suggestion),
+                    child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[
+                      const Icon(Icons.place_outlined,color:BuyerUiTokens.action),
+                      const SizedBox(width:8),Expanded(child:Text(suggestion.label)),
+                    ])),
+                  ),
+                )),
+          ],
           if (message != null) ...[
             const SizedBox(height: 12),
             BuyerStateNotice(
@@ -180,7 +313,7 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
           ],
           const SizedBox(height: 12),
           BuyerPrimaryButton(
-            onPressed: busy || base == null ? null : save,
+            onPressed: busy || _resolvingAddress || base == null ? null : save,
             label: busy
                 ? 'Saving…'
                 : pending != null
@@ -190,16 +323,22 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
           const SizedBox(height: 8),
           BuyerSecondaryButton(
             label: pending != null
-                ? 'Discard retry and reload saved details'
-                : 'Reload saved details',
+                ? 'Discard pending changes'
+                : 'Discard changes',
             onPressed: busy
                 ? null
                 : () {
+                    _searchDebounce?.cancel();
+                    _addressEpoch++;
                     setState(() {
+                      _resolvingAddress=false;
+                      _addressSuggestions=const [];
+                      _addressSearchError=null;
                       pending = null;
                       load();
                       message = 'Loaded the latest saved contact details.';
                     });
+                    widget.onDiscard?.call();
                   },
           ),
         ],

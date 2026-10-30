@@ -192,6 +192,7 @@ class MeetingPlace {
     String? placeId,
     double? latitude,
     double? longitude,
+    String? timezoneId,
   }) {
     if ((latitude == null) != (longitude == null) ||
         (latitude != null && (!latitude.isFinite || latitude.abs() > 90)) ||
@@ -215,6 +216,7 @@ class MeetingPlace {
       placeId: placeId,
       latitude: latitude,
       longitude: longitude,
+      timezoneId: timezoneId,
     );
   }
 
@@ -225,6 +227,7 @@ class MeetingPlace {
     this.placeId,
     this.latitude,
     this.longitude,
+    this.timezoneId,
   });
 
   final MeetupPlaceChoice choice;
@@ -239,6 +242,7 @@ class MeetingPlace {
   final String? placeId;
   final double? latitude;
   final double? longitude;
+  final String? timezoneId;
 
   @override
   bool operator ==(Object other) =>
@@ -248,11 +252,12 @@ class MeetingPlace {
       other.address == address &&
       other.placeId == placeId &&
       other.latitude == latitude &&
-      other.longitude == longitude;
+      other.longitude == longitude &&
+      other.timezoneId == timezoneId;
 
   @override
   int get hashCode =>
-      Object.hash(choice, label, address, placeId, latitude, longitude);
+      Object.hash(choice, label, address, placeId, latitude, longitude, timezoneId);
 
   /// Redacted on purpose: place labels, addresses and provider ids must not
   /// reach logs. Choice and presence flags keep debugging useful.

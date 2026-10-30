@@ -157,6 +157,8 @@ void main() {
       ApprovedSellerLeadsPage(onOfferSubmitted: (offer) => submitted = offer),
     );
 
+    await tester.ensureVisible(find.text('Prepare offer').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prepare offer').first);
     await tester.pumpAndSettle();
     await tester.ensureVisible(

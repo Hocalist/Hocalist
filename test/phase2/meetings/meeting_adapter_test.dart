@@ -197,6 +197,35 @@ MeetingScheduleInput scheduleInput({RepeatedTimeOccurrence? occurrence}) =>
     );
 
 void main() {
+  test(
+    'upcoming proposals use their scheduled local day without an expiry',
+    () {
+      final proposed = meetingView();
+      final start = proposed.pendingSchedule!.instant;
+      expect(proposed.isUpcomingAt(start), isTrue);
+      expect(
+        proposed.isUpcomingAt(start.add(const Duration(days: 1))),
+        isFalse,
+      );
+      expect(meetingView(status: 'cancelled').isUpcomingAt(start), isFalse);
+    },
+  );
+
+  test('the server meeting cutoff remains authoritative', () {
+    final meeting = meetingView(
+      status: 'accepted',
+      expiresAt: '2026-10-03T04:00:00Z',
+    );
+    expect(
+      meeting.isUpcomingAt(DateTime.parse('2026-10-03T03:59:59Z')),
+      isTrue,
+    );
+    expect(
+      meeting.isUpcomingAt(DateTime.parse('2026-10-03T04:00:00Z')),
+      isFalse,
+    );
+  });
+
   group('MeetingDataAdapter', () {
     late FakeMarketplaceSession session;
     late FakeMarketplaceTransport transport;
@@ -365,6 +394,26 @@ void main() {
   });
 
   group('Phase2MarketplaceMeetingsBackend + repository', () {
+    test(
+      'focusing a displayed meeting performs no extra read and rejects unknown ids',
+      () async {
+        var reads = 0;
+        final backend = FakeMeetingsBackend()
+          ..onLoadPage = (_) async {
+            reads++;
+            return MeetingPageView(items: [meetingView()], nextCursor: null);
+          };
+        final repository = LocalMarketplaceRepository(meetingsBackend: backend);
+        await repository.refreshMeetings();
+        final id = repository.meetings.single.meetingId;
+        expect(repository.focusCachedMeeting(id)?.meetingId, id);
+        expect(repository.meetingDetail?.meetingId, id);
+        expect(repository.focusCachedMeeting('unknown'), isNull);
+        expect(repository.meetingDetail?.meetingId, id);
+        expect(reads, 1);
+        repository.dispose();
+      },
+    );
     test('pagination deduplicates and stops a repeated cursor', () async {
       final cursors = <String?>[];
       final backend = FakeMeetingsBackend()
@@ -422,6 +471,25 @@ void main() {
       expect(repository.meetingDetail!.revision, 2);
       repository.dispose();
     });
+
+    test(
+      'same-meeting refresh retains verified detail while pending or failed',
+      () async {
+        final backend = FakeMeetingsBackend();
+        final repository = LocalMarketplaceRepository(meetingsBackend: backend);
+        await repository.loadMeeting(_meetingId);
+        final saved = repository.meetingDetail;
+        final refresh = Completer<MeetingView>();
+        backend.onLoadOne = (_) => refresh.future;
+        final pending = repository.loadMeeting(_meetingId);
+        expect(repository.meetingDetail, same(saved));
+        refresh.completeError(StateError('offline'));
+        expect(await pending, isNull);
+        expect(repository.meetingDetail, same(saved));
+        expect(repository.meetingsError, isNotNull);
+        repository.dispose();
+      },
+    );
 
     test(
       'failed detail clears previous record and exposes a safe error',

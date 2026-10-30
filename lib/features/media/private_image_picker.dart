@@ -1,6 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'photo_preview.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../data/phase2/media/image_gateway.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -22,6 +23,7 @@ class PrivateImagePicker extends StatefulWidget {
     this.maxImages = 10,
     this.role = HocalistControlRole.seller,
     this.onPendingChanged,
+    this.existingImageCount = 0,
     super.key,
   });
   final ImageUpload upload;
@@ -30,6 +32,7 @@ class PrivateImagePicker extends StatefulWidget {
   final int maxImages;
   final HocalistControlRole role;
   final ValueChanged<bool>? onPendingChanged;
+  final int existingImageCount;
   @override
   State<PrivateImagePicker> createState() => _PrivateImagePickerState();
 }
@@ -41,7 +44,11 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
   bool busy = false;
 
   Future<void> add() async {
-    if (busy || !widget.enabled || images.length >= widget.maxImages) return;
+    if (busy ||
+        !widget.enabled ||
+        images.length + widget.existingImageCount >= widget.maxImages) {
+      return;
+    }
     widget.onPendingChanged?.call(true);
     setState(() {
       busy = true;
@@ -70,11 +77,21 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
         pendingKey = null;
       });
       widget.onChanged(List.unmodifiable(images.keys));
-    } catch (_) {
+    } on PlatformException catch (failure) {
       if (mounted) {
         setState(
           () => error =
-              'Photo could not be uploaded. Retry to finish the same upload.',
+              failure.code.contains('denied') || failure.code.contains('access')
+              ? 'Allow photo access in your phone settings, then choose the photo again.'
+              : 'The photo picker could not open. Close it and try choosing the photo again.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => error = pending == null
+              ? 'This photo could not be opened. Choose a JPEG or PNG photo.'
+              : 'Photo could not be uploaded. Retry to finish the same upload.',
         );
       }
     } finally {
@@ -135,7 +152,7 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (images.isEmpty && !busy)
+        if (images.isEmpty && widget.existingImageCount == 0 && !busy)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _seller
@@ -171,11 +188,14 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: Image.memory(
-                                  e.value,
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
+                                child: PhotoPreview(
+                                  bytes: e.value,
+                                  child: Image.memory(
+                                    e.value,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                               ),
                               Positioned(
@@ -258,12 +278,14 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
         ],
         if (busy) ...[
           const SizedBox(height: 10),
-          _progress('Uploading photo…'),
+          _progress(pending == null ? 'Choosing photo…' : 'Uploading photo…'),
         ],
         const SizedBox(height: 10),
         _primary(
           pending == null ? 'Add photo' : 'Retry photo upload',
-          busy || !widget.enabled || images.length >= widget.maxImages
+          busy ||
+                  !widget.enabled ||
+                  images.length + widget.existingImageCount >= widget.maxImages
               ? null
               : add,
         ),

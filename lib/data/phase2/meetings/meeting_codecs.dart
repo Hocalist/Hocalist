@@ -102,6 +102,26 @@ class MeetingView {
 
   bool get isCancelled => status == 'cancelled';
 
+  /// Display eligibility only; accepted meetings retain the server's cutoff.
+  bool isUpcomingAt(DateTime now) {
+    if (isCancelled || status == 'rejected') return false;
+    final cutoff = meetingExpiresAt;
+    if (cutoff != null) return cutoff.isAfter(now);
+    final schedule = acceptedSchedule ?? pendingSchedule;
+    if (schedule == null) return false;
+    // Older proposed meetings have no server expiry. Compare their scheduled
+    // local day rather than keeping them in Upcoming indefinitely.
+    final localNow = now.toUtc().add(Duration(minutes: schedule.offsetMinutes));
+    final localStart = schedule.instant.toUtc().add(
+      Duration(minutes: schedule.offsetMinutes),
+    );
+    return !DateTime.utc(
+      localStart.year,
+      localStart.month,
+      localStart.day,
+    ).isBefore(DateTime.utc(localNow.year, localNow.month, localNow.day));
+  }
+
   @override
   String toString() => 'MeetingView($meetingId, $status, revision: $revision)';
 }

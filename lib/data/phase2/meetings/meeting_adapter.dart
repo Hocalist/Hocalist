@@ -18,6 +18,7 @@ class MeetingScheduleInput {
     this.placeLabel,
     this.placeAddress,
     this.placeId,
+    this.offerId,
     this.latitude,
     this.longitude,
   }) {
@@ -46,10 +47,12 @@ class MeetingScheduleInput {
   final String? placeLabel;
   final String? placeAddress;
   final String? placeId;
+  final String? offerId;
   final double? latitude;
   final double? longitude;
 
   Map<String, Object?> toWire() => {
+    if (offerId != null) 'offer_id': offerId,
     'schedule_date': schedule.date.toString(),
     'schedule_time': schedule.startTime.toString(),
     'schedule_timezone': schedule.timezoneId,
@@ -62,6 +65,17 @@ class MeetingScheduleInput {
     if (latitude != null) 'place_latitude': latitude,
     if (longitude != null) 'place_longitude': longitude,
   };
+
+  MeetingScheduleInput forOffer(String id) => MeetingScheduleInput(
+    schedule: schedule,
+    placeChoice: placeChoice,
+    placeLabel: placeLabel,
+    placeAddress: placeAddress,
+    placeId: placeId,
+    latitude: latitude,
+    longitude: longitude,
+    offerId: id,
+  );
 }
 
 class MeetingDataAdapter {

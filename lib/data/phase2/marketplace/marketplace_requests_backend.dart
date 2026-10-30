@@ -178,6 +178,11 @@ class Phase2MarketplaceRequestsBackend
   }
 
   String _message(RepositoryError? error) {
+    if (error is ValidationError) {
+      for (final issue in error.issues) {
+        if (issue.code == 'active_request_limit_reached') return issue.message;
+      }
+    }
     if (error == null) {
       return 'Your request could not be saved. Try again.';
     }
@@ -190,7 +195,7 @@ class Phase2MarketplaceRequestsBackend
       RepositoryFailureKind.network =>
         'The request could not be confirmed. Retry to check it safely.',
       RepositoryFailureKind.conflict =>
-        'This request changed on another device. Refresh and try again.',
+        'This request changed on another device. Please try again.',
       RepositoryFailureKind.validation =>
         'Check the request details and try again.',
       _ => 'Your request could not be saved. Try again.',

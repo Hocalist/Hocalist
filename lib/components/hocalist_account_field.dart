@@ -18,6 +18,7 @@ class HocalistAccountField extends StatefulWidget {
     this.autofillHints,
     this.textInputAction,
     this.onSubmitted,
+    this.onChanged,
     super.key,
   });
   final String label;
@@ -30,6 +31,7 @@ class HocalistAccountField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   @override
   State<HocalistAccountField> createState() => _HocalistAccountFieldState();
 }
@@ -88,6 +90,7 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
             autofillHints: widget.autofillHints,
             textInputAction: widget.textInputAction ?? TextInputAction.next,
             onSubmitted: widget.onSubmitted,
+            onChanged: widget.onChanged,
             style: style,
             decoration: InputDecoration(
               isDense: true,

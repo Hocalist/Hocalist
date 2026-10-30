@@ -56,6 +56,7 @@ class _MemoryAsyncStorage extends GotrueAsyncStorage {
 }
 
 class SyntheticAccountBackend {
+  bool emailConfirmed = true;
   final List<http.Request> requests = <http.Request>[];
   final Map<String, List<Map<String, Object?>>> tableRows = {};
   final Map<String, http.Response> tableErrorOverrides = {};
@@ -197,6 +198,7 @@ class SyntheticAccountBackend {
     'aud': 'authenticated',
     'role': 'authenticated',
     'email': '$userId@example.com',
+    if (emailConfirmed) 'email_confirmed_at': '2026-05-01T00:00:00Z',
     'app_metadata': <String, Object?>{
       'provider': 'email',
       'providers': <String>['email'],

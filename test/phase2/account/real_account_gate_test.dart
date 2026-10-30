@@ -14,6 +14,7 @@ import 'package:hocalist/features/account/real_account_gate.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 
 import 'account_test_fakes.dart';
+import 'package:hocalist/features/seller/approved_seller_tutorial_page.dart';
 
 const signedInA = AuthIdentitySnapshot(
   userId: 'user-a',
@@ -202,7 +203,39 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byType(ApprovedBuyerBenefitsPage), findsOneWidget);
+    tester.widget<ApprovedBuyerBenefitsPage>(find.byType(ApprovedBuyerBenefitsPage)).onFinish();
+    await tester.pumpAndSettle();
     expect(find.textContaining('ACTIVE APP'), findsOneWidget);
+    await controller.refresh();
+    await tester.pumpAndSettle();
+    expect(find.byType(ApprovedBuyerBenefitsPage), findsNothing);
+  });
+
+  testWidgets('new seller sees its own introduction before the app', (tester) async {
+    auth.signIn(signedInA);
+    var created = false;
+    accounts.membershipHandler = (role) => created
+        ? RepositorySuccess(membership(role: role))
+        : const RepositoryFailureResult(NotFoundError(entityType: 'membership', entityId: 'seller'));
+    accounts.profileHandler = (role) => RepositorySuccess(roleProfile(role: role));
+    accounts.onboardHandler = (command) {
+      created = true;
+      return RepositorySuccess(OnboardResult(membershipId: 'membership-1', role: command.role, revision: 1));
+    };
+    final controller = HocalistAccountController(auth: auth, accounts: accounts, initialRole: HocalistRole.seller);
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(gate(controller));
+    await controller.onboardSelectedRole(displayName: 'New Seller');
+    await tester.pumpAndSettle();
+    expect(find.byType(ApprovedBuyerBenefitsPage), findsNothing);
+    tester.widget<ApprovedSellerTutorialPage>(find.byType(ApprovedSellerTutorialPage)).onContinue();
+    await tester.pumpAndSettle();
+    expect(find.text('ACTIVE APP user-a'), findsOneWidget);
+    await controller.refresh();
+    await tester.pumpAndSettle();
+    expect(find.byType(ApprovedSellerTutorialPage), findsNothing);
   });
 
   testWidgets('onboarding centers logo and form without a scrolling page', (

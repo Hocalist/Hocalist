@@ -30,7 +30,7 @@ void main() {
       await tester.tap(find.text('Open credit checkout'));
       await tester.pumpAndSettle();
       expect(destination, sellerBillingWebsite());
-      expect(find.textContaining('only after Stripe confirms'), findsOneWidget);
+      expect(find.textContaining('Credits are added after payment is confirmed.'), findsOneWidget);
       expect(find.text('Manage payment method'), findsNothing);
     },
   );

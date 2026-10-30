@@ -27,6 +27,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
       throw StoreBackendException(
         _message(error),
         ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null,
       );
     }
     return result.valueOrNull!;
@@ -40,6 +41,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
       throw StoreBackendException(
         _message(error),
         ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null,
       );
     }
     return result.valueOrNull!;
@@ -61,6 +63,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
       throw StoreBackendException(
         _message(error),
         ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null,
       );
     }
     return result.valueOrNull!;
@@ -84,6 +87,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
       throw StoreBackendException(
         _message(error),
         ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null,
       );
     }
     return result.valueOrNull!;
@@ -107,6 +111,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
       throw StoreBackendException(
         _message(error),
         ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null,
       );
     }
     return result.valueOrNull!;
@@ -128,6 +133,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
       throw StoreBackendException(
         _message(error),
         ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null,
       );
     }
     return result.valueOrNull!;
@@ -163,7 +169,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
         'You cannot change this meeting.',
       RepositoryFailureKind.notFound => 'This meeting is no longer available.',
       RepositoryFailureKind.conflict =>
-        'This meeting changed. Refresh and try again.',
+        'This meeting changed. Please try again.',
       RepositoryFailureKind.network =>
         'The change could not be confirmed. Retry to check it safely.',
       RepositoryFailureKind.validation =>

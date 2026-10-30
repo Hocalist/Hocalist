@@ -169,6 +169,8 @@ ConversationMessage decodeMessageJson(Map<String, Object?> json) {
     attachments: attachments,
     sentAt: _requireTimestamp(json, 'sent_at', 'message.sent_at'),
     clientMessageId: _optionalString(json, 'client_message_id'),
+    offerId: _optionalString(json, 'offer_id'),
+    readByCounterpart: json['read_by_counterpart'] == true,
   );
 }
 

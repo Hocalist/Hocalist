@@ -1,3 +1,4 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 // Widget tests for the approved account creation form in real mode.
 // Prototype callback behavior must stay unchanged.
 import 'dart:async';
@@ -308,7 +309,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(HocalistLoadingIndicator), findsOneWidget);
     await tester.tap(
       find.byKey(const ValueKey('approved-account-primary-action')),
       warnIfMissed: false,

@@ -141,8 +141,14 @@ void _expectSingleRenderedLine(
       ? find.text(text)
       : find.descendant(of: within, matching: find.text(text));
   final widget = tester.widget<Text>(finder.first);
-  expect(widget.maxLines, 1);
-  expect(widget.softWrap, isFalse);
+  final element = tester.element(finder.first);
+  final painter = TextPainter(
+    text: TextSpan(text: widget.data, style: DefaultTextStyle.of(element).style.merge(widget.style)),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(element),
+    maxLines: widget.maxLines,
+  )..layout(maxWidth: tester.getSize(finder.first).width);
+  expect(painter.computeLineMetrics().length, 1, reason: text);
 }
 
 void main() {
@@ -390,13 +396,13 @@ void main() {
       height: 844,
     );
 
-    expect(find.text('Rewards will be paid on May 13'), findsOneWidget);
+    expect(find.text('Tech World NY confirmed your purchase'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const ValueKey('approved-surface'))).height,
       lessThan(710),
     );
     expect(
-      tester.getBottomRight(find.text('Rewards will be paid on May 13')).dy,
+      tester.getBottomRight(find.text('Tech World NY confirmed your purchase')).dy,
       lessThan(800),
     );
     expect(tester.takeException(), isNull);
@@ -600,9 +606,9 @@ void main() {
       lessThan(2),
     );
     expect(tester.getTopRight(find.text('Payouts')).dx, lessThan(304));
-    expect(find.text('Rewards will be paid on May 13'), findsOneWidget);
+    expect(find.text('Tech World NY confirmed your purchase'), findsOneWidget);
     expect(
-      tester.getBottomRight(find.text('Rewards will be paid on May 13')).dy,
+      tester.getBottomRight(find.text('Tech World NY confirmed your purchase')).dy,
       lessThan(650),
     );
     expect(tester.takeException(), isNull);

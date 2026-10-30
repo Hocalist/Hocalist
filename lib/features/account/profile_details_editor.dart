@@ -29,10 +29,29 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
   UpdateRoleProfileCommand? _pending;
   bool _busy = false;
   String? _message;
+  List<String> _loadedValues = const [];
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileDetailsEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final latest = widget.readCurrent();
+    final clean =
+        _loadedValues.length == _fields.length &&
+        List.generate(
+          _fields.length,
+          (i) => _fields[i].text == _loadedValues[i],
+        ).every((same) => same);
+    if (!_busy &&
+        _pending == null &&
+        (latest?.membershipId != _base?.membershipId ||
+            (clean && latest?.stamp.revision != _base?.stamp.revision))) {
+      _load();
+    }
   }
 
   void _load() {
@@ -48,6 +67,7 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
     for (var i = 0; i < _fields.length; i++) {
       _fields[i].text = values[i] ?? '';
     }
+    _loadedValues = _fields.map((field) => field.text).toList();
     _pending = null;
   }
 
@@ -115,7 +135,7 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
       setState(
         () => _message = error is AccountActionException
             ? error.message
-            : 'Save could not be confirmed. Retry or reload your profile.',
+            : 'Save could not be confirmed. Try again or discard your changes.',
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -148,7 +168,7 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
               icon: Icons.person_off_outlined,
               tone: BuyerNoticeTone.warning,
               title: 'Profile details are unavailable',
-              body: 'Reload to try again.',
+              body: 'Please try again.',
             ),
           if (_base != null)
             for (
@@ -196,7 +216,7 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
           ),
           const SizedBox(height: 8),
           BuyerSecondaryButton(
-            label: 'Reload profile and discard edits',
+            label: 'Discard changes',
             onPressed: _busy
                 ? null
                 : () => setState(() {

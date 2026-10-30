@@ -15,10 +15,16 @@ class ApprovedSellerRescheduleDialog extends StatefulWidget {
     this.initialTime,
     this.timezoneId,
     this.onSubmit,
+    this.initialProposal = false,
+    this.offeredPlaceLabel,
+    this.onChangeLocation,
     super.key,
   });
 
   final String customerName;
+  final bool initialProposal;
+  final String? offeredPlaceLabel;
+  final Future<String?> Function()? onChangeLocation;
   final String currentDate;
   final String currentTime;
   final DateTime? initialDate;
@@ -43,25 +49,41 @@ class _ApprovedSellerRescheduleDialogState
   DateTime displayedMonth = DateTime(2025, 5);
   TimeOfDay selectedTime = const TimeOfDay(hour: 12, minute: 0);
   bool _busy = false;
+  bool _editing = false;
+  bool _closing = false;
+  bool get _current =>
+      mounted && !_closing && ModalRoute.of(context)?.isCurrent == true;
+  void _close(bool result) {
+    if (!_current) return;
+    _closing = true;
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(result);
+  }
+
+  String? _placeLabel;
   bool _uncertain = false;
   String? _error;
   String? _operationKey;
   RepeatedTimeOccurrence? _occurrence;
+  bool _requiresOccurrence = false;
 
   @override
   void initState() {
     super.initState();
+    _placeLabel = widget.offeredPlaceLabel;
     selectedDate = widget.initialDate ?? selectedDate;
     if (widget.onSubmit != null &&
         selectedDate.isBefore(DateUtils.dateOnly(DateTime.now()))) {
       selectedDate = DateUtils.dateOnly(DateTime.now());
     }
+    _editing =
+        widget.offeredPlaceLabel == null || selectedDate != widget.initialDate;
     displayedMonth = DateTime(selectedDate.year, selectedDate.month);
     selectedTime = widget.initialTime ?? selectedTime;
   }
 
   Future<void> _submit() async {
-    if (_busy) return;
+    if (!_current || _busy) return;
     if (!_uncertain &&
         widget.onSubmit != null &&
         DateUtils.dateOnly(
@@ -71,7 +93,7 @@ class _ApprovedSellerRescheduleDialogState
       return;
     }
     if (widget.onSubmit == null) {
-      Navigator.of(context).pop(true);
+      _close(true);
       return;
     }
     _operationKey ??= LocalMarketplaceRepository.newStoreOperationKey(
@@ -95,15 +117,16 @@ class _ApprovedSellerRescheduleDialogState
         outcomeUncertain: true,
       );
     }
-    if (!mounted) return;
+    if (!_current) return;
     if (result.isSuccess) {
-      Navigator.of(context).pop(true);
+      _close(true);
       return;
     }
     setState(() {
       _busy = false;
       _uncertain = result.outcomeUncertain;
       _error = result.error;
+      _requiresOccurrence = result.code == 'ambiguous_local_time';
       if (!_uncertain) _operationKey = null;
     });
   }
@@ -158,91 +181,125 @@ class _ApprovedSellerRescheduleDialogState
                     IconButton(
                       key: const Key('sellerRescheduleClose'),
                       tooltip: 'Close reschedule dialog',
-                      onPressed: () => Navigator.of(context).pop(false),
+                      onPressed: () => _close(false),
                       icon: const Icon(Icons.close),
                     ),
                   ],
                 ),
                 SizedBox(height: metrics.spacing(8)),
                 Text(
-                  'Reschedule meeting',
+                  widget.offeredPlaceLabel != null && !_editing
+                      ? (widget.initialProposal
+                            ? 'Meeting from your offer'
+                            : 'Review meeting details')
+                      : widget.initialProposal
+                      ? 'Propose a meeting'
+                      : 'Reschedule meeting',
                   style: sellerText(metrics, 24, weight: FontWeight.w800),
                 ),
                 SizedBox(height: metrics.geometry(4)),
                 Text(
-                  'Choose a new date and arrival time for your meeting with ${widget.customerName}.',
+                  !_editing && widget.offeredPlaceLabel != null
+                      ? 'Review the saved details. The other person must accept before the meeting is set.'
+                      : 'Choose a new date and arrival time for your meeting with ${widget.customerName}.',
                   style: sellerText(metrics, 12, color: SellerUiColors.body),
                 ),
                 SizedBox(height: metrics.spacing(14)),
-                Text(
-                  '1. Select a date',
-                  style: sellerText(metrics, 15, weight: FontWeight.w800),
-                ),
-                SizedBox(height: metrics.spacing(8)),
-                SellerScheduleCalendar(
-                  keyPrefix: 'sellerReschedule',
-                  selectedDate: selectedDate,
-                  earliestDate: widget.onSubmit == null ? null : DateTime.now(),
-                  displayedMonth: displayedMonth,
-                  highlightedDate: widget.initialDate ?? DateTime(2025, 5, 19),
-                  onSelected: (date) {
-                    if (!_busy && !_uncertain) {
-                      setState(() {
-                        selectedDate = date;
-                        _occurrence = null;
-                      });
-                    }
-                  },
-                  onDisplayedMonthChanged: (month) =>
-                      setState(() => displayedMonth = month),
-                ),
-                SizedBox(height: metrics.spacing(14)),
-                Text(
-                  '2. Select arrival time',
-                  style: sellerText(metrics, 15, weight: FontWeight.w800),
-                ),
-                SizedBox(height: metrics.spacing(8)),
-                SellerScheduleTimeSelector(
-                  keyPrefix: 'sellerRescheduleTime',
-                  selectedTime: selectedTime,
-                  onSelected: (time) {
-                    if (!_busy && !_uncertain) {
-                      setState(() {
-                        selectedTime = time;
-                        _occurrence = null;
-                      });
-                    }
-                  },
-                ),
-                if (widget.timezoneId != null) ...[
-                  Text('Meeting timezone: ${widget.timezoneId}'),
-                  DropdownButtonFormField<RepeatedTimeOccurrence>(
-                    isExpanded: true,
-                    key: ValueKey(_occurrence),
-                    initialValue: _occurrence,
-                    decoration: const InputDecoration(
-                      labelText: 'Repeated time',
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: RepeatedTimeOccurrence.earlier,
-                        child: Text('Earlier occurrence'),
-                      ),
-                      DropdownMenuItem(
-                        value: RepeatedTimeOccurrence.later,
-                        child: Text('Later occurrence'),
-                      ),
-                    ],
-                    onChanged: _busy || _uncertain
-                        ? null
-                        : (value) => setState(() => _occurrence = value),
+                if (!_editing && widget.offeredPlaceLabel != null) ...[
+                  SellerStateNotice(
+                    icon: Icons.event_outlined,
+                    title: "${widget.currentDate} · ${widget.currentTime}",
+                    body: _placeLabel,
                   ),
                   TextButton(
                     onPressed: _busy || _uncertain
                         ? null
-                        : () => setState(() => _occurrence = null),
-                    child: const Text('Use ordinary time'),
+                        : () => setState(() => _editing = true),
+                    child: const Text('Change date or time'),
                   ),
+                ],
+                if (_editing) ...[
+                  Text(
+                    '1. Select a date',
+                    style: sellerText(metrics, 15, weight: FontWeight.w800),
+                  ),
+                  SizedBox(height: metrics.spacing(8)),
+                  SellerScheduleCalendar(
+                    keyPrefix: 'sellerReschedule',
+                    selectedDate: selectedDate,
+                    earliestDate: widget.onSubmit == null
+                        ? null
+                        : DateTime.now(),
+                    displayedMonth: displayedMonth,
+                    highlightedDate:
+                        widget.initialDate ?? DateTime(2025, 5, 19),
+                    onSelected: (date) {
+                      if (!_busy && !_uncertain) {
+                        setState(() {
+                          selectedDate = date;
+                          _occurrence = null;
+                        });
+                      }
+                    },
+                    onDisplayedMonthChanged: (month) =>
+                        setState(() => displayedMonth = month),
+                  ),
+                  SizedBox(height: metrics.spacing(14)),
+                  Text(
+                    '2. Select arrival time',
+                    style: sellerText(metrics, 15, weight: FontWeight.w800),
+                  ),
+                  SizedBox(height: metrics.spacing(8)),
+                  SellerScheduleTimeSelector(
+                    keyPrefix: 'sellerRescheduleTime',
+                    selectedTime: selectedTime,
+                    onSelected: (time) {
+                      if (!_busy && !_uncertain) {
+                        setState(() {
+                          selectedTime = time;
+                          _occurrence = null;
+                        });
+                      }
+                    },
+                  ),
+                ],
+                if (widget.onChangeLocation != null)
+                  TextButton(
+                    onPressed: _busy || _uncertain
+                        ? null
+                        : () async {
+                            final value = await widget.onChangeLocation!();
+                            if (mounted && value != null) {
+                              setState(() => _placeLabel = value);
+                            }
+                          },
+                    child: const Text('Change location'),
+                  ),
+                if (widget.timezoneId != null) ...[
+                  Text('Meeting timezone: ${widget.timezoneId}'),
+                  if (_requiresOccurrence)
+                    DropdownButtonFormField<RepeatedTimeOccurrence>(
+                      isExpanded: true,
+                      key: ValueKey(_occurrence),
+                      initialValue: _occurrence,
+                      decoration: sellerInputDecoration(
+                        context,
+                        labelText: 'Choose which time',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: RepeatedTimeOccurrence.earlier,
+                          child: Text('Earlier occurrence'),
+                        ),
+                        DropdownMenuItem(
+                          value: RepeatedTimeOccurrence.later,
+                          child: Text('Later occurrence'),
+                        ),
+                      ],
+                      onChanged: _busy || _uncertain
+                          ? null
+                          : (value) => setState(() => _occurrence = value),
+                    ),
                 ],
                 if (widget.onSubmit == null) ...[
                   SizedBox(height: metrics.spacing(12)),
@@ -293,7 +350,7 @@ class _ApprovedSellerRescheduleDialogState
                       SizedBox(width: metrics.geometry(8)),
                       Expanded(
                         child: Text(
-                          'The customer will receive your request and can confirm the new time.',
+                          'The other person can accept or decline. Agreed details stay unchanged until acceptance.',
                           style: sellerText(
                             metrics,
                             11,
@@ -317,26 +374,31 @@ class _ApprovedSellerRescheduleDialogState
                       ? 'Sending…'
                       : _uncertain
                       ? 'Retry same request'
+                      : !_editing && widget.offeredPlaceLabel != null
+                      ? (widget.initialProposal
+                            ? 'Confirm these details'
+                            : 'Send change for acceptance')
+                      : widget.initialProposal
+                      ? 'Send meeting proposal'
                       : 'Send reschedule request',
                   onPressed: _submit,
                 ),
                 SizedBox(height: metrics.spacing(8)),
                 OutlinedButton(
                   key: const Key('sellerCancelMeeting'),
-                  onPressed: () => Navigator.of(context).pop(false),
+                  onPressed: () => _close(false),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: HocalistPalette.text(
                       context,
                       SellerUiColors.red,
                     ),
                     minimumSize: Size(0, metrics.geometry(44)),
-                    fixedSize: Size.fromHeight(metrics.geometry(44)),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding: EdgeInsets.symmetric(
                       horizontal: metrics.spacing(16),
                       vertical: metrics.spacing(9),
                     ),
-                    textStyle: sellerText(metrics, 14, weight: FontWeight.w700),
+                    textStyle: sellerText(metrics, 14, weight: FontWeight.w700).copyWith(fontFamily: 'Nunito'),
                     side: BorderSide(
                       color: HocalistPalette.border(
                         context,

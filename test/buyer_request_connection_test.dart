@@ -11,6 +11,19 @@ import 'package:hocalist/domain/phase2/requests.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
 
 import 'test_fonts.dart';
+import 'package:hocalist/data/phase2/maps/places_repository.dart';
+import 'package:hocalist/data/phase2/maps/places_transport.dart';
+
+class _BuyerAddressPlaces implements PlacesTransport {
+  @override
+  Future<PlacesTransportResult> autocomplete({required String input,required String sessionToken})async=>
+    const PlacesTransportResult({'suggestions':[{'placeId':'buyer-place','label':'Selected meeting area, Chicago'}]});
+  @override
+  Future<PlacesTransportResult> details({required String placeId,required String sessionToken})async=>
+    const PlacesTransportResult({'placeId':'buyer-place','address':'Selected meeting area, Chicago, IL',
+      'latitude':40.9,'longitude':-73.8,'timezoneId':'America/Chicago',
+      'postalAddress':{'line1':'Selected meeting area','city':'Chicago','state':'IL','postalCode':'60605','country':'US'},'attributions':<Object?>[]});
+}
 
 MarketplaceRequest _request({
   int revision = 1,
@@ -74,12 +87,9 @@ Future<void> _tapPost(WidgetTester tester) async {
 Future<void> _postRequest(WidgetTester tester) async {
   if (find.text('Select a category').evaluate().isNotEmpty) {
     final category = find.byKey(const Key('approved-request-category-select'));
-    await tester.ensureVisible(category);
-    await tester.pumpAndSettle();
-    await tester.tap(category);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Electronics').last);
-    await tester.pumpAndSettle();
+    await tester.ensureVisible(category); await tester.pumpAndSettle();
+    await tester.tap(category); await tester.pumpAndSettle();
+    await tester.tap(find.text('Electronics').last); await tester.pumpAndSettle();
   }
   final continueAction = find.text('Continue');
   await tester.ensureVisible(continueAction);
@@ -131,14 +141,7 @@ void main() {
       tester,
       ApprovedRequestFlowPage(
         questionLoader: _noQuestions,
-        categories: const [
-          CatalogueCategoryOption(
-            id: '20000000-0000-4000-8000-000000000001',
-            label: 'Electronics',
-            scope: 'product',
-            status: 'active',
-          ),
-        ],
+        categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
         accent: const Color(0xff1917ff),
         requestTitle: 'My request',
         budget: '',
@@ -154,6 +157,8 @@ void main() {
         },
       ),
     );
+    expect(find.text('Add photo'), findsNothing);
+    expect(find.text('Your photos'), findsNothing);
     await _postRequest(tester);
     expect(calls, 0);
     expect(find.text('No saved home address'), findsOneWidget);
@@ -162,27 +167,21 @@ void main() {
   });
 
   testWidgets(
-    'map selection submits private coordinates and manual edit clears them',
+    'street search submits private coordinates and address edit clears them',
     (tester) async {
       final drafts = <RequestDraft>[];
       await _pump(
         tester,
         ApprovedRequestFlowPage(
-          questionLoader: _noQuestions,
+        questionLoader: _noQuestions,
           homeAddress: const PostalAddress(
             line1: 'Saved test address',
             country: 'US',
           ),
           accent: const Color(0xff1917ff),
           requestTitle: 'Mapped request',
-          categories: const [
-            CatalogueCategoryOption(
-              id: '20000000-0000-4000-8000-000000000001',
-              label: 'Electronics',
-              scope: 'product',
-              status: 'active',
-            ),
-          ],
+          places:PlacesRepository(transport:_BuyerAddressPlaces()),
+          categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
           includeAppChrome: true,
           budget: '',
           onTitleChanged: (_) {},
@@ -209,30 +208,31 @@ void main() {
           },
         ),
       );
-      if (find.text('Select a category').evaluate().isNotEmpty) {
-        final category = find.byKey(
-          const Key('approved-request-category-select'),
-        );
-        await tester.ensureVisible(category);
-        await tester.pumpAndSettle();
-        await tester.tap(category);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Electronics').last);
-        await tester.pumpAndSettle();
-      }
+  if (find.text('Select a category').evaluate().isNotEmpty) {
+    final category = find.byKey(const Key('approved-request-category-select'));
+    await tester.ensureVisible(category); await tester.pumpAndSettle();
+    await tester.tap(category); await tester.pumpAndSettle();
+    await tester.tap(find.text('Electronics').last); await tester.pumpAndSettle();
+  }
       await tester.ensureVisible(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.byKey(const Key('requestChooseMapLocation')),
-      );
-      await tester.tap(find.byKey(const Key('requestChooseMapLocation')));
+      expect(find.byKey(const Key('requestChooseMapLocation')),findsNothing);
+      final street=find.byKey(const Key('approved-request-address-street-address'));
+      await tester.ensureVisible(street);
+      await tester.tap(street);
+      const composing=TextEditingValue(text:'Selected meet',selection:TextSelection.collapsed(offset:8),composing:TextRange(start:0,end:13));
+      tester.testTextInput.updateEditingValue(composing);
+      await tester.pump();
+      final streetController=tester.widget<TextFormField>(street).controller!;
+      expect(streetController.value,composing);
+      await tester.enterText(street,'Selected meeting');
+      await tester.pump(const Duration(milliseconds:400));
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('Selected: Selected meeting area'),
-        findsOneWidget,
-      );
+      await tester.ensureVisible(find.byKey(const ValueKey('buyerAddress-buyer-place')));
+      await tester.tap(find.byKey(const ValueKey('buyerAddress-buyer-place')));
+      await tester.pumpAndSettle();
       for (final entry in {
         'street-address': 'Selected meeting area',
         'city': 'Chicago',
@@ -246,6 +246,7 @@ void main() {
       }
       await _tapPost(tester);
       expect(drafts.single.location.coordinates?.latitude, 40.9);
+      expect(drafts.single.location.timezoneId,'America/Chicago');
       final address = find.byKey(
         const Key('approved-request-address-street-address'),
       );
@@ -323,14 +324,7 @@ void main() {
       tester,
       ApprovedRequestFlowPage(
         questionLoader: _noQuestions,
-        categories: const [
-          CatalogueCategoryOption(
-            id: '20000000-0000-4000-8000-000000000001',
-            label: 'Electronics',
-            scope: 'product',
-            status: 'active',
-          ),
-        ],
+        categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -380,14 +374,7 @@ void main() {
       tester,
       ApprovedRequestFlowPage(
         questionLoader: _noQuestions,
-        categories: const [
-          CatalogueCategoryOption(
-            id: '20000000-0000-4000-8000-000000000001',
-            label: 'Electronics',
-            scope: 'product',
-            status: 'active',
-          ),
-        ],
+        categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',
@@ -513,14 +500,7 @@ void main() {
       tester,
       ApprovedRequestFlowPage(
         questionLoader: _noQuestions,
-        categories: const [
-          CatalogueCategoryOption(
-            id: '20000000-0000-4000-8000-000000000001',
-            label: 'Electronics',
-            scope: 'product',
-            status: 'active',
-          ),
-        ],
+        categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
         homeAddress: const PostalAddress(
           line1: 'Saved test address',
           country: 'US',

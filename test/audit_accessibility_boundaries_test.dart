@@ -27,7 +27,6 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Preferences'));
     await tester.pumpAndSettle();
     final row = tester.getSemantics(find.text('Accessibility'));
     expect(row.label, contains('Accessibility'));

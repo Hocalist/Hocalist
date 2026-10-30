@@ -41,6 +41,25 @@ void main() {
     );
   }
 
+  test(
+    'an unconfirmed email session cannot enter through login or restoration',
+    () async {
+      backend.emailConfirmed = false;
+      await client.auth.getSessionFromUrl(recoveryLink(syntheticUserA));
+      await pumpEventQueue();
+      expect(gateway.currentIdentity.isSignedIn, isFalse);
+      await expectLater(
+        gateway.logInWithEmail(
+          email: '$syntheticUserA@example.com',
+          password: 'test-password',
+        ),
+        throwsA(isA<AccountAuthException>()),
+      );
+      expect(gateway.currentIdentity.isSignedIn, isFalse);
+      expect(client.auth.currentSession, isNull);
+    },
+  );
+
   test('a recovery session stays latched across a token refresh', () async {
     final snapshots = <AuthIdentitySnapshot>[];
     final subscription = gateway.identityChanges.listen(snapshots.add);

@@ -2,14 +2,74 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/domain/phase2/schedule.dart';
+import 'package:hocalist/domain/phase2/common.dart';
+import 'package:hocalist/domain/phase2/requests.dart';
 import 'package:hocalist/features/meetings/meeting_proposal_location.dart';
 
 void main() {
+  test('only the matching buyer can reuse a confirmed request pin', () {
+    final request = MarketplaceRequest(
+      id: 'request',
+      buyerProfileId: 'profile',
+      buyerUserId: 'buyer',
+      draft: RequestDraft(
+        kind: RequestKind.product,
+        location: RequestLocation.custom(
+          address: const PostalAddress(
+            line1: '400 Test Street',
+            city: 'Chicago',
+          ),
+          coordinates: RequestCoordinates(latitude: 41.8, longitude: -87.6),
+        ),
+      ),
+      status: RequestStatus.active,
+      stamp: RecordStamp(
+        revision: 1,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      ),
+    );
+    MeetingPlace? resolve(String user, String id, MeetupPlaceChoice choice) =>
+        buyerRequestMeetingPlace(
+          request: request,
+          requestId: id,
+          buyerUserId: user,
+          place: MeetingPlace(choice: choice),
+        );
+    final saved = resolve('buyer', 'request', MeetupPlaceChoice.buyerLocation)!;
+    expect(saved.address, '400 Test Street, Chicago');
+    expect(saved.latitude, 41.8);
+    expect(saved.longitude, -87.6);
+    expect(
+      resolve('seller', 'request', MeetupPlaceChoice.buyerLocation),
+      isNull,
+    );
+    expect(resolve('buyer', 'other', MeetupPlaceChoice.buyerLocation), isNull);
+    expect(
+      resolve('buyer', 'request', MeetupPlaceChoice.sellerBusiness),
+      isNull,
+    );
+  });
   final schedule = LocalSchedule(
     date: LocalDate(year: 2026, month: 10, day: 1),
     startTime: LocalTime(hour: 15, minute: 0),
     timezoneId: 'America/Chicago',
   );
+  test('a newly chosen destination supplies the meeting timezone', () async {
+    final input = await prepareMeetingProposalLocation(
+      schedule: schedule,
+      place: MeetingPlace(choice: MeetupPlaceChoice.sellerBusiness),
+      isCurrent: () => true,
+      confirmPlace: (_) async => MeetingPlace(
+        choice: MeetupPlaceChoice.sellerBusiness,
+        address: 'Synthetic address',
+        timezoneId: 'America/New_York',
+      ),
+    );
+    expect(input!.schedule.timezoneId, 'America/New_York');
+    expect(input.schedule.date, schedule.date);
+    expect(input.schedule.startTime, schedule.startTime);
+  });
   MeetingPlace confirmed(MeetupPlaceChoice choice) => MeetingPlace(
     choice: choice,
     label: 'TEST public meeting point',

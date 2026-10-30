@@ -472,6 +472,7 @@ class _SellerChatCard extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Material(
+          clipBehavior: Clip.antiAlias,
           color: HocalistPalette.surface(context, SellerUiColors.white),
           shape: RoundedRectangleBorder(
             side: BorderSide(
@@ -540,6 +541,8 @@ class _SellerChatCard extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 chat.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: sellerText(
                                   metrics,
                                   15,
@@ -557,7 +560,7 @@ class _SellerChatCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        Text(
+                        if (chat.request.trim().isNotEmpty) Text(
                           chat.request,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

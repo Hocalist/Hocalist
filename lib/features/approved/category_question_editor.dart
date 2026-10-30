@@ -1,3 +1,5 @@
+import '../../components/pull_refresh.dart';
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -42,7 +44,7 @@ class CategoryQuestionEditorState extends State<CategoryQuestionEditor> {
 
   String? validationMessage({bool requiredAnswers = true}) {
     if (_loading) return 'Please wait for the category questions to load.';
-    if (_failed) return 'Reload the category questions before continuing.';
+    if (_failed) return 'Try loading the category questions again before continuing.';
     for (final question in _questions) {
       final selected = widget.answers.where(
         (a) => a.groupId == question.group.id,
@@ -120,27 +122,24 @@ class CategoryQuestionEditorState extends State<CategoryQuestionEditor> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PullRefreshAction(onRefresh: _loading ? null : _load, child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     final theme = Theme.of(context);
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
-        child: LinearProgressIndicator(minHeight: 2),
+        child: HocalistLoadingIndicator(),
       );
     }
     if (_failed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CategoryAnswersView(answers: widget.answers),
-          Row(
-            children: [
-              const Expanded(child: Text('Category questions could not load.')),
-              TextButton(onPressed: _load, child: const Text('Reload')),
-            ],
-          ),
-        ],
-      );
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        CategoryAnswersView(answers: widget.answers),
+        Row(children: [
+          const Expanded(child: Text('Category questions could not load.')),
+          TextButton(onPressed: _load, child: const Text('Try again')),
+        ]),
+      ]);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

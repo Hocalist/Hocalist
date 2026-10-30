@@ -6,6 +6,8 @@
 /// there is no silent fallback to simulated authentication.
 library;
 
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
+
 import 'package:hocalist/theme/adaptive_palette.dart';
 
 import 'package:flutter/material.dart';
@@ -17,6 +19,7 @@ import '../../data/phase2/trust/trust_backend.dart';
 import '../../domain/phase2/profiles.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../approved/onboarding_home_pages.dart';
+import '../seller/approved_seller_tutorial_page.dart';
 import 'account_auth_gateway.dart';
 import 'account_recovery_pages.dart';
 import 'push_service_scope.dart';
@@ -244,7 +247,7 @@ class HocalistRealAccountGate extends StatelessWidget {
                 body:
                     'Your ${controller.selectedRole.name} account is waiting '
                     'for review. App access starts after it is active.',
-                primaryLabel: 'Refresh status',
+                primaryLabel: 'Check account status',
                 onPrimary: controller.refresh,
                 secondaryLabel: 'Log out',
                 onSecondary: controller.logout,
@@ -259,6 +262,21 @@ class HocalistRealAccountGate extends StatelessWidget {
               ),
             );
           case AccountAccessPhase.active:
+            if (controller.needsIntroduction) {
+              return _wrap(
+                controller.selectedRole == HocalistRole.seller
+                    ? ApprovedSellerTutorialPage(
+                        name: controller.profile?.displayName ?? '',
+                        onContinue: controller.finishIntroduction,
+                        onClose: controller.finishIntroduction,
+                      )
+                    : ApprovedBuyerBenefitsPage(
+                        name: controller.profile?.displayName ?? '',
+                        onFinish: controller.finishIntroduction,
+                        onClose: controller.finishIntroduction,
+                      ),
+              );
+            }
             return activeBuilder(context, controller);
           case AccountAccessPhase.failed:
             return _wrap(
@@ -653,7 +671,7 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                             leading: controller.formBusy
                                 ? const SizedBox.square(
                                     dimension: 16,
-                                    child: CircularProgressIndicator(
+                                    child: HocalistLoadingIndicator(
                                       strokeWidth: 2,
                                       color: Colors.white,
                                     ),
@@ -713,7 +731,7 @@ class _AccountGateLoadingPage extends StatelessWidget {
         child: SizedBox(
           width: 28,
           height: 28,
-          child: CircularProgressIndicator(strokeWidth: 3),
+          child: HocalistLoadingIndicator(strokeWidth: 3),
         ),
       ),
     );

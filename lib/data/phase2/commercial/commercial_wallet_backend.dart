@@ -49,8 +49,12 @@ abstract interface class CommercialDealSummaryBackend {
   Future<DealSummaryView> loadDealSummary();
 }
 
+abstract interface class CommercialSellerHomeBackend {
+  Future<SellerHomeSummaryView> loadSellerHomeSummary();
+}
+
 class Phase2CommercialWalletBackend
-    implements CommercialWalletBackend, CommercialDealSummaryBackend {
+    implements CommercialWalletBackend, CommercialDealSummaryBackend, CommercialSellerHomeBackend {
   Phase2CommercialWalletBackend({required this.rpc, required this.identity});
 
   static const String schema = 'hocalist';
@@ -64,6 +68,7 @@ class Phase2CommercialWalletBackend
     saleHistoryFunction,
     saleDetailFunction,
     'commercial_deal_summary',
+    'seller_home_summary',
   };
 
   final Future<Map<String, Object?>> Function(
@@ -72,6 +77,10 @@ class Phase2CommercialWalletBackend
   )
   rpc;
   final String? Function() identity;
+
+  @override
+  Future<SellerHomeSummaryView> loadSellerHomeSummary() => _parse(() async =>
+    SellerHomeSummaryView.fromJson(await _call('seller_home_summary',const {})));
 
   @override
   Future<DealSummaryView> loadDealSummary() => _parse(

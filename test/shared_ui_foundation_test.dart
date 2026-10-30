@@ -37,6 +37,25 @@ BoxDecoration _firstDecoration(WidgetTester tester, Finder root) {
 }
 
 void main() {
+  testWidgets('action semantics do not absorb neighboring page content', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(_foundationHarness(child: Column(children: [
+      const Text('Saved meeting details'),
+      BuyerPrimaryButton(key: const Key('buyer-primary'), label: 'Confirm meeting', onPressed: () {}),
+      BuyerSecondaryButton(key: const Key('buyer-secondary'), label: 'Buyer details', onPressed: () {}),
+      SellerPrimaryButton(key: const Key('seller-primary'), label: 'Confirm purchase', onPressed: () {}),
+      SellerSecondaryButton(key: const Key('seller-secondary'), label: 'Seller details', onPressed: () {}),
+    ])));
+    await tester.pumpAndSettle();
+    for (final key in ['buyer-primary','buyer-secondary','seller-primary','seller-secondary']) {
+      final label = tester.getSemantics(find.byKey(Key(key))).getSemanticsData().label;
+      expect(label, isNot(contains('Saved meeting details')));
+      expect(label, isNotEmpty);
+    }
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   testWidgets('default Buyer and Seller actions retain approved geometry', (
     tester,
   ) async {

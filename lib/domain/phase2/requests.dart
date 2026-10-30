@@ -52,7 +52,7 @@ class RequestCoordinates {
 }
 
 class RequestLocation {
-  const RequestLocation.homeAddress()
+  const RequestLocation.homeAddress({this.timezoneId})
     : useHomeAddress = true,
       address = null,
       coordinates = null;
@@ -60,6 +60,7 @@ class RequestLocation {
   factory RequestLocation.custom({
     required PostalAddress address,
     RequestCoordinates? coordinates,
+    String? timezoneId,
   }) {
     if (address.isEmpty) {
       throw ArgumentError.value(
@@ -68,13 +69,21 @@ class RequestLocation {
         'a custom request location needs at least one address field',
       );
     }
-    return RequestLocation._(address: address, coordinates: coordinates);
+    return RequestLocation._(
+      address: address,
+      coordinates: coordinates,
+      timezoneId: timezoneId,
+    );
   }
 
-  const RequestLocation._({required this.address, this.coordinates})
-    : useHomeAddress = false;
+  const RequestLocation._({
+    required this.address,
+    this.coordinates,
+    this.timezoneId,
+  }) : useHomeAddress = false;
 
   final bool useHomeAddress;
+  final String? timezoneId;
 
   /// Custom address when [useHomeAddress] is false. Private until the buyer
   /// chooses to share it with a selected seller.
@@ -88,10 +97,12 @@ class RequestLocation {
       other is RequestLocation &&
       other.useHomeAddress == useHomeAddress &&
       other.address == address &&
-      other.coordinates == coordinates;
+      other.coordinates == coordinates &&
+      other.timezoneId == timezoneId;
 
   @override
-  int get hashCode => Object.hash(useHomeAddress, address, coordinates);
+  int get hashCode =>
+      Object.hash(useHomeAddress, address, coordinates, timezoneId);
 
   @override
   String toString() => useHomeAddress
@@ -108,6 +119,7 @@ class RequestDraft {
     required RequestKind kind,
     String title = '',
     String description = '',
+    List<String> imageMediaIds = const [],
     ProductCondition? condition,
     ServiceType? serviceType,
     int quantity = 1,
@@ -135,6 +147,7 @@ class RequestDraft {
       kind: kind,
       title: title,
       description: description,
+      imageMediaIds: List.unmodifiable(imageMediaIds),
       condition: condition,
       serviceType: serviceType,
       quantity: quantity,
@@ -150,6 +163,7 @@ class RequestDraft {
     required this.kind,
     required this.title,
     required this.description,
+    required this.imageMediaIds,
     required this.condition,
     required this.serviceType,
     required this.quantity,
@@ -163,6 +177,7 @@ class RequestDraft {
   final RequestKind kind;
   final String title;
   final String description;
+  final List<String> imageMediaIds;
 
   /// Product-only value. Must be null for service requests.
   final ProductCondition? condition;
@@ -198,6 +213,7 @@ class RequestDraft {
     RequestKind? kind,
     String? title,
     String? description,
+    List<String>? imageMediaIds,
     ProductCondition? condition,
     bool clearCondition = false,
     ServiceType? serviceType,
@@ -229,6 +245,7 @@ class RequestDraft {
       kind: kind ?? this.kind,
       title: title ?? this.title,
       description: description ?? this.description,
+      imageMediaIds: imageMediaIds ?? this.imageMediaIds,
       condition: clearCondition ? null : (condition ?? this.condition),
       serviceType: clearServiceType ? null : (serviceType ?? this.serviceType),
       quantity: quantity ?? this.quantity,
@@ -554,6 +571,8 @@ class SellerLeadProjection {
     this.verifiedPurchaseCount,
     this.lastCompletedItemLabel,
     this.preferredMeetupLabel,
+    this.locationTimezone,
+    this.imageMediaIds = const [],
     DateTime? publishedAt,
     required this.requestRevision,
     DateTime? acceptanceExpiresAt,
@@ -605,6 +624,8 @@ class SellerLeadProjection {
   }
 
   final String requestId;
+  final String? locationTimezone;
+  final List<String> imageMediaIds;
   final RequestKind kind;
   final String title;
   final String description;

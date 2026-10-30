@@ -12,7 +12,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SellerSubscriptionPanel(
+          body: SingleChildScrollView(child: SellerSubscriptionPanel(
             loadEntitlement: () async => SellerEntitlementView.fromJson(
               entitlementJson(
                 effectivePlan: 'pro',
@@ -22,13 +22,13 @@ void main() {
                 earnedApplied: true,
               ),
             ),
-          ),
+          )),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Pro Seller plan'), findsOneWidget);
-    expect(find.textContaining('Earned plan access.'), findsOneWidget);
+    expect(find.text('Pro Seller'), findsOneWidget);
+    expect(find.textContaining('Earned Pro'), findsOneWidget);
     expect(find.textContaining('Stripe TEST subscription'), findsNothing);
   });
 

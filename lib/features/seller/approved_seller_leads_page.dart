@@ -1,3 +1,4 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import '../../domain/phase2/category_answers.dart';
 import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
@@ -5,9 +6,12 @@ import '../../components/hocalist_motion.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../components/pull_refresh.dart';
+import '../../components/hocalist_paged_list.dart';
 
 import '../../data/local_marketplace_repository.dart';
 import '../../data/phase2/commercial/commercial_wallet_backend.dart';
+import '../../data/phase2/commercial/entitlement_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../../data/phase2/discovery/discovery_adapter.dart';
 import '../../data/phase2/marketplace/marketplace_leads_backend.dart';
@@ -22,6 +26,7 @@ import '../discovery/seller_discovery_origin_sheet.dart';
 import 'seller_schedule_controls.dart';
 import '../../data/phase2/media/image_gateway.dart';
 import '../media/private_image_picker.dart';
+import '../media/request_photo_gallery.dart';
 
 /// Submits one real offer and returns a user-safe outcome.
 typedef SellerOfferSubmitter =
@@ -39,6 +44,7 @@ class SellerOfferPlace {
     this.placeId,
     this.latitude,
     this.longitude,
+    this.timezoneId,
   });
 
   final String name;
@@ -46,6 +52,7 @@ class SellerOfferPlace {
   final String? placeId;
   final double? latitude;
   final double? longitude;
+  final String? timezoneId;
 }
 
 typedef SellerOfferPlacePicker =
@@ -57,43 +64,114 @@ class SellerOfferPresentation {
     : planLabel = 'Your Pro Plan',
       initialBid = r'$1.90',
       winningBid = r'$4.75',
+      remainingWinningBid = null,
+      rateHint = null,
       higherOffersAllowed = false,
       defaultPrice = '550';
 
   const SellerOfferPresentation.real({
     this.initialBid = 'Not available',
     this.winningBid = 'Not available',
-  }) : planLabel = 'HocaCredit deposit batches',
-       higherOffersAllowed = false,
+    this.planLabel = 'HocaCredit deposit batches',
+    this.remainingWinningBid,
+    this.rateHint,
+  }) : higherOffersAllowed = false,
        defaultPrice = '';
 
   factory SellerOfferPresentation.fromWallet(
     CreditWalletView wallet,
-    String? requestId,
-  ) {
+    String? requestId, {
+    DateTime? requestExpiresAt,
+    DateTime? now,
+    PlanCode? plan,
+  }) {
     String hc(int minor) => '${(minor / 100).toStringAsFixed(2)} HC';
+    final planName = switch (plan) {
+      PlanCode.free => 'Free',
+      PlanCode.pro => 'Pro Seller',
+      PlanCode.elite => 'Elite Seller',
+      null => null,
+    };
+    SellerOfferPresentation rates(
+      int initial,
+      int winning,
+      String source,
+      String hint,
+    ) => SellerOfferPresentation.real(
+      planLabel: planName == null ? source : '$planName · $source',
+      initialBid: hc(initial),
+      winningBid: hc(winning),
+      remainingWinningBid: hc(winning - initial),
+      rateHint: hint,
+    );
     for (final target in wallet.targets) {
       if (target.requestId == requestId &&
           (target.status == CreditTargetStatus.reserved ||
               target.status == CreditTargetStatus.initialCharged)) {
-        return SellerOfferPresentation.real(
-          initialBid: hc(target.initialMinor),
-          winningBid: hc(target.winningMinor),
+        return rates(
+          target.initialMinor,
+          target.winningMinor,
+          'Saved deal rates',
+          'This offer keeps the rates reserved for this deal.',
         );
       }
     }
-    final batches = wallet.batches.toList()
-      ..sort((a, b) {
-        final time = a.createdAt.compareTo(b.createdAt);
-        return time == 0 ? a.id.compareTo(b.id) : time;
-      });
+    final terms = wallet.paygo;
+    final remaining = requestExpiresAt?.difference(
+      now ?? DateTime.now().toUtc(),
+    );
+    final late =
+        terms != null &&
+        remaining != null &&
+        remaining > Duration.zero &&
+        remaining <= Duration(hours: terms.lateWindowHours);
+    final batches =
+        wallet.batches.where((batch) => batch.fundingKind != 'paygo').toList()
+          ..sort((a, b) {
+            final time = a.createdAt.compareTo(b.createdAt);
+            return time == 0 ? a.id.compareTo(b.id) : time;
+          });
     for (final batch in batches) {
-      if (batch.availableMinor >= batch.winningTotalMinor) {
-        return SellerOfferPresentation.real(
-          initialBid: hc(batch.initialFeeMinor),
-          winningBid: hc(batch.winningTotalMinor),
+      final available = batch.fundingKind == 'standard'
+          ? batches
+                .where(
+                  (other) =>
+                      other.fundingKind == 'standard' &&
+                      other.initialFeeMinor == batch.initialFeeMinor &&
+                      other.winningTotalMinor == batch.winningTotalMinor &&
+                      other.rateVersion == batch.rateVersion,
+                )
+                .fold<int>(0, (sum, other) => sum + other.availableMinor)
+          : batch.availableMinor;
+      if (available >=
+          (late ? terms.lateTotalMinor : batch.winningTotalMinor)) {
+        return rates(
+          late ? terms.lateTotalMinor : batch.initialFeeMinor,
+          late ? terms.lateTotalMinor : batch.winningTotalMinor,
+          'Wallet rates',
+          late
+              ? 'The final-hours rate applies to this request.'
+              : 'Your deposit keeps the rates saved when it was added.',
         );
       }
+    }
+    if (terms != null && terms.enabled && terms.authorised) {
+      return rates(
+        late ? terms.lateTotalMinor : terms.initialMinor,
+        late ? terms.lateTotalMinor : terms.winningMinor,
+        'Pay as you go',
+        late
+            ? 'The final-hours rate applies to this request.'
+            : 'Your saved card uses your current plan’s standard rates.',
+      );
+    }
+    if (terms != null) {
+      return rates(
+        late ? terms.lateTotalMinor : terms.initialMinor,
+        late ? terms.lateTotalMinor : terms.winningMinor,
+        'Standard rates',
+        'Add credits before sending. These are your plan’s standard rates.',
+      );
     }
     return const SellerOfferPresentation.real(
       initialBid: 'Add credits',
@@ -104,6 +182,8 @@ class SellerOfferPresentation {
   final String planLabel;
   final String initialBid;
   final String winningBid;
+  final String? remainingWinningBid;
+  final String? rateHint;
   final bool higherOffersAllowed;
   final String defaultPrice;
 }
@@ -112,10 +192,15 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   const ApprovedSellerLeadsPage({
     super.key,
     this.onChooseSpecificLocation,
+    this.automaticTimezone = false,
+    this.resolveBusinessPlace,
+    this.readBusinessAddress,
+    this.onAddBusinessAddress,
     this.onOfferSubmitted,
     this.sellerName = 'Northside Tech',
     this.offerPresentation = const SellerOfferPresentation.approvedPrototype(),
     this.leads,
+    this.focusedLead,
     this.leadsLoading = false,
     this.leadsError,
     this.onRefreshLeads,
@@ -125,6 +210,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
     this.onRefreshCategories,
     this.offerTimezones = const <String>[],
     this.onSubmitOffer,
+    this.offeredRequestIds = const <String>{},
     this.onValidateLead,
     this.uploadImage,
     this.leadPaging,
@@ -135,6 +221,11 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   });
 
   final SellerOfferPlacePicker? onChooseSpecificLocation;
+  final bool automaticTimezone;
+  final SellerOfferPlacePicker? resolveBusinessPlace;
+  final String? Function()? readBusinessAddress;
+  final Future<void> Function()? onAddBusinessAddress;
+  final Set<String> offeredRequestIds;
   final Future<SellerLeadView?> Function(SellerLeadView)? onValidateLead;
   final ValueChanged<LocalOfferRecord>? onOfferSubmitted;
   final String sellerName;
@@ -142,6 +233,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
 
   /// Real buyer requests. Null keeps the approved prototype list.
   final List<SellerLeadView>? leads;
+  final SellerLeadView? focusedLead;
 
   final bool leadsLoading;
 
@@ -210,6 +302,11 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
   int _pagedToken = 0;
   Timer? _searchDebounce;
   bool _openingOffer = false;
+  final Set<String> _justOfferedRequestIds = {};
+  bool _hasOffer(SellerLeadView lead) =>
+      lead.requestId != null &&
+      (widget.offeredRequestIds.contains(lead.requestId) ||
+          _justOfferedRequestIds.contains(lead.requestId));
   String? _offerOpenError;
 
   bool get _pagedMode => widget.leadPaging != null;
@@ -360,7 +457,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
       _budget != 'All';
 
   List<SellerLeadView> get _visibleLeads {
-    if (_pagedMode) return _pagedLeads;
+    if (_pagedMode) return _prioritizeFocusedLead(_pagedLeads);
     final source = widget.leads ?? _prototypeLeads;
     final query = _query.trim().toLowerCase();
     final filtered = source.where((lead) {
@@ -391,7 +488,19 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
     } else if (_sort == 'Most purchases') {
       filtered.sort((a, b) => (b.purchases ?? -1).compareTo(a.purchases ?? -1));
     }
-    return filtered;
+    return _prioritizeFocusedLead(filtered);
+  }
+
+  List<SellerLeadView> _prioritizeFocusedLead(List<SellerLeadView> rows) {
+    final focused = widget.focusedLead;
+    if (focused == null || _hasActiveFilter) return rows;
+    final current = rows
+        .where((row) => row.requestId == focused.requestId)
+        .firstOrNull;
+    return [
+      current ?? focused,
+      ...rows.where((row) => row.requestId != focused.requestId),
+    ];
   }
 
   /// Budget bands compare numeric bounds when the label is parseable, so real
@@ -598,7 +707,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
   }
 
   Future<void> _openOffer(SellerLeadView lead, {bool? highPreset}) async {
-    if (_openingOffer) return;
+    if (_openingOffer || _hasOffer(lead)) return;
     _openingOffer = true;
     if (widget.onValidateLead != null) {
       SellerLeadView? refreshed;
@@ -612,7 +721,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
         setState(() {
           _openingOffer = false;
           _offerOpenError =
-              'This request could not be confirmed as available. Refresh Leads and try again.';
+              'This request could not be confirmed as available. Please try again.';
         });
         if (_pagedMode) unawaited(_reloadPagedLeads());
         widget.onRefreshLeads?.call();
@@ -636,6 +745,10 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
         sellerName: widget.sellerName,
         presentation: widget.offerPresentation,
         onChooseSpecificLocation: widget.onChooseSpecificLocation,
+        automaticTimezone: widget.automaticTimezone,
+        resolveBusinessPlace: widget.resolveBusinessPlace,
+        readBusinessAddress: widget.readBusinessAddress,
+        onAddBusinessAddress: widget.onAddBusinessAddress,
         timezones: widget.offerTimezones,
         onSubmitOffer: widget.onSubmitOffer,
         uploadImage: widget.uploadImage,
@@ -643,6 +756,9 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
     );
     _openingOffer = false;
     if (!mounted || submitted == null) return;
+    if (lead.requestId != null) {
+      setState(() => _justOfferedRequestIds.add(lead.requestId!));
+    }
     // Real offers are persisted by the server; only the prototype keeps a
     // local record.
     if (!widget.usesRealOffers) {
@@ -747,14 +863,8 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
                   if ((_pagedMode ? _pagedLoading : widget.leadsLoading)) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
+                      child: HocalistLoadingIndicator(
                         key: const Key('sellerLeadsLoading'),
-                        minHeight: 3,
-                        color: SellerUiColors.primary,
-                        backgroundColor: HocalistPalette.surface(
-                          context,
-                          SellerUiColors.lavender,
-                        ),
                       ),
                     ),
                     SizedBox(height: metrics.spacing(10)),
@@ -777,34 +887,40 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
                           : widget.onRefreshLeads,
                     )
                   else
-                    for (final lead in _visibleLeads) ...[
-                      _LeadCard(
-                        key: Key('sellerLeadCard${lead.initials}'),
-                        lead: lead,
-                        onPrepareOffer: () => _openOffer(lead),
-                        onLowOffer: lead.presetPrice(high: false) == null
-                            ? null
-                            : () => _openOffer(lead, highPreset: false),
-                        onHighOffer: lead.presetPrice(high: true) == null
-                            ? null
-                            : () => _openOffer(lead, highPreset: true),
-                      ),
-                      SizedBox(height: metrics.spacing(12)),
-                    ],
-                  if (_pagedMode && _pagedCursor != null && !_pagedLoading) ...[
-                    Center(
-                      child: SellerSecondaryButton(
-                        key: const Key('sellerLeadsLoadMore'),
-                        label: _pagedLoadingMore
-                            ? 'Loading more…'
-                            : 'Load more leads',
-                        onPressed: _pagedLoadingMore
-                            ? null
-                            : () => unawaited(_loadMorePagedLeads()),
+                    HocalistPagedList<SellerLeadView>(
+                      items: _visibleLeads,
+                      resetKey: [
+                        _query,
+                        _category,
+                        _location,
+                        _budget,
+                        _sort,
+                      ].join('|'),
+                      hasMore: _pagedMode && _pagedCursor != null,
+                      loadedCount: _pagedLeads.length,
+                      loadMore: _pagedMode ? _loadMorePagedLeads : null,
+                      itemBuilder: (context, lead) => Padding(
+                        padding: EdgeInsets.only(bottom: metrics.spacing(12)),
+                        child: _LeadCard(
+                          key: Key('sellerLeadCard${lead.initials}'),
+                          lead: lead,
+                          alreadyOffered: _hasOffer(lead),
+                          onPrepareOffer: _hasOffer(lead)
+                              ? null
+                              : () => _openOffer(lead),
+                          onLowOffer:
+                              _hasOffer(lead) ||
+                                  lead.presetPrice(high: false) == null
+                              ? null
+                              : () => _openOffer(lead, highPreset: false),
+                          onHighOffer:
+                              _hasOffer(lead) ||
+                                  lead.presetPrice(high: true) == null
+                              ? null
+                              : () => _openOffer(lead, highPreset: true),
+                        ),
                       ),
                     ),
-                    SizedBox(height: metrics.spacing(6)),
-                  ],
                 ],
               ),
             ),
@@ -1243,16 +1359,15 @@ class _SellerLeadsEmptyState extends StatelessWidget {
             filtered
                 ? 'Try another search or clear one of the active filters.'
                 : 'New buyer requests appear here as they are posted. '
-                      'Check back shortly or refresh.',
+                      'Check back shortly.',
             textAlign: TextAlign.center,
             style: sellerText(metrics, 11.5, color: SellerUiColors.muted),
           ),
           if (!filtered && onRefresh != null) ...[
             SizedBox(height: metrics.spacing(8)),
-            TextButton(
+            PullRefreshAction(
               key: const Key('sellerLeadsEmptyRefresh'),
-              onPressed: onRefresh,
-              child: const Text('Refresh'),
+              onRefresh: onRefresh,
             ),
           ],
         ],
@@ -1285,14 +1400,13 @@ class _TargetingNotice extends StatelessWidget {
               TextSpan(
                 children: const [
                   TextSpan(
-                    text: 'No targeting fee is charged yet.\n',
+                    text: 'Sending an offer does not charge the initial fee.\n',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   TextSpan(
                     text:
-                        'When a buyer accepts your offer, the winning total is reserved '
-                        'from one HocaCredit deposit batch. The initial fee is charged '
-                        'after both of you message; a confirmed purchase charges only '
+                        'The winning total is covered by one HocaCredit deposit batch. '
+                        'For Free and Pro, the buyer reply triggers the initial fee. Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline, with eligible no-purchase fees waived. A confirmed purchase charges only '
                         'the remaining difference. Each targeted customer uses one weekly slot.',
                   ),
                 ],
@@ -1310,13 +1424,15 @@ class _LeadCard extends StatelessWidget {
   const _LeadCard({
     required this.lead,
     required this.onPrepareOffer,
+    this.alreadyOffered = false,
     this.onLowOffer,
     this.onHighOffer,
     super.key,
   });
 
   final SellerLeadView lead;
-  final VoidCallback onPrepareOffer;
+  final VoidCallback? onPrepareOffer;
+  final bool alreadyOffered;
   final VoidCallback? onLowOffer, onHighOffer;
 
   @override
@@ -1461,6 +1577,7 @@ class _LeadCard extends StatelessWidget {
                 style: sellerText(metrics, 12, color: SellerUiColors.body),
               ),
               CategoryAnswersView(answers: lead.categoryAnswers),
+              RequestPhotoGallery(ids: lead.requestImages),
               SizedBox(height: metrics.spacing(8)),
               Row(
                 children: [
@@ -1474,14 +1591,17 @@ class _LeadCard extends StatelessWidget {
                     'Budget range',
                     style: sellerText(metrics, 10, color: SellerUiColors.body),
                   ),
-                  const Spacer(),
-                  Text(
-                    lead.budget,
-                    style: sellerText(
-                      metrics,
-                      16,
-                      weight: FontWeight.w800,
-                      color: SellerUiColors.green,
+                  SizedBox(width: metrics.geometry(6)),
+                  Expanded(
+                    child: Text(
+                      lead.budget,
+                      textAlign: TextAlign.end,
+                      style: sellerText(
+                        metrics,
+                        16,
+                        weight: FontWeight.w800,
+                        color: SellerUiColors.green,
+                      ),
                     ),
                   ),
                 ],
@@ -1534,7 +1654,7 @@ class _LeadCard extends StatelessWidget {
                       onTap: onHighOffer,
                     ),
                     SellerPrimaryButton(
-                      label: 'Prepare offer',
+                      label: alreadyOffered ? 'Offer sent' : 'Prepare offer',
                       compact: true,
                       fontSize: 12,
                       onPressed: onPrepareOffer,
@@ -1670,6 +1790,10 @@ class _SendOfferSheet extends StatefulWidget {
     required this.presentation,
     this.initialPrice,
     this.onChooseSpecificLocation,
+    this.automaticTimezone = false,
+    this.resolveBusinessPlace,
+    this.readBusinessAddress,
+    this.onAddBusinessAddress,
     this.timezones = const <String>[],
     this.onSubmitOffer,
     this.uploadImage,
@@ -1680,6 +1804,10 @@ class _SendOfferSheet extends StatefulWidget {
   final SellerOfferPresentation presentation;
   final String? initialPrice;
   final SellerOfferPlacePicker? onChooseSpecificLocation;
+  final bool automaticTimezone;
+  final SellerOfferPlacePicker? resolveBusinessPlace;
+  final String? Function()? readBusinessAddress;
+  final Future<void> Function()? onAddBusinessAddress;
   final List<String> timezones;
   final SellerOfferSubmitter? onSubmitOffer;
   final ImageUpload? uploadImage;
@@ -1702,12 +1830,33 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     try {
       final backend = createConfiguredCommercialWalletBackend();
       if (backend == null) throw StateError('Credit read unavailable');
-      final wallet = await backend.loadCreditWallet();
-      if (!mounted) return;
+      final entitlementBackend = createConfiguredEntitlementBackend();
+      final identity = entitlementBackend?.identity;
+      final user = identity?.call();
+      Future<SellerEntitlementView?> readPlan() async {
+        try {
+          return await entitlementBackend?.loadEntitlement();
+        } catch (_) {
+          return null;
+        }
+      }
+
+      final reads = await Future.wait<Object?>([
+        backend.loadCreditWallet(),
+        readPlan(),
+      ]);
+      final wallet = reads[0] as CreditWalletView;
+      final entitlement = reads[1] as SellerEntitlementView?;
+      if (!mounted ||
+          (identity != null && (user == null || identity() != user))) {
+        return;
+      }
       setState(
         () => _livePresentation = SellerOfferPresentation.fromWallet(
           wallet,
           widget.lead.requestId,
+          requestExpiresAt: widget.lead.acceptanceExpiresAt,
+          plan: entitlement?.effectivePlan,
         ),
       );
     } catch (_) {
@@ -1721,13 +1870,32 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
 
   late final TextEditingController _priceController;
   late final TextEditingController _messageController;
-  _MeetupChoice _meetupChoice = _MeetupChoice.business;
+  late _MeetupChoice _meetupChoice =
+      _realMode &&
+          widget.readBusinessAddress != null &&
+          widget.readBusinessAddress!() == null
+      ? _MeetupChoice.specific
+      : _MeetupChoice.business;
   SellerOfferPlace? _specificLocation;
+  SellerOfferPlace? _businessPlace;
+  bool _resolvingBusiness = false;
   DateTime _meetingDate = DateTime(2025, 5, 22);
   TimeOfDay _meetingTime = const TimeOfDay(hour: 15, minute: 0);
   String? _priceError;
   String? _submitError;
   bool _submitting = false;
+  bool _closing = false;
+
+  bool get _ownsCurrentRoute =>
+      mounted && !_closing && ModalRoute.of(context)?.isCurrent == true;
+
+  void _close([LocalOfferRecord? result]) {
+    if (!_ownsCurrentRoute) return;
+    _closing = true;
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(result);
+  }
+
   bool _imagePending = false;
   final List<String> _productImages = [];
   String? _timezoneId;
@@ -1743,6 +1911,11 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     if (_realMode) {
       _meetingDate = DateTime.now();
       unawaited(_loadFeePresentation());
+      if (widget.automaticTimezone && _meetupChoice == _MeetupChoice.business) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _resolveBusiness();
+        });
+      }
     }
     final firstName = widget.lead.name.split(' ').first;
     final product = widget.lead.request
@@ -1764,6 +1937,31 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     _priceController.dispose();
     _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _resolveBusiness() async {
+    final resolve = widget.resolveBusinessPlace;
+    if (resolve == null || _resolvingBusiness) return;
+    setState(() => _resolvingBusiness = true);
+    try {
+      final place = await resolve(context);
+      if (!mounted || _meetupChoice != _MeetupChoice.business) return;
+      setState(() {
+        _businessPlace = place;
+        _timezoneId = place?.timezoneId;
+        _occurrence = null;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _timezoneId = null;
+          _submitError =
+              'Could not resolve this address. Choose the meeting location on the map.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _resolvingBusiness = false);
+    }
   }
 
   Future<void> _chooseSpecificLocation() async {
@@ -1818,6 +2016,9 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     setState(() {
       _specificLocation = place;
       _meetupChoice = _MeetupChoice.specific;
+      _timezoneId = place.timezoneId;
+      _occurrence = null;
+      if (!_outcomeUncertain) _submitError = null;
     });
   }
 
@@ -1832,6 +2033,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     setState(() {
       _meetingDate = selection.date;
       _meetingTime = selection.time;
+      if (!_outcomeUncertain) _submitError = null;
     });
   }
 
@@ -1857,7 +2059,12 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
   }
 
   Future<void> _submit() async {
-    if (_submitting || _imagePending) return;
+    if (!_ownsCurrentRoute ||
+        _submitting ||
+        _imagePending ||
+        _resolvingBusiness) {
+      return;
+    }
     final price = double.tryParse(_priceController.text.trim());
     if (price == null || price <= 0) {
       setState(() => _priceError = 'Enter a valid offer price.');
@@ -1874,7 +2081,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
     });
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted) return;
-    Navigator.pop(context, _displayRecord(price));
+    _close(_displayRecord(price));
   }
 
   Future<void> _submitRealOffer(
@@ -1894,8 +2101,21 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
       );
       return;
     }
+    if (_meetupChoice == _MeetupChoice.business &&
+        widget.readBusinessAddress != null &&
+        widget.readBusinessAddress!() == null) {
+      setState(
+        () => _submitError =
+            'Add your business address or choose another meeting location.',
+      );
+      return;
+    }
     if (_timezoneId == null) {
-      setState(() => _submitError = 'Choose the meeting timezone.');
+      setState(
+        () => _submitError = widget.automaticTimezone
+            ? 'Confirm the meeting location to determine its timezone.'
+            : 'Choose the meeting timezone.',
+      );
       return;
     }
     if (_meetupChoice == _MeetupChoice.specific && _specificLocation == null) {
@@ -1958,12 +2178,12 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
       _pendingTerms!,
       _pendingOperationKey!,
     );
-    if (!mounted) return;
+    if (!_ownsCurrentRoute) return;
     if (result.isSuccess) {
       _pendingTerms = null;
       _pendingOperationKey = null;
       _outcomeUncertain = false;
-      Navigator.pop(context, _displayRecord(price));
+      _close(_displayRecord(price));
       return;
     }
     setState(() {
@@ -1996,10 +2216,15 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
   MeetingPlace get _meetingPlace => switch (_meetupChoice) {
     _MeetupChoice.business => MeetingPlace(
       choice: MeetupPlaceChoice.sellerBusiness,
-      label: '${widget.sellerName} business location',
+      label: _businessPlace?.name ?? '${widget.sellerName} business location',
+      address: _businessPlace?.address,
+      placeId: _businessPlace?.placeId,
+      latitude: _businessPlace?.latitude,
+      longitude: _businessPlace?.longitude,
     ),
     _MeetupChoice.buyer => MeetingPlace(
       choice: MeetupPlaceChoice.buyerLocation,
+      label: widget.lead.city,
     ),
     _MeetupChoice.specific => MeetingPlace(
       choice: MeetupPlaceChoice.specificPlace,
@@ -2112,7 +2337,9 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                     metrics.pageHorizontalPadding(16),
                     metrics.spacing(10),
                     metrics.pageHorizontalPadding(16),
-                    metrics.spacing(16) + media.viewInsets.bottom,
+                    metrics.spacing(16) +
+                        media.viewInsets.bottom +
+                        media.viewPadding.bottom,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2168,7 +2395,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                           IconButton(
                             key: const Key('sellerSendOfferClose'),
                             tooltip: 'Close offer',
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () => _close(),
                             icon: const Icon(Icons.close),
                             color: HocalistPalette.text(
                               context,
@@ -2202,9 +2429,23 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                             child: _OfferBidCard(
                               initialBid: _presentation.initialBid,
                               winningBid: _presentation.winningBid,
+                              remainingWinningBid:
+                                  _presentation.remainingWinningBid,
                               compact: true,
                             ),
                           ),
+                          if (_presentation.rateHint case final hint?) ...[
+                            SizedBox(height: metrics.spacing(6)),
+                            Text(
+                              hint,
+                              textAlign: TextAlign.right,
+                              style: sellerText(
+                                metrics,
+                                11,
+                                color: SellerUiColors.muted,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       SizedBox(height: metrics.spacing(14)),
@@ -2324,20 +2565,52 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                               selected: _meetupChoice == _MeetupChoice.business,
                               icon: Icons.storefront_outlined,
                               title: 'My business / Store',
-                              subtitle: 'Meet at my business location',
-                              onTap: () => setState(
-                                () => _meetupChoice = _MeetupChoice.business,
-                              ),
+                              subtitle:
+                                  widget.readBusinessAddress?.call() ??
+                                  (_realMode
+                                      ? 'Add your business address to use this location'
+                                      : 'Meet at my business location'),
+                              onTap: () async {
+                                if (_meetupChoice == _MeetupChoice.business) {
+                                  setState(
+                                    () =>
+                                        _meetupChoice = _MeetupChoice.specific,
+                                  );
+                                  _timezoneId = _specificLocation?.timezoneId;
+                                  return;
+                                }
+                                if (_realMode &&
+                                    widget.readBusinessAddress?.call() ==
+                                        null) {
+                                  await widget.onAddBusinessAddress?.call();
+                                  if (!mounted) return;
+                                  if (widget.readBusinessAddress?.call() ==
+                                      null) {
+                                    return;
+                                  }
+                                }
+                                setState(() {
+                                  _meetupChoice = _MeetupChoice.business;
+                                  _timezoneId = null;
+                                });
+                                if (widget.automaticTimezone) {
+                                  await _resolveBusiness();
+                                }
+                              },
                             ),
                             _OfferChoice(
                               key: const Key('sellerMeetupBuyer'),
                               selected: _meetupChoice == _MeetupChoice.buyer,
                               icon: Icons.location_on_outlined,
                               title: 'Buyer’s location',
-                              subtitle: 'I’ll travel to the buyer',
-                              onTap: () => setState(
-                                () => _meetupChoice = _MeetupChoice.buyer,
-                              ),
+                              subtitle: _meetupChoice == _MeetupChoice.buyer
+                                  ? '${widget.lead.city}. Exact address shared after selection.'
+                                  : 'I’ll travel to the buyer',
+                              onTap: () => setState(() {
+                                _meetupChoice = _MeetupChoice.buyer;
+                                _timezoneId = widget.lead.buyerLocationTimezone;
+                                _occurrence = null;
+                              }),
                             ),
                             _SpecificLocationLauncher(
                               key: const Key('sellerOfferSpecificLocation'),
@@ -2383,16 +2656,28 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                       ),
                       if (widget.onSubmitOffer != null) ...[
                         SizedBox(height: metrics.spacing(10)),
-                        _OfferTimezoneField(
-                          timezones: widget.timezones,
-                          value: _timezoneId,
-                          onSelected: (zone) => setState(() {
-                            _timezoneId = zone;
-                            _occurrence = null;
-                            _ambiguousTime = false;
-                            _submitError = null;
-                          }),
-                        ),
+                        if (widget.automaticTimezone)
+                          SellerStateNotice(
+                            icon: Icons.schedule_outlined,
+                            title: _resolvingBusiness
+                                ? 'Resolving location…'
+                                : _timezoneId == null
+                                ? 'Select a meeting location'
+                                : 'Meeting timezone: $_timezoneId',
+                            body:
+                                'Timezone follows the selected location automatically.',
+                          )
+                        else
+                          _OfferTimezoneField(
+                            timezones: widget.timezones,
+                            value: _timezoneId,
+                            onSelected: (zone) => setState(() {
+                              _timezoneId = zone;
+                              _occurrence = null;
+                              _ambiguousTime = false;
+                              _submitError = null;
+                            }),
+                          ),
                         if (_ambiguousTime) ...[
                           SizedBox(height: metrics.spacing(8)),
                           _OfferOccurrenceChooser(
@@ -2428,8 +2713,8 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                               _OfferHowItWorksRow(
                                 icon: Icons.phone_outlined,
                                 text: _realMode
-                                    ? 'Sending an offer reserves the winning fee from one eligible HocaCredit deposit batch; a reservation is not a charge. The initial fee is charged only after both parties message.'
-                                    : 'If the buyer accepts your offer and chooses to share verified contact information, your initial bid is charged and you’ll receive access to their contact details.',
+                                    ? 'Sending reserves the winning total from one eligible deposit batch. Free and Pro initial fees apply after the buyer replies. Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline; eligible no-purchase fees are waived.'
+                                    : 'Free and Pro initial fees apply after the buyer replies. Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline; eligible no-purchase fees are waived.',
                               ),
                               _OfferHowItWorksRow(
                                 icon: Icons.emoji_events_outlined,
@@ -2522,9 +2807,7 @@ class _SendOfferSheetState extends State<_SendOfferSheet> {
                       SizedBox(height: metrics.spacing(12)),
                       OutlinedButton.icon(
                         key: const Key('sellerSendOfferCancel'),
-                        onPressed: _submitting
-                            ? null
-                            : () => Navigator.pop(context),
+                        onPressed: _submitting ? null : () => _close(),
                         style: OutlinedButton.styleFrom(
                           minimumSize: Size.fromHeight(metrics.geometry(44)),
                           foregroundColor: HocalistPalette.text(
@@ -3127,13 +3410,15 @@ class _OfferPlanChip extends StatelessWidget {
             color: HocalistPalette.text(context, SellerUiColors.primaryBright),
           ),
           SizedBox(width: metrics.geometry(6)),
-          Text(
-            label,
-            style: sellerText(
-              metrics,
-              11,
-              weight: FontWeight.w800,
-              color: SellerUiColors.primaryBright,
+          Flexible(
+            child: Text(
+              label,
+              style: sellerText(
+                metrics,
+                11,
+                weight: FontWeight.w800,
+                color: SellerUiColors.primaryBright,
+              ),
             ),
           ),
         ],
@@ -3146,11 +3431,13 @@ class _OfferBidCard extends StatelessWidget {
   const _OfferBidCard({
     required this.initialBid,
     required this.winningBid,
+    this.remainingWinningBid,
     this.compact = false,
   });
 
   final String initialBid;
   final String winningBid;
+  final String? remainingWinningBid;
   final bool compact;
 
   @override
@@ -3181,7 +3468,7 @@ class _OfferBidCard extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(3)),
               Text(
-                'Winning Bid $winningBid',
+                '${remainingWinningBid == null ? 'Winning Bid' : 'Winning total'} $winningBid',
                 style: sellerText(
                   metrics,
                   compact ? 9.5 : 11,
@@ -3590,7 +3877,12 @@ class SellerLeadView {
     this.acceptsHigherOffers = false,
     this.minimumMinor,
     this.maximumMinor,
+    this.buyerLocationTimezone,
+    this.requestImages = const [],
+    this.acceptanceExpiresAt,
   });
+
+  final DateTime? acceptanceExpiresAt;
 
   /// Builds the approved lead card from a real seller lead projection.
   factory SellerLeadView.fromProjection(
@@ -3601,12 +3893,15 @@ class SellerLeadView {
     final distance = projection.distanceMiles;
     return SellerLeadView(
       requestId: projection.requestId,
+      acceptanceExpiresAt: projection.acceptanceExpiresAt,
       requestRevision: projection.requestRevision,
       categoryId: projection.categoryId,
       categoryAnswers: projection.categoryAnswers,
       name: projection.buyerDisplayName,
       initials: _initialsFor(projection.buyerDisplayName),
       city: projection.areaLabel ?? 'Area not shared',
+      buyerLocationTimezone: projection.locationTimezone,
+      requestImages: projection.imageMediaIds,
       distance: distance == null
           ? (realMode ? 'Distance unavailable' : '—')
           : '${distance.toStringAsFixed(1)} mi',
@@ -3637,6 +3932,8 @@ class SellerLeadView {
       lastPurchase,
       meeting;
   final int? minimumMinor, maximumMinor;
+  final String? buyerLocationTimezone;
+  final List<String> requestImages;
   String? presetPrice({required bool high}) {
     var minor = high ? maximumMinor : minimumMinor;
     if (!realMode && minor == null) {
@@ -3843,7 +4140,7 @@ class _OfferTimezoneField extends StatelessWidget {
           borderRadius: BorderRadius.circular(metrics.geometry(9)),
         ),
         child: Text(
-          'Meeting timezones are unavailable right now. Refresh Leads and try again.',
+          'Meeting timezones are unavailable right now. Please try again.',
           style: sellerText(
             metrics,
             10,
@@ -3858,10 +4155,9 @@ class _OfferTimezoneField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        OutlinedButton.icon(
+        SellerSecondaryButton(
           key: const Key('sellerOfferTimezone'),
-          icon: const Icon(Icons.public_outlined),
-          label: Text(labelFor(value ?? '')),
+          label: labelFor(value ?? ''),
           onPressed: () async {
             var query = '';
             final selected = await showModalBottomSheet<String>(

@@ -56,7 +56,7 @@ void main() {
       );
       expect(error, isA<ValidationError>());
       expect((error as ValidationError).issues.single.field, 'categoryAnswers');
-      expect(error.issues.single.message, contains('Reload'));
+      expect(error.issues.single.message, contains('category'));
     }
   });
   testWidgets(
@@ -166,8 +166,8 @@ void main() {
     expect(key.currentState!.validationMessage(), contains('wait'));
     pending.completeError(StateError('offline'));
     await tester.pumpAndSettle();
-    expect(key.currentState!.validationMessage(), contains('Reload'));
-    await tester.tap(find.text('Reload'));
+    expect(key.currentState!.validationMessage(), contains('category'));
+    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
     expect(key.currentState!.validationMessage(), isNull);
   });

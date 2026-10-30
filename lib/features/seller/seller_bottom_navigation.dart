@@ -186,7 +186,9 @@ class _SellerNavigationItem extends StatelessWidget {
     final metrics = ApprovedReplicaScope.maybeOf(context);
     final activeColor = SellerUiColors.primaryBright;
     final inactiveColor = SellerUiColors.body;
-    final color = selected ? activeColor : inactiveColor;
+    final color = Theme.of(context).brightness == Brightness.dark
+        ? (selected ? const Color(0xffc4b5ff) : const Color(0xffc6c9de))
+        : (selected ? activeColor : inactiveColor);
     final vertical = metrics?.geometry(3) ?? 3.0;
     final indicatorRadius = metrics?.geometry(12) ?? 12.0;
 

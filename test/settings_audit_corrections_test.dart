@@ -67,8 +67,13 @@ void main() {
               );
         await pump(t, child);
         expect(find.text('Account data & deletion'), findsOneWidget);
-        await tap(t, find.byKey(const ValueKey('section-tab-Privacy')));
-        expect(find.text('Account data & deletion'), findsNothing);
+        if (seller) {
+          expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
+          expect(find.text('Appearance'), findsOneWidget);
+        } else {
+          await tap(t, find.byKey(const ValueKey('section-tab-Privacy')));
+          expect(find.text('Account data & deletion'), findsNothing);
+        }
         await tap(t, find.byTooltip('Back'));
         expect(backed, isTrue);
       },
@@ -128,7 +133,7 @@ void main() {
       },
     );
   }
-  testWidgets('seller privacy rows link to profile management', (t) async {
+  testWidgets('seller settings removes duplicate profile and service-area links', (t) async {
     var opened = 0;
     await pump(
       t,
@@ -141,10 +146,11 @@ void main() {
         onAccessibility: () {},
       ),
     );
-    await tap(t, find.byKey(const ValueKey('section-tab-Privacy')));
-    await tap(t, find.text('Public Seller visibility'));
-    await tap(t, find.text('Service-area privacy'));
-    expect(opened, 2);
+    expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
+    expect(find.text('Public Seller visibility'), findsNothing);
+    expect(find.text('Service-area privacy'), findsNothing);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(opened, 0);
   });
   testWidgets(
     'selected settings tab reveals its full label on a narrow phone',

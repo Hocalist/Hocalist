@@ -79,13 +79,20 @@ class Phase2MarketplaceOffersBackend implements MarketplaceOffersBackend {
     RepositoryFailureKind.network =>
       'The offer could not be confirmed. Retry to check it safely.',
     RepositoryFailureKind.conflict => switch (error) {
+      ConflictError(conflictCode: 'offer_exists') =>
+        'You already sent an offer for this request. Open your existing offer '
+            'to review or change it.',
       ConflictError(conflictCode: 'targeting_fee_unconfigured') =>
         'Targeting is not configured yet, so this offer cannot be accepted. '
             'No charge was made.',
       ConflictError(conflictCode: 'insufficient_single_batch') =>
         'Your prepaid credits cannot cover this interaction. '
             'Add credits before targeting this customer.',
-      _ => 'This request changed. Refresh and try again.',
+      ConflictError(conflictCode: 'payment_permission_required') =>
+        'Add credits or save a card in Credits → Manage billing before sending this offer. Sending the offer will not charge the initial fee.',
+      ConflictError(conflictCode: 'billing_review_required') =>
+        'Your billing needs a review. Contact support before sending another offer.',
+      _ => 'This request changed. Please try again.',
     },
     RepositoryFailureKind.validation =>
       error is ValidationError && error.issues.isNotEmpty

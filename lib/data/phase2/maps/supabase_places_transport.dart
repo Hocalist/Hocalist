@@ -15,7 +15,7 @@ import 'places_transport.dart';
 /// `HOCALIST_PLACES_FUNCTION` at build time; the literal is the agreed default.
 const String kHocalistPlacesFunction = 'hocalist-places';
 
-class SupabasePlacesTransport implements PlacesTransport {
+class SupabasePlacesTransport implements PlacesTransport, CoordinatePlacesTransport, AddressPlacesTransport {
   SupabasePlacesTransport(
     this._client, {
     this.functionName = kHocalistPlacesFunction,
@@ -23,6 +23,21 @@ class SupabasePlacesTransport implements PlacesTransport {
 
   final SupabaseClient _client;
   final String functionName;
+
+  @override
+  Future<PlacesTransportResult> address({required String address, required String sessionToken}) => _invoke({
+    'operation':'address', 'address':address, 'sessionToken':sessionToken,
+  });
+
+  @override
+  Future<PlacesTransportResult> coordinates({
+    required double latitude,
+    required double longitude,
+    required String sessionToken,
+  }) => _invoke({
+    'operation': 'coordinates', 'latitude': latitude, 'longitude': longitude,
+    'sessionToken': sessionToken,
+  });
 
   @override
   Future<PlacesTransportResult> autocomplete({
