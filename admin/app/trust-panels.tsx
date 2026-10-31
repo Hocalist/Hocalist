@@ -37,6 +37,11 @@ export function TrustPanel() {
   const [retry, setRetry] = useState<{ operation: string; input: Record<string, unknown> } | null>(null);
   const [evidenceNotice, setEvidenceNotice] = useState<string | null>(null);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
+  const [evidencePreview, setEvidencePreview] = useState<string | null>(null);
+  const evidenceGeneration = useRef(0);
+  useEffect(() => () => {
+    if (evidencePreview?.startsWith("blob:")) URL.revokeObjectURL(evidencePreview);
+  }, [evidencePreview]);
   const intent = useRef(new AdminIntent());
   const generation = useRef(0);
   const inFlight = useRef(false);
@@ -44,6 +49,9 @@ export function TrustPanel() {
   const loaded = useRef<ReviewQueue | null>(null);
 
   async function load(replace = true, section?: Section) {
+    ++evidenceGeneration.current;
+    setEvidencePreview(null);
+    setEvidenceBusy(null);
     const cursor =
       replace || !section || !loaded.current
         ? null
@@ -98,6 +106,7 @@ export function TrustPanel() {
     void load(true);
     return () => {
       ++generation.current;
+      ++evidenceGeneration.current;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -136,19 +145,20 @@ export function TrustPanel() {
   }
 
   async function viewEvidence(submissionId: string, mediaId: string) {
+    const current = ++evidenceGeneration.current;
     const key = `${submissionId}:${mediaId}`;
     setEvidenceBusy(key);
     setEvidenceNotice(null);
+    setEvidencePreview(null);
     const result = await requestEvidence(submissionId, mediaId);
+    if (current !== evidenceGeneration.current) {
+      if (result.ok && result.url.startsWith("blob:")) URL.revokeObjectURL(result.url);
+      return;
+    }
     setEvidenceBusy(null);
     if (result.ok) {
-      window.open(result.url, "_blank", "noopener,noreferrer");
-      if (result.url.startsWith("blob:")) {
-        setTimeout(() => URL.revokeObjectURL(result.url), 60_000);
-      }
-      setEvidenceNotice(
-        "Evidence loaded through the authorized gateway. Allow this site's pop-up if the preview did not open.",
-      );
+      setEvidencePreview(result.url);
+      setEvidenceNotice("Photo ready to review.");
       return;
     }
     setEvidenceNotice(result.message);
@@ -228,6 +238,14 @@ export function TrustPanel() {
             />
           </label>
           {evidenceNotice && <p role="status">{evidenceNotice}</p>}
+          {evidencePreview && <section aria-label="Verification photo" className="section">
+            <div className="section-title"><h3>Verification photo</h3>
+              <button onClick={() => { setEvidencePreview(null); setEvidenceNotice(null); }}>Close photo</button>
+            </div>
+            {/* Evidence must remain readable without cropping or pop-up permissions. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={evidencePreview} alt="Photo attached to the selected verification review" style={{display:"block",width:"100%",maxHeight:"70vh",objectFit:"contain"}} />
+          </section>}
 
           <SectionTabs label="Trust review sections" sections={[{title:"Verification",content:<><h3>Evidence submissions</h3>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
