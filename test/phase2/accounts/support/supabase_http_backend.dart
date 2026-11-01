@@ -57,6 +57,7 @@ class _MemoryAsyncStorage extends GotrueAsyncStorage {
 
 class SyntheticAccountBackend {
   bool emailConfirmed = true;
+  bool phoneOnly = false;
   final List<http.Request> requests = <http.Request>[];
   final Map<String, List<Map<String, Object?>>> tableRows = {};
   final Map<String, http.Response> tableErrorOverrides = {};
@@ -124,6 +125,19 @@ class SyntheticAccountBackend {
   }
 
   Future<http.Response> _handleAuth(http.Request request) async {
+    if (request.url.path.endsWith('/verify')) {
+      final body = jsonDecode(request.body) as Map<String, Object?>;
+      if (body['type'] == 'sms' && body['token'] == '123456') {
+        return http.Response(jsonEncode(_issueSession(syntheticUserA)), 200);
+      }
+      return http.Response(
+        jsonEncode({
+          'code': 'otp_expired',
+          'message': 'Token has expired or is invalid',
+        }),
+        403,
+      );
+    }
     if (request.url.path.endsWith('/logout')) {
       return http.Response('', 204);
     }
@@ -197,11 +211,14 @@ class SyntheticAccountBackend {
     'id': userId,
     'aud': 'authenticated',
     'role': 'authenticated',
-    'email': '$userId@example.com',
-    if (emailConfirmed) 'email_confirmed_at': '2026-05-01T00:00:00Z',
+    'email': phoneOnly ? '' : '$userId@example.com',
+    if (emailConfirmed && !phoneOnly)
+      'email_confirmed_at': '2026-05-01T00:00:00Z',
+    if (phoneOnly) 'phone': '+15555550100',
+    if (phoneOnly) 'phone_confirmed_at': '2026-05-01T00:00:00Z',
     'app_metadata': <String, Object?>{
-      'provider': 'email',
-      'providers': <String>['email'],
+      'provider': phoneOnly ? 'phone' : 'email',
+      'providers': <String>[phoneOnly ? 'phone' : 'email'],
     },
     'user_metadata': <String, Object?>{},
     'created_at': '2026-05-01T00:00:00Z',
