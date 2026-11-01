@@ -65,14 +65,18 @@ class SupabaseAccountAuthGateway implements AccountAuthGateway {
   }
 
   AuthIdentitySnapshot _snapshot(User? user, {AuthChangeEvent? event}) {
-    if (user == null || (user.email != null && user.emailConfirmedAt == null)) {
+    final email = user?.email?.trim();
+    // Phone-only sessions can contain an empty email string from Auth.
+    // Require email confirmation only when there is an email to confirm.
+    if (user == null ||
+        (email != null && email.isNotEmpty && user.emailConfirmedAt == null)) {
       return const AuthIdentitySnapshot.signedOut();
     }
     final metadata = user.userMetadata;
     final name = metadata?['full_name'] ?? metadata?['name'];
     return AuthIdentitySnapshot(
       userId: user.id,
-      email: user.email,
+      email: email == null || email.isEmpty ? null : email,
       displayName: name is String && name.trim().isNotEmpty ? name : null,
       recovery:
           event == AuthChangeEvent.passwordRecovery ||
