@@ -34,7 +34,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save request'));
+    await tester.tap(find.text('Bookmark request'));
     await tester.pumpAndSettle();
     expect(find.text('Remove from saved'), findsNothing);
     await tester.tap(find.text('Retry saved action'));

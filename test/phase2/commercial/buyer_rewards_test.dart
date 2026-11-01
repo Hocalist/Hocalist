@@ -13,9 +13,48 @@ import 'support/commercial_payloads.dart';
 void main() {
   setUpAll(loadHocalistTestFonts);
 
-  final value = RewardWalletView.fromJson(
-    rewardWalletJson(),
-  );
+  final value = RewardWalletView.fromJson(rewardWalletJson());
+
+  for (final width in [320.0, 390.0, 600.0]) {
+    testWidgets('pending estimates remain separate at width $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final estimate = RewardWalletView.fromJson(
+        rewardWalletJson()..['estimated_minor'] = 45,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: Size(width, 900),
+              textScaler: const TextScaler.linear(1.3),
+            ),
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: BuyerRewardsPanel(load: () async => estimate),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('buyerRewardsEstimated')), findsOneWidget);
+      expect(find.text(r'$0.45'), findsOneWidget);
+      expect(
+        find.textContaining('Pending estimates cannot be withdrawn.'),
+        findsOneWidget,
+      );
+      final available = tester.widget<Text>(
+        find.byKey(const Key('buyerRewardsAvailable')),
+      );
+      expect(available.data, r'$0.15');
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'does not display a fabricated balance while loading or after failure',
@@ -192,7 +231,7 @@ void main() {
               final bytes = await image.toByteData(
                 format: ui.ImageByteFormat.png,
               );
-              final file = File('.codex-local/rewards-current.png');
+              final file = File('output/rewards-current.png');
               await file.parent.create(recursive: true);
               await file.writeAsBytes(bytes!.buffer.asUint8List());
               image.dispose();

@@ -40,6 +40,19 @@ class DiscoveryDataAdapter {
 
   String? _captureIdentity() => session.currentUserId;
 
+  Future<RepositoryResult<Map<String, Object?>>> sellerCustomers() => _rpc('seller_customers', {});
+  Future<RepositoryResult<Map<String, Object?>>> sellerCustomerSave(String buyerId, bool saved, String note) =>
+      _rpc('seller_customer_save', {'p_buyer': buyerId, 'p_saved': saved, 'p_note': note});
+  Future<RepositoryResult<Map<String, Object?>>> sellerCustomerInsights(String buyerId) =>
+      _rpc('seller_customer_insights', {'p_buyer': buyerId});
+
+  Future<RepositoryResult<Map<String, Object?>>> hocatrendsOfferPreference(
+    String offerId, {bool? enabled}
+  ) => _rpc('hocatrends_offer_preference', {
+    'p_offer': offerId,
+    'p_enabled': enabled,
+  });
+
   bool _isStillCurrent(String userId) => session.currentUserId == userId;
 
   static const RepositoryError _unauthenticated = PermissionDeniedError(
@@ -397,6 +410,10 @@ class DiscoveryDataAdapter {
       final percent = entry['percent'];
       final competition = entry['competition'];
       final copy = entry['activity_copy'];
+      final available = entry['available_sellers'];
+      if (available != null && (available is! int || available < 0)) {
+        throw DiscoveryDecodeException('$entryContext.available_sellers');
+      }
       if (rank is! int ||
           categoryId is! String ||
           label is! String ||
@@ -414,6 +431,9 @@ class DiscoveryDataAdapter {
       }
       items.add(
         HocatrendsTopic(
+          requestId: entry['request_id'] as String?,
+          categoryLabel: entry['category_label'] as String?,
+          availableSellers: available as int?,
           rank: rank,
           categoryId: categoryId,
           label: label,
@@ -491,6 +511,14 @@ class DiscoveryDataAdapter {
       final listingId = entry['listing_id'];
       final listingTitle = entry['listing_title'];
       final priceLabel = entry['price_label'];
+      final offerPrice = entry['offer_price_minor'];
+      final buyerBudget = entry['buyer_budget_minor'];
+      final currency = entry['currency_code'];
+      if ((offerPrice != null && (offerPrice is! int || offerPrice < 0)) ||
+          (buyerBudget != null && (buyerBudget is! int || buyerBudget < 0)) ||
+          (currency != null && currency is! String)) {
+        throw DiscoveryDecodeException('$entryContext.pricing');
+      }
       final ratingSum = entry['rating_sum'];
       final ratingCount = entry['rating_count'];
       final deals = entry['completed_deals'];
@@ -515,9 +543,17 @@ class DiscoveryDataAdapter {
           listingId: listingId as String?,
           listingTitle: listingTitle as String?,
           priceLabel: priceLabel as String?,
+          offerPriceMinor: offerPrice as int?,
+          buyerBudgetMinor: buyerBudget as int?,
+          currencyCode: currency as String?,
           ratingSum: ratingSum,
           ratingCount: ratingCount,
           completedDeals: deals,
+          avatarMediaId: entry['avatar_media_id'] as String?,
+          offerImageMediaIds: (entry['offer_image_media_ids'] as List? ?? const []).cast<String>(),
+          verified: entry['verified'] == true,
+          distanceMiles: (entry['distance_miles'] as num?)?.toDouble(),
+          responseMinutes: (entry['response_minutes'] as num?)?.toInt(),
         ),
       );
     }
@@ -578,6 +614,9 @@ class DiscoveryDataAdapter {
     }
     return PublicBuyerProfile(
       available: true,
+      emailVerified: row['email_verified'] is bool ? row['email_verified'] as bool : null,
+      phoneVerified: row['phone_verified'] is bool ? row['phone_verified'] as bool : null,
+      categories: (row['categories'] as List? ?? const []).whereType<String>().toList(growable:false),
       profileId: profileId,
       displayName: displayName as String?,
       areaLabel: area as String?,
@@ -608,6 +647,7 @@ class DiscoveryDataAdapter {
       conversationId: conversationId,
       origin: decodedOrigin,
       subjectId: subjectId,
+      enquiryId: row['enquiry_id'] is String ? row['enquiry_id'] as String : null,
     );
   }
 }

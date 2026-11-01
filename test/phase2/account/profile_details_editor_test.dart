@@ -10,6 +10,20 @@ import 'account_test_fakes.dart';
 import '../../test_fonts.dart';
 
 void main() {
+  testWidgets('service area popup saves only area and radius', (tester) async {
+    final base=roleProfile(role:HocalistRole.seller,revision:7,areaLabel:'Old area');
+    UpdateRoleProfileCommand? saved;
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:SingleChildScrollView(child:ProfileDetailsEditor(
+      serviceAreaOnly:true,readCurrent:()=>base,onSave:(command)async{saved=command;},
+    )))));
+    expect(find.byKey(const Key('profileDetailsField1')),findsNothing);
+    await tester.enterText(find.byKey(const Key('profileDetailsField0')),'Chicago');
+    await tester.enterText(find.byKey(const Key('profileDetailsField3')),'25');
+    await tester.ensureVisible(find.text('Save service area'));await tester.tap(find.text('Save service area'));await tester.pumpAndSettle();
+    expect((saved!.areaLabel as PatchSet<String>).value,'Chicago');
+    expect((saved!.serviceRadiusMiles as PatchSet<int>).value,25);
+    expect(saved!.profileNote,isA<PatchKeep>());expect(saved!.preferredMeetupType,isA<PatchKeep>());expect(saved!.pickupAvailability,isA<PatchKeep>());
+  });
   setUpAll(loadHocalistTestFonts);
   testWidgets('buyer has one save for display name and nested profile note', (
     tester,

@@ -29,3 +29,11 @@ Deno.test('phone preview can upload but lookalike and expired origins cannot', (
     assert(response.status === 403 && !response.headers.has('Access-Control-Allow-Origin'));
   }
 });
+Deno.test('alternate local app media address permits only the exact port and host', () => {
+  for (const origin of ['http://localhost:7359','http://localhost:7358','http://localhost.evil.test:7359','https://localhost:7359']) {
+    const allowed=origin==='http://localhost:7359';
+    const response=mediaCors(new Request('https://example.test',{headers:{Origin:origin}}),new Response(null,{status:401}));
+    assert(response.status===(allowed?401:403));
+    assert(response.headers.get('Access-Control-Allow-Origin')===(allowed?origin:null));
+  }
+});

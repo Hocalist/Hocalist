@@ -51,3 +51,14 @@ Deno.test('HTTPS preview is exact; lookalike hosts remain refused', () => {
     if(status===204 && response.headers.get('Access-Control-Allow-Origin')!==origin)throw new Error('missing exact origin');
   }
 });
+Deno.test('alternate local app address is exact and retains authentication errors', () => {
+  for (const origin of ['http://localhost:7359','http://localhost:7358','http://localhost.evil.test:7359','https://localhost:7359']) {
+    const request=new Request('https://example.test',{method:'OPTIONS',headers:{Origin:origin}});
+    const allowed=origin==='http://localhost:7359';
+    const preflight=placesPreflight(request);
+    if(preflight.status!==(allowed?204:403))throw Error('origin boundary');
+    const response=withPlacesCors(request,new Response(null,{status:401}));
+    if(response.status!==401)throw Error('auth status changed');
+    if(response.headers.get('Access-Control-Allow-Origin')!==(allowed?origin:null))throw Error('origin header');
+  }
+});

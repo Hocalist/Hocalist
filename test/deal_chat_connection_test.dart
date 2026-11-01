@@ -10,16 +10,22 @@ class DealBackend
         MarketplaceChatBackend,
         MarketplacePagedChatBackend,
         MarketplaceDealChatBackend,
+        MarketplaceChatUnreadBackend,
         MarketplaceChatAttachmentBackend {
   final calls = <({String offer, String key})>[];
   final history = <String, List<ConversationMessage>>{};
   bool failOnce = false;
+  final readGates = <String, Completer<int>>{};
+  Map<String, int> unreadCounts = {};
+  @override
+  Future<Map<String, int>> loadDealUnreadCounts(String id) async => unreadCounts;
   String? paymentBlockedOffer;
   Completer<ConversationMessage>? pending;
   @override
   bool get dealThreadsEnabled => true;
   @override
-  Future<int> markDealRead(String id, String offer, String message) async => 0;
+  Future<int> markDealRead(String id, String offer, String message) async =>
+      readGates[message] == null ? 0 : await readGates[message]!.future;
   @override
   bool get chatAttachmentsEnabled => true;
   @override
@@ -94,6 +100,31 @@ class DealBackend
 }
 
 void main() {
+  test('late read acknowledgement cannot suppress a needed read retry', () async {
+    final backend = DealBackend();
+    final repo = LocalMarketplaceRepository(chatBackend: backend);
+    addTearDown(repo.dispose);
+    await repo.openChatConversation('pair', offerId: 'first');
+    backend.readGates['older'] = Completer<int>();
+    backend.readGates['newer'] = Completer<int>();
+    final older = repo.markChatRead('older');
+    final newer = repo.markChatRead('newer');
+    backend.readGates['newer']!.complete(0);
+    expect(await newer, isTrue);
+    backend.readGates['older']!.complete(1);
+    expect(await older, isFalse);
+  });
+  test('deal indicators refresh after reading and preserve sibling unread', () async {
+    final backend = DealBackend()..unreadCounts = {'first': 2, 'second': 1};
+    final repo = LocalMarketplaceRepository(chatBackend: backend);
+    addTearDown(repo.dispose);
+    await repo.openChatConversation('pair', offerId: 'first');
+    expect(repo.dealUnreadCount('first'), 2);
+    backend.unreadCounts = {'second': 1};
+    expect(await repo.markChatRead('last'), isTrue);
+    expect(repo.dealUnreadCount('first'), 0);
+    expect(repo.dealUnreadCount('second'), 1);
+  });
   test('reopening the same participant chat retains its selected deal scope', () async {
     final backend = DealBackend();
     final repo = LocalMarketplaceRepository(chatBackend: backend);

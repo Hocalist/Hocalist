@@ -74,6 +74,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/profile/
     - assets/brand/hocalist-wordmark.png
     - assets/brand/hocalist-wordmark-header.png
     - assets/brand/hocalist-icon.png

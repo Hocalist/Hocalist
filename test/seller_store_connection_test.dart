@@ -213,17 +213,56 @@ void main() {
         await _settle(tester);
         await tester.tap(find.text('Add photo'));
         await _settle(tester);
+        final remove = find.byTooltip('Remove photo');
+        await tester.ensureVisible(remove);
+        await _settle(tester);
+        await tester.tapAt(tester.getCenter(remove));
+        await _settle(tester);
+        expect(find.byTooltip('Remove photo'), findsNothing);
+        await tester.ensureVisible(find.text('Add photo'));
+        await tester.tap(find.text('Add photo'));
+        await _settle(tester);
       },
     );
     await tapPublish(tester);
-    expect(picker.calls, 1);
-    expect(uploads, 1);
+    expect(picker.calls, 2);
+    expect(uploads, 2);
     expect(backend.listings.single.imageMediaIds, ['synthetic-image-id']);
     await repository.refreshStore();
     expect(repository.storeListings.single.imageMediaIds, [
       'synthetic-image-id',
     ]);
+    final titleAction = find.byKey(const Key('sellerStoreTitle-server-photo'));
+    await tester.ensureVisible(titleAction);
+    await _settle(tester);
+    await tester.tap(titleAction);
+    await _settle(tester);
+    expect(find.text('Edit listing'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close').last);
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('sellerStoreManage-server-photo')));
+    await _settle(tester);
+    expect(find.text('Edit listing'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test('background Store refresh updates approval without loading flicker', () async {
+    final backend = _WidgetStoreBackend();
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    await repository.refreshStore();
+    var notifications = 0;
+    repository.addListener(() { notifications++; expect(repository.storeLoading, false); });
+    await repository.refreshStore(background: true);
+    expect(notifications, 0);
+    backend.listings = [const LocalStoreListing(id: 'approved', kind: LocalListingKind.product,
+      title: 'Approved listing', priceLabel: '15', description: '', category: 'Electronics',
+      serviceArea: '', availability: '', status: LocalListingStatus.active, revision: 2)];
+    await repository.refreshStore(background: true);
+    expect(repository.storeListings.single.status, LocalListingStatus.active);
+    expect(notifications, 1);
+    await repository.refreshStore(background: true);
+    expect(notifications, 1);
   });
 
   testWidgets('a failed save keeps the editor open with its inputs', (
@@ -309,6 +348,37 @@ void main() {
       hasLength(1),
       reason: 'a retry reuses the original operation key',
     );
+  });
+
+  testWidgets('archived listings stay out of Store and restore into private drafts', (tester) async {
+    final backend = _WidgetStoreBackend();
+    backend.listings = [const LocalStoreListing(
+      id: 'archived-1', kind: LocalListingKind.product, title: 'Archived item',
+      priceLabel: '15', description: 'Saved details', category: 'Electronics',
+      serviceArea: 'Chicago', availability: 'Today', revision: 3,
+      status: LocalListingStatus.archived,
+    )];
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    await pumpStore(tester, repository);
+    expect(find.text('Archived item'), findsNothing);
+    expect(repository.storeListings, isEmpty);
+    expect(repository.archivedStoreListings, hasLength(1));
+    await tester.tap(find.byTooltip('Store options'));
+    await _settle(tester);
+    await tester.tap(find.text('Archived listings'));
+    await _settle(tester);
+    expect(find.text('Archived item'), findsOneWidget);
+    await tester.tap(find.text('Archived item'));
+    await _settle(tester);
+    expect(find.text('Publish listing'), findsNothing);
+    expect(find.text('Restore to draft'), findsOneWidget);
+    await tester.tap(find.text('Restore to draft'));
+    await _settle(tester);
+    expect(repository.archivedStoreListings, isEmpty);
+    expect(repository.storeListings.single.status, LocalListingStatus.draft);
+    expect(repository.storeListings.single.isPubliclyVisible, isFalse);
+    expect(find.text('0 published'), findsOneWidget);
   });
 
   testWidgets('pending review is not presented as published', (tester) async {

@@ -21,6 +21,8 @@ class Phase2MarketplaceChatBackend
         MarketplaceChatRequestBackend,
         MarketplacePagedChatBackend,
         MarketplaceDealChatBackend,
+        MarketplaceChatUnreadBackend,
+        MarketplaceEnquiryChatBackend,
         MarketplaceChatAttachmentBackend {
   Phase2MarketplaceChatBackend({
     required this.conversations,
@@ -30,8 +32,63 @@ class Phase2MarketplaceChatBackend
     this.identity,
     this.attachmentsEnabled = false,
     this.dealRpc,
+    this.enquiryThreadsEnabled = false,
   });
+  @override
+  final bool enquiryThreadsEnabled;
+  void _assertEnquiryEnabled() {
+    if (!enquiryThreadsEnabled) throw const StoreBackendException('Enquiry chat is not available yet.');
+  }
+  @override
+  Future<List<ChatEnquiry>> loadEnquiries(String conversationId) async {
+    _assertEnquiryEnabled();
+    final result=await _dealCall('chat_enquiries',{'p_conversation':conversationId});
+    final items=result['items'];
+    if(items is! List) throw const StoreBackendException('Could not verify enquiries.');
+    return items.map((item) {
+      if(item is! Map || item['conversation_id']!=conversationId || !['store_listing','hocatrends_enquiry'].contains(item['origin']) ||
+        ['id','subject_id','label'].any((key)=>item[key] is! String || (item[key] as String).trim().isEmpty)) {
+        throw const StoreBackendException('Could not verify enquiries.');
+      }
+      return ChatEnquiry(id:item['id'] as String,conversationId:conversationId,origin:item['origin'] as String,subjectId:item['subject_id'] as String,label:item['label'] as String);
+    }).toList(growable:false);
+  }
+  @override
+  Future<PageSlice<ConversationMessage>> loadEnquiryMessages(String conversationId,String enquiryId,String? cursor) async {
+    _assertEnquiryEnabled();
+    final page=decodeMessagePage(await _dealCall('chat_enquiry_messages',{'p_conversation':conversationId,'p_enquiry':enquiryId,'p_page_size':100,'p_before_message':cursor}));
+    if(page.items.any((m)=>m.conversationId!=conversationId || m.enquiryId!=enquiryId || m.offerId!=null)) throw const StoreBackendException('Could not verify this enquiry.');
+    return page;
+  }
+  @override
+  Future<ConversationMessage> sendEnquiryMessage({required String conversationId,required String enquiryId,required String text,required String clientMessageId,List<String> mediaIds=const []}) async {
+    _assertEnquiryEnabled();
+    if(mediaIds.isNotEmpty && !attachmentsEnabled) throw const StoreBackendException('Image attachments are unavailable.');
+    final message=decodeMessageJson(await _dealCall('chat_enquiry_send',{'p_conversation':conversationId,'p_enquiry':enquiryId,'p_key':clientMessageId,'p_text':text,'p_media_ids':mediaIds}));
+    if(message.conversationId!=conversationId || message.enquiryId!=enquiryId || message.offerId!=null) throw const StoreBackendException('Could not verify this enquiry.');
+    return message;
+  }
+  @override
+  Future<int> markEnquiryRead(String conversationId,String enquiryId,String messageId) async {
+    _assertEnquiryEnabled();
+    final result=await _dealCall('chat_enquiry_mark_read',{'p_conversation':conversationId,'p_enquiry':enquiryId,'p_last_read':messageId});
+    final unread=result['unread_count'];
+    if(unread is! int || unread<0) throw const StoreBackendException('Could not confirm read status.');
+    return unread;
+  }
   final Future<Object?> Function(String, Map<String, Object?>)? dealRpc;
+  @override
+  Future<Map<String, int>> loadDealUnreadCounts(String conversationId) async {
+    final result = await _dealCall('chat_deal_unread_counts', {
+      'p_conversation': conversationId,
+    });
+    final counts = result['counts'];
+    if (counts is! Map || counts.entries.any((entry) =>
+        entry.key is! String || entry.value is! int || (entry.value as int) < 0)) {
+      throw const StoreBackendException('Could not confirm unread messages.');
+    }
+    return Map<String, int>.from(counts);
+  }
   @override
   bool get dealThreadsEnabled => dealRpc != null;
   @override
@@ -142,7 +199,7 @@ class Phase2MarketplaceChatBackend
 
   @override
   Future<SellerLeadProjection?> loadConversationRequest(
-    String conversationId,
+    String conversationId, {String? offerId}
   ) async {
     final reader = requestReader;
     if (reader == null) return null;
@@ -174,7 +231,21 @@ class Phase2MarketplaceChatBackend
     if (conversation.id != conversationId) {
       throw const StoreBackendException('Could not load this request.');
     }
-    final requestId = conversation.requestId;
+    var requestId = conversation.requestId;
+    if (offerId != null) {
+      final source = offers;
+      if (source == null) {
+        throw const StoreBackendException('This deal could not be loaded.');
+      }
+      final result = await source.fetchOffer(offerId: offerId);
+      checkIdentity();
+      final offer = result.valueOrNull;
+      if (result.isFailure || offer == null || offer.id != offerId ||
+          offer.conversationId != conversationId) {
+        throw const StoreBackendException('This deal does not belong to this conversation.');
+      }
+      requestId = offer.requestId;
+    }
     if (requestId == null) return null;
     final request = await reader(requestId);
     checkIdentity();

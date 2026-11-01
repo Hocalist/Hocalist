@@ -92,6 +92,17 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  test('background notification refresh updates unread count without loading flash', () async {
+    final backend = _FakeNotificationsBackend();
+    final repository = LocalMarketplaceRepository(notificationsBackend: backend);
+    addTearDown(repository.dispose);
+    await repository.refreshNotifications();
+    backend.items = [_item()];
+    final refresh = repository.refreshNotifications(background: true);
+    expect(repository.notificationsLoading, isFalse);
+    await refresh;
+    expect(repository.notificationsUnreadCount, 1);
+  });
 
   testWidgets('real inbox rows replace the prototype activity', (tester) async {
     final backend = _FakeNotificationsBackend(items: [_item()]);

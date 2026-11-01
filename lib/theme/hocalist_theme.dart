@@ -420,11 +420,13 @@ class HocalistTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
+          foregroundColor: darkBuyer,
           textStyle: _controlText(darkBuyer, fontFamily: fontFamily),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          foregroundColor: darkBuyer,
           textStyle: _controlText(darkBuyer, fontFamily: fontFamily),
         ),
       ),

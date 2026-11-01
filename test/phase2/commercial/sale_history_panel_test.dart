@@ -53,7 +53,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a failed read never shows a fabricated purchase', (tester) async {
+  testWidgets('a failed read never shows a fabricated purchase', (
+    tester,
+  ) async {
     var calls = 0;
     await pump(
       tester,
@@ -67,6 +69,34 @@ void main() {
     await tester.tap(find.byKey(const Key('saleHistoryRetry')));
     await tester.pumpAndSettle();
     expect(calls, 2);
+  });
+
+  testWidgets('mixed contributions show separate amounts on one purchase', (
+    tester,
+  ) async {
+    final payload = saleHistoryPurchaseJson();
+    payload['reward'] = <String, Object?>{
+      'status': 'mixed',
+      'amount_minor': 30,
+      'earned_minor': 15,
+      'held_minor': 15,
+      'reversed_minor': 0,
+      'rule_version': 'test',
+    };
+    await pump(
+      tester,
+      width: 320,
+      scale: 1.3,
+      load: ({DateTime? beforeTime, String? beforeId}) async => [
+        SaleHistoryEntryView.fromJson(payload),
+      ],
+    );
+    expect(find.textContaining('Reward partly earned'), findsOneWidget);
+    expect(
+      find.text(r'Earned $0.15 · Held $0.15 · Reversed $0.00'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('renders purchases and sales with ledger facts', (tester) async {
@@ -154,7 +184,7 @@ void main() {
               final bytes = await image.toByteData(
                 format: ui.ImageByteFormat.png,
               );
-              final file = File('.codex-local/sale-history-current.png');
+              final file = File('output/sale-history-current.png');
               await file.parent.create(recursive: true);
               await file.writeAsBytes(bytes!.buffer.asUint8List());
               image.dispose();

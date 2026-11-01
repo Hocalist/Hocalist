@@ -1,4 +1,7 @@
 import 'dart:convert';
+import '../../data/phase2/accounts/saved_places_backend.dart';
+import 'place_capture_sheet.dart';
+import 'request_saved_addresses.dart';
 import 'dart:async';
 import '../../data/phase2/maps/places_repository.dart';
 import '../../data/phase2/maps/places_contract.dart';
@@ -156,6 +159,7 @@ class ApprovedRequestFlowPage extends StatefulWidget {
     required this.onBack,
     required this.onNotifications,
     required this.onSubmit,
+    this.savedAddresses,
     this.initialKind = ApprovedRequestKind.product,
     this.includeAppChrome = false,
     this.onHome,
@@ -172,13 +176,16 @@ class ApprovedRequestFlowPage extends StatefulWidget {
     this.initialDescription = '',
     this.homeAddress,
     this.homeTimezoneId,
+    this.homeCoordinates,
     this.onManageHomeAddress,
+    this.onSaveLocation,
     this.onChooseLocation,
     this.places,
     this.questionLoader = loadCategoryQuestions,
     super.key,
   });
 
+  final SavedPlacesRepository? savedAddresses;
   final CategoryQuestionLoader questionLoader;
   final PlacesRepository? places;
   final Color accent;
@@ -216,9 +223,11 @@ class ApprovedRequestFlowPage extends StatefulWidget {
   /// prototype display value.
   final PostalAddress? homeAddress;
   final String? homeTimezoneId;
+  final RequestCoordinates? homeCoordinates;
   final VoidCallback? onManageHomeAddress;
   final Future<RequestLocation?> Function(BuildContext context)?
   onChooseLocation;
+  final Future<bool> Function(BuildContext, RequestLocation)? onSaveLocation;
 
   bool get usesRealSubmission => onSubmitDraft != null;
 
@@ -228,6 +237,48 @@ class ApprovedRequestFlowPage extends StatefulWidget {
 }
 
 class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
+  late final String _initialTitle = widget.requestTitle;
+  late final String _initialBudget = widget.budget;
+  bool _exitPromptOpen = false;
+
+  bool get _hasUnsavedInput =>
+      widget.requestTitle != _initialTitle || widget.budget != _initialBudget ||
+      _descriptionController.text != widget.initialDescription ||
+      _kind != widget.initialKind || _quantity != 1 || _categoryId != null ||
+      _categoryAnswers.isNotEmpty || _minimum.isNotEmpty || _maximum.isNotEmpty ||
+      _condition != 'New' || _serviceType != 'Single' || !_acceptHigherOffers ||
+      !_useHomeAddress || _mapLocation != null || _addressLine1 != null ||
+      _addressLine2 != null || _city != null || _state != null ||
+      _postalCode != null || _country != null;
+
+  Future<void> _leaveTo(VoidCallback? destination) async {
+    if (destination == null || _submitting || _exitPromptOpen) return;
+    if (_outcomeUncertain) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+        content: Text('Confirm or discard the pending submission before leaving.'),
+      ));
+      return;
+    }
+    if (!widget.usesRealSubmission || _submissionCompleted || !_hasUnsavedInput) {
+      destination();
+      return;
+    }
+    _exitPromptOpen = true;
+    final discard = await showModalBottomSheet<bool>(
+      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ApprovedRequestDecisionSheet(
+        key: const Key('request-discard-draft-sheet'), asset: 'assets/post_request/info.png',
+        title: 'Discard this draft?',
+        message: 'Your request has not been posted. Stay to keep editing, or discard these changes.',
+        primaryLabel: 'Discard draft', destructive: true,
+        onCancel: () => Navigator.pop(sheetContext, false),
+        onPrimary: () => Navigator.pop(sheetContext, true),
+      ),
+    );
+    _exitPromptOpen = false;
+    if (mounted && discard == true) destination();
+  }
+
   final ScrollController _scrollController = ScrollController();
   late final TextEditingController _descriptionController =
       TextEditingController(text: widget.initialDescription);
@@ -236,6 +287,27 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   int _quantity = 1;
   bool _acceptHigherOffers = true;
   bool _useHomeAddress = true;
+
+  void _selectHomeAddress(bool value) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _useHomeAddress = value;
+      _submitError = null;
+      if (value) {
+        _mapLocation = null;
+        _addressLine1 = _addressLine2 = _city = _state = _postalCode = null;
+        _country = null;
+      }
+    });
+    if (value && (widget.homeAddress?.line1?.trim().isEmpty ?? true)) {
+      final openAddress = widget.onManageHomeAddress;
+      if (openAddress != null) {
+        openAddress();
+      } else {
+        setState(() => _submitError = 'Add your home address in settings, or enter a different address below.');
+      }
+    }
+  }
   String _condition = 'New';
   String _serviceType = 'Single';
   String _minimum = '';
@@ -251,6 +323,57 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   String? _country;
   RequestLocation? _mapLocation;
   bool _choosingLocation = false;
+  List<SavedPlace> _savedAddresses = [];
+  Future<void>? _addressSave;
+
+  Future<void> _loadSavedAddresses() async {
+    final repository = widget.savedAddresses;
+    if (repository == null) return;
+    try {
+      final rows = await repository.load();
+      if (mounted) setState(() => _savedAddresses = rows);
+    } catch (_) {
+      // Address entry remains available if saved places cannot be loaded.
+    }
+  }
+
+  Future<void> _rememberAddress() async {
+    if (_addressSave != null) {
+      try { await _addressSave; } catch (_) { return; }
+    }
+    if (!mounted || widget.savedAddresses == null || _useHomeAddress) return;
+    final address = PostalAddress(line1: _addressLine1, line2: _addressLine2,
+      city: _city, state: _state, postalCode: _postalCode, country: _country);
+    // Do not store partial typing or an address missing its locality.
+    if ([address.line1, address.city, address.state, address.postalCode, address.country]
+        .any((value) => value == null || value.trim().isEmpty)) return;
+    final text = [address.line1, address.line2, address.city, address.state,
+      address.postalCode, address.country].whereType<String>()
+      .where((value) => value.trim().isNotEmpty).join(', ');
+    final operation = rememberRequestAddress(widget.savedAddresses!, PlaceCaptureResult(
+      label: address.line1!, address: text, postalAddress: address,
+      latitude: _mapLocation?.coordinates?.latitude,
+      longitude: _mapLocation?.coordinates?.longitude,
+      timezoneId: _mapLocation?.timezoneId, source: PlaceCaptureSource.manual));
+    _addressSave = operation;
+    try {
+      await operation;
+      await _loadSavedAddresses();
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('This address could not be saved for next time. You can still post your request.')));
+    } finally { _addressSave = null; }
+  }
+
+  Future<RequestLocation?> _pickRememberedAddress() async {
+    final picked = await chooseRequestSavedAddress(context, _savedAddresses);
+    if (picked == null) return null;
+    return RequestLocation.custom(address: picked.postalAddress!,
+      timezoneId: picked.timezoneId,
+      coordinates: picked.hasCoordinates ? RequestCoordinates(
+        latitude: picked.latitude!, longitude: picked.longitude!) : null);
+  }
+
 
   bool _submitting = false;
   bool _submissionCompleted = false;
@@ -263,9 +386,10 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   void initState() {
     super.initState();
     _kind = widget.initialKind;
+    unawaited(_loadSavedAddresses());
     _useHomeAddress =
         !widget.usesRealSubmission ||
-        (widget.homeAddress != null && widget.homeAddress!.isNotEmpty);
+        (widget.homeAddress?.line1?.trim().isNotEmpty ?? false);
     final homeCountry = widget.homeAddress?.country?.trim().toUpperCase();
     _country =
         homeCountry != null && RegExp(r'^[A-Z]{2}$').hasMatch(homeCountry)
@@ -359,9 +483,12 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                 ? null
                 : Money(minorUnits: maximum, currencyCode: 'USD'),
           );
-    var location = RequestLocation.homeAddress(
-      timezoneId: widget.homeTimezoneId,
-    );
+    var location = _useHomeAddress && _mapLocation?.useHomeAddress == true
+        ? _mapLocation! : RequestLocation.homeAddress(
+            timezoneId: widget.homeTimezoneId,
+            coordinates: widget.homeCoordinates,
+            address: PostalAddress(city: widget.homeAddress?.city, state: widget.homeAddress?.state),
+          );
     if (!_useHomeAddress) {
       final address = PostalAddress(
         line1: _addressLine1,
@@ -497,7 +624,53 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       });
       return;
     }
-    final draft = _buildDraft();
+    var draft = _buildDraft();
+    // A typed address needs the same provider-derived timezone as a picked
+    // place. Never use the device timezone or repeat resolution on an
+    // uncertain request retry.
+    if (!_outcomeUncertain && widget.places != null &&
+        (draft.location.useHomeAddress
+          ? draft.location.coordinates == null && widget.homeAddress?.isNotEmpty == true
+          : draft.location.timezoneId == null)) {
+      final original = draft;
+      final address = original.location.useHomeAddress
+          ? widget.homeAddress! : original.location.address!;
+      final query = [address.line1, address.line2, address.city, address.state,
+        address.postalCode, address.country]
+          .whereType<String>().where((part) => part.trim().isNotEmpty).join(', ');
+      setState(() { _submitting = true; _submitError = null; });
+      try {
+        final resolved = await widget.places!.resolveAddress(query);
+        if (!mounted) return;
+        if (!_sameDraft(original, _buildDraft())) {
+          setState(() => _submitError = 'The request changed while its location was checked. Review it and post again.');
+          return;
+        }
+        final coordinates = RequestCoordinates(latitude: resolved.latitude, longitude: resolved.longitude);
+        final resolvedPostal = contactAddressFromPlace(resolved);
+        final resolvedAddress = PostalAddress(
+          line1: address.line1, line2: address.line2,
+          city: resolvedPostal.city ?? address.city,
+          state: resolvedPostal.state ?? address.state,
+          postalCode: resolvedPostal.postalCode ?? address.postalCode,
+          country: resolvedPostal.country ?? address.country,
+        );
+        if (!original.location.useHomeAddress &&
+            (resolvedAddress.city?.trim().isEmpty ?? true) &&
+            (resolvedAddress.state?.trim().isEmpty ?? true)) {
+          setState(() => _submitError = 'Choose a matching location with a city or area before posting.');
+          return;
+        }
+        setState(() => _mapLocation = original.location.useHomeAddress
+            ? RequestLocation.homeAddress(coordinates: coordinates, timezoneId: resolved.timezoneId,
+                address: PostalAddress(city:resolvedAddress.city,state:resolvedAddress.state))
+            : RequestLocation.custom(address: resolvedAddress, coordinates: coordinates, timezoneId: resolved.timezoneId));
+        draft = _buildDraft();
+      } catch (_) {
+        if (mounted) setState(() => _submitError = 'We could not confirm this address. Choose a matching location or check the complete address and try again.');
+        return;
+      } finally { if (mounted) setState(() => _submitting = false); }
+    }
     final issues = draft.validationIssues();
     if (issues.isNotEmpty) {
       setState(() {
@@ -530,6 +703,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       _submitting = true;
       _submitError = null;
     });
+    await _rememberAddress();
+    if (!mounted) return;
     final result = await submitter(_pendingDraft!, _pendingOperationKey!);
     if (!mounted) return;
     if (result.isSuccess) {
@@ -553,9 +728,28 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     });
   }
 
+  Future<void> _saveLocation() async {
+    if (_choosingLocation || _submitting || _outcomeUncertain || _useHomeAddress) return;
+    final save = widget.onSaveLocation;
+    if (save == null) return;
+    final address = PostalAddress(line1:_addressLine1,line2:_addressLine2,city:_city,
+      state:_state,postalCode:_postalCode,country:_country);
+    if (address.line1?.trim().isNotEmpty != true) {
+      setState(() => _submitError = 'Enter an address before saving it.'); return;
+    }
+    setState(() => _choosingLocation = true);
+    try {
+      final saved = await save(context, _mapLocation ?? RequestLocation.custom(address: address));
+      if (mounted && saved) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Place saved.')));
+    } catch (_) {
+      if (mounted) setState(() => _submitError = 'This place could not be saved. Please try again.');
+    } finally { if (mounted) setState(() => _choosingLocation = false); }
+  }
+
   Future<void> _chooseLocation() async {
     if (_choosingLocation || _submitting || _outcomeUncertain) return;
-    final choose = widget.onChooseLocation;
+    final choose = widget.savedAddresses != null
+        ? (BuildContext _) => _pickRememberedAddress() : widget.onChooseLocation;
     if (choose == null) return;
     setState(() => _choosingLocation = true);
     try {
@@ -570,7 +764,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
         _state = address?.state;
         _postalCode = address?.postalCode;
         _country = address?.country;
-        _useHomeAddress = false;
+        _useHomeAddress = location.useHomeAddress;
         _submitError = null;
       });
     } catch (_) {
@@ -612,20 +806,20 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
               final body = PopScope(
                 canPop: false,
                 onPopInvokedWithResult: (didPop, result) {
-                  if (!didPop) widget.onBack();
+                  if (!didPop) _leaveTo(widget.onBack);
                 },
                 child: _buildBody(context),
               );
               if (!widget.includeAppChrome) return body;
               return ApprovedBuyerRequestShell(
                 scrollController: _scrollController,
-                onBack: widget.onBack,
-                onNotifications: widget.onNotifications,
-                onHome: widget.onHome,
-                onHocatrends: widget.onHocatrends,
-                onOffers: widget.onOffers,
-                onChats: widget.onChats,
-                onMore: widget.onMore,
+                onBack: () => _leaveTo(widget.onBack),
+                onNotifications: () => _leaveTo(widget.onNotifications),
+                onHome: widget.onHome == null ? null : () => _leaveTo(widget.onHome),
+                onHocatrends: widget.onHocatrends == null ? null : () => _leaveTo(widget.onHocatrends),
+                onOffers: widget.onOffers == null ? null : () => _leaveTo(widget.onOffers),
+                onChats: widget.onChats == null ? null : () => _leaveTo(widget.onChats),
+                onMore: widget.onMore == null ? null : () => _leaveTo(widget.onMore),
                 child: body,
               );
             },
@@ -649,7 +843,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
             if (isLocation) SizedBox(height: metrics.geometry(16)),
             _ApprovedPageTitle(
               title: 'Post a new request',
-              onBack: widget.includeAppChrome ? null : widget.onBack,
+              onBack: widget.includeAppChrome ? null : () => _leaveTo(widget.onBack),
               textAlign: !isLocation ? TextAlign.start : TextAlign.center,
             ),
             if (!isLocation) ...[
@@ -692,10 +886,10 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                   ? ApprovedLocationRequestStep(
                       key: const ValueKey('approved-location-step'),
                       isProduct: _kind == ApprovedRequestKind.product,
+                      savedAddressMode: widget.savedAddresses != null,
+                      onAddressCompleted: () => unawaited(_rememberAddress()),
                       useHomeAddress: _useHomeAddress,
-                      onUseHomeAddressChanged: (value) {
-                        setState(() => _useHomeAddress = value);
-                      },
+                      onUseHomeAddressChanged: _selectHomeAddress,
                       onBack: () {
                         _showStep(_ApprovedRequestStep.details);
                       },
@@ -707,12 +901,14 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       submitUncertain: _outcomeUncertain,
                       onDiscardUncertain: _discardUncertain,
                       onChooseLocation:
-                          widget.onChooseLocation == null ||
+                          (widget.savedAddresses != null ? _savedAddresses.isEmpty : widget.onChooseLocation == null) ||
                               _choosingLocation ||
                               _submitting ||
                               _outcomeUncertain
                           ? null
                           : _chooseLocation,
+                      onSaveLocation: widget.onSaveLocation == null || _choosingLocation || _submitting || _outcomeUncertain || _useHomeAddress
+                          ? null : _saveLocation,
                       selectedMapAddress: !_useHomeAddress
                           ? _mapLocation?.address?.line1
                           : null,
@@ -724,7 +920,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                         _city=address.city;_state=address.state;_postalCode=address.postalCode;_country=address.country;
                         _useHomeAddress=false;_submitError=null;
                       }),
-                      onManageHomeAddress: widget.onManageHomeAddress,
+                      onManageHomeAddress: widget.onManageHomeAddress == null
+                          ? null : widget.onManageHomeAddress,
                       homeAddressLine1:
                           widget.homeAddress?.line1 ??
                           (widget.usesRealSubmission
@@ -781,7 +978,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onAcceptHigherOffersChanged: (value) {
                         setState(() => _acceptHigherOffers = value);
                       },
-                      onBack: widget.onBack,
+                      onBack: () => _leaveTo(widget.onBack),
                       onContinue: _continueToLocation,
                       descriptionController: _descriptionController,
                       categoryId: _categoryId,
@@ -833,7 +1030,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onAcceptHigherOffersChanged: (value) {
                         setState(() => _acceptHigherOffers = value);
                       },
-                      onBack: widget.onBack,
+                      onBack: () => _leaveTo(widget.onBack),
                       onContinue: _continueToLocation,
                       descriptionController: _descriptionController,
                       categoryId: _categoryId,
@@ -1249,6 +1446,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     required this.onUseHomeAddressChanged,
     required this.onBack,
     required this.onSubmit,
+    this.savedAddressMode = false,
+    this.onAddressCompleted,
     this.isProduct = false,
     this.onManageHomeAddress,
     this.homeAddressLine1 = '123 Main Street',
@@ -1264,6 +1463,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     this.onStateChanged,
     this.onPostalCodeChanged,
     this.onCountryChanged,
+    this.onSaveLocation,
     this.onChooseLocation,
     this.selectedMapAddress,
     this.customAddress,
@@ -1272,6 +1472,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     super.key,
   });
 
+  final bool savedAddressMode;
+  final VoidCallback? onAddressCompleted;
   final bool useHomeAddress;
   final ValueChanged<bool> onUseHomeAddressChanged;
   final VoidCallback onBack;
@@ -1300,6 +1502,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
   final ValueChanged<String>? onStateChanged;
   final ValueChanged<String>? onPostalCodeChanged;
   final ValueChanged<String>? onCountryChanged;
+  final VoidCallback? onSaveLocation;
   final VoidCallback? onChooseLocation;
   final String? selectedMapAddress;
   final PostalAddress? customAddress;
@@ -1330,6 +1533,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           ),
         ),
         SizedBox(height: metrics.geometry(27)),
+        ...[
         _ApprovedSurface(
           referenceHeight: 130,
           referenceVerticalPadding: 7,
@@ -1350,7 +1554,9 @@ class ApprovedLocationRequestStep extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(6)),
               InkWell(
-                onTap: () => onUseHomeAddressChanged(!useHomeAddress),
+                onTap: () => onUseHomeAddressChanged(
+                  homeAddressLine1 == 'No saved home address' ? true : !useHomeAddress,
+                ),
                 borderRadius: BorderRadius.circular(metrics.geometry(9)),
                 child: Container(
                   padding: metrics.geometryInsets(
@@ -1471,12 +1677,45 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           ],
         ),
         SizedBox(height: metrics.geometry(10)),
+        ],
         _ApprovedSurface(
           referenceVerticalPadding: 14,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Enter a different address', style: _sectionStyle(context)),
+              InkWell(
+                onTap: () => onUseHomeAddressChanged(false),
+                child: Text('Enter a different address', style: _sectionStyle(context)),
+              ),
+              if (onChooseLocation != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: onChooseLocation,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      foregroundColor: HocalistPalette.text(context, _approvedBlue),
+                      alignment: Alignment.centerLeft,
+                    ),
+                    child: Text('Choose from saved places', style: _smallStyle(context).copyWith(
+                      color: HocalistPalette.text(context, _approvedBlue),
+                      fontWeight: FontWeight.w700,
+                    )),
+                  ),
+                ),
+              Focus(
+                onFocusChange: (focused) { if (!focused) onAddressCompleted?.call(); },
+                child: ExcludeFocus(
+                excluding: useHomeAddress,
+                child: AbsorbPointer(
+                  key: const Key('different-address-inputs'),
+                  absorbing: useHomeAddress,
+                  child: Opacity(
+                    opacity: useHomeAddress ? 0.45 : 1,
+                    child: Column(
+                      key: ValueKey('different-address-fields-$useHomeAddress'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
               SizedBox(height: metrics.geometry(3)),
               Text(
                 'Fill in the address where you need the service.',
@@ -1546,6 +1785,12 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                   ),
                 ],
               ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              ),
             ],
           ),
         ),
@@ -1607,9 +1852,12 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
     this.request,
     this.onUpdateRequest,
     this.onCloseRequest,
+    this.onRecovery,
     this.onChooseLocation,
     this.onUpdated,
     this.bookmarkAction,
+    this.onEditLocation,
+    this.onResolveHomeLocation,
     this.questionLoader = loadCategoryQuestions,
     super.key,
   });
@@ -1634,6 +1882,7 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
 
   /// Real update/close commands. Null keeps the prototype preview flow.
   final RequestDraftSubmitter? onUpdateRequest;
+  final VoidCallback? onRecovery;
   final Future<RequestSubmissionResult> Function(String operationKey)?
   onCloseRequest;
 
@@ -1643,6 +1892,9 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
   onChooseLocation;
   final ValueChanged<MarketplaceRequest>? onUpdated;
   final Widget? bookmarkAction;
+  final Future<RequestLocation?> Function(BuildContext, RequestLocation)? onEditLocation;
+
+  final Future<RequestLocation> Function()? onResolveHomeLocation;
 
   bool get usesRealRequest => request != null && onUpdateRequest != null;
 
@@ -1653,6 +1905,8 @@ class ApprovedBuyerRequestDetailsPage extends StatefulWidget {
 
 class _ApprovedBuyerRequestDetailsPageState
     extends State<ApprovedBuyerRequestDetailsPage> {
+  bool get _canEdit => widget.request?.canEditAt(DateTime.now()) ?? true;
+
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   bool _isNew = true;
@@ -1665,6 +1919,10 @@ class _ApprovedBuyerRequestDetailsPageState
   RequestDraft? _pendingDraft;
   String? _pendingOperationKey;
   RequestLocation? _editedLocation;
+  String _editedMinimum = '';
+  String _editedMaximum = '';
+  late final TextEditingController _detailMinimumController;
+  late final TextEditingController _detailMaximumController;
   bool _choosingLocation = false;
   List<CategoryAnswer> _categoryAnswers = const [];
   final _questionKey = GlobalKey<CategoryQuestionEditorState>();
@@ -1686,18 +1944,24 @@ class _ApprovedBuyerRequestDetailsPageState
               "Color doesn't matter.",
     );
     if (draft != null) {
+      _editedMinimum = draft.budget.minimum == null ? '' : _formatMinorUnits(draft.budget.minimum!.minorUnits);
+      _editedMaximum = draft.budget.maximum == null ? '' : _formatMinorUnits(draft.budget.maximum!.minorUnits);
       _categoryAnswers = draft.categoryAnswers;
       _isNew = draft.condition != ProductCondition.used;
       _serviceType = draft.serviceType ?? ServiceType.oneTime;
       _acceptHigherOffers = draft.acceptsHigherOffers;
       _quantity = draft.quantity;
     }
+    _detailMinimumController = TextEditingController(text: _editedMinimum);
+    _detailMaximumController = TextEditingController(text: _editedMaximum);
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _detailMinimumController.dispose();
+    _detailMaximumController.dispose();
     super.dispose();
   }
 
@@ -1732,24 +1996,6 @@ class _ApprovedBuyerRequestDetailsPageState
     return 'Up to \$${_formatMinorUnits(maximum!.minorUnits)}';
   }
 
-  String get _budgetMinimumLabel {
-    final request = widget.request;
-    if (request == null) return r'$350';
-    final minimum = request.draft.budget.minimum;
-    return minimum == null
-        ? r'$0'
-        : '\$${_formatMinorUnits(minimum.minorUnits)}';
-  }
-
-  String get _budgetMaximumLabel {
-    final request = widget.request;
-    if (request == null) return r'$480';
-    final maximum = request.draft.budget.maximum;
-    return maximum == null
-        ? r'$0'
-        : '\$${_formatMinorUnits(maximum.minorUnits)}';
-  }
-
   String _displayLocation(String fallback) {
     final edited = _editedLocation;
     if (edited != null) {
@@ -1775,10 +2021,12 @@ class _ApprovedBuyerRequestDetailsPageState
   Future<void> _chooseLocation() async {
     if (_choosingLocation || _saving || _outcomeUncertain) return;
     final choose = widget.onChooseLocation;
-    if (choose == null) return;
+    if (choose == null && widget.onEditLocation == null) return;
     setState(() => _choosingLocation = true);
     try {
-      final location = await choose(context);
+      final location = widget.onEditLocation != null
+          ? await widget.onEditLocation!(context, _editedLocation ?? widget.request!.draft.location)
+          : await choose!(context);
       if (!mounted || location == null) return;
       setState(() {
         _editedLocation = location;
@@ -1808,7 +2056,36 @@ class _ApprovedBuyerRequestDetailsPageState
       acceptsHigherOffers: _acceptHigherOffers,
       location: _editedLocation ?? current.location,
       categoryAnswers: _categoryAnswers,
+      budget: MoneyRange(
+        minimum: _budgetAmount(_editedMinimum),
+        maximum: _budgetAmount(_editedMaximum),
+      ),
     );
+  }
+
+  Money? _budgetAmount(String text) {
+    if (text.trim().isEmpty) return null;
+    final parts = text.trim().split('.');
+    return Money(minorUnits: int.parse(parts[0]) * 100 +
+      (parts.length == 1 ? 0 : int.parse(parts[1].padRight(2, '0'))),
+      currencyCode: widget.request?.draft.budget.currencyCode ?? 'USD');
+  }
+
+  String? _budgetError() {
+    for (final value in [_editedMinimum, _editedMaximum]) {
+      if (value.trim().isNotEmpty && !RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(value.trim())) {
+        return 'Enter a valid budget with up to two decimal places.';
+      }
+      if (value.trim().isNotEmpty &&
+          (int.tryParse(value.trim().split('.').first) == null ||
+           value.trim().split('.').first.length > 13)) {
+        return 'Enter a smaller budget amount.';
+      }
+    }
+    final min = _budgetAmount(_editedMinimum);
+    final max = _budgetAmount(_editedMaximum);
+    return min != null && max != null && max.minorUnits < min.minorUnits
+        ? 'The maximum budget must be at least the minimum.' : null;
   }
 
   bool _sameDraft(RequestDraft left, RequestDraft right) =>
@@ -1886,6 +2163,15 @@ class _ApprovedBuyerRequestDetailsPageState
   }
 
   Future<void> _confirmSave() async {
+    final budgetError = _budgetError();
+    if (budgetError != null) {
+      setState(() => _saveError = budgetError);
+      return;
+    }
+    if (!_canEdit) {
+      _message('This request can no longer be edited. Agree any deal changes with your seller in chat.');
+      return;
+    }
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
@@ -1915,6 +2201,25 @@ class _ApprovedBuyerRequestDetailsPageState
     if (questionError != null) {
       setState(() => _saveError = questionError);
       return;
+    }
+    if (!_outcomeUncertain && _editedDraft().location.useHomeAddress &&
+        _editedDraft().location.coordinates == null && widget.onResolveHomeLocation != null) {
+      final before = _editedDraft();
+      setState(() => _saving = true);
+      try {
+        final resolved = await widget.onResolveHomeLocation!();
+        if (!mounted) return;
+        if (!_sameDraft(before, _editedDraft())) {
+          setState(() => _saveError = 'Your request changed while its location was checked. Review it and save again.');
+          return;
+        }
+        setState(() => _editedLocation = resolved);
+      } catch (_) {
+        if (mounted) setState(() => _saveError = 'We could not confirm your saved home address. Check it in Account settings and try again.');
+        return;
+      } finally {
+        if (mounted) setState(() => _saving = false);
+      }
     }
     final draft = _editedDraft();
     final issues = draft.validationIssues();
@@ -2018,7 +2323,9 @@ class _ApprovedBuyerRequestDetailsPageState
             ),
             SizedBox(height: metrics.geometry(4)),
             Text(
-              'Review and edit your request information.',
+              widget.request != null && widget.request!.status != RequestStatus.active
+                  ? 'This request is read-only. Its offers and conversations are kept.'
+                  : 'Review and edit your request information.',
               style: _bodyStyle(
                 context,
               ).copyWith(color: HocalistPalette.text(context, _approvedNavy)),
@@ -2033,7 +2340,13 @@ class _ApprovedBuyerRequestDetailsPageState
               status: widget.request?.status,
             ),
             SizedBox(height: metrics.geometry(14)),
-            Text('Edit your request', style: _titleStyle(context, 16)),
+            AbsorbPointer(
+              absorbing: !_canEdit,
+              child: ExcludeFocus(
+                excluding: !_canEdit,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(!_canEdit
+                ? 'Request information' : 'Edit your request', style: _titleStyle(context, 16)),
             SizedBox(height: metrics.geometry(4)),
             _ApprovedEditPanel(
               referenceHeight: 93,
@@ -2146,9 +2459,13 @@ class _ApprovedBuyerRequestDetailsPageState
                 ),
                 _ApprovedDetailBudgetPanel(
                   referenceHeight: 86,
-                  onEdit: () => _message('Edit the budget range below.'),
-                  minimumLabel: _budgetMinimumLabel,
-                  maximumLabel: _budgetMaximumLabel,
+                  child: Row(children: [
+                    Expanded(child: _ApprovedPriceField(controller: _detailMinimumController,
+                      iconAsset: _minimumIcon, label: 'Min', onChanged: (v) => _editedMinimum = v)),
+                    const SizedBox(width: 5),
+                    Expanded(child: _ApprovedPriceField(controller: _detailMaximumController,
+                      iconAsset: _maximumIcon, label: 'Max', onChanged: (v) => _editedMaximum = v)),
+                  ]),
                 ),
                 if (widget.request?.draft.kind != RequestKind.service)
                   _ApprovedDetailQuantityPanel(
@@ -2197,22 +2514,44 @@ class _ApprovedBuyerRequestDetailsPageState
                   referenceHeight: 69,
                   location: _displayLocation(widget.locationLabel),
                   onTap: widget.usesRealRequest
-                      ? (widget.onChooseLocation == null
+                      ? (widget.onChooseLocation == null && widget.onEditLocation == null
                             ? () => _message(
                                 'Location editing is unavailable for this request.',
                               )
                             : () => _chooseLocation())
                       : () => _message('Location editor preview opened.'),
                 ),
-                if (widget.usesRealRequest)
+                if (widget.usesRealRequest && _canEdit)
                   _ApprovedRealOffersPanel(onOffers: widget.onOffers)
-                else
+                else if (!widget.usesRealRequest)
                   _ApprovedRewardsPanel(
                     referenceHeight: 69,
                     onOffers: widget.onOffers,
                   ),
               ],
             ),
+                ]),
+              ),
+            ),
+            if (widget.request != null && !_canEdit)
+              _ApprovedRealOffersPanel(onOffers: widget.onOffers),
+            if (widget.onRecovery != null && widget.request != null &&
+                widget.request!.status != RequestStatus.active)
+              TextButton(
+                key: const Key('request-recovery-options'),
+                onPressed: widget.onRecovery,
+                child: const Text('Request recovery options'),
+              ),
+            if (!_canEdit) ...[
+              Text(
+                widget.request?.firstAcceptedAt != null
+                    ? 'You have accepted an offer. Your original request is locked. Agree any changes with your seller in the deal chat.'
+                    : 'This request is closed to changes. You can still view its offers.',
+                key: const Key('request-edit-locked'),
+                style: _bodyStyle(context),
+              ),
+              TextButton(onPressed: widget.onOffers, child: const Text('View offers and deals')),
+            ],
             if (_saveError != null) ...[
               SizedBox(height: metrics.geometry(5)),
               Text(
@@ -2234,7 +2573,8 @@ class _ApprovedBuyerRequestDetailsPageState
             ],
             SizedBox(height: metrics.geometry(5)),
             if (widget.bookmarkAction != null) widget.bookmarkAction!,
-            _ApprovedSavePanel(onSave: _confirmSave, busy: _saving),
+            if (_canEdit)
+              _ApprovedSavePanel(onSave: _confirmSave, busy: _saving),
           ],
         ),
       ),
@@ -2381,6 +2721,7 @@ class _ApprovedGlobalHeader extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Image.asset(
                     'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? const Color(0xfff3f3ff)
                         : null,
@@ -2797,7 +3138,7 @@ class _ApprovedFieldCardState extends State<_ApprovedFieldCard> {
                   HocalistInputTokens.compactVerticalPadding,
                   floor: 9,
                 ),
-              )
+              ).add(const EdgeInsets.only(top: 4))
             : null,
         prefixIconConstraints: BoxConstraints(
           minWidth: _requestDimension(metrics, 32, floor: 30),
@@ -3200,6 +3541,11 @@ class _ApprovedPriceField extends StatelessWidget {
       decoration: _inputDecoration(context).copyWith(
         constraints: BoxConstraints.tightFor(height: controlHeight),
         hintText: label,
+        prefixText: r'$ ',
+        prefixStyle: _smallStyle(context).copyWith(
+          color: HocalistPalette.text(context, _approvedNavy),
+          fontWeight: FontWeight.w800,
+        ),
         hintStyle: _requestHintStyle(
           context,
         ).copyWith(fontSize: _requestFontSize(metrics, 12)),
@@ -3245,7 +3591,6 @@ class _ApprovedQuantityPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     return _ApprovedSurface(
-      referenceHeight: 94,
       referenceVerticalPadding: 7,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3590,7 +3935,6 @@ class _ApprovedHigherOffersPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     return _ApprovedSurface(
-      referenceHeight: 94,
       referenceVerticalPadding: 4,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4487,31 +4831,44 @@ class _ApprovedRequestSummary extends StatelessWidget {
                 ),
               ),
               SizedBox(height: metrics.geometry(3.66)),
-              OutlinedButton.icon(
+              OutlinedButton(
                 key: const Key('delete-request'),
                 onPressed: onDelete,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: HocalistPalette.text(context, Colors.red),
+                  backgroundColor: HocalistPalette.surface(context, const Color(0xffffeeee)),
+                  shape: const StadiumBorder(),
+                  visualDensity: VisualDensity.standard,
                   side: BorderSide(
                     color: HocalistPalette.border(context, _approvedBorder),
                     width: metrics.geometry(1),
                   ),
-                  minimumSize: Size(0, metrics.geometry(36.56)),
+                  minimumSize: Size.zero,
                   padding: EdgeInsets.symmetric(
-                    horizontal: metrics.geometry(4.875),
+                    horizontal: metrics.geometry(6.1),
+                    vertical: metrics.geometry(3.66),
                   ),
                   tapTargetSize: metrics.screenshotLocked
                       ? MaterialTapTargetSize.shrinkWrap
                       : null,
                 ),
-                icon: BuyerGlyphIcon(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                  BuyerGlyphIcon(
                   icon: Icons.delete_outline,
-                  slotSize: metrics.geometry(14.625),
-                  glyphSize: metrics.geometry(14.625),
+                  slotSize: metrics.geometry(9.5),
+                  glyphSize: metrics.geometry(9.5),
                 ),
-                label: Text(
+                  SizedBox(width: metrics.geometry(2.44)),
+                  Text(
                   isReal ? 'Close' : 'Delete',
-                  style: TextStyle(fontSize: _requestFontSize(metrics, 10.5)),
+                  style: TextStyle(
+                    fontSize: _requestFontSize(metrics, 9.5),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                  ],
                 ),
               ),
             ],
@@ -4723,12 +5080,14 @@ class _ApprovedDetailChoicePanel extends StatelessWidget {
 class _ApprovedDetailBudgetPanel extends StatelessWidget {
   const _ApprovedDetailBudgetPanel({
     required this.referenceHeight,
-    required this.onEdit,
+    this.onEdit,
+    this.child,
     this.minimumLabel = r'$350',
     this.maximumLabel = r'$480',
   });
   final double referenceHeight;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
+  final Widget? child;
   final String minimumLabel;
   final String maximumLabel;
 
@@ -4740,7 +5099,7 @@ class _ApprovedDetailBudgetPanel extends StatelessWidget {
       title: 'Budget (optional)',
       helper: 'Set your budget range',
       onEdit: onEdit,
-      child: Row(
+      child: child ?? Row(
         children: [
           Expanded(child: _ApprovedValueBox(value: minimumLabel)),
           Padding(

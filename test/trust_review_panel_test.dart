@@ -48,7 +48,56 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('photos can be selected before submission and attach to the created review', (tester) async {
+    var current=_status(reviewStatus:'not_submitted');final attached=<String>[];
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:SingleChildScrollView(child:VerificationReviewPanel(
+      load:()async=>current,appeal:(a,b,c)async{},evidenceUpload:(a,b)async=>throw StateError('unused'),
+      submit:(kind,note,key)async{final item=VerificationItemView(id:'new-review',kind:kind,status:'pending',evidenceCount:0,createdAt:DateTime.utc(2026));current=_status(items:[item]);return item;},
+      attachEvidence:(id,media,key)async{attached.add(id);attached.addAll(media);return const EvidenceMutationView(submissionId:'new-review',revision:1,mediaIds:['synthetic-photo']);},
+    )))));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('verificationEvidencePicker')),findsOneWidget);
+    tester.widget<PrivateImagePicker>(find.byType(PrivateImagePicker)).onChanged(['synthetic-photo']);await tester.pump();
+    await tester.enterText(find.byKey(const Key('verificationNote')),'Synthetic photo for review testing');
+    await tester.ensureVisible(find.byKey(const Key('verificationSubmit')));await tester.tap(find.byKey(const Key('verificationSubmit')));await tester.pumpAndSettle();
+    expect(attached,['new-review','synthetic-photo']);expect(find.byKey(const Key('verificationSubmit')),findsNothing);
+  });
+
   setUpAll(loadHocalistTestFonts);
+
+  testWidgets('unknown submission outcome unlocks retry with frozen intent', (
+    tester,
+  ) async {
+    final attempts = <(String, String, String)>[];
+    await _pump(
+      tester,
+      status: _status(reviewStatus: 'not_submitted'),
+      submit: (kind, note, key) async {
+        attempts.add((kind, note, key));
+        if (attempts.length == 1) throw StateError('lost response');
+        return VerificationItemView(
+          id: 'synthetic-review', kind: kind, status: 'pending',
+          evidenceCount: 0, createdAt: DateTime.utc(2026),
+        );
+      },
+    );
+    final field = find.byKey(const Key('verificationNote'));
+    await tester.enterText(field, 'Synthetic evidence for regression');
+    final submit = find.byKey(const Key('verificationSubmit'));
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Submission was not confirmed. Retry the same evidence note.'), findsOneWidget);
+    expect(tester.widget<TextField>(field).enabled, isFalse);
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(attempts, hasLength(2));
+    expect(attempts[1], attempts[0]);
+    expect(tester.widget<TextField>(field).enabled, isTrue);
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+  });
 
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
@@ -155,7 +204,7 @@ void main() {
       await tester.tap(remove);
       await tester.pumpAndSettle();
       expect(keys[1], keys[0]);
-      expect(find.text('0 saved evidence photos'), findsOneWidget);
+      expect(find.text('0 saved evidence photos'), findsNothing);
       expect(remove, findsNothing);
       expect(tester.takeException(), isNull);
     },
@@ -246,10 +295,10 @@ void main() {
         ],
       ),
     );
-    expect(find.text('Evidence review approved'), findsOneWidget);
+    expect(find.text('Review approved'), findsOneWidget);
     expect(
       find.text('Email verified: yes · Phone verified: no'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.textContaining('Matches public records'), findsOneWidget);
     expect(find.byKey(const Key('verificationSubmit')), findsOneWidget);
@@ -304,6 +353,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(appeals, hasLength(1));
     expect(appeals.single.$1, '91000000-0000-4000-8000-000000000001');
+  });
+
+  testWidgets('unknown appeal outcome unlocks retry with the same frozen intent', (tester) async {
+    final attempts = <(String, String, String)>[];
+    const restrictionId = '91000000-0000-4000-8000-000000000001';
+    await _pump(tester, status: _status(restrictions: [AccountRestrictionView(
+      id: restrictionId, scope: 'seller', reason: 'Test restriction',
+      createdAt: DateTime.utc(2026, 5, 2),
+    )]), appeal: (id, body, key) async {
+      attempts.add((id, body, key));
+      if (attempts.length == 1) throw StateError('unknown transport outcome');
+    });
+    final field = find.widgetWithText(TextField, 'Appeal note');
+    final action = find.byKey(const Key('appeal-$restrictionId'));
+    await tester.enterText(field, 'Please review the synthetic evidence.');
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(find.text('Appeal was not confirmed. Retry the same appeal note.'), findsOneWidget);
+    expect(tester.widget<TextField>(field).enabled, isFalse);
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(attempts, hasLength(2));
+    expect(attempts[1], attempts[0]);
+    expect(tester.widget<TextField>(field).enabled, isTrue);
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a recorded appeal replaces the form with its status', (

@@ -14,7 +14,12 @@ import 'test_fonts.dart';
 import 'package:hocalist/data/phase2/maps/places_repository.dart';
 import 'package:hocalist/data/phase2/maps/places_transport.dart';
 
-class _BuyerAddressPlaces implements PlacesTransport {
+class _BuyerAddressPlaces implements PlacesTransport, AddressPlacesTransport {
+  @override
+  Future<PlacesTransportResult> address({required String address, required String sessionToken}) async {
+    if (address.contains('Unresolvable')) throw StateError('Provider unavailable');
+    return details(placeId: 'buyer-place', sessionToken: sessionToken);
+  }
   @override
   Future<PlacesTransportResult> autocomplete({required String input,required String sessionToken})async=>
     const PlacesTransportResult({'suggestions':[{'placeId':'buyer-place','label':'Selected meeting area, Chicago'}]});
@@ -100,7 +105,79 @@ Future<void> _postRequest(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('location editor reopens the latest selected request address', (tester) async {
+    final selected = RequestLocation.custom(address: const PostalAddress(
+      line1: 'Test meeting place', city: 'Chicago', state: 'IL', country: 'US'));
+    final received = <RequestLocation>[];
+    await _pump(tester, ApprovedBuyerRequestDetailsPage(
+      questionLoader: _noQuestions, accent: const Color(0xff1917ff),
+      requestTitle: 'Test request', budget: '', onBack: () {},
+      onNotifications: () {}, onOffers: () {}, includeAppChrome: true,
+      request: _request(),
+      onUpdateRequest: (_, _) async => throw StateError('No save expected'),
+      onEditLocation: (_, initial) async { received.add(initial); return selected; },
+    ));
+    for (var i = 0; i < 2; i++) {
+      await tester.ensureVisible(find.text('Edit location'));
+      await tester.tap(find.text('Edit location'));
+      await tester.pumpAndSettle();
+    }
+    expect(received.first, _request().draft.location);
+    expect(received.last, selected);
+  });
   setUpAll(loadHocalistTestFonts);
+  testWidgets('title typing retains focus across parent value updates', (tester) async {
+    var title = '';
+    await _pump(tester, StatefulBuilder(builder: (context, update) => ApprovedRequestFlowPage(
+      questionLoader: _noQuestions, accent: const Color(0xff1917ff), requestTitle: title,
+      includeAppChrome: true,
+      budget: '', onTitleChanged: (value) => update(() => title = value),
+      onBudgetChanged: (_) {}, onBack: () {}, onNotifications: () {}, onSubmit: () {},
+    )));
+    final titleField = find.widgetWithText(TextFormField, 'e.g., iPad Air 5th Gen, 64GB, Space Gray');
+    await tester.ensureVisible(titleField);
+    await tester.tap(titleField);
+    await tester.pump();
+    for (final text in ['T', 'TE', 'TEST ONLY unsent title']) {
+      tester.testTextInput.updateEditingValue(TextEditingValue(text: text,
+        selection: TextSelection.collapsed(offset: text.length)));
+      await tester.pump();
+      expect(title, text);
+      final editable = tester.widget<EditableText>(find.descendant(of: titleField, matching: find.byType(EditableText)));
+      expect(editable.focusNode.hasFocus, true);
+      expect(editable.controller.text, text);
+    }
+  });
+
+  for (final footer in [false, true]) {
+  testWidgets('Back footer=$footer preserves an unsaved request until discard is confirmed', (tester) async {
+    var left = 0;
+    await _pump(tester, ApprovedRequestFlowPage(
+      questionLoader: _noQuestions, accent: const Color(0xff1917ff),
+      requestTitle: '', budget: '', includeAppChrome: true,
+      onTitleChanged: (_) {}, onBudgetChanged: (_) {}, onBack: () => left++,
+      onNotifications: () {}, onSubmit: () {},
+      onSubmitDraft: (_, _) async => throw StateError('must not submit'),
+    ));
+    final description = find.byWidgetPredicate((w) => w is TextField && w.maxLength == 500);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Keep this unsaved request description');
+    final back = footer ? find.text('Back').last : find.byTooltip('Back').first;
+    await tester.ensureVisible(back);
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+    expect(left, 0);
+    expect(find.byKey(const Key('request-discard-draft-sheet')), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Keep this unsaved request description'), findsOneWidget);
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard draft'));
+    await tester.pumpAndSettle();
+    expect(left, 1);
+  });
+  }
 
   testWidgets('rapid post taps and a stale success callback create once', (tester) async {
     final pending = Completer<RequestSubmissionResult>();
@@ -219,6 +296,9 @@ void main() {
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('requestChooseMapLocation')),findsNothing);
+      await tester.ensureVisible(find.text('Enter a different address'));
+      await tester.tap(find.text('Enter a different address'));
+      await tester.pumpAndSettle();
       final street=find.byKey(const Key('approved-request-address-street-address'));
       await tester.ensureVisible(street);
       await tester.tap(street);
@@ -254,8 +334,18 @@ void main() {
       await tester.enterText(address, 'Manual replacement');
       await tester.pumpAndSettle();
       await _tapPost(tester);
-      expect(drafts.last.location.coordinates, isNull);
+      expect(drafts.last.location.coordinates?.latitude, 40.9);
+      expect(drafts.last.location.timezoneId, 'America/Chicago');
       expect(drafts.last.location.address?.line1, 'Manual replacement');
+      expect(drafts.last.location.address?.city, 'Chicago');
+      expect(drafts.last.location.address?.state, 'IL');
+      final submitted = drafts.length;
+      await tester.ensureVisible(address);
+      await tester.enterText(address, 'Unresolvable address');
+      await tester.pumpAndSettle();
+      await _tapPost(tester);
+      expect(drafts.length, submitted);
+      expect(find.textContaining('We could not confirm this address'), findsOneWidget);
     },
   );
 
@@ -270,9 +360,12 @@ void main() {
       ApprovedRequestFlowPage(
         questionLoader: _noQuestions,
         homeAddress: const PostalAddress(
-          line1: 'Saved test address',
+          line1: 'Unresolvable address already selected in popup',
           country: 'US',
         ),
+        homeCoordinates: RequestCoordinates(latitude: 43.07, longitude: -89.4),
+        homeTimezoneId: 'America/Chicago',
+        places: PlacesRepository(transport: _BuyerAddressPlaces()),
         accent: const Color(0xff1917ff),
         requestTitle: 'iPad Air, 5th gen or newer',
         budget: r'$350 - $480',
@@ -310,6 +403,9 @@ void main() {
     expect(draft.quantity, 1);
     expect(draft.acceptsHigherOffers, isTrue);
     expect(draft.location.useHomeAddress, isTrue);
+    expect(draft.location.coordinates?.latitude, 43.07);
+    expect(draft.location.coordinates?.longitude, -89.4);
+    expect(draft.location.timezoneId, 'America/Chicago');
     expect(keys.single, isNotEmpty);
     expect(created?.id, '30000000-0000-4000-8000-000000000001');
   });
@@ -406,6 +502,9 @@ void main() {
     expect(keys, hasLength(1));
 
     // Change the meeting location, then try to post a changed intent.
+    await tester.ensureVisible(find.text('Enter a different address'));
+    await tester.tap(find.text('Enter a different address'));
+    await tester.pumpAndSettle();
     final street = find.byKey(
       const ValueKey('approved-request-address-street-address'),
     );
@@ -530,6 +629,90 @@ void main() {
     expect(find.byKey(const Key('approvedRequestPostButton')), findsNothing);
   });
 
+  testWidgets('accepted request locks edits and keeps deals reachable', (tester) async {
+    var opened = false;
+    await _pump(tester, ApprovedBuyerRequestDetailsPage(
+      questionLoader: _noQuestions, accent: const Color(0xff1917ff),
+      requestTitle: 'Accepted request', budget: 'Budget', onBack: () {},
+      includeAppChrome: true,
+      onNotifications: () {}, onOffers: () => opened = true,
+      request: _request().copyWith(firstAcceptedAt: DateTime.utc(2026, 10, 31)),
+      onUpdateRequest: (_, _) async => throw StateError('must not update'),
+    ));
+    expect(find.byKey(const Key('save-request-changes')), findsNothing);
+    expect(find.byKey(const Key('request-edit-locked')), findsOneWidget);
+    expect(find.ancestor(of: find.byKey(const Key('request-title-field')),
+      matching: find.byWidgetPredicate((w) => w is AbsorbPointer && w.absorbing)), findsOneWidget);
+    final offers = find.byKey(const Key('realRequestReviewOffers'));
+    await tester.ensureVisible(offers); await tester.pumpAndSettle();
+    await tester.tap(offers); await tester.pumpAndSettle();
+    expect(opened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('edit policy rejects terminal states and elapsed expiry', () {
+    final now = DateTime.utc(2026, 10, 31);
+    expect(_request().canEditAt(now), isTrue);
+    for (final status in [RequestStatus.closed, RequestStatus.expired, RequestStatus.cancelled]) {
+      expect(_request(status: status).canEditAt(now), isFalse);
+    }
+    expect(_request().copyWith(acceptanceExpiresAt: now).canEditAt(now), isFalse);
+    expect(_request().copyWith(firstAcceptedAt: now).canEditAt(now), isFalse);
+    expect(_request().copyWith(purchaseOfferId: 'selected').canEditAt(now), isFalse);
+  });
+
+  testWidgets('closed request is read-only and keeps offers reachable', (tester) async {
+    var offersOpened = false;
+    var recoveryOpened = false;
+    await _pump(tester, ApprovedBuyerRequestDetailsPage(
+      questionLoader: _noQuestions, accent: const Color(0xff1917ff),
+      requestTitle: 'Closed request', budget: 'Budget', onBack: () {},
+      includeAppChrome: true,
+      onNotifications: () {}, onOffers: () => offersOpened = true,
+      onRecovery: () => recoveryOpened = true,
+      request: _request(status: RequestStatus.closed),
+      onUpdateRequest: (_, _) async => throw StateError('must not update'),
+    ));
+    expect(find.byKey(const Key('save-request-changes')), findsNothing);
+    expect(find.text('This request is read-only. Its offers and conversations are kept.'), findsOneWidget);
+    final field = find.byKey(const Key('request-title-field'));
+    expect(find.ancestor(of: field, matching: find.byWidgetPredicate(
+      (widget) => widget is AbsorbPointer && widget.absorbing,
+    )), findsOneWidget);
+    final offers = find.byKey(const Key('realRequestReviewOffers'));
+    await tester.ensureVisible(offers);
+    await tester.pumpAndSettle();
+    await tester.tap(offers);
+    await tester.pumpAndSettle();
+    expect(offersOpened, isTrue);
+    final recovery = find.byKey(const Key('request-recovery-options'));
+    await tester.ensureVisible(recovery);
+    await tester.pumpAndSettle();
+    await tester.tap(recovery);
+    expect(recoveryOpened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saving a legacy home request resolves coordinates without changing home choice', (tester) async {
+    RequestDraft? saved;
+    var resolutions = 0;
+    await _pump(tester, ApprovedBuyerRequestDetailsPage(
+      questionLoader: _noQuestions, accent: const Color(0xff1917ff),
+      requestTitle: 'Home request', budget: 'Budget', includeAppChrome: true,
+      onBack: () {}, onNotifications: () {}, onOffers: () {}, request: _request(),
+      onResolveHomeLocation: () async {
+        resolutions++;
+        return RequestLocation.homeAddress(coordinates: RequestCoordinates(latitude: 40.6, longitude: -74.4), timezoneId: 'America/New_York');
+      },
+      onUpdateRequest: (draft, _) async { saved = draft; return RequestSubmissionResult.success(_request().copyWith(draft: draft)); },
+    ));
+    final save = find.byKey(const Key('save-request-changes'));
+    await tester.ensureVisible(save); await tester.pumpAndSettle(); await tester.tap(save); await tester.pumpAndSettle();
+    await tester.tap(find.text('Update request')); await tester.pumpAndSettle();
+    expect(resolutions, 1); expect(saved!.location.useHomeAddress, true);
+    expect(saved!.location.coordinates!.latitude, 40.6); expect(saved!.location.address, isNull);
+  });
+
   testWidgets('real detail saves an update with the expected revision', (
     tester,
   ) async {
@@ -562,6 +745,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(titleField, 'iPad Pro, 11-inch');
     await tester.pumpAndSettle();
+    final minimum = find.byKey(const ValueKey('approved-request-budget-min'));
+    final maximum = find.byKey(const ValueKey('approved-request-budget-max'));
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '375.25');
+    await tester.enterText(maximum, '500.50');
 
     final saveAction = find.byKey(const Key('save-request-changes'));
     await tester.ensureVisible(saveAction);
@@ -572,6 +760,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(drafts.single.title, 'iPad Pro, 11-inch');
+    expect(drafts.single.budget.minimum!.minorUnits, 37525);
+    expect(drafts.single.budget.maximum!.minorUnits, 50050);
     expect(keys.single, isNotEmpty);
     expect(updated?.stamp.revision, 4);
   });

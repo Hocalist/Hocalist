@@ -171,6 +171,9 @@ class RecommendedLeadsView {
 /// One ranked Hocatrends topic built from verified marketplace activity.
 class HocatrendsTopic {
   const HocatrendsTopic({
+    this.requestId,
+    this.categoryLabel,
+    this.availableSellers,
     required this.rank,
     required this.categoryId,
     required this.label,
@@ -183,6 +186,11 @@ class HocatrendsTopic {
     required this.activityCopy,
   });
 
+  final String? requestId;
+  final String? categoryLabel;
+  String get subjectId => requestId ?? categoryId;
+
+  final int? availableSellers;
   final int rank;
   final String categoryId;
   final String label;
@@ -254,17 +262,36 @@ class HocatrendsSellerView {
     this.listingId,
     this.listingTitle,
     this.priceLabel,
+    this.offerPriceMinor,
+    this.buyerBudgetMinor,
+    this.currencyCode,
     this.ratingSum = 0,
     this.ratingCount = 0,
     this.completedDeals = 0,
+    this.avatarMediaId,
+    this.offerImageMediaIds = const [],
+    this.verified = false,
+    this.distanceMiles,
+    this.responseMinutes,
   });
 
   final String sellerProfileId;
+  final String? avatarMediaId;
+  final List<String> offerImageMediaIds;
+  final bool verified;
+  final double? distanceMiles;
+  final int? responseMinutes;
   final String displayName;
   final String? areaLabel;
   final String? listingId;
   final String? listingTitle;
   final String? priceLabel;
+  final int? offerPriceMinor;
+  final int? buyerBudgetMinor;
+  final String? currencyCode;
+
+  int? get savingsMinor => offerPriceMinor == null || buyerBudgetMinor == null
+      ? null : (buyerBudgetMinor! - offerPriceMinor!).clamp(0, buyerBudgetMinor!);
   final int ratingSum;
   final int ratingCount;
   final int completedDeals;
@@ -307,11 +334,13 @@ class OpenedDiscoveryEnquiry {
     required this.conversationId,
     required this.origin,
     required this.subjectId,
+    this.enquiryId,
   });
 
   final String conversationId;
   final DiscoveryEnquiryOrigin origin;
   final String subjectId;
+  final String? enquiryId;
 }
 
 /// Seller account-health projection derived from the reviewed trust reads.
@@ -391,8 +420,13 @@ class PublicBuyerProfile {
     this.areaLabel,
     this.memberSince,
     this.verifiedPurchaseCount = 0,
+    this.categories = const [],
+    this.emailVerified,
+    this.phoneVerified,
   });
 
+  final bool? emailVerified, phoneVerified;
+  final List<String> categories;
   final bool available;
   final String? profileId;
   final String? displayName;

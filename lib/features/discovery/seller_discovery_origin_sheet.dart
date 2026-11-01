@@ -1,13 +1,6 @@
-/// Seller discovery-origin editor (manual area and radius).
-///
-/// This is the reachable manual fallback for the seller's discovery origin:
-/// the approved Leads screen opens it, it produces a client-owned operation
-/// key once per intent, and the caller persists the origin through
-/// `discovery_origin_set`. An uncertain failure keeps the same key for Retry;
-/// a definitive failure starts a new intent. No coordinate picker is implied:
-/// the map producer is out of this package, and saving a manual area replaces
-/// previously picked coordinates explicitly.
 library;
+import 'dart:async';
+import '../../data/phase2/maps/places_contract.dart';
 
 import 'package:hocalist/theme/adaptive_palette.dart';
 
@@ -23,6 +16,9 @@ class SellerDiscoveryOriginSheet extends StatefulWidget {
     required this.initial,
     required this.onSave,
     this.newOperationKey,
+    this.onAddLocation,
+    this.onSearchLocations,
+    this.onSelectLocation,
     super.key,
   });
 
@@ -39,6 +35,9 @@ class SellerDiscoveryOriginSheet extends StatefulWidget {
 
   /// Injectable key factory for tests; defaults to the repository's factory.
   final String Function(String prefix)? newOperationKey;
+  final VoidCallback? onAddLocation;
+  final Future<List<PlaceSuggestion>> Function(String)? onSearchLocations;
+  final Future<SellerDiscoveryOriginInput> Function(PlaceSuggestion)? onSelectLocation;
 
   @override
   State<SellerDiscoveryOriginSheet> createState() =>
@@ -57,8 +56,55 @@ class _SellerDiscoveryOriginSheetState
   String? _operationKey;
   SellerDiscoveryOriginInput? _lastAttempt;
 
-  bool get _coordinatesWillBeReplaced =>
-      widget.initial?.coordinatesPresent ?? false;
+  SellerDiscoveryOriginInput? _resolved;
+  bool _resolving = false;
+  String? _confirmedArea;
+  bool get locationMissing => _confirmedArea != _areaController.text.trim() ||
+      (_resolved == null && widget.initial?.coordinatesPresent != true);
+
+  Timer? _searchTimer;
+  int _searchEpoch = 0;
+  List<PlaceSuggestion> _suggestions = [];
+  bool _searching = false;
+  void _search(String query) {
+    _searchTimer?.cancel();
+    final epoch = ++_searchEpoch;
+    setState(() { _resolved = null; _error = null; _suggestions = []; _searching = false; });
+    if (query.trim().length < 2 || widget.onSearchLocations == null) return;
+    _searchTimer = Timer(const Duration(milliseconds: 300), () async {
+      setState(() => _searching = true);
+      try {
+        final options = await widget.onSearchLocations!(query.trim());
+        if (!mounted || epoch != _searchEpoch) return;
+        setState(() { _suggestions = options; if (options.isEmpty) _error = 'No matching places. Try another search.'; });
+      } catch (_) {
+        if (mounted && epoch == _searchEpoch) setState(() => _error = 'Location search is unavailable. Try again.');
+      } finally {
+        if (mounted && epoch == _searchEpoch) setState(() => _searching = false);
+      }
+    });
+  }
+  Future<void> _selectLocation(PlaceSuggestion suggestion) async {
+    final resolve = widget.onSelectLocation;
+    if (resolve == null || _resolving) return;
+    final query = _areaController.text.trim();
+    setState(() { _resolving = true; _error = null; });
+    try {
+      final place = await resolve(suggestion);
+      if (!mounted || query != _areaController.text.trim()) return;
+      if (place.latitude == null || place.longitude == null) throw StateError('Unresolved location');
+      setState(() {
+        _resolved = place;
+        _suggestions = [];
+        _areaController.text = place.areaLabel ?? query;
+        _confirmedArea = _areaController.text.trim();
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'This location could not be confirmed. Try a more specific place.');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
+  }
 
   @override
   void initState() {
@@ -67,11 +113,14 @@ class _SellerDiscoveryOriginSheetState
       text: widget.initial?.areaLabel ?? '',
     );
     final radius = widget.initial?.radiusMiles;
-    _radius = radius != null && _radii.contains(radius) ? radius : 25;
+    _radius = radius ?? 25;
+    _confirmedArea = widget.initial?.coordinatesPresent == true ? _areaController.text.trim() : null;
   }
 
   @override
   void dispose() {
+    _searchTimer?.cancel();
+    _searchEpoch++;
     _areaController.dispose();
     super.dispose();
   }
@@ -86,10 +135,13 @@ class _SellerDiscoveryOriginSheetState
   }
 
   Future<void> _save() async {
+    if (locationMissing) return;
     final area = _areaController.text.trim();
     final input = SellerDiscoveryOriginInput(
       areaLabel: area.isEmpty ? null : area,
       radiusMiles: _radius,
+      latitude: _resolved?.latitude,
+      longitude: _resolved?.longitude,
     );
     if (!_sameAsLastAttempt(input)) {
       _operationKey =
@@ -113,6 +165,8 @@ class _SellerDiscoveryOriginSheetState
         _error = error.message;
         _outcomeUncertain = error.ambiguous;
       });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'The search could not be saved. Try again.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -132,16 +186,15 @@ class _SellerDiscoveryOriginSheetState
       child: SellerModalSheet(
         key: const Key('sellerDiscoveryOriginSheet'),
         icon: Icons.explore_outlined,
-        title: 'Discovery area',
-        subtitle: 'Where buyers should see your offers and Store listings.',
+        title: 'Choose location',
+        subtitle: 'Choose where to search for customers.',
         onClose: () => Navigator.of(context).pop(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Set the area you serve. Leads use this area and your radius for '
-              'approximate distance matching; exact buyer addresses are never '
-              'shared with you.',
+              'Search around your Business / Store location or choose another place. '
+              'Changing this search does not change your saved business address.',
               style: sellerText(
                 metrics,
                 11.5,
@@ -153,7 +206,8 @@ class _SellerDiscoveryOriginSheetState
             TextField(
               key: const Key('sellerDiscoveryOriginArea'),
               controller: _areaController,
-              enabled: !_saving,
+              enabled: !_saving && !_resolving,
+              onChanged: _search,
               style: sellerInputText(metrics),
               decoration: InputDecoration(
                 hintText: 'For example: Yonkers, NY',
@@ -184,21 +238,55 @@ class _SellerDiscoveryOriginSheetState
               ),
             ),
             const SizedBox(height: 10),
-            HocalistSelectMenu<int>(
+            if (_searching || _resolving)
+              SellerProgressStrip(label: _resolving ? 'Setting location…' : 'Finding places…'),
+            if (_suggestions.isNotEmpty)
+              Container(
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: HocalistPalette.border(context, SellerUiColors.lavenderBorder))),
+                child: Column(children: [
+                  for (final option in _suggestions) Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: ValueKey('sellerSearchPlace-' + option.placeId),
+                      onTap: _resolving ? null : () => _selectLocation(option),
+                      child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                        Icon(Icons.location_on_outlined, size: 20, color: HocalistPalette.text(context, SellerUiColors.primaryBright)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(option.label, style: sellerText(metrics, 12, weight: FontWeight.w600))),
+                      ])),
+                    ),
+                  ),
+                ]),
+              ),
+            Row(children: [
+              Text('Radius', style: sellerText(metrics, 11.5)),
+              const SizedBox(width: 10),
+              if (locationMissing) Flexible(child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+                Text(_areaController.text.trim().isEmpty ? 'Location missing.' : 'Confirm location.', style: sellerText(metrics, 11.5)),
+                TextButton(key: const Key('sellerDiscoveryAddLocation'),
+                  onPressed: widget.onAddLocation,
+                  child: Text('Add location', style: sellerText(metrics, 11.5).copyWith(decoration: TextDecoration.underline))),
+              ])),
+            ]),
+            AbsorbPointer(
+              absorbing: _saving || locationMissing,
+              child: Opacity(opacity: locationMissing ? 0.45 : 1,
+              child: HocalistSelectMenu<int>(
               key: const Key('sellerDiscoveryOriginRadius'),
               role: HocalistControlRole.seller,
               value: _radius,
-              options: _radii,
+              options: ({..._radii, _radius}.toList()..sort()),
               labelBuilder: (value) => '$value mi',
-              selectedLabelBuilder: (value) => 'Within $value miles',
+              selectedLabelBuilder: (value) => locationMissing ? 'Set location first' : 'Within $value miles',
               onSelected: (value) {
-                if (!_saving) setState(() => _radius = value);
+                if (!_saving && !locationMissing) setState(() => _radius = value);
               },
               leading: Icons.radar_outlined,
               expanded: true,
-            ),
+            ))),
             const SizedBox(height: 8),
-            Align(
+            if (!locationMissing) Align(
               alignment: Alignment.centerLeft,
               child: SellerStatusChip(
                 key: const Key('sellerDiscoveryOriginSelected'),
@@ -207,19 +295,6 @@ class _SellerDiscoveryOriginSheetState
                 selected: true,
               ),
             ),
-            if (_coordinatesWillBeReplaced) ...[
-              const SizedBox(height: 10),
-              const SellerStateNotice(
-                key: Key('sellerDiscoveryOriginCoordinateNotice'),
-                icon: Icons.pin_drop_outlined,
-                title: 'Picked coordinates will be replaced',
-                body:
-                    'Saving a manual area replaces the coordinates picked for '
-                    'this account. Use the map picker when it becomes available '
-                    'to keep an exact origin.',
-                tone: SellerNoticeTone.warning,
-              ),
-            ],
             if (_saving) ...[
               const SizedBox(height: 12),
               const SellerProgressStrip(label: 'Saving discovery area…'),
@@ -255,7 +330,7 @@ class _SellerDiscoveryOriginSheetState
                   child: SellerPrimaryButton(
                     key: const Key('sellerDiscoveryOriginSave'),
                     label: _saving ? 'Saving…' : 'Save area',
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving || locationMissing ? null : _save,
                   ),
                 ),
               ],

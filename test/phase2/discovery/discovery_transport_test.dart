@@ -44,6 +44,10 @@ Map<String, Object?> _review({int revision = 1}) => <String, Object?>{
 };
 
 Map<String, Object?> _payload(String function) => switch (function) {
+  'seller_customers' => {'insights_available': true, 'items': <Object?>[]},
+  'seller_customer_save' => {'buyer_id': buyerId, 'saved': true, 'note': 'Synthetic note'},
+  'seller_customer_insights' => {'buyer_id': buyerId, 'concluded_requests': 2,
+    'confirmed_purchases': 1, 'ongoing_requests': 1, 'completion_percent': 50},
   'discovery_origin_json' || 'discovery_origin_set' => <String, Object?>{
     'configured': true,
     'area_label': 'Yonkers, NY',
@@ -157,6 +161,9 @@ Map<String, Object?> _payload(String function) => switch (function) {
       },
     ],
   },
+  'hocatrends_offer_preference' => <String, Object?>{
+    'offer_id': offerId, 'enabled': true, 'eligible': true,
+  },
   'hocatrends_topic_sellers' => <String, Object?>{
     'topic_id': categoryId,
     'items': [
@@ -226,12 +233,20 @@ void main() {
       expect(reviews, isNotNull);
 
       final calls = <(String, Future<Object?> Function())>[
+        ('seller_customers', () => discovery!.loadCustomers()),
+        ('seller_customer_save', () async {
+          await discovery!.saveCustomer(buyerId, true, 'Synthetic note');
+          return true;
+        }),
+        ('seller_customer_insights', () => discovery!.loadCustomerHistory(buyerId)),
         (
           'marketplace_recommended_leads',
           () => discovery!.loadRecommendedLeads(),
         ),
         ('hocatrends_trends', () => discovery!.loadTrends()),
         ('hocatrends_winners', () => discovery!.loadWinners()),
+        ('hocatrends_offer_preference', () => discovery!.hocatrendsOfferPreference(offerId)),
+        ('hocatrends_offer_preference', () => discovery!.hocatrendsOfferPreference(offerId, enabled: true)),
         (
           'hocatrends_topic_sellers',
           () => discovery!.loadTopicSellers(categoryId),

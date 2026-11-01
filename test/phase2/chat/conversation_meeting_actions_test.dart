@@ -7,6 +7,7 @@ import 'package:hocalist/features/chat/conversation_meeting_actions.dart';
 
 MeetingView meeting({
   bool accepted = false,
+  bool declined = false,
   String? proposer = 'seller',
   bool chosen = true,
   String id = 'meeting',
@@ -36,7 +37,7 @@ MeetingView meeting({
     acceptedSchedule: accepted ? schedule('accepted') : null,
     pendingSchedule: proposer == null ? null : schedule('proposed'),
     purchaseSelected: chosen,
-    revisions: [],
+    revisions: declined ? [schedule('rejected')] : [],
   );
 }
 
@@ -86,6 +87,14 @@ Future<void> pump(
 }
 
 void main() {
+  for (final compact in [false, true]) {
+    testWidgets('declined change retains original schedule (compact=$compact)', (tester) async {
+      await pump(tester, deal: meeting(accepted: true, declined: true, proposer: null), compact: compact);
+      expect(find.text('Proposed change declined. Your original meeting is still confirmed.'), findsOneWidget);
+      expect(find.text('Accept meeting'), findsNothing);
+      expect(find.textContaining('Oct 18'), findsWidgets);
+    });
+  }
   testWidgets(
     'compact meeting controls stay usable across phone widths and text scales',
     (tester) async {

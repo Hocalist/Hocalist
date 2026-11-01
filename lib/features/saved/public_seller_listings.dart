@@ -1,9 +1,9 @@
+import '../media/private_remote_image.dart';
 import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/pull_refresh.dart';
 import '../../theme/buyer_ui_foundation.dart';
-import '../../components/hocalist_motion.dart';
 import '../../components/hocalist_section_intro.dart';
 import '../../domain/phase2/common.dart';
 import '../../domain/phase2/repositories.dart';
@@ -14,10 +14,12 @@ class PublicSellerListings extends StatefulWidget {
   const PublicSellerListings({
     required this.repository,
     required this.sellerProfileId,
+    this.onEnquire,
     super.key,
   });
   final StoreListingRepository repository;
   final String sellerProfileId;
+  final Future<void> Function(PublicStoreListing)? onEnquire;
   @override
   State<PublicSellerListings> createState() => _PublicSellerListingsState();
 }
@@ -84,12 +86,11 @@ class _PublicSellerListingsState extends State<PublicSellerListings> {
           _items = [];
           _cursor = null;
         }
-        _error = 'Could not load published listings. Try again.';
+        _error = 'Could not load store listings. Try again.';
       });
     } finally {
-      if (mounted && generation == _generation) {
+      if (mounted && generation == _generation)
         setState(() => _loading = false);
-      }
     }
   }
 
@@ -98,35 +99,45 @@ class _PublicSellerListingsState extends State<PublicSellerListings> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       HocalistSectionIntro(
-        title: 'Published listings',
+        title: 'Store listings',
         icon: Icons.storefront_outlined,
-        trailing: PullRefreshAction(
-          onRefresh: _loading ? null : () => _load(),
-        ),
+        trailing: PullRefreshAction(onRefresh: _loading ? null : () => _load()),
       ),
       if (_loading) const BuyerProgressStrip(label: 'Updating listings…'),
-      if (_error != null)
-        BuyerStateNotice(
-          icon: Icons.error_outline_rounded,
-          tone: BuyerNoticeTone.error,
-          title: 'Listings could not be loaded',
-          body: _error,
-        ),
+      if (_error != null) Text(_error!),
       if (!_loading && _error == null && _items.isEmpty)
-        const BuyerStateNotice(
-          icon: Icons.storefront_outlined,
-          title: 'No published listings available.',
-          body: 'Published items and services will appear here.',
-          tone: BuyerNoticeTone.neutral,
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Text('No published listings available.'),
         ),
-      for (final item in _items)
-        HocalistEntrance(
-          key: ValueKey('listing-entrance-${item.id}'),
-          child: _PublicListingCard(
-            key: ValueKey('public-listing-${item.id}'),
-            item: item,
-          ),
-        ),
+      LayoutBuilder(
+        builder: (context, box) {
+          final columns =
+              box.maxWidth >= 760 &&
+                  MediaQuery.textScalerOf(context).scale(1) < 1.3
+              ? 2
+              : 1;
+          final width = ((box.maxWidth - (columns - 1) * 12) / columns).clamp(
+            0.0,
+            400.0,
+          );
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final item in _items)
+                SizedBox(
+                  width: width,
+                  child: _PublicListingCard(
+                    key: ValueKey('public-listing-${item.id}'),
+                    item: item,
+                    onEnquire: widget.onEnquire,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
       if (_cursor != null)
         TextButton(
           onPressed: _loading ? null : () => _load(more: true),
@@ -142,14 +153,77 @@ class _PublicSellerListingsState extends State<PublicSellerListings> {
 }
 
 class _PublicListingCard extends StatefulWidget {
-  const _PublicListingCard({required this.item, super.key});
+  const _PublicListingCard({required this.item, this.onEnquire, super.key});
   final PublicStoreListing item;
+  final Future<void> Function(PublicStoreListing)? onEnquire;
   @override
   State<_PublicListingCard> createState() => _PublicListingCardState();
 }
 
 class _PublicListingCardState extends State<_PublicListingCard> {
-  bool expanded = false;
+  void _showDetails() {
+    final item = widget.item;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => BuyerModalSheet(
+        title: 'Listing details',
+        icon: Icons.storefront_outlined,
+        onClose: () => Navigator.pop(sheet),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              item.title,
+              style: const TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _displayPrice,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: HocalistPalette.text(sheet, BuyerUiTokens.action),
+              ),
+            ),
+            if (item.availability.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(item.availability),
+            ],
+            if (item.description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(item.description),
+            ],
+            CategoryAnswersView(answers: item.categoryAnswers),
+            if (item.serviceArea.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Pickup or service area',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(item.serviceArea),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _displayPrice {
+    final label = widget.item.priceLabel.trim();
+    return RegExp(r'^\d[\d,]*(?:\.\d{1,2})?$').hasMatch(label)
+        ? String.fromCharCode(36) + label
+        : label;
+  }
+
+  bool opening = false;
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -157,66 +231,84 @@ class _PublicListingCardState extends State<_PublicListingCard> {
       margin: const EdgeInsets.only(top: 10),
       decoration: BoxDecoration(
         color: HocalistPalette.surface(context, Colors.white),
-        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: HocalistPalette.border(context, BuyerUiTokens.border),
         ),
+        borderRadius: BorderRadius.circular(18),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
-            expanded: expanded,
-            child: Material(
-              color: HocalistPalette.surface(context, Colors.transparent),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => setState(() => expanded = !expanded),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: HocalistPalette.surface(
-                            context,
-                            BuyerUiTokens.softSurface,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.storefront_outlined,
-                          size: 20,
-                          color: HocalistPalette.text(
-                            context,
-                            BuyerUiTokens.action,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w800,
-                                color: HocalistPalette.text(
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        key: ValueKey('public-listing-photo-${item.id}'),
+                        width: 76,
+                        height: 76,
+                        child: item.imageMediaIds.isEmpty
+                            ? ColoredBox(
+                                color: HocalistPalette.surface(
                                   context,
-                                  BuyerUiTokens.text,
+                                  BuyerUiTokens.softSurface,
                                 ),
+                                child: const Icon(
+                                  Icons.storefront_outlined,
+                                  size: 28,
+                                ),
+                              )
+                            : PrivateRemoteImage(
+                                id: item.imageMediaIds.first,
+                                size: 76,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          InkWell(
+                            onTap: _showDetails,
+                            child: Text(
+                              item.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            _displayPrice,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 17,
+                              color: HocalistPalette.text(
+                                context,
+                                BuyerUiTokens.action,
+                              ),
+                            ),
+                          ),
+                          if (item.availability.isNotEmpty) ...[
                             const SizedBox(height: 5),
                             Text(
-                              '${item.priceLabel} · ${item.categoryLabel}',
+                              item.availability,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 11.5,
-                                height: 1.4,
+                                fontSize: 12,
                                 color: HocalistPalette.text(
                                   context,
                                   BuyerUiTokens.muted,
@@ -224,82 +316,70 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      AnimatedRotation(
-                        turns: expanded ? .25 : 0,
-                        duration: HocalistMotion.duration(context),
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          color: HocalistPalette.text(
-                            context,
-                            BuyerUiTokens.action,
-                          ),
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          HocalistExpand(
-            child: expanded
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Divider(color: BuyerUiTokens.border, height: 16),
-                        if (item.description.isNotEmpty)
-                          Text(
-                            item.description,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.5,
-                              color: HocalistPalette.text(
-                                context,
-                                BuyerUiTokens.text,
-                              ),
-                            ),
-                          ),
-                        CategoryAnswersView(answers: item.categoryAnswers),
-                        if (item.serviceArea.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              'Service area: ${item.serviceArea}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.5,
-                                color: HocalistPalette.text(
-                                  context,
-                                  BuyerUiTokens.muted,
-                                ),
-                              ),
-                            ),
-                          ),
-                        if (item.availability.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              'Availability: ${item.availability}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.5,
-                                color: HocalistPalette.text(
-                                  context,
-                                  BuyerUiTokens.muted,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
                     ),
-                  )
-                : const SizedBox.shrink(),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                OverflowBar(
+                  alignment: MainAxisAlignment.spaceBetween,
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: 12,
+                  overflowSpacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _showDetails,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                      label: const Text('View details'),
+                    ),
+
+                    if (widget.onEnquire != null)
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: BuyerUiTokens.action,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 13,
+                          ),
+                          minimumSize: const Size(0, 44),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          textStyle: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                        key: ValueKey('enquire-${item.id}'),
+                        onPressed: opening
+                            ? null
+                            : () async {
+                                if (opening) return;
+                                setState(() => opening = true);
+                                try {
+                                  await widget.onEnquire!(item);
+                                } catch (_) {
+                                  if (context.mounted)
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Your enquiry could not be opened. Please try again.',
+                                        ),
+                                      ),
+                                    );
+                                } finally {
+                                  if (mounted) setState(() => opening = false);
+                                }
+                              },
+                        child: Text(opening ? 'Opening…' : 'Ask a question'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

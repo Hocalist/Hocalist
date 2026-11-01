@@ -52,10 +52,8 @@ class RequestCoordinates {
 }
 
 class RequestLocation {
-  const RequestLocation.homeAddress({this.timezoneId})
-    : useHomeAddress = true,
-      address = null,
-      coordinates = null;
+  const RequestLocation.homeAddress({this.timezoneId, this.coordinates, this.address})
+    : useHomeAddress = true;
 
   factory RequestLocation.custom({
     required PostalAddress address,
@@ -85,7 +83,8 @@ class RequestLocation {
   final bool useHomeAddress;
   final String? timezoneId;
 
-  /// Custom address when [useHomeAddress] is false. Private until the buyer
+  /// Custom address, or the resolved city/region snapshot for a home request.
+  /// Private until the buyer
   /// chooses to share it with a selected seller.
   final PostalAddress? address;
 
@@ -397,6 +396,12 @@ class MarketplaceRequest {
   /// Server-computed discovery state; null when the backend has not supplied
   /// it (pre-upgrade server) so the UI can fall back to [status].
   final bool? discoveryOpen;
+
+  /// Accepted requests keep their original terms. Deal changes are agreed in chat.
+  bool canEditAt(DateTime now) =>
+      (status == RequestStatus.draft || status == RequestStatus.active) &&
+      firstAcceptedAt == null && purchaseOfferId == null &&
+      (acceptanceExpiresAt == null || now.toUtc().isBefore(acceptanceExpiresAt!));
 
   /// Server-owned revision and timestamps.
   final RecordStamp stamp;

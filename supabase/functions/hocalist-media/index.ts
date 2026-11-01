@@ -2,6 +2,7 @@ import {sanitizeImage} from './sanitize.ts';
 import {createMediaHandler} from './handler.ts';
 import {createPlacesAuthVerifier} from '../hocalist-places/auth.ts';
 import {mediaCors, mediaOriginAllowed} from './cors.ts';
+import {createEvidenceReader} from './evidence.ts';
 const project='https://icqwbzswokoulatomgql.supabase.co';
 const bucket='hocalist-images';
 Deno.serve(async req=>{
@@ -18,6 +19,8 @@ Deno.serve(async req=>{
    if(!r.ok){await r.body?.cancel();throw Error('rpc_failed');}return await r.json();
   },
   sanitize:sanitizeImage,
+  readEvidence:createEvidenceReader(project,service),
+  readStoreEvidence:createEvidenceReader(project,service,fetch,"store"),
   store:async(path,bytes)=>{
    const r=await fetch(`${project}/storage/v1/object/${bucket}/${path}`,{method:'POST',headers:{...headers,'Content-Type':'image/jpeg','x-upsert':'true'},body:bytes,signal:AbortSignal.timeout(20000)});
    if(!r.ok){await r.body?.cancel();throw Error('storage_failed');}await r.body?.cancel();

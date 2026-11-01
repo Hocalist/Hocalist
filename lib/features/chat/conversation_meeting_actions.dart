@@ -135,6 +135,8 @@ class _ConversationMeetingActionsState
         ? (mustRespond
               ? 'Meeting needs your acceptance'
               : 'Waiting for acceptance')
+        : meeting.latestProposalDeclined
+        ? meeting.declinedProposalMessage
         : accepted != null
         ? 'Your meeting is set'
         : 'Arrange your meeting';

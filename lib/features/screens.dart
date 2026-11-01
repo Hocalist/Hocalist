@@ -10701,6 +10701,8 @@ enum BuyerProfilePhotoAction { camera, gallery, remove }
 
 class SupportPage extends StatelessWidget {
   const SupportPage({
+    this.onAddresses,
+    this.onViewPublicProfile,
     required this.accent,
     required this.name,
     required this.email,
@@ -10718,6 +10720,8 @@ class SupportPage extends StatelessWidget {
     super.key,
   });
 
+  final VoidCallback? onAddresses;
+  final VoidCallback? onViewPublicProfile;
   final Color accent;
   final String name;
   final String email;
@@ -10766,6 +10770,9 @@ class SupportPage extends StatelessWidget {
         SizedBox(height: metrics.spacing(7)),
         _BuyerMoreMenuGroup(
           items: [
+            if (onAddresses != null) _BuyerMoreItem(icon: Icons.location_on_outlined, title: 'Addresses', onTap: onAddresses!),
+            if (onViewPublicProfile != null)
+              _BuyerMoreItem(icon: Icons.visibility_outlined, title: 'View public profile', onTap: onViewPublicProfile!),
             _BuyerMoreItem(
               icon: Icons.account_balance_wallet_outlined,
               title: 'Rewards & payouts',
@@ -11047,8 +11054,8 @@ class _BuyerProfileAvatar extends StatelessWidget {
   }
 }
 
-class _BuyerProfilePhotoEditor extends StatelessWidget {
-  const _BuyerProfilePhotoEditor({
+class BuyerProfilePhotoEditor extends StatelessWidget {
+  const BuyerProfilePhotoEditor({
     this.onProfilePhotoAction,
     this.avatarMediaId,
     this.avatarPending = false,
@@ -11655,7 +11662,13 @@ class _BuyerSubpageBlock extends StatelessWidget {
                   ? 'account-settings'
                   : null,
               accent: BuyerUiTokens.action,
-              sections: {
+              sections: title == 'Edit Profile' ? {
+                'Profile': children.where((c) => c.key != const Key('buyer-profile-contact') && c.key != const Key('buyer-profile-privacy')).toList(),
+                if (children.any((c) => c.key == const Key('buyer-profile-contact')))
+                  'Contact': children.where((c) => c.key == const Key('buyer-profile-contact')).toList(),
+                if (children.any((c) => c.key == const Key('buyer-profile-privacy')))
+                  'Privacy': children.where((c) => c.key == const Key('buyer-profile-privacy')).toList(),
+              } : {
                 'Security': children
                     .where(
                       (child) =>
@@ -11671,21 +11684,11 @@ class _BuyerSubpageBlock extends StatelessWidget {
                           child.title == 'Preferences',
                     )
                     .toList(),
-                'Privacy': children
-                    .where(
-                      (child) =>
-                          child is _BuyerSubpageSection &&
-                          child.title != 'Account' &&
-                          child.title != 'Account Management' &&
-                          child.title != 'Preferences' &&
-                          child.title != 'Private contact',
-                    )
-                    .toList(),
                 if (children.any(
                   (c) =>
                       c is _BuyerSubpageSection && c.title == 'Private contact',
                 ))
-                  'Private contact': children
+                  'Contact': children
                       .where(
                         (c) =>
                             c is _BuyerSubpageSection &&
@@ -11975,7 +11978,7 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
       tabbed: true,
       onBack: onBack,
       title: 'Account Settings',
-      subtitle: 'Manage your Buyer account, preferences, and privacy.',
+      subtitle: 'Manage your Buyer account and preferences.',
       children: [
         if (contactEditor != null)
           _BuyerSubpageSection(
@@ -12020,18 +12023,6 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
               body: 'Text size, font readability, and button visibility.',
               status: textSize.label,
               onTap: onAccessibility,
-            ),
-          ],
-        ),
-        const _BuyerSubpageSection(
-          title: 'Privacy',
-          children: [
-            _BuyerSubpageRow(
-              icon: Icons.location_on_outlined,
-              title: 'Request & location privacy',
-              body:
-                  'Requests use an approximate area until meeting details are shared in chat.',
-              status: 'Approximate location',
             ),
           ],
         ),
@@ -12366,12 +12357,13 @@ class BuyerProfileEditPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return _BuyerSubpageBlock(
       title: 'Edit Profile',
-      subtitle: 'Keep your Buyer information accurate and concise.',
+      tabbed: true,
+      subtitle: 'Update your profile and contact details.',
       children: [
         _BuyerSubpageSection(
           title: 'Profile picture',
           children: [
-            _BuyerProfilePhotoEditor(
+            BuyerProfilePhotoEditor(
               onProfilePhotoAction: onProfilePhotoAction,
               avatarMediaId: avatarMediaId,
               avatarPending: avatarPending,
@@ -12443,8 +12435,8 @@ class BuyerProfileEditPage extends StatelessWidget {
           ],
         ),
         ?profileDetailsEditor,
-        ?contactEditor,
-        ?visibilityEditor,
+        if (contactEditor != null) KeyedSubtree(key: const Key('buyer-profile-contact'), child: contactEditor!),
+        if (visibilityEditor != null) KeyedSubtree(key: const Key('buyer-profile-privacy'), child: visibilityEditor!),
         if (contactEditor == null)
           _BuyerSubpageSection(
             title: 'Buying preferences',
@@ -13879,4 +13871,18 @@ class FormStepPage extends StatelessWidget {
       ],
     );
   }
+}
+
+class BuyerEditProfileMenu extends StatelessWidget {
+  const BuyerEditProfileMenu({super.key, required this.onDetails, required this.onVisibility});
+  final VoidCallback onDetails, onVisibility;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    const _BuyerMoreSectionLabel('PROFILE'),
+    const SizedBox(height: 8),
+    _BuyerMoreMenuGroup(items: [
+      _BuyerMoreItem(icon: Icons.person_outline, title: 'Profile details', onTap: onDetails),
+      _BuyerMoreItem(icon: Icons.visibility_outlined, title: 'Profile visibility', onTap: onVisibility),
+    ]),
+  ]);
 }

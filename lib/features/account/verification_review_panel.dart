@@ -64,15 +64,19 @@ class VerificationReviewPanel extends StatefulWidget {
 class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
   final note = TextEditingController();
   final appealBody = TextEditingController();
-  String kind = 'business';
+  String kind = 'identity';
   TrustStatusView? status;
   bool busy = true;
+  bool showHistory = false;
+  bool photoBusy = false;
   bool submitting = false;
   String? error;
   String? submitError;
   String? operationKey;
+  ({String kind, String note})? submissionIntent;
   String? appealRestrictionId;
   String? appealKey;
+  String? appealIntentBody;
   List<String> attachmentIds = const <String>[];
   String? attachKey;
   List<String>? frozenAttachmentIds;
@@ -186,8 +190,8 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
   }
 
   Future<void> send() async {
-    if (submitting) return;
-    final text = note.text.trim();
+    if (submitting || photoBusy) return;
+    final text = submissionIntent?.note ?? note.text.trim();
     if (text.length < 10) {
       setState(
         () => submitError = 'Describe the evidence in at least 10 characters.',
@@ -195,30 +199,54 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
       return;
     }
     operationKey ??= UniqueKey().toString();
+    submissionIntent ??= (kind: kind, note: text);
     setState(() {
       submitting = true;
       submitError = null;
     });
     try {
-      await widget.submit(kind, text, operationKey!);
+      final created = await widget.submit(
+        submissionIntent!.kind,
+        text,
+        operationKey!,
+      );
       if (!mounted) return;
       operationKey = null;
+      submissionIntent = null;
       note.clear();
       setState(() => submitting = false);
       await refresh();
+      if (mounted && attachmentIds.isNotEmpty) await attachToPending(created);
     } on TrustUnavailableException catch (failure) {
       if (!mounted) return;
       setState(() {
         submitting = false;
         submitError = failure.message;
-        if (!failure.outcomeUncertain) operationKey = null;
+        if (!failure.outcomeUncertain) {
+          operationKey = null;
+          submissionIntent = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        submitting = false;
+        submitError =
+            'Submission was not confirmed. Retry the same evidence note.';
       });
     }
   }
 
   Future<void> sendAppeal(String restrictionId) async {
     if (submitting) return;
-    final text = appealBody.text.trim();
+    if (appealKey != null && appealRestrictionId != restrictionId) {
+      setState(
+        () => submitError =
+            'Confirm the pending appeal before submitting another.',
+      );
+      return;
+    }
+    final text = appealIntentBody ?? appealBody.text.trim();
     if (text.length < 10) {
       setState(
         () => submitError = 'Describe the appeal in at least 10 characters.',
@@ -229,6 +257,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
       appealRestrictionId = restrictionId;
       appealKey = UniqueKey().toString();
     }
+    appealIntentBody ??= text;
     setState(() {
       submitting = true;
       submitError = null;
@@ -238,6 +267,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
       if (!mounted) return;
       appealRestrictionId = null;
       appealKey = null;
+      appealIntentBody = null;
       appealBody.clear();
       setState(() => submitting = false);
       await refresh();
@@ -249,7 +279,14 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
         if (!failure.outcomeUncertain) {
           appealRestrictionId = null;
           appealKey = null;
+          appealIntentBody = null;
         }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        submitting = false;
+        submitError = 'Appeal was not confirmed. Retry the same appeal note.';
       });
     }
   }
@@ -290,31 +327,30 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                 ? SellerNoticeTone.brand
                 : SellerNoticeTone.neutral,
             title: switch (current.reviewStatus) {
-              'approved' => 'Evidence review approved',
-              'pending' => 'Evidence under review',
-              'rejected' => 'Evidence review not approved',
-              _ => 'No evidence review submitted',
+              'approved' => 'Review approved',
+              'pending' => 'Under review',
+              'rejected' => 'Review not approved',
+              _ => 'Ready for review',
             },
             trailing: null,
             detail: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Email verified: ${current.emailVerified ? 'yes' : 'no'} · '
-                  'Phone verified: ${current.phoneVerified ? 'yes' : 'no'}',
-                  key: const Key('reviewContactLabel'),
-                  style: sellerText(
-                    ApprovedReplicaScope.maybeOf(context) ??
-                        ApprovedReplicaMetrics.resolve(
-                          brightness: Theme.of(context).brightness,
-                          availableWidth: MediaQuery.sizeOf(context).width,
-                          textScaler: MediaQuery.textScalerOf(context),
-                        ),
-                    12,
-                    color: SellerUiColors.body,
+                if (current.items.isNotEmpty &&
+                    current.items.first.decisionReason != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(current.items.first.decisionReason!),
                   ),
-                ),
-                if (current.items.isNotEmpty) ...[
+                if (current.items.isNotEmpty)
+                  SellerSecondaryButton(
+                    key: const Key('reviewHistoryToggle'),
+                    label: showHistory
+                        ? 'Hide review history'
+                        : 'Review history',
+                    onPressed: () => setState(() => showHistory = !showHistory),
+                  ),
+                if (showHistory && current.items.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -344,50 +380,79 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
             ),
           ),
           const SizedBox(height: 10),
-          for (final item in current.items) ...[
-            SellerStateNotice(
-              key: Key('savedEvidence-${item.id}'),
-              icon: Icons.attach_file_rounded,
-              tone: SellerNoticeTone.neutral,
-              title:
-                  '${item.evidenceCount} saved evidence '
-                  '${item.evidenceCount == 1 ? 'photo' : 'photos'}',
-              body:
-                  'Saved with your ${item.kind} review. Uploaded photos are '
-                  'separate until you attach them.',
-            ),
+          for (final item
+              in current.items
+                  .where(
+                    (item) =>
+                        item.status == 'pending' ||
+                        item.id == current.items.first.id,
+                  )
+                  .take(1)) ...[
+            if (item.evidenceCount > 0)
+              SellerStateNotice(
+                key: Key('savedEvidence-${item.id}'),
+                icon: Icons.attach_file_rounded,
+                tone: SellerNoticeTone.neutral,
+                title:
+                    '${item.evidenceCount} saved evidence '
+                    '${item.evidenceCount == 1 ? 'photo' : 'photos'}',
+                body: 'Only you and our review team can see these photos.',
+              ),
             if (item.evidenceMediaIds != null)
-              Wrap(
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
                   for (final id in item.evidenceMediaIds!)
-                    SizedBox(
-                      width: 130,
+                    Container(
+                      width: 146,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: HocalistPalette.surface(context, SellerUiColors.white),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: HocalistPalette.border(context, SellerUiColors.lavenderBorder)),
+                      ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          PrivateRemoteImage(
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: PrivateRemoteImage(
                             id: id,
-                            size: 110,
+                            size: 128,
+                            showWholeImage: true,
                             read: widget.readEvidence,
+                            ),
                           ),
                           if (item.status == 'pending' &&
-                              widget.detachEvidence != null)
-                            SellerSecondaryButton(
+                              widget.detachEvidence != null) ...[
+                            const SizedBox(height: 6),
+                            TextButton.icon(
                               key: Key('detachEvidence-$id'),
-                              label: submitting
+                              style: TextButton.styleFrom(
+                                foregroundColor: HocalistPalette.text(context, SellerUiColors.primary),
+                                minimumSize: const Size(0, 44),
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                textStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                              label: Text(submitting
                                   ? 'Removing…'
                                   : detachKeys.containsKey('${item.id}/$id')
                                   ? 'Retry removal'
-                                  : 'Remove saved photo',
+                                  : 'Remove photo'),
                               onPressed: submitting
                                   ? null
                                   : () => detachSaved(item, id),
                             ),
+                          ],
                         ],
                       ),
                     ),
                 ],
+                ),
               ),
           ],
           for (final restriction in current.restrictions)
@@ -459,7 +524,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: appealBody,
-                      enabled: !submitting,
+                      enabled: !submitting && appealKey == null,
                       maxLines: 3,
                       style: sellerInputText(
                         ApprovedReplicaScope.maybeOf(context) ??
@@ -498,67 +563,168 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                 ],
               ),
             ),
-          if (!pending) ...[
-            const SizedBox(height: 4),
-            DropdownButtonFormField<String>(
-              key: const Key('verificationKind'),
-              initialValue: kind,
-              style: sellerInputText(
-                ApprovedReplicaScope.maybeOf(context) ??
-                    ApprovedReplicaMetrics.resolve(
-                      brightness: Theme.of(context).brightness,
-                      availableWidth: MediaQuery.sizeOf(context).width,
-                      textScaler: MediaQuery.textScalerOf(context),
-                    ),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'business', child: Text('Business')),
-                DropdownMenuItem(value: 'identity', child: Text('Identity')),
+          if (widget.evidenceUpload != null &&
+              widget.attachEvidence != null) ...[
+            _ReviewSection(
+              children: [
+                const SizedBox(height: 10),
+                Text(
+                  'Photos for review',
+                  key: const Key('verificationEvidenceTitle'),
+                  style: sellerText(
+                    ApprovedReplicaScope.maybeOf(context) ??
+                        ApprovedReplicaMetrics.resolve(
+                          brightness: Theme.of(context).brightness,
+                          availableWidth: MediaQuery.sizeOf(context).width,
+                          textScaler: MediaQuery.textScalerOf(context),
+                        ),
+                    13,
+                    weight: FontWeight.w800,
+                    color: SellerUiColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Add clear photos for our review team. Your photos stay private.',
+                  style: sellerText(
+                    ApprovedReplicaScope.maybeOf(context) ??
+                        ApprovedReplicaMetrics.resolve(
+                          brightness: Theme.of(context).brightness,
+                          availableWidth: MediaQuery.sizeOf(context).width,
+                          textScaler: MediaQuery.textScalerOf(context),
+                        ),
+                    11.5,
+                    color: SellerUiColors.body,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                KeyedSubtree(
+                  key: const Key('verificationEvidencePicker'),
+                  child: PrivateImagePicker(
+                    key: ValueKey(pickerGeneration),
+                    upload: widget.evidenceUpload!,
+                    enabled:
+                        !submitting &&
+                        !attachmentUncertain &&
+                        submissionIntent == null,
+                    maxImages: 8,
+                    showGuidance: false,
+                    existingImageCount:
+                        current.items
+                            .where((item) => item.status == 'pending')
+                            .firstOrNull
+                            ?.evidenceCount ??
+                        0,
+                    onPendingChanged: (value) {
+                      if (mounted) setState(() => photoBusy = value);
+                    },
+                    onChanged: (ids) {
+                      if (!submitting && !attachmentUncertain) {
+                        setState(() => attachmentIds = ids);
+                      }
+                    },
+                  ),
+                ),
+                if (pending && attachmentIds.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SellerSecondaryButton(
+                    key: const Key('verificationEvidenceAttach'),
+                    label: attachmentUncertain
+                        ? 'Retry attachment'
+                        : 'Save photos to this review',
+                    onPressed: submitting
+                        ? null
+                        : () {
+                            for (final item in current.items) {
+                              if (item.status == 'pending') {
+                                attachToPending(item);
+                                return;
+                              }
+                            }
+                          },
+                  ),
+                ],
               ],
-              onChanged: submitting
-                  ? null
-                  : (value) => setState(() => kind = value ?? 'business'),
-              decoration: sellerInputDecoration(
-                context,
-                labelText: 'Evidence kind',
-              ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              key: const Key('verificationNote'),
-              controller: note,
-              enabled: !submitting,
-              maxLines: 3,
-              style: sellerInputText(
-                ApprovedReplicaScope.maybeOf(context) ??
-                    ApprovedReplicaMetrics.resolve(
-                      brightness: Theme.of(context).brightness,
-                      availableWidth: MediaQuery.sizeOf(context).width,
-                      textScaler: MediaQuery.textScalerOf(context),
+          ],
+          if (!pending) ...[
+            _ReviewSection(
+              children: [
+                const SellerSectionHeading(title: 'Review details'),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  key: const Key('verificationKind'),
+                  initialValue: kind,
+                  isExpanded: true,
+                  dropdownColor: HocalistPalette.surface(
+                    context,
+                    SellerUiColors.white,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  style: sellerInputText(
+                    ApprovedReplicaScope.maybeOf(context) ??
+                        ApprovedReplicaMetrics.resolve(
+                          brightness: Theme.of(context).brightness,
+                          availableWidth: MediaQuery.sizeOf(context).width,
+                          textScaler: MediaQuery.textScalerOf(context),
+                        ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'business',
+                      child: Text('Business'),
                     ),
-              ),
-              decoration: sellerInputDecoration(
-                context,
-                labelText: 'Evidence note',
-                hintText:
-                    'Describe the business or identity evidence for review.',
-              ),
-            ),
-            if (submitError != null) ...[
-              const SizedBox(height: 8),
-              SellerStateNotice(
-                key: const Key('verificationSubmitError'),
-                icon: Icons.error_outline_rounded,
-                tone: SellerNoticeTone.error,
-                title: 'Submission was not confirmed',
-                body: submitError,
-              ),
-            ],
-            const SizedBox(height: 10),
-            SellerPrimaryButton(
-              key: const Key('verificationSubmit'),
-              label: submitting ? 'Submitting…' : 'Submit for review',
-              onPressed: submitting ? null : send,
+                    DropdownMenuItem(
+                      value: 'identity',
+                      child: Text('Identity'),
+                    ),
+                  ],
+                  onChanged: submitting || submissionIntent != null
+                      ? null
+                      : (value) => setState(() => kind = value ?? 'business'),
+                  decoration: sellerInputDecoration(
+                    context,
+                    labelText: 'What are you verifying?',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  key: const Key('verificationNote'),
+                  controller: note,
+                  enabled: !submitting && submissionIntent == null,
+                  maxLines: 3,
+                  style: sellerInputText(
+                    ApprovedReplicaScope.maybeOf(context) ??
+                        ApprovedReplicaMetrics.resolve(
+                          brightness: Theme.of(context).brightness,
+                          availableWidth: MediaQuery.sizeOf(context).width,
+                          textScaler: MediaQuery.textScalerOf(context),
+                        ),
+                  ),
+                  decoration: sellerInputDecoration(
+                    context,
+                    labelText: 'Note for the reviewer',
+                    hintText: 'Tell us about the photos you are sending.',
+                  ),
+                ),
+                if (submitError != null) ...[
+                  const SizedBox(height: 8),
+                  SellerStateNotice(
+                    key: const Key('verificationSubmitError'),
+                    icon: Icons.error_outline_rounded,
+                    tone: SellerNoticeTone.error,
+                    title: 'Submission was not confirmed',
+                    body: submitError,
+                  ),
+                ],
+                const SizedBox(height: 10),
+                SellerPrimaryButton(
+                  key: const Key('verificationSubmit'),
+                  label: submitting ? 'Submitting…' : 'Submit for review',
+                  onPressed: submitting || photoBusy ? null : send,
+                ),
+              ],
             ),
           ] else ...[
             if (submitError != null) ...[
@@ -577,79 +743,8 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
               tone: SellerNoticeTone.brand,
               title: 'A review is pending',
               body:
-                  'You can submit again after the decision. Reviewed evidence '
-                  'never grants access automatically.',
+                  'Our team will check your submission. You can add or remove photos while you wait.',
             ),
-            if (widget.evidenceUpload != null &&
-                widget.attachEvidence != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Private evidence for this review',
-                key: const Key('verificationEvidenceTitle'),
-                style: sellerText(
-                  ApprovedReplicaScope.maybeOf(context) ??
-                      ApprovedReplicaMetrics.resolve(
-                        brightness: Theme.of(context).brightness,
-                        availableWidth: MediaQuery.sizeOf(context).width,
-                        textScaler: MediaQuery.textScalerOf(context),
-                      ),
-                  13,
-                  weight: FontWeight.w800,
-                  color: SellerUiColors.ink,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Images are uploaded privately and only visible to you and an '
-                'authorized reviewer. Attach uploaded photos to save them '
-                'with your pending review.',
-                style: sellerText(
-                  ApprovedReplicaScope.maybeOf(context) ??
-                      ApprovedReplicaMetrics.resolve(
-                        brightness: Theme.of(context).brightness,
-                        availableWidth: MediaQuery.sizeOf(context).width,
-                        textScaler: MediaQuery.textScalerOf(context),
-                      ),
-                  11.5,
-                  color: SellerUiColors.body,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 8),
-              KeyedSubtree(
-                key: const Key('verificationEvidencePicker'),
-                child: PrivateImagePicker(
-                  key: ValueKey(pickerGeneration),
-                  upload: widget.evidenceUpload!,
-                  enabled: !submitting && !attachmentUncertain,
-                  maxImages: 8,
-                  onChanged: (ids) {
-                    if (!submitting && !attachmentUncertain) {
-                      setState(() => attachmentIds = ids);
-                    }
-                  },
-                ),
-              ),
-              if (attachmentIds.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                SellerSecondaryButton(
-                  key: const Key('verificationEvidenceAttach'),
-                  label: attachmentUncertain
-                      ? 'Retry attachment'
-                      : 'Attach to pending review',
-                  onPressed: submitting
-                      ? null
-                      : () {
-                          for (final item in current.items) {
-                            if (item.status == 'pending') {
-                              attachToPending(item);
-                              return;
-                            }
-                          }
-                        },
-                ),
-              ],
-            ],
           ],
           const SizedBox(height: 8),
           SellerSecondaryButton(
@@ -659,9 +754,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Reviewed evidence is separate from email/phone verification. '
-            'A report is a signal; only an authorized reviewer can record a '
-            'restriction, and every restriction keeps an appeal route.',
+            'Our team reviews your submission. Sending photos does not mean your identity has been verified.',
             style: sellerText(
               ApprovedReplicaScope.maybeOf(context) ??
                   ApprovedReplicaMetrics.resolve(
@@ -678,4 +771,26 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
       ],
     );
   }
+}
+
+class _ReviewSection extends StatelessWidget {
+  const _ReviewSection({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: HocalistPalette.surface(context, SellerUiColors.white),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: HocalistPalette.border(context, SellerUiColors.lavenderBorder),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    ),
+  );
 }

@@ -340,7 +340,8 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
         meeting.status == 'accepted' ||
         meeting.status == 'reschedule_proposed';
     bool canceled(MeetingView meeting) =>
-        meeting.status == 'cancelled' || meeting.status == 'rejected';
+        meeting.status == 'cancelled' || meeting.status == 'rejected' ||
+        (meeting.latestProposalDeclined && !meeting.hasAcceptedSchedule);
     DateTime? start(MeetingView meeting) =>
         (meeting.acceptedSchedule ?? meeting.pendingSchedule)?.instant;
     bool upcoming(MeetingView meeting) =>
@@ -1308,6 +1309,8 @@ class _RealMeetingCard extends StatelessWidget {
     final schedule = meeting.acceptedSchedule ?? meeting.pendingSchedule;
     final statusLabel = completed
         ? 'PIN verified'
+        : meeting.latestProposalDeclined
+        ? (meeting.hasAcceptedSchedule ? 'Change declined' : 'Declined')
         : switch (meeting.status) {
             'accepted' => 'Confirmed',
             'proposed' => 'Proposed',
@@ -1420,6 +1423,10 @@ class _RealMeetingCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (!completed && meeting.latestProposalDeclined) ...[
+                  SizedBox(height: metrics.spacing(8)),
+                  Text(meeting.declinedProposalMessage, style: sellerText(metrics, 12)),
+                ],
                 if (schedule != null) ...[
                   const Divider(height: 22, color: SellerUiColors.line),
                   _RealMeetingFact(

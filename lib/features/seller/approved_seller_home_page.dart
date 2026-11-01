@@ -35,6 +35,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.recommendedError,
     this.onRefreshRecommended,
     this.accountHealth,
+    this.serviceAreaSaved = false,
     this.accountHealthLoading = false,
     this.accountHealthError,
     this.onRefreshAccountHealth,
@@ -74,6 +75,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   /// Manual review status mapped from the trust projection. Null keeps the
   /// honest "Not available yet" slot.
   final SellerAccountHealthView? accountHealth;
+  final bool serviceAreaSaved;
   final bool accountHealthLoading;
   final String? accountHealthError;
   final VoidCallback? onRefreshAccountHealth;
@@ -138,6 +140,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 realName: realLeads == null ? null : widget.sellerName ?? '',
                 avatarMediaId: widget.avatarMediaId,
                 accountHealth: widget.accountHealth,
+                serviceAreaSaved: widget.serviceAreaSaved,
                 accountHealthLoading: widget.accountHealthLoading,
                 accountHealthError: widget.accountHealthError,
                 onRefreshAccountHealth: widget.onRefreshAccountHealth,
@@ -451,6 +454,7 @@ class _SellerHero extends StatelessWidget {
     this.realName,
     this.avatarMediaId,
     this.accountHealth,
+    this.serviceAreaSaved = false,
     this.accountHealthLoading = false,
     this.accountHealthError,
     this.onRefreshAccountHealth,
@@ -461,6 +465,7 @@ class _SellerHero extends StatelessWidget {
   final String? realName;
   final String? avatarMediaId;
   final SellerAccountHealthView? accountHealth;
+  final bool serviceAreaSaved;
   final bool accountHealthLoading;
   final String? accountHealthError;
   final VoidCallback? onRefreshAccountHealth;
@@ -473,8 +478,8 @@ class _SellerHero extends StatelessWidget {
     final hour=DateTime.now().hour;
     final salutation=hour<12 ? 'Good morning' : hour<18 ? 'Good afternoon' : 'Good evening';
     final name=realName?.trim() ?? 'Alex';
-    final portraitSize=realName==null ? metrics.artSize(72) : (metrics.availableWidth*0.18).clamp(56.0,72.0);
-    final heroSize=realName==null ? metrics.artSize(122) : (metrics.availableWidth*0.23).clamp(72.0,105.0);
+    final portraitSize=realName==null ? metrics.artSize(62) : (metrics.availableWidth*0.155).clamp(48.0,62.0);
+    final heroSize=realName==null ? metrics.artSize(104) : (metrics.availableWidth*0.20).clamp(62.0,90.0);
     final greeting = Text(
       realName==null ? 'Good morning, Alex! 👋' : name.isEmpty ? '$salutation!\u00a0👋' : '$salutation, $name!\u00a0👋',
       maxLines: realName!=null || metrics.accessibilityReflow ? null : 1,
@@ -490,7 +495,7 @@ class _SellerHero extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: greeting,
               ),
-        SizedBox(height: metrics.geometry(14)),
+        SizedBox(height: metrics.geometry(8)),
         Text(
           'Account health',
           style: sellerText(metrics, 11.5, color: SellerUiColors.body),
@@ -498,7 +503,7 @@ class _SellerHero extends StatelessWidget {
         SizedBox(height: metrics.geometry(5)),
         if (realName==null) const _AccountHealthBar()
         else _AccountHealthSlot(
-          health:accountHealth,loading:accountHealthLoading,error:accountHealthError,
+          health:accountHealth,serviceAreaSaved:serviceAreaSaved,loading:accountHealthLoading,error:accountHealthError,
           onRetry:onRefreshAccountHealth,onOpenVerification:onOpenVerification,
           onAppealRestriction:onAppealRestriction,
         ),
@@ -512,17 +517,20 @@ class _SellerHero extends StatelessWidget {
             color:HocalistPalette.surface(context,SellerUiColors.lavender),
             alignment:Alignment.center,child:Text(_sellerInitials(name),style:sellerText(metrics,24,weight:FontWeight.w800)))) : Image.asset(
         SellerAssets.homeAvatar,
-        width: metrics.artSize(72),
-        height: metrics.artSize(72),
+        width: portraitSize,
+        height: portraitSize,
         fit: BoxFit.cover,
         semanticLabel: 'Alex seller portrait',
       ),
     );
-    final art = Image.asset(
+    final art = ClipRRect(
+      borderRadius: BorderRadius.circular(Theme.of(context).brightness == Brightness.dark ? 20 : 0),
+      child: Image.asset(
       SellerAssets.homeHero,
       width: heroSize,
       fit: BoxFit.contain,
       excludeFromSemantics: true,
+      ),
     );
     if (metrics.accessibilityReflow) {
       return Column(
@@ -587,6 +595,7 @@ class _RealSellerHomeNotice extends StatelessWidget {
 class _AccountHealthSlot extends StatefulWidget {
   const _AccountHealthSlot({
     this.health,
+    this.serviceAreaSaved = false,
     this.loading = false,
     this.error,
     this.onRetry,
@@ -595,6 +604,7 @@ class _AccountHealthSlot extends StatefulWidget {
   });
 
   final SellerAccountHealthView? health;
+  final bool serviceAreaSaved;
   final bool loading;
   final String? error;
   final VoidCallback? onRetry;
@@ -757,9 +767,26 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                     },
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    'Evidence review: ${value.reviewStatus.replaceAll('_', ' ')}',
-                    style: sellerText(metrics, 12, color: SellerUiColors.body),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: HocalistStatusFact(
+                        seller: true, icon: Icons.location_on_outlined,
+                        label: widget.serviceAreaSaved ? 'Service area saved' : 'Service area not saved',
+                        confirmed: widget.serviceAreaSaved,
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: HocalistStatusFact(
+                        seller: true, icon: Icons.badge_outlined,
+                        label: switch (value.reviewStatus) {
+                          'approved' => 'Identity approved',
+                          'pending' => 'Identity under review',
+                          'rejected' => 'Identity not approved',
+                          _ => 'Identity not submitted',
+                        },
+                        confirmed: value.reviewStatus == 'approved',
+                      )),
+                    ],
                   ),
                   if (value.restrictions.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -863,27 +890,33 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
         ? null
         : (value.emailVerified ? 1 : 0) +
               (value.phoneVerified ? 1 : 0) +
-              (value.reviewStatus == 'approved' ? 1 : 0);
+              (value.reviewStatus == 'approved' ? 1 : 0) +
+              (widget.serviceAreaSaved ? 1 : 0);
     return Semantics(
       label: completed == null
           ? 'Verification progress unavailable'
-          : '$completed of 3 verification steps complete',
+          : '$completed of 4 verification steps complete',
       child: Material(
         color: HocalistPalette.surface(context, Colors.transparent),
         child: InkWell(
           key: const Key('sellerAccountHealth'),
           onTap: () => _showDetail(context),
-          child: Column(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: ApprovedReplicaScope.of(context).spacing(8),
+              vertical: ApprovedReplicaScope.of(context).spacing(4),
+            ),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _AccountHealthBar(
-                progress: completed == null ? 0 : completed / 3,
+                steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
               ),
               if (completed != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    '$completed of 3 verification steps complete · View steps',
+                    '$completed of 4 verification steps complete · View steps',
                     style: sellerText(
                       ApprovedReplicaScope.of(context),
                       11,
@@ -914,6 +947,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                   ),
                 ),
             ],
+            ),
           ),
         ),
       ),
@@ -1080,32 +1114,22 @@ class _RealRecentLeadsCard extends StatelessWidget {
 }
 
 class _AccountHealthBar extends StatelessWidget {
-  const _AccountHealthBar({this.progress = 14 / 17});
+  const _AccountHealthBar({this.steps = const [false, false, false, false]});
 
-  final double progress;
+  final List<bool> steps;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     const colors = [
-      SellerUiColors.red,
-      SellerUiColors.red,
-      SellerUiColors.red,
-      SellerUiColors.amber,
-      SellerUiColors.amber,
-      Color(0xFFE4D700),
-      Color(0xFFE4D700),
-      Color(0xFF82D51B),
-      Color(0xFF82D51B),
-      Color(0xFF82D51B),
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
+      SellerUiColors.red, SellerUiColors.red, SellerUiColors.red,
+      SellerUiColors.amber, SellerUiColors.amber,
+      Color(0xFFE4D700), Color(0xFFE4D700),
+      Color(0xFF82D51B), Color(0xFF82D51B), Color(0xFF82D51B),
+      SellerUiColors.green, SellerUiColors.green, SellerUiColors.green,
+      SellerUiColors.green, SellerUiColors.green, SellerUiColors.green, SellerUiColors.green,
     ];
+    final filled = (steps.where((step) => step).length / 4 * colors.length).ceil();
     return LayoutBuilder(
       builder: (context, constraints) {
         return Row(
@@ -1116,13 +1140,14 @@ class _AccountHealthBar extends StatelessWidget {
                   for (var index = 0; index < colors.length; index++)
                     Expanded(
                       child: AnimatedContainer(
+                        key: ValueKey('sellerVerificationStep-$index-${index < filled ? "complete" : "incomplete"}'),
                         duration: HocalistMotion.duration(context, 350),
                         height: metrics.geometry(8),
                         margin: EdgeInsets.only(right: metrics.geometry(2)),
                         decoration: BoxDecoration(
                           color: HocalistPalette.surface(
                             context,
-                            index < (progress * colors.length).ceil()
+                            index < filled
                                 ? colors[index]
                                 : const Color(0xFFE8E9F3),
                           ),
@@ -1237,12 +1262,24 @@ class _SellerMetricCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Image.asset(
-                    asset,
-                    width: metrics.artSize(48),
-                    height: metrics.artSize(48),
-                    fit: BoxFit.contain,
-                    excludeFromSemantics: true,
+                  ClipOval(
+                    child: FractionalTranslation(
+                      // Center the original artwork's horizontally offset badge.
+                      translation: Offset(
+                        asset == SellerAssets.homeDeals ? -9 / 109 * 1.24 : 0,
+                        0,
+                      ),
+                      child: Transform.scale(
+                        scale: asset == SellerAssets.homeDeals ? 1.24 : 1,
+                        child: Image.asset(
+                          asset,
+                          width: metrics.artSize(48),
+                          height: metrics.artSize(48),
+                          fit: BoxFit.contain,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1361,11 +1398,14 @@ class _FindBuyersBanner extends StatelessWidget {
                 ),
               ),
               SizedBox(width: metrics.geometry(5)),
-              Image.asset(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(Theme.of(context).brightness == Brightness.dark ? 16 : 0),
+                child: Image.asset(
                 SellerAssets.homeFindBuyers,
                 width: metrics.artSize(76),
                 fit: BoxFit.contain,
                 excludeFromSemantics: true,
+                ),
               ),
             ],
           ),

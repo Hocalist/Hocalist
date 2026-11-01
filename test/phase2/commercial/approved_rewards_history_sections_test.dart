@@ -101,6 +101,82 @@ Future<void> _pump(
 void main() {
   setUpAll(loadHocalistTestFonts);
 
+  for (final width in [320.0, 360.0, 390.0, 430.0]) {
+    for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+      testWidgets('approved pending estimates fit $width at $scale', (
+        tester,
+      ) async {
+        final wallet = RewardWalletView.fromJson(
+          rewardWalletJson()..['estimated_minor'] = 45,
+        );
+        await _pump(
+          tester,
+          ApprovedBuyerRewardsDetailPage(
+              onBack: () {},
+              onDealHistory: () {},
+            realContent: ApprovedBuyerRewardsRealSections(
+              load: () async => wallet,
+            ),
+          ),
+          width: width,
+          scale: scale,
+        );
+        expect(find.text('Pending estimated'), findsOneWidget);
+        final pending = tester.widget<Text>(
+          find.byKey(const ValueKey('approved-rewards-pending')),
+        );
+        expect(pending.data, r'$0.45');
+        expect(find.text(r'Available to withdraw: $0.15'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('approved-rewards-estimate-explanation')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('approved deal details show the combined reward split', (
+    tester,
+  ) async {
+    final detail = saleDetailJson(id: 'so-2', side: 'purchase');
+    detail['reward'] = <String, Object?>{
+      'status': 'mixed',
+      'amount_minor': 30,
+      'earned_minor': 15,
+      'held_minor': 15,
+      'reversed_minor': 0,
+      'rule_version': 'test',
+    };
+    await _pump(
+      tester,
+      ApprovedBuyerDealHistoryRealSections(
+        load: ({DateTime? beforeTime, String? beforeId}) async => [
+          SaleHistoryEntryView.fromJson(saleHistoryPurchaseJson()),
+        ],
+        loadDetail: (_) async => SaleDetailView.fromJson(detail),
+      ),
+      width: 320,
+      scale: 1.3,
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('approved-deal-history-record-so-2')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('approved-deal-history-record-so-2')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('approved-history-reward-so-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.text(r'Earned $0.15 • On hold $0.15 • Reversed $0.00'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('approved reward sections render from the authoritative wallet', (
     tester,
   ) async {
