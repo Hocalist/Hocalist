@@ -123,7 +123,34 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
     }
     try {
       const user = await api.user(request);
-      const input = parseCheckoutInput(await boundedBody(request));
+      const body = await boundedBody(request);
+      if (body.kind === 'cancel') {
+        if (Object.keys(body).sort().join(',') !== 'checkout_id,kind') throw new BillingError('invalid_request', 400);
+        const checkoutId = uuid(body.checkout_id);
+        await assertAccount(api);
+        const pending = object(await api.rpc('stripe_test_pending_checkout', { p_user: user }));
+        if (pending.checkout_id !== checkoutId || !pending.session_id) throw new BillingError('checkout_reconciliation_required', 409);
+        const customer = String(pending.customer_id ?? '');
+        if (!/^cus_[A-Za-z0-9]+$/.test(customer)) throw new BillingError('checkout_reconciliation_required', 409);
+        const path = `checkout/sessions/${encodeURIComponent(String(pending.session_id))}`;
+        let session = await api.stripe(path);
+        const owns = (value: Record<string, unknown>) => value.id === pending.session_id &&
+          id(value.customer) === customer && value.livemode === false;
+        if (!owns(session)) throw new BillingError('checkout_reconciliation_required', 409);
+        if (session.status === 'open' && session.payment_status === 'unpaid') {
+          session = await api.stripe(`${path}/expire`, {}, `hocalist-cancel-${checkoutId}`);
+        }
+        // A concurrent payment or ambiguous provider response must never clear
+        // the retained purchase. Only confirmed expiry closes our record.
+        if (!owns(session) || session.status !== 'expired' || session.payment_status !== 'unpaid') {
+          throw new BillingError('checkout_reconciliation_required', 409);
+        }
+        await api.rpc('stripe_test_checkout_expire', {
+          p_checkout: checkoutId, p_session: session.id, p_customer: customer,
+        });
+        return json({ checkout_id: checkoutId, cancelled: true });
+      }
+      const input = parseCheckoutInput(body);
       const success = serviceUrl(config.success);
       const cancel = serviceUrl(config.cancel);
       await assertAccount(api);

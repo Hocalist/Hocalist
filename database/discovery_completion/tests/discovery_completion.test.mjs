@@ -703,6 +703,41 @@ test('reviews: eligibility, idempotent submission, moderation and aggregate', as
   }
 });
 
+test('owner-approved Hocatrends requires paid eligibility and explicit offer opt-in', async () => {
+  const db=await createDb();
+  try {
+    const req=(await command(db,A,'request.create','opt-request',requestInput()))[0].result;
+    const offer=(await command(db,B,'offer.submit','opt-offer',offerInput(req.id)))[0].result;
+    await db.exec(await read('../../runtime_repairs/224_hocatrends_seller_eligibility.sql'));
+    const repair=await read('../../runtime_repairs/247_hocatrends_explicit_opt_in.sql');
+    await db.exec(repair);
+    const preference=(user,enabled)=>callAs(db,'authenticated',user,
+      'SELECT hocalist.hocatrends_offer_preference($1,$2) AS data',[offer.id,enabled]);
+    assert.equal((await preference(B,null))[0].data.enabled,false);
+    await expectRejected(preference(B,true),'hocatrends_not_eligible','P0001');
+    await expectRejected(preference(C,true),'offer_access_denied');
+    await db.query("INSERT INTO hocalist.seller_entitlements(user_id,plan_code,source,active) VALUES($1,'pro','admin',true)",[B]);
+    assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0,'paid membership is not consent');
+    await preference(B,true);
+    assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,1);
+    await preference(B,true);
+    const input={origin:'hocatrends_enquiry',topic_id:CATEGORY,seller_profile_id:MB};
+    await openEnquiry(db,A,'opt-in-enquiry',input);
+    await db.query("UPDATE hocalist.seller_entitlements SET plan_code='free' WHERE user_id=$1",[B]);
+    assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0,'downgrade removes discovery immediately');
+    await expectRejected(openEnquiry(db,A,'downgraded-enquiry',input),'seller_not_eligible','P0001');
+    await preference(B,false);
+    await db.query("UPDATE hocalist.seller_entitlements SET plan_code='elite' WHERE user_id=$1",[B]);
+    assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0,'opt-out persists across upgrade');
+    await preference(B,true);
+    await db.query("UPDATE hocalist.offers SET status='withdrawn' WHERE id=$1",[offer.id]);
+    assert.equal((await topicSellers(db,A,CATEGORY))[0].data.items.length,0);
+    await db.exec(repair);
+    assert.equal((await preference(B,null))[0].data.enabled,true,'reapply preserves preference');
+    await assert.rejects(callAs(db,'anon','', 'SELECT hocalist.hocatrends_offer_preference($1,true)',[offer.id]),{code:'42501'});
+  } finally { await db.close(); }
+});
+
 test('Hocatrends offer participants and listing owners share enquiry eligibility', async (t) => {
   const db = await createDb();
   try {
@@ -921,3 +956,35 @@ test('Hocatrends, Winners and discovery enquiry origin isolation', async (t) => 
   }
 });
 
+
+test('cleared search still displays business distance without applying its default radius', async () => {
+ const db=await createDb();
+ try {
+  await db.exec(`CREATE TABLE hocalist.seller_business_addresses(user_id uuid PRIMARY KEY,latitude double precision,longitude double precision);
+    INSERT INTO hocalist.seller_business_addresses VALUES('${B}',40.93,-73.9);`);
+  await db.exec(await read('../../runtime_repairs/256_cleared_search_distance.sql'));
+  await command(db,A,'request.create','distance-near',requestInput({title:'Near',latitude:40.94,longitude:-73.9}));
+  await command(db,A,'request.create','distance-far',requestInput({title:'Far',latitude:42.7,longitude:-73.9}));
+  await command(db,A,'request.create','distance-unknown',requestInput({title:'Unknown',latitude:null,longitude:null}));
+  await originSet(db,B,'clear-for-distance',{area_label:null,latitude:null,longitude:null,radius_miles:25});
+  const data=(await leads(db,B))[0].data;
+  assert.equal(data.items.length,3,'clear does not silently reapply a 25-mile filter');
+  assert.ok(data.items.find(r=>r.title==='Near').distance_miles>0);
+  assert.ok(data.items.find(r=>r.title==='Far').distance_miles>25);
+  assert.equal(data.items.find(r=>r.title==='Unknown').distance_miles,null);
+  const origin=(await db.query('SELECT * FROM hocalist.seller_discovery_origins WHERE seller_user_id=$1',[B])).rows[0];
+  assert.equal(origin.latitude,null);assert.equal(origin.area_label,null);
+  const closest=(await leads(db,B,[null,null,null,50,null,'closest',null,null,null,null]))[0].data;
+  assert.ok(closest.items.find(r=>r.title==='Near').distance_miles>0);
+  const rec=(await recommended(db,B))[0].data;
+  assert.ok(JSON.stringify(rec).includes('distance_miles'));
+  await originSet(db,B,'alternate-distance',{area_label:'Alternate',latitude:42.7,longitude:-73.9,radius_miles:5});
+  const searched=(await leads(db,B))[0].data;
+  assert.equal(searched.items.some(r=>r.title==='Near'),false);
+  assert.equal(searched.items.find(r=>r.title==='Far').distance_miles,0);
+  await originSet(db,C,'no-business-distance',{area_label:null,latitude:null,longitude:null,radius_miles:25});
+  const noBusiness=(await leads(db,C))[0].data;
+  assert.ok(noBusiness.items.every(r=>r.distance_miles==null));
+  for(const row of data.items){assert.equal('latitude' in row,false);assert.equal('longitude' in row,false);}
+ } finally { await db.close(); }
+});

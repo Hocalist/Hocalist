@@ -15,6 +15,28 @@ async function fixture(){
  INSERT INTO hocalist.sale_confirmations(request_id,meeting_id,offer_id,schedule_revision_id,buyer_user_id,seller_user_id) VALUES('${request}','${meeting}','${offer}',gen_random_uuid(),'${IDS.buyer}','${IDS.seller}');`);
  await db.exec(sql);return db;
 }
+test('later shared-chat requests remain redacted and participant-only',async()=>{
+ const db=await fixture();try{
+ const repair=await readFile(new URL('../../runtime_repairs/246_shared_chat_request_history.sql',import.meta.url),'utf8');
+ const later='30000000-0000-4000-8000-000000000002';
+ await db.query(`INSERT INTO hocalist.requests(id,buyer_user_id,buyer_profile_id,kind,title,condition,status,address_line1)
+   VALUES($1,$2,$3,'product','Later private request','used','closed','PRIVATE TEST ADDRESS')`,[later,IDS.buyer,IDS.buyerMembership]);
+ await db.query(`INSERT INTO hocalist.offers(request_id,buyer_user_id,seller_user_id,seller_profile_id,status,conversation_id)
+   VALUES($1,$2,$3,$4,'completed',$5)`,[later,IDS.buyer,IDS.seller,IDS.sellerMembership,conversation]);
+ const readRequest=user=>callAs(db,'authenticated',user,'SELECT hocalist.marketplace_request($1) AS data',[later]);
+ await expectRejected(readRequest(IDS.seller),'request_access_denied');
+ await db.exec(repair);
+ await db.exec(repair);
+ const row=(await readRequest(IDS.seller))[0].data;
+ assert.equal(row.request_id,later);
+ assert.equal(row.title,'Later private request');
+ assert.equal(JSON.stringify(row).includes('PRIVATE TEST ADDRESS'),false);
+ await expectRejected(readRequest(IDS.seller2),'request_access_denied');
+ await db.query('UPDATE hocalist.conversation_members SET revoked_at=now() WHERE user_id=$1',[IDS.seller]);
+ await expectRejected(readRequest(IDS.seller),'request_access_denied');
+ }finally{await db.close();}
+});
+
 test('retained request is participant-only, redacted, revoked/restricted fenced',async()=>{
  const db=await fixture();try{
  const row=(await callAs(db,'authenticated',IDS.seller,'SELECT hocalist.marketplace_request($1) AS data',[request]))[0].data;
