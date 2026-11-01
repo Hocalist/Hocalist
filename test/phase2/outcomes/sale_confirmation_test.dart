@@ -8,6 +8,48 @@ import 'package:hocalist/components/pull_refresh.dart';
 import '../marketplace/support/marketplace_fakes.dart';
 
 void main() {
+  testWidgets('expired cooldown rechecks the server before enabling input', (tester) async {
+    var unlocked = false;
+    final transport = FakeMarketplaceTransport()..handler = (_) => MarketplaceTransportData({
+      'status': unlocked ? 'unconfirmed' : 'locked',
+      if (!unlocked) 'retry_at': DateTime.now().toUtc().subtract(const Duration(seconds: 1)).toIso8601String(),
+    });
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SaleConfirmationPanel(
+      adapter: SaleConfirmationAdapter(transport: transport, session: FakeMarketplaceSession('b')),
+      meetingId: 'm', isBuyer: false,
+    ))));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
+    unlocked = true;
+    await tester.pump(const Duration(seconds: 8));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, true);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  for (final status in ['locked', 'support_required']) {
+    testWidgets('$status disables PIN entry and survives refresh', (tester) async {
+      var legacyRefresh = false;
+      final transport = FakeMarketplaceTransport()..handler = (_) => MarketplaceTransportData({
+        'status': legacyRefresh ? 'unconfirmed' : status,
+        if (status == 'locked' && !legacyRefresh)
+          'retry_at': DateTime.now().toUtc().add(const Duration(minutes: 15)).toIso8601String(),
+      });
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: SaleConfirmationPanel(
+        adapter: SaleConfirmationAdapter(transport: transport, session: FakeMarketplaceSession('b')),
+        meetingId: 'm', isBuyer: false,
+      ))));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
+      await tester.tap(find.text('Confirm completed purchase'));
+      await tester.pumpAndSettle();
+      expect(transport.calls.where((c) => c.params['p_action'] == 'verify'), isEmpty);
+      legacyRefresh = true;
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
   for (final buyer in [true, false]) {
     testWidgets(
       'completed purchase stays terminal after background buyer=$buyer',

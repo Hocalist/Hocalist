@@ -106,6 +106,36 @@ ApprovedBuyerHomePage _page({
 );
 
 void main() {
+  testWidgets('home prioritizes soonest expiry over newer undated requests', (
+    tester,
+  ) async {
+    final rows = List.generate(
+      5,
+      (i) => BuyerRequestView(
+        requestId: 'expiry-$i', revision: 1, title: 'Expiry $i',
+        budgetLabel: 'Budget', statusLabel: 'Active request',
+        createdAt: DateTime.utc(2026, 10, i + 1),
+        acceptanceExpiresAt: i == 4 ? null : DateTime.utc(2030, 1, i + 1),
+      ),
+    );
+    rows.add(BuyerRequestView(
+      requestId: 'closed', revision: 1, title: 'Closed history',
+      budgetLabel: 'Budget', statusLabel: 'Closed request', isActive: false,
+      createdAt: DateTime.utc(2031), acceptanceExpiresAt: DateTime.utc(2020),
+    ));
+    await _pump(tester, _page(realRequests: rows.reversed.toList()));
+    expect(find.text('Expiry 4'), findsNothing);
+    expect(find.text('Closed history'), findsNothing);
+    expect(find.text('Expiry 0'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Expiry 0')).dy,
+        lessThan(tester.getTopLeft(find.text('Expiry 1')).dy));
+    await tester.ensureVisible(find.text('View all').first);
+    await tester.tap(find.text('View all').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Expiry 4'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('home shows newest four and View all reveals older requests', (
     tester,
   ) async {

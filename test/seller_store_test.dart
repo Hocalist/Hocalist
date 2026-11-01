@@ -70,6 +70,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('listing location opens shared picker and keeps confirmed address', (tester) async {
+    final repository = LocalMarketplaceRepository();
+    addTearDown(repository.dispose);
+    await pumpStore(tester, repository, height: 1000);
+    await tester.tap(find.byKey(const Key('sellerStoreAddListing')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sellerStoreChooseProduct')));
+    await tester.pumpAndSettle();
+    final location = find.byKey(const Key('sellerStoreLocationField'));
+    await tester.ensureVisible(location);
+    await tester.tap(location);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose pickup or service area'), findsOneWidget);
+    expect(find.text('Choose the meeting place'), findsNothing);
+    await tester.enterText(find.byKey(const Key('hocalistPlaceSearchField')), '1 Synthetic Street');
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('hocalistPlaceCityField')), 'Test City');
+    await tester.enterText(find.byKey(const Key('hocalistPlaceRegionField')), 'NY');
+    await tester.enterText(find.byKey(const Key('hocalistPlaceCountryField')), 'US');
+    await tester.ensureVisible(find.byKey(const Key('hocalistPlaceConfirm')));
+    await tester.tap(find.byKey(const Key('hocalistPlaceConfirm')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(location).controller!.text, contains('1 Synthetic Street'));
+  });
+
   testWidgets('Seller can create and publish a local product listing', (
     tester,
   ) async {

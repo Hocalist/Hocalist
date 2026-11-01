@@ -36,6 +36,7 @@ void main() {
       );
       final transport = SupabaseMarketplaceTransport(client);
       for (final name in [
+        'marketplace_restore_store_listing',
         'marketplace_timezones',
         'meeting_list',
         'meeting_detail',

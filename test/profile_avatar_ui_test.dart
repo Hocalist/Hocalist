@@ -30,6 +30,8 @@ void main() {
     tester,
   ) async {
     void noop() {}
+    var previews = 0;
+    var addresses = 0;
     const id = '11111111-1111-4111-8111-111111111111';
     await _pump(
       tester,
@@ -39,6 +41,8 @@ void main() {
           textScaler: TextScaler.noScaling,
         ),
         child: SupportPage(
+          onViewPublicProfile: () => previews++,
+          onAddresses: () => addresses++,
           accent: Colors.pink,
           name: 'Buyer',
           email: 'test@example.com',
@@ -59,10 +63,18 @@ void main() {
       id,
     );
     expect(find.text('Edit profile'), findsOneWidget);
+    await tester.ensureVisible(find.text('View public profile'));
+    await tester.tap(find.text('View public profile'));
+    expect(previews, 1);
+    await tester.ensureVisible(find.text('Addresses'));
+    await tester.tap(find.text('Addresses'));
+    expect(addresses, 1);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: ApprovedSellerMorePage(
+            onViewPublicProfile: () => previews++,
+          onAddresses: () => addresses++,
             sellerName: 'Seller',
             avatarMediaId: id,
             onProfile: noop,
@@ -83,6 +95,9 @@ void main() {
       id,
     );
     expect(find.text('Edit profile'), findsOneWidget);
+    await tester.ensureVisible(find.text('Locations & addresses'));
+    await tester.tap(find.text('Locations & addresses'));
+    expect(addresses, 2);
     expect(tester.takeException(), isNull);
   });
 

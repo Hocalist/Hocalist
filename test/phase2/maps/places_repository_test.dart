@@ -56,7 +56,30 @@ class FakePlacesTransport implements PlacesTransport {
   }
 }
 
+class UnavailableAddressTransport extends FakePlacesTransport implements AddressPlacesTransport {
+  @override
+  Future<PlacesTransportResult> address({required String address, required String sessionToken}) async {
+    throw const PlacesFailure(PlacesFailureCode.unavailable);
+  }
+}
+
 void main() {
+  test('failed geocoding resolves one suggestion but never guesses among several', () async {
+    final transport = UnavailableAddressTransport()
+      ..onDetails = (id, token) async => PlacesTransportResult({
+        'placeId': id, 'address': '123 Synthetic Ave', 'latitude': 40.9,
+        'longitude': -73.8, 'timezoneId': 'America/New_York', 'attributions': <Object?>[],
+      });
+    final repository = PlacesRepository(transport: transport);
+    final place = await repository.resolveAddress('123 Synthetic Ave');
+    expect(place.latitude, 40.9);
+    expect(place.timezoneId, 'America/New_York');
+    expect(transport.sessionTokens.toSet(), hasLength(1));
+    transport.onSearch = (_, token) async => const PlacesTransportResult({'suggestions': [
+      {'placeId': 'one', 'label': 'First address'}, {'placeId': 'two', 'label': 'Second address'},
+    ]});
+    await expectLater(repository.resolveAddress('Ambiguous Street'), throwsA(isA<PlacesFailure>()));
+  });
   test('saved addresses resolve their timezone only for one provider match', () async {
     final transport = FakePlacesTransport()
       ..onDetails = (id, token) async => PlacesTransportResult({

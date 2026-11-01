@@ -465,6 +465,30 @@ void main() {
       expect(transport.calls, isEmpty);
     });
 
+    test('Store loads archived listings on later pages', () async {
+      transport.handler = (call) => data(call.params['p_cursor'] == null
+        ? pageJson([listingJson(status: 'active')], cursor: 'next-page')
+        : pageJson([listingJson(status: 'archived')]));
+      final rows = await backend.loadListings();
+      expect(rows, hasLength(2));
+      expect(rows.last.status, LocalListingStatus.archived);
+      expect(transport.calls.last.params['p_cursor'], 'next-page');
+    });
+
+    test('archived records survive mapping and restore uses private-draft command', () async {
+      transport.handler = (call) => data(pageJson([listingJson(status: 'archived')]));
+      final archived = (await backend.loadListings()).single;
+      expect(archived.status, LocalListingStatus.archived);
+      expect(LocalStoreListing.fromJson(archived.toJson()).isPubliclyVisible, isFalse);
+      transport.handler = (call) => data(listingJson(status: 'draft', revision: 6));
+      final restored = await backend.setListingStatus(listingId, LocalListingStatus.draft,
+        operationKey: 'restore-key', expectedRevision: 5);
+      expect(transport.calls.last.function, 'marketplace_restore_store_listing');
+      expect(transport.calls.last.params, {'p_listing': listingId, 'p_revision': 5, 'p_key': 'restore-key'});
+      expect(restored.listing.status, LocalListingStatus.draft);
+      expect(restored.listing.isPubliclyVisible, isFalse);
+    });
+
     test('status and archive use the carried revision', () async {
       transport.handler = (call) =>
           data(listingJson(status: 'paused', revision: 5));

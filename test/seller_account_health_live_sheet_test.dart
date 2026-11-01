@@ -13,6 +13,24 @@ typedef HealthState = ({
 });
 
 void main() {
+ testWidgets('four verification steps track every completion combination', (tester) async {
+  for (var mask=0;mask<16;mask++) {
+   final steps=List.generate(4,(i)=>(mask & (1<<i))!=0);
+   await tester.pumpWidget(MaterialApp(home:Scaffold(body:ApprovedSellerHomePage(
+    sellerName:'Seller', realLeads:const [],onLeads:(){},onBrowseRequests:(){},serviceAreaSaved:steps[3],
+    accountHealth:SellerAccountHealthView(emailVerified:steps[0],phoneVerified:steps[1],reviewStatus:steps[2]?'approved':'pending'),
+   ))));await tester.pumpAndSettle();
+   expect(find.text('${steps.where((v)=>v).length} of 4 verification steps complete · View steps'),findsOneWidget);
+   final filled=(steps.where((v)=>v).length / 4 * 17).ceil();
+   for(var i=0;i<17;i++) {
+    final segment=find.byKey(ValueKey('sellerVerificationStep-$i-${i<filled?"complete":"incomplete"}'));
+    expect(segment,findsOneWidget);
+    final decoration=tester.widget<AnimatedContainer>(segment).decoration! as BoxDecoration;
+    expect(decoration.color, i < filled ? isNot(const Color(0xffe8e9f3)) : const Color(0xffe8e9f3));
+   }
+  }
+ });
+
   setUpAll(loadHocalistTestFonts);
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
@@ -81,13 +99,13 @@ void main() {
           find.byWidgetPredicate(
             (widget) =>
                 widget is Semantics &&
-                widget.properties.label == '2 of 3 verification steps complete',
+                widget.properties.label == '2 of 4 verification steps complete',
           ),
           findsOneWidget,
         );
         expect(find.text('Email verified'), findsOneWidget);
         expect(find.text('Phone not verified'), findsOneWidget);
-        expect(find.text('Evidence review: approved'), findsOneWidget);
+        expect(find.text('Identity approved'), findsOneWidget);
         expect(find.text('Checking your account…'), findsNothing);
 
         state.value = (
@@ -101,7 +119,7 @@ void main() {
           find.byWidgetPredicate(
             (widget) =>
                 widget is Semantics &&
-                widget.properties.label == '2 of 3 verification steps complete',
+                widget.properties.label == '2 of 4 verification steps complete',
           ),
           findsOneWidget,
         );

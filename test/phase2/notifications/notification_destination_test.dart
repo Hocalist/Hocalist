@@ -17,6 +17,13 @@ NotificationInboxItem item(
 );
 
 void main() {
+  test('enquiry notifications preserve exact context and reject mixed or malformed identity',(){
+    final target=NotificationDestination.fromInbox(item('new_message','hocalist://chat/$id',payload:{'enquiry_id':id}));
+    expect(target!.enquiryId,id);expect(target.offerId,isNull);
+    for(final payload in [{'enquiry_id':'bad'},{'enquiry_id':id,'offer_id':id}]) {
+      expect(NotificationDestination.fromInbox(item('new_message','hocalist://chat/$id',payload:payload)),isNull);
+    }
+  });
   test('chat notifications retain their exact validated deal identity', () {
     final destination=NotificationDestination.fromInbox(item('new_message','hocalist://chat/$id',payload:{'offer_id':id}));
     expect(destination!.offerId,id);

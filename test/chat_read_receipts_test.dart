@@ -4,6 +4,32 @@ import 'package:hocalist/data/phase2/chat/chat_codecs.dart';
 import 'package:hocalist/features/approved/offers_chat_pages.dart';
 
 void main() {
+  for (final width in [320.0, 430.0]) {
+    testWidgets('deal unread indicator clears after confirmed read at $width', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      Widget page(int unread) => MaterialApp(home: Scaffold(body: ApprovedConversationBody(
+        onBack:(){},onPrimary:(){},onCall:(){},onMore:(){},onRequestChange:(){},
+        onChangeLocation:(){},onAttach:(){},onSend:(_){},onLearnMore:(){},
+        realEntries: const [],
+        realDeals: [ApprovedDealView(offerId: 'first', title: 'Test deal',
+          priceLabel: '15', statusLabel: 'Selected', unreadCount: unread)],
+      )));
+      await tester.pumpWidget(page(2));
+      await tester.pumpAndSettle();
+      expect(find.text('Current Deals'), findsOneWidget);
+      final indicator = find.byKey(const ValueKey('deal-unread-first'));
+      expect(indicator, findsOneWidget);
+      final dot = tester.widget<Container>(indicator);
+      expect((dot.decoration as BoxDecoration).color, const Color(0xffd32f2f));
+      await tester.pumpWidget(page(0));
+      await tester.pumpAndSettle();
+      expect(indicator, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
   test('receipts are false until confirmed by the authorised message response', () {
     final json = <String,Object?>{
       'id':'message', 'conversation_id':'pair', 'sender_user_id':'seller',

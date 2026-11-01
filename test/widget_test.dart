@@ -9,6 +9,8 @@ import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 import 'test_fonts.dart';
 
+ImageProvider _assetProvider(ImageProvider provider) => provider is ResizeImage ? provider.imageProvider : provider;
+
 void main() {
   setUpAll(loadHocalistTestFonts);
 
@@ -92,6 +94,7 @@ void main() {
   }
 
   Future<void> tapHomeRole(WidgetTester tester, int index) async {
+    await tester.pumpAndSettle();
     final labels = [
       'I am buying. Get paid to buy and get the best offers. Post a request.',
       'I am selling. Target real customers and beat the competition. Browse requests.',
@@ -146,6 +149,7 @@ void main() {
   Future<void> openBuyerDashboard(WidgetTester tester) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
@@ -166,6 +170,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
     expect(find.byType(ApprovedNoAccountHomePage), findsOneWidget);
@@ -188,14 +193,14 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is Image &&
-            widget.image is AssetImage &&
-            (widget.image as AssetImage).assetName ==
+            _assetProvider(widget.image) is AssetImage &&
+            (_assetProvider(widget.image) as AssetImage).assetName ==
                 'assets/brand/hocalist-wordmark.png',
       ),
     );
-    expect(image.image, isA<AssetImage>());
+    expect(_assetProvider(image.image), isA<AssetImage>());
     expect(
-      (image.image as AssetImage).assetName,
+      (_assetProvider(image.image) as AssetImage).assetName,
       'assets/brand/hocalist-wordmark.png',
     );
     expect(
@@ -233,6 +238,7 @@ void main() {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
     await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
 
     await tester.tap(
       find.byKey(const ValueKey('approved-public-nav-hocatrends')),
@@ -266,6 +272,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
     await tester.tap(
@@ -315,10 +322,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.textContaining('Most Competitive Categories'),
+        find.text('Trending Products & Services'),
         findsOneWidget,
       );
-      expect(find.textContaining('Today'), findsOneWidget);
+      expect(find.text('How it works'), findsOneWidget);
       expect(find.text('Pressure Washing'), findsOneWidget);
       expect(find.text('Living Room Furniture'), findsOneWidget);
       expect(find.text('See Sellers'), findsNWidgets(5));
@@ -365,6 +372,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
@@ -387,6 +395,7 @@ void main() {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
     await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
 
     await tapVisible(tester, 'Create Free Account');
 
@@ -400,6 +409,7 @@ void main() {
     (tester) async {
       useTallMobileViewport(tester);
       await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
       await tester.pumpAndSettle();
 
       await tapHomeRole(tester, 0);
@@ -411,8 +421,8 @@ void main() {
         find.byWidgetPredicate(
           (widget) =>
               widget is Image &&
-              widget.image is AssetImage &&
-              (widget.image as AssetImage).assetName ==
+              _assetProvider(widget.image) is AssetImage &&
+              (_assetProvider(widget.image) as AssetImage).assetName ==
                   'assets/brand/hocalist-wordmark.png',
         ),
         findsOneWidget,
@@ -427,6 +437,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
     await tapHomeRole(tester, 0);
@@ -443,8 +454,8 @@ void main() {
         find.byWidgetPredicate(
           (widget) =>
               widget is Image &&
-              widget.image is AssetImage &&
-              (widget.image as AssetImage).assetName == asset,
+              _assetProvider(widget.image) is AssetImage &&
+              (_assetProvider(widget.image) as AssetImage).assetName == asset,
         ),
         findsOneWidget,
       );
@@ -470,6 +481,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
     await tapHomeRole(tester, 0);
@@ -548,6 +560,7 @@ void main() {
   testWidgets('buyer can move through signup and deal flow', (tester) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     expect(
       find.bySemanticsLabel(
@@ -662,7 +675,8 @@ void main() {
     expect(find.text('Condition'), findsOneWidget);
     expect(find.text('Budget (optional)'), findsOneWidget);
     expect(find.byTooltip('Edit Condition'), findsOneWidget);
-    expect(find.byTooltip('Edit Budget (optional)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('approved-request-budget-min')), findsOneWidget);
+    expect(find.byKey(const ValueKey('approved-request-budget-max')), findsOneWidget);
     expect(find.text('Quantity'), findsOneWidget);
     expect(find.text('Willing to receive higher offers?'), findsOneWidget);
     expect(find.text('Current estimated rewards'), findsOneWidget);
@@ -752,6 +766,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
@@ -768,6 +783,7 @@ void main() {
   ) async {
     useAccessibleTextViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
@@ -819,6 +835,7 @@ void main() {
   testWidgets('request details tolerate larger system text', (tester) async {
     useAccessibleTextViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
@@ -840,6 +857,7 @@ void main() {
   ) async {
     useBossPhoneTextViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
     expect(find.text('Hocatrends'), findsOneWidget);
@@ -887,6 +905,7 @@ void main() {
   testWidgets('seller can move from signup to marketplace', (tester) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     await completeSellerSignup(tester);
     expect(find.text('Seller mode'), findsOneWidget);
@@ -903,6 +922,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
@@ -933,6 +953,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
@@ -965,6 +986,7 @@ void main() {
 
     await tester.pumpWidget(const HocalistApp());
     await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
 
     final buyerCard = find.bySemanticsLabel(
       'I am buying. Get paid to buy and get the best offers. Post a request.',
@@ -992,6 +1014,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
@@ -1081,6 +1104,7 @@ void main() {
   testWidgets('buyer can review designed account settings', (tester) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     await tapHomeRole(tester, 0);
     await tapVisible(tester, 'Create account');
@@ -1095,11 +1119,7 @@ void main() {
     expect(find.byKey(const ValueKey('section-tab-Security')), findsOneWidget);
     expect(find.text('Password & security'), findsOneWidget);
     expect(find.text('ACCOUNT MANAGEMENT'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('section-tab-Privacy')));
-    await tester.pumpAndSettle();
-    expect(find.text('PRIVACY'), findsOneWidget);
-    expect(find.text('Request & location privacy'), findsOneWidget);
-    expect(find.text('ACCOUNT MANAGEMENT'), findsNothing);
+    expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
     await tester.pumpAndSettle();
     expect(find.text('PREFERENCES'), findsOneWidget);
@@ -1165,6 +1185,7 @@ void main() {
   ) async {
     useTallMobileViewport(tester);
     await tester.pumpWidget(const HocalistApp());
+    await tester.pumpAndSettle();
 
     await completeSellerSignup(tester);
     await tester.tap(find.byKey(const Key('sellerNavMore')));
@@ -1173,7 +1194,9 @@ void main() {
 
     expect(find.text('Account Settings'), findsOneWidget);
     expect(find.text('Seller information'), findsNothing);
-    expect(find.byKey(const ValueKey('section-tab-Security')), findsNothing);
+    expect(find.byKey(const ValueKey('section-tab-Security')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
+    await tester.pumpAndSettle();
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Accessibility'), findsOneWidget);
   });
