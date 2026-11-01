@@ -993,6 +993,7 @@ export async function handleEvidenceCore(
   request: CoreRequest,
   deps: CoreDeps,
   resolver: AdminEvidenceResolver = unavailableEvidenceResolver,
+  scope: "verification" | "store" = "verification",
 ): Promise<CoreResult> {
   if (evaluateRequestOrigin(request) === "reject") return csrfRejected();
   if (!deps.config) return unconfigured();
@@ -1013,7 +1014,7 @@ export async function handleEvidenceCore(
   const reference = await callRpc(
     deps.config,
     resolved.token,
-    "admin_evidence_reference",
+    scope === "store" ? "admin_store_image_reference" : "admin_evidence_reference",
     { p_submission: submissionId, p_media: mediaId },
     fetchImpl,
   );
