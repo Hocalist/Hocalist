@@ -567,8 +567,7 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
   final latitude = locationMap['latitude'];
   final longitude = locationMap['longitude'];
   if (latitude != null || longitude != null) {
-    if (useHomeAddress ||
-        latitude is! num ||
+    if (latitude is! num ||
         longitude is! num ||
         !latitude.isFinite ||
         !longitude.isFinite ||
@@ -608,6 +607,8 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
     categoryAnswers: _categoryAnswers(row),
     location: useHomeAddress
         ? RequestLocation.homeAddress(
+            address: address.isEmpty ? null : address,
+            coordinates: coordinates,
             timezoneId: _optionalString(locationMap, 'timezone_id'),
           )
         : RequestLocation.custom(
@@ -719,6 +720,7 @@ SellerLeadProjection decodeLeadJson(Map<String, Object?> row, String context) {
     discoveryOpen: _optionalBool(row, 'discovery_open'),
     verifiedPurchaseCount: _optionalInt(row, 'verified_purchase_count'),
     lastCompletedItemLabel: _optionalString(row, 'last_completed_item_label'),
+    preferredMeetupLabel: _optionalString(row, 'preferred_meetup_label'),
   );
 }
 

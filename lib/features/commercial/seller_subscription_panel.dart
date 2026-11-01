@@ -11,7 +11,8 @@ import 'seller_plan_summary.dart';
 
 /// Read-only subscription status; credit batches and weekly slots stay separate.
 class SellerSubscriptionPanel extends StatefulWidget {
-  const SellerSubscriptionPanel({this.load, this.loadEntitlement, super.key});
+  const SellerSubscriptionPanel({this.load, this.loadEntitlement, this.focusManagePlans = false, super.key});
+  final bool focusManagePlans;
 
   final Future<Map<String, dynamic>?> Function()? load;
   final Future<SellerEntitlementView> Function()? loadEntitlement;
@@ -108,7 +109,7 @@ class _SellerSubscriptionPanelState extends State<SellerSubscriptionPanel> {
     }
     final entitlement = _entitlement;
     if (entitlement != null) {
-      return SellerPlanSummary(value: entitlement);
+      return SellerPlanSummary(value: entitlement, focusManagePlans: widget.focusManagePlans);
     }
     final status = _status;
     if (status == null) {

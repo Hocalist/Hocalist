@@ -24,6 +24,7 @@ class HocalistSectionTabs extends StatefulWidget {
     required this.sections,
     required this.accent,
     this.persistenceId,
+    this.initialSection,
     this.subtle = false,
     this.underlined = false,
     super.key,
@@ -32,6 +33,7 @@ class HocalistSectionTabs extends StatefulWidget {
   final Map<String, List<Widget>> sections;
   final Color accent;
   final String? persistenceId;
+  final String? initialSection;
   final bool subtle;
   final bool underlined;
 
@@ -46,6 +48,17 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
   final _scroll = ScrollController();
   final _stripKey = GlobalKey();
   final _tabKeys = <String, GlobalKey>{};
+
+  int get _initialIndex {
+    final index = widget.sections.keys.toList().indexOf(widget.initialSection ?? '');
+    return index < 0 ? 0 : index;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    selected = _initialIndex;
+  }
 
   @override
   void dispose() {
@@ -97,9 +110,9 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
         : 'hocalist.tabs.${scope.namespace}.${widget.persistenceId}';
     if (_storageKey == key) return;
     _storageKey = key;
-    selected = 0;
+    selected = _initialIndex;
     final generation = ++_generation;
-    if (key != null) unawaited(_restore(key, generation));
+    if (key != null && widget.initialSection == null) unawaited(_restore(key, generation));
   }
 
   Future<void> _restore(String key, int generation) async {

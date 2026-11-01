@@ -265,7 +265,8 @@ class NotificationPreferencesResult {
 /// The server authorizes participation and owns delivery, read markers and
 /// mute state; this seam only carries identifiers and user-safe errors.
 abstract interface class MarketplaceChatRequestBackend {
-  Future<SellerLeadProjection?> loadConversationRequest(String conversationId);
+  Future<SellerLeadProjection?> loadConversationRequest(
+    String conversationId, {String? offerId});
 }
 
 abstract interface class MarketplacePagedChatBackend {
@@ -304,6 +305,20 @@ abstract interface class MarketplaceDealChatBackend {
   Future<int> markDealRead(String conversationId,String offerId,String messageId);
   Future<PageSlice<ConversationMessage>> loadDealMessagePage(String conversationId,String offerId,String? cursor);
   Future<ConversationMessage> sendDealMessage({required String conversationId,required String offerId,required String text,required String clientMessageId,List<String> mediaIds=const []});
+}
+
+/// Participant-scoped unread counts; keys are offer IDs, never message text.
+abstract interface class MarketplaceChatUnreadBackend {
+  Future<Map<String, int>> loadDealUnreadCounts(String conversationId);
+}
+
+/// Explicit fee-free discovery threads within an existing participant chat.
+abstract interface class MarketplaceEnquiryChatBackend {
+  bool get enquiryThreadsEnabled;
+  Future<List<ChatEnquiry>> loadEnquiries(String conversationId);
+  Future<PageSlice<ConversationMessage>> loadEnquiryMessages(String conversationId,String enquiryId,String? cursor);
+  Future<ConversationMessage> sendEnquiryMessage({required String conversationId,required String enquiryId,required String text,required String clientMessageId,List<String> mediaIds=const []});
+  Future<int> markEnquiryRead(String conversationId,String enquiryId,String messageId);
 }
 
 /// Optional extension of the chat backend for authorized image attachments.
@@ -515,7 +530,7 @@ enum LocalOfferStatus { sent, selected, meetingConfirmed, completed }
 
 enum LocalListingKind { product, service }
 
-enum LocalListingStatus { active, draft, paused }
+enum LocalListingStatus { active, draft, paused, archived }
 
 @immutable
 class LocalStoreListing {
@@ -1162,13 +1177,14 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   /// Loads the first inbox page. No-op without a backend; overlapping refreshes
   /// are versioned and a disposed repository applies nothing.
-  Future<void> refreshNotifications() async {
+  Future<void> refreshNotifications({bool background = false}) async {
     final backend = notificationsBackend;
     if (backend == null) return;
+    if (background && _notificationsLoading) return;
     final token = ++_notificationsToken;
-    _notificationsLoading = true;
+    _notificationsLoading = !background;
     _notificationsError = null;
-    _notifyStore();
+    if (!background) _notifyStore();
     try {
       final page = await backend.loadInbox(limit: 50);
       if (_disposed || token != _notificationsToken) return;
@@ -1354,13 +1370,14 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   bool get isSellerOffersBacked => sellerOffersBackend != null;
 
   /// Loads the seller's own offers. No-op without a backend.
-  Future<void> refreshSellerOffers() async {
+  Future<void> refreshSellerOffers({bool background = false}) async {
     final backend = sellerOffersBackend;
     if (backend == null) return;
+    if (background && _sellerOffersLoading) return;
     final token = ++_sellerOffersToken;
-    _sellerOffersLoading = true;
+    _sellerOffersLoading = !background;
     _sellerOffersError = null;
-    _notifyStore();
+    if (!background) _notifyStore();
     try {
       final offers = await backend.loadSellerOffers();
       if (_disposed || token != _sellerOffersToken) return;
@@ -1457,20 +1474,40 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   int _chatReadToken = 0;
   String? _activeConversationId;
   String? _activeChatOfferId;
-  String? get activeChatOfferId => _activeChatOfferId;
-  bool get dealThreadsActive => chatBackend is MarketplaceDealChatBackend && (chatBackend as MarketplaceDealChatBackend).dealThreadsEnabled;
-  String _chatScope(String conversationId,String? offerId) => offerId==null?conversationId:'$conversationId/$offerId';
-  String? get _activeChatScope => _activeConversationId==null?null:_chatScope(_activeConversationId!,_activeChatOfferId);
-  Future<void> selectChatDeal(String? offerId) async {
-    final backend=chatBackend;
-    if(backend is! MarketplaceDealChatBackend || !(backend as MarketplaceDealChatBackend).dealThreadsEnabled || _activeChatOfferId==offerId) return;
-    _activeChatOfferId=offerId;
+  String? _activeChatEnquiryId;
+  String? get activeChatEnquiryId => _activeChatEnquiryId;
+  List<ChatEnquiry> _chatEnquiries = const [];
+  List<ChatEnquiry> get chatEnquiries => List.unmodifiable(_chatEnquiries);
+  bool get enquiryThreadsActive => chatBackend is MarketplaceEnquiryChatBackend && (chatBackend as MarketplaceEnquiryChatBackend).enquiryThreadsEnabled;
+  Future<void> selectChatEnquiry(String enquiryId) async {
+    if(!enquiryThreadsActive || !_chatEnquiries.any((e)=>e.id==enquiryId && e.conversationId==_activeConversationId)) throw const StoreBackendException('Could not verify this enquiry.');
+    _activeChatEnquiryId=enquiryId;
+    _activeChatOfferId=null;
+    final scope=_activeChatScope;
     _chatMessages=const [];
     await refreshChatMessages();
-    if(_activeChatOfferId==offerId && _chatMessages.isNotEmpty) await markChatRead(_chatMessages.last.id);
+    if(_activeChatScope==scope && _chatMessages.isNotEmpty) await markChatRead(_chatMessages.last.id);
+  }
+  String? get activeChatOfferId => _activeChatOfferId;
+  bool get dealThreadsActive => chatBackend is MarketplaceDealChatBackend && (chatBackend as MarketplaceDealChatBackend).dealThreadsEnabled;
+  String _chatScope(String conversationId,String? offerId,[String? enquiryId]) => enquiryId!=null?'$conversationId/enquiry:$enquiryId':offerId==null?conversationId:'$conversationId/$offerId';
+  String? get _activeChatScope => _activeConversationId==null?null:_chatScope(_activeConversationId!,_activeChatOfferId,_activeChatEnquiryId);
+  Future<void> selectChatDeal(String? offerId) async {
+    final backend=chatBackend;
+    if(backend is! MarketplaceDealChatBackend || !(backend as MarketplaceDealChatBackend).dealThreadsEnabled || (_activeChatOfferId==offerId && _activeChatEnquiryId==null)) return;
+    _activeChatOfferId=offerId;
+    _activeChatEnquiryId=null;
+    _chatMessages=const [];
+    await refreshChatMessages();
+    if(_activeChatOfferId==offerId && _activeChatEnquiryId==null && _chatMessages.isNotEmpty) await markChatRead(_chatMessages.last.id);
   }
   Future<PageSlice<ConversationMessage>> _loadChatPage(MarketplaceChatBackend backend,String id,String? cursor) {
     final offerId=_activeChatOfferId;
+    final enquiryId=_activeChatEnquiryId;
+    if(enquiryId!=null) {
+      if(!enquiryThreadsActive) throw const StoreBackendException('Enquiry chat is unavailable.');
+      return (backend as MarketplaceEnquiryChatBackend).loadEnquiryMessages(id,enquiryId,cursor);
+    }
     if(offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled) {
       return (backend as MarketplaceDealChatBackend).loadDealMessagePage(id,offerId,cursor);
     }
@@ -1665,22 +1702,50 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   int get chatUnreadTotal =>
       _chatInbox.fold(0, (total, row) => total + row.unreadCount);
 
+  final Map<String, Map<String, int>> _dealUnreadCounts = {};
+  int _dealUnreadToken = 0;
+  int dealUnreadCount(String offerId) =>
+      _dealUnreadCounts[_activeConversationId]?[offerId] ?? 0;
+
+  Future<void> refreshDealUnreadCounts() async {
+    final backend = chatBackend;
+    final conversation = _activeConversationId;
+    if (backend is! MarketplaceChatUnreadBackend || conversation == null) return;
+    final token = ++_dealUnreadToken;
+    try {
+      final counts = await (backend as MarketplaceChatUnreadBackend)
+          .loadDealUnreadCounts(conversation);
+      if (_disposed || token != _dealUnreadToken ||
+          conversation != _activeConversationId) {
+        return;
+      }
+      _dealUnreadCounts[conversation] = Map.unmodifiable(counts);
+      _notifyStore();
+    } catch (_) {
+      // Keep the last confirmed counts when a refresh cannot be confirmed.
+    }
+  }
+
   /// Loads the participant inbox. No-op without a backend; overlapping
   /// refreshes are versioned and a disposed repository applies nothing.
-  Future<void> refreshChatInbox() async {
+  Future<void> refreshChatInbox({bool background = false}) async {
     final backend = chatBackend;
     if (backend == null) return;
     final token = ++_chatInboxToken;
-    _chatInboxLoading = true;
-    _chatInboxError = null;
-    _notifyStore();
+    if (!background) {
+      _chatInboxLoading = true;
+      _chatInboxError = null;
+      _notifyStore();
+    }
     try {
       final inbox = await backend.loadInbox();
       if (_disposed || token != _chatInboxToken) return;
       _chatInbox = inbox;
+      _chatInboxError = null;
+      await refreshDealUnreadCounts();
     } catch (error) {
       if (_disposed || token != _chatInboxToken) return;
-      _chatInboxError = error is StoreBackendException
+      if (!background) _chatInboxError = error is StoreBackendException
           ? error.message
           : 'Could not load your conversations. Pull to retry.';
     } finally {
@@ -1692,15 +1757,45 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   /// Opens one conversation and loads its history.
-  Future<void> openChatConversation(String conversationId,{String? offerId}) async {
-    final resumedOffer = offerId ??
-        (_activeConversationId == conversationId ? _activeChatOfferId : null);
-    _activeConversationId = conversationId;
-    _activeChatOfferId = resumedOffer;
-    _chatMessages = const <ConversationMessage>[];
-    _chatMuted = false;
+  Future<void> openChatConversation(String conversationId,{String? offerId,String? enquiryId}) async {
+    if(enquiryId!=null && (!enquiryThreadsActive || offerId!=null)) throw const StoreBackendException('Enquiry chat is not available yet.');
+    final same=_activeConversationId==conversationId;
+    final resumedEnquiry=enquiryId ?? (same && offerId==null ? _activeChatEnquiryId : null);
+    final resumedOffer=resumedEnquiry!=null ? null : offerId ?? (same ? _activeChatOfferId : null);
+    _activeConversationId=conversationId;
+    _activeChatOfferId=resumedOffer;
+    _activeChatEnquiryId=resumedEnquiry;
+    _chatEnquiries=const [];
+    _chatMessages=const [];
+    _chatMuted=false;
+    final token=++_chatMessagesToken;
     _notifyStore();
+    if(enquiryThreadsActive) {
+      try {
+        final entries=await (chatBackend as MarketplaceEnquiryChatBackend).loadEnquiries(conversationId);
+        if(_disposed || token!=_chatMessagesToken || _activeConversationId!=conversationId) return;
+        _chatEnquiries=entries;
+        if(resumedEnquiry!=null && !entries.any((e)=>e.id==resumedEnquiry)) throw const StoreBackendException('Could not verify this enquiry.');
+        // An inbox entry resumes its latest enquiry, never an arbitrary deal.
+        if(resumedOffer==null && resumedEnquiry==null) {
+          final latest=_chatInbox.where((r)=>r.conversation.id==conversationId).firstOrNull?.latestMessage?.enquiryId;
+          if(latest!=null && entries.any((e)=>e.id==latest)) {
+            _activeChatEnquiryId=latest;
+          } else if(entries.isNotEmpty && _chatInbox.where((r)=>r.conversation.id==conversationId).firstOrNull?.latestMessage?.offerId==null) {
+            _activeChatEnquiryId=entries.first.id;
+          }
+        }
+      } catch (_) {
+        if(token==_chatMessagesToken) {
+          _chatMessagesError='Could not verify conversation threads. Retry opening this chat.';
+          _chatMessagesLoading=false;
+          _notifyStore();
+        }
+        rethrow;
+      }
+    }
     await refreshChatMessages();
+    await refreshDealUnreadCounts();
   }
 
   /// Loads the active conversation history, oldest first.
@@ -1751,13 +1846,14 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     final backend = chatBackend;
     final conversationId = _activeConversationId;
     final offerId = _activeChatOfferId;
+    final enquiryId = _activeChatEnquiryId;
     if (backend == null || conversationId == null) {
       throw const StoreBackendException('Chat is unavailable.');
     }
     if (_chatSending) {
       return const ChatSendResult.failure('A message is already being sent.');
     }
-    final scope=_chatScope(conversationId,offerId);
+    final scope=_chatScope(conversationId,offerId,enquiryId);
     final pending = _pendingChatSends[scope];
     if (pending != null && pending.text != text) {
       return const ChatSendResult.failure(
@@ -1772,7 +1868,9 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _chatSending = true;
     _notifyStore();
     try {
-      final message = offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled
+      final message = enquiryId!=null
+      ? await (backend as MarketplaceEnquiryChatBackend).sendEnquiryMessage(conversationId:conversationId,enquiryId:enquiryId,text:text,clientMessageId:intent.key)
+      : offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled
       ? await (backend as MarketplaceDealChatBackend).sendDealMessage(conversationId:conversationId,offerId:offerId,text:text,clientMessageId:intent.key)
       : await backend.sendMessage(
         conversationId: conversationId,
@@ -1780,7 +1878,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         clientMessageId: intent.key,
       );
       _pendingChatSends.remove(scope);
-      if (!_disposed && _activeConversationId == conversationId && _activeChatOfferId==offerId) {
+      if (!_disposed && _activeChatScope == scope) {
         ++_chatMessagesToken;
         _chatMessagesLoading = false;
         _chatMessages = List<ConversationMessage>.unmodifiable([
@@ -1823,10 +1921,12 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     required List<String> mediaIds,
     String? expectedConversationId,
     String? expectedOfferId,
+    String? expectedEnquiryId,
   }) async {
     final backend = chatBackend;
     final conversationId = _activeConversationId;
     final offerId = _activeChatOfferId;
+    final enquiryId = _activeChatEnquiryId;
     final attachmentBackend = backend is MarketplaceChatAttachmentBackend
         ? backend as MarketplaceChatAttachmentBackend
         : null;
@@ -1838,10 +1938,10 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       );
     }
     if (mediaIds.isEmpty) return sendChatMessage(text);
-    final scope=_chatScope(conversationId,offerId);
+    final scope=_chatScope(conversationId,offerId,enquiryId);
     if (expectedConversationId != null &&
-        (expectedConversationId != conversationId || expectedOfferId != offerId)) {
-      final expectedScope=_chatScope(expectedConversationId,expectedOfferId);
+        (expectedConversationId != conversationId || expectedOfferId != offerId || expectedEnquiryId != enquiryId)) {
+      final expectedScope=_chatScope(expectedConversationId,expectedOfferId,expectedEnquiryId);
       if (!_pendingChatAttachments.containsKey(expectedScope)) {
         _pendingChatAttachments[expectedScope] = (
           text: text,
@@ -1875,7 +1975,9 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     _chatSending = true;
     _notifyStore();
     try {
-      final message = offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled
+      final message = enquiryId!=null
+      ? await (backend as MarketplaceEnquiryChatBackend).sendEnquiryMessage(conversationId:conversationId,enquiryId:enquiryId,text:intent.text,clientMessageId:intent.key,mediaIds:intent.mediaIds)
+      : offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled
       ? await (backend as MarketplaceDealChatBackend).sendDealMessage(conversationId:conversationId,offerId:offerId,text:intent.text,clientMessageId:intent.key,mediaIds:intent.mediaIds)
       : await attachmentBackend.sendAttachment(
         conversationId: conversationId,
@@ -1884,7 +1986,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         clientMessageId: intent.key,
       );
       _pendingChatAttachments.remove(scope);
-      if (!_disposed && _activeConversationId == conversationId && _activeChatOfferId==offerId) {
+      if (!_disposed && _activeChatScope == scope) {
         ++_chatMessagesToken;
         _chatMessagesLoading = false;
         _chatMessages = List<ConversationMessage>.unmodifiable([
@@ -1958,6 +2060,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       mediaIds: intent.mediaIds,
       expectedConversationId: conversationId,
       expectedOfferId: _activeChatOfferId,
+      expectedEnquiryId: _activeChatEnquiryId,
     );
   }
 
@@ -1977,9 +2080,12 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     final conversationId = _activeConversationId;
     if (backend == null || conversationId == null) return false;
     final offerId=_activeChatOfferId;
+    final enquiryId=_activeChatEnquiryId;
     try {
       final int unread;
-      if(offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled){
+      if(enquiryId!=null && enquiryThreadsActive) {
+        unread=await (backend as MarketplaceEnquiryChatBackend).markEnquiryRead(conversationId,enquiryId,messageId);
+      } else if(offerId!=null && backend is MarketplaceDealChatBackend && (backend as MarketplaceDealChatBackend).dealThreadsEnabled){
         unread=await (backend as MarketplaceDealChatBackend).markDealRead(conversationId,offerId,messageId);
       }else{
       await backend.markRead(
@@ -1989,7 +2095,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       unread=0;
       }
       if (_disposed) return false;
-      if (readToken != _chatReadToken) return true;
+      if (readToken != _chatReadToken) return false;
       ++_chatInboxToken;
       _chatInboxLoading = false;
       _chatInbox = _chatInbox
@@ -2005,6 +2111,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
                 : row,
           )
           .toList(growable: false);
+      await refreshDealUnreadCounts();
       return true;
     } catch (_) {
       // Read markers are best-effort; the inbox refresh reconciles them.
@@ -2560,29 +2667,35 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   /// Loads the seller's Store and catalogue from the backend. No-op without a
   /// backend. Overlapping refreshes are versioned so an older response can
   /// never replace a newer cache, and a disposed repository applies nothing.
-  Future<void> refreshStore() async {
+  Future<void> refreshStore({bool background = false}) async {
     final backend = storeBackend;
     if (backend == null) return;
+    if (background && _storeLoading) return;
     final generation = _storeGeneration;
     final token = ++_refreshToken;
-    _storeLoading = true;
-    _storeError = null;
-    _notifyStore();
+    if (!background) {
+      _storeLoading = true;
+      _storeError = null;
+      _notifyStore();
+    }
+    var changed = !background;
     try {
       final listings = await backend.loadListings();
-      final categories = await backend.loadCategories();
+      final categories = background ? _storeCategories : await backend.loadCategories();
       if (!_isCurrentRefresh(generation, token)) return;
+      changed = changed || jsonEncode(listings.map((l) => l.toJson()).toList()) !=
+          jsonEncode(_storeListings.map((l) => l.toJson()).toList());
       _storeListings
         ..clear()
         ..addAll(listings);
       _storeCategories = categories;
     } catch (error) {
       if (!_isCurrentRefresh(generation, token)) return;
-      _storeError = _storeMessage(error);
+      if (!background) _storeError = _storeMessage(error);
     } finally {
       if (_isCurrentRefresh(generation, token)) {
-        _storeLoading = false;
-        _notifyStore();
+        if (!background) _storeLoading = false;
+        if (changed) _notifyStore();
       }
     }
   }
@@ -2639,7 +2752,10 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   List<LocalChatEntry> get conversationEntries =>
       List<LocalChatEntry>.unmodifiable(_conversationEntries);
   List<LocalStoreListing> get storeListings =>
-      List<LocalStoreListing>.unmodifiable(_storeListings);
+      List<LocalStoreListing>.unmodifiable(_storeListings.where((l) => l.status != LocalListingStatus.archived));
+
+  List<LocalStoreListing> get archivedStoreListings =>
+      List<LocalStoreListing>.unmodifiable(_storeListings.where((l) => l.status == LocalListingStatus.archived));
 
   /// Saves a listing. Prototype mode completes immediately; real mode awaits
   /// the authoritative server result and never reports success before it.
@@ -2852,6 +2968,8 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         expectedRevision: previous.revision,
       );
       if (!_isCurrentMutation(id, token)) return;
+      _replaceListing(id, previous.copyWith(status: LocalListingStatus.archived));
+      await refreshStore();
     } catch (error) {
       if (!_isCurrentMutation(id, token)) return;
       final ambiguous = error is StoreBackendException && error.ambiguous;

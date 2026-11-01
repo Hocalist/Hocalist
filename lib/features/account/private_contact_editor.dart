@@ -2,6 +2,7 @@ import 'dart:async';
 import '../../data/phase2/maps/places_repository.dart';
 import '../../data/phase2/maps/places_contract.dart';
 import '../../domain/phase2/common.dart';
+import '../../domain/phase2/accounts.dart';
 import '../../components/hocalist_account_field.dart';
 import 'package:flutter/material.dart';
 import '../../domain/phase2/account_contacts.dart';
@@ -28,16 +29,22 @@ class PrivateContactEditor extends StatefulWidget {
     this.places,
     this.onResolvedAddress,
     this.onDiscard,
+    this.isPopup = false,
     this.addressTitle,
     this.showPhone = true,
+    this.readServiceRadius,
+    this.onSaveServiceRadius,
     super.key,
   });
   final bool seller;
   final String? addressTitle;
   final bool showPhone;
+  final int? Function()? readServiceRadius;
+  final Future<void> Function(int radius, String operationKey)? onSaveServiceRadius;
   final PlacesRepository? places;
   final ValueChanged<PlaceDetails>? onResolvedAddress;
   final VoidCallback? onDiscard;
+  final bool isPopup;
   final PrivateContactRecord? Function() readCurrent;
   final Future<void> Function(UpdateContactCommand) onSave;
   @override
@@ -45,6 +52,8 @@ class PrivateContactEditor extends StatefulWidget {
 }
 
 class _PrivateContactEditorState extends State<PrivateContactEditor> {
+  final radius = TextEditingController();
+  int? pendingRadius;
   final fields = List.generate(7, (_) => TextEditingController());
   PrivateContactRecord? base;
   UpdateContactCommand? pending;
@@ -89,6 +98,7 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
     _resolvingAddress=false;
     _addressSearchError=null;
     base = widget.readCurrent();
+    radius.text = (widget.readServiceRadius?.call() ?? 25).toString();
     final c = base?.contact;
     final values = [
       c?.phone,
@@ -108,6 +118,7 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    radius.dispose();
     for (final f in fields) {
       f.dispose();
     }
@@ -176,6 +187,14 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
   Future<void> save() async {
     if (busy || base == null) return;
     if (pending == null) {
+      if (widget.onSaveServiceRadius != null) {
+        final value = int.tryParse(radius.text.trim());
+        if (value == null || value < 0 || value > accountServiceRadiusMax) {
+          setState(() => message = 'Enter a valid service radius in miles.');
+          return;
+        }
+        pendingRadius = value;
+      }
       fields[6].text = fields[6].text.trim().toUpperCase();
       if (fields[6].text.isNotEmpty &&
           !RegExp(r'^[A-Z]{2}$').hasMatch(fields[6].text)) {
@@ -204,11 +223,13 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
     });
     try {
       await widget.onSave(pending!);
+      if (pendingRadius != null) await widget.onSaveServiceRadius?.call(pendingRadius!, pending!.idempotencyKey);
       if (!mounted) return;
       setState(() {
         pending = null;
         load();
-        message = 'Private contact details saved.';
+        pendingRadius = null;
+        message = widget.showPhone ? 'Private contact details saved.' : 'Location settings saved.';
       });
     } on AccountActionException catch (e) {
       if (mounted) setState(() => message = e.message);
@@ -225,6 +246,10 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final hasChanges = pending != null ||
+        _loadedValues.length != fields.length ||
+        List.generate(fields.length,
+          (i) => fields[i].text != _loadedValues[i]).any((changed) => changed);
     const labels = [
       'Contact phone',
       'Street address',
@@ -239,7 +264,15 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BuyerSectionHeading(title: widget.addressTitle ?? 'Private contact details'),
+          Row(children: [
+            Expanded(child: BuyerSectionHeading(title: widget.addressTitle ?? 'Private contact details')),
+            if (widget.isPopup && widget.onDiscard != null)
+              IconButton(
+                tooltip: 'Close',
+                onPressed: busy ? null : widget.onDiscard,
+                icon: const Icon(Icons.close),
+              ),
+          ]),
           Text(
             widget.showPhone
               ? 'Your saved home address. Saving a phone number here does not verify it for login.'
@@ -274,7 +307,10 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
                 seller: widget.seller,
                 controller: fields[i],
                 readOnly: busy || pending != null || _resolvingAddress,
-                onChanged: i==1 && widget.places!=null ? streetChanged : null,
+                onChanged: (value) {
+                  setState(() {});
+                  if (i == 1 && widget.places != null) streetChanged(value);
+                },
                 maxLength: limits[i],
                 keyboardType: i == 0 ? TextInputType.phone : TextInputType.text,
               ),
@@ -298,6 +334,17 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
                   ),
                 )),
           ],
+          if (widget.onSaveServiceRadius != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: HocalistAccountField(
+                fieldKey: const Key('businessServiceRadius'),
+                label: 'Service radius (miles)', seller: widget.seller,
+                controller: radius, keyboardType: TextInputType.number,
+                readOnly: busy || pending != null,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
           if (message != null) ...[
             const SizedBox(height: 12),
             BuyerStateNotice(
@@ -318,11 +365,14 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
                 ? 'Saving…'
                 : pending != null
                 ? 'Retry contact save'
-                : 'Save contact details',
+                : widget.showPhone ? 'Save contact details' : 'Save changes',
           ),
+          if (widget.showPhone) ...[
           const SizedBox(height: 8),
           BuyerSecondaryButton(
-            label: pending != null
+            label: widget.isPopup && widget.onDiscard != null && !hasChanges
+                ? 'Close'
+                : pending != null
                 ? 'Discard pending changes'
                 : 'Discard changes',
             onPressed: busy
@@ -338,9 +388,11 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
                       load();
                       message = 'Loaded the latest saved contact details.';
                     });
+                    pendingRadius = null;
                     widget.onDiscard?.call();
                   },
           ),
+          ],
         ],
       ),
     );

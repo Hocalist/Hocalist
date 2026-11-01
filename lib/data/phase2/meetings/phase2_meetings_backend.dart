@@ -152,6 +152,13 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
   }
 
   String _message(RepositoryError? error) {
+    if (error is ConflictError &&
+        const {
+          'meeting_seller_payment_required',
+          'meeting_seller_account_pending',
+        }.contains(error.conflictCode)) {
+      return error.debugMessage;
+    }
     if (error is ValidationError) {
       final codes = error.issues.map((issue) => issue.code);
       if (codes.contains('ambiguous_local_time')) {

@@ -30,6 +30,7 @@ export function TrustPanel() {
   const [data, setData] = useState<ReviewQueue | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [healthDecision, setHealthDecision] = useState("no_action");
@@ -60,6 +61,7 @@ export function TrustPanel() {
     const current = ++generation.current;
     setBusy(true);
     setError(null);
+    setRequiresSignIn(false);
     const result = await adminRpc("admin_review_queue", {
       p_limit: 25,
       p_verifications_cursor: section === "verifications" && !replace ? cursor : null,
@@ -72,6 +74,7 @@ export function TrustPanel() {
     if (current !== generation.current) return;
     setBusy(false);
     if (!result.ok) {
+      setRequiresSignIn(result.state === "signed_out");
       setData(null);
       loaded.current = null;
       setError(
@@ -121,6 +124,7 @@ export function TrustPanel() {
   async function execute(operation: string, input: Record<string, unknown>) {
     if (inFlight.current) return;
     if (reason.trim().length === 0) {
+      setRequiresSignIn(false);
       setError("A recorded reason is required before deciding.");
       return;
     }
@@ -133,6 +137,7 @@ export function TrustPanel() {
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
+      setRequiresSignIn(result.state === "signed_out");
       setRetry({ operation, input: prepared.input });
       setError(trustErrorMessage(result.message, result.state));
       return;
@@ -176,7 +181,7 @@ export function TrustPanel() {
       {error && (
         <div role="alert" className="demo-notice">
           <span>{error}</span>
-          <Link href="/login">Sign in</Link>
+          {requiresSignIn && <Link href="/login">Sign in</Link>}
           <button disabled={busy} onClick={() => void load(true)}>
             Try again
           </button>

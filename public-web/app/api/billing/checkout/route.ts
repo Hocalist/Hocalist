@@ -5,6 +5,7 @@ import {
   classifySiteFailure,
   parseCheckoutBody,
   providerRedirect,
+  uuidHint,
   refreshCookieOptions,
   sessionCookieOptions,
 } from "../../../lib/website-rules";
@@ -47,7 +48,15 @@ export async function POST(request: Request) {
       { status: parsedBody.status },
     );
   }
-  const parsed = parseCheckoutBody(parsedBody.body);
+  const raw = parsedBody.body as Record<string, unknown> | null;
+  const cancellation = raw?.kind === 'cancel';
+  const cancelId = cancellation ? uuidHint(raw?.checkoutId) : null;
+  if (cancellation && (!cancelId || Object.keys(raw!).sort().join(',') !== 'checkoutId,kind')) {
+    return NextResponse.json({message:'Choose the unfinished checkout to cancel.'}, {status:400});
+  }
+  const parsed = cancellation
+    ? {ok:true as const, value:{kind:'cancel' as const, checkoutId:cancelId!}}
+    : parseCheckoutBody(parsedBody.body);
   if (!parsed.ok) {
     return NextResponse.json({ state: "invalid", message: parsed.message }, { status: 400 });
   }
@@ -57,7 +66,7 @@ export async function POST(request: Request) {
   if (!token && !refresh) {
     return NextResponse.json({ state: "signed_out" }, { status: 401 });
   }
-  const payload = parsed.value.kind === "subscription"
+  const payload = parsed.value.kind === "cancel" ? {kind:"cancel", checkout_id:parsed.value.checkoutId} : parsed.value.kind === "subscription"
     ? {
       kind: "subscription",
       plan: parsed.value.plan,
@@ -117,7 +126,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const data = (result.data ?? {}) as { checkout_id?: unknown; url?: unknown };
+  const data = (result.data ?? {}) as { checkout_id?: unknown; url?: unknown; cancelled?: unknown };
+  if (cancellation) {
+    if (data.cancelled !== true || data.checkout_id !== cancelId) {
+      return respond({message:'Cancellation could not be confirmed. Check your purchase before trying again.'},502);
+    }
+    return respond({cancelled:true,checkoutId:cancelId},200);
+  }
   const url = providerRedirect(data.url, "checkout.stripe.com");
   if (!url || typeof data.checkout_id !== "string" || data.checkout_id.length === 0) {
     return respond(

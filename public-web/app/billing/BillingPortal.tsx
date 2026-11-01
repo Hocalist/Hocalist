@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PaygoPaymentSetup from './PaygoPaymentSetup';
 import BillingLoading from './BillingLoading';
+import CheckoutRecovery from './CheckoutRecovery';
 import {paygoReturn} from './paygo-return';
 import SellerBillingOverview, {type BillingEntitlement,type StandardRate} from './SellerBillingOverview';
 import CreditFundingDialog from './CreditFundingDialog';
@@ -113,6 +114,7 @@ export default function BillingPortal({
     tone: 'info'
   });
   const membershipRef = useRef<string | null>(null);
+  const [retained, setRetained] = useState<CheckoutIntent | null>(null);
 
   const applyPayload = useCallback((body: Record<string, unknown>, membershipId: string | null) => {
     const payload: StatusPayload = {
@@ -139,6 +141,7 @@ export default function BillingPortal({
       if (shouldClearIntent(intent, payload.selected)) {
         writeIntent(browserStorage(), membershipId, null);
       }
+      setRetained(readIntent(browserStorage(), membershipId));
     }
   }, []);
 
@@ -247,6 +250,34 @@ export default function BillingPortal({
     }
   }
 
+  async function cancelCheckout(checkoutId: string) {
+    if (view.kind !== 'ready' || view.data.preview || action.busy) return;
+    const membership = membershipRef.current;
+    const cancellingIntent = readIntent(browserStorage(), membership);
+    setAction({busy:'cancel',message:null,tone:'info'});
+    try {
+      const response = await fetch('/api/billing/checkout', {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind:'cancel',checkoutId})});
+      const body = await response.json();
+      if (membershipRef.current !== membership) return;
+      if (!response.ok || body.cancelled !== true || body.checkoutId !== checkoutId) {
+        throw new Error(body.message || 'Cancellation could not be confirmed. Check your purchase before trying again.');
+      }
+      const intent = readIntent(browserStorage(), membership);
+      if (intent && intent.key === cancellingIntent?.key &&
+          (intent.checkoutId === checkoutId || !intent.checkoutId)) {
+        // The server confirmed this account's sole pending checkout expired.
+        // Preserve any newer retry intent created in another tab.
+        writeIntent(browserStorage(), membership, null);
+      }
+      setRetained(readIntent(browserStorage(), membership));
+      setAction({busy:null,message:'Unpaid checkout cancelled. You can now choose another pack.',tone:'info'});
+      await load();
+    } catch (error) {
+      setAction({busy:null,message:error instanceof Error ? error.message : 'Could not cancel checkout. Please try again.',tone:'error'});
+    }
+  }
+
   async function startCheckout(kind: CheckoutIntent['kind'], value: string) {
     if (view.kind !== 'ready' || action.busy) return;
     if (view.data.preview) {
@@ -264,15 +295,17 @@ export default function BillingPortal({
       if (existing?.kind === 'subscription' && !existing.value.includes(':')) existing = {...existing,value:`${existing.value}:month`};
     }
     if (existing && !intentMatches(existing, kind, value)) {
+      setRetained(existing);
       setAction({
         busy: null,
-        message: 'A different checkout is already retained for this account. Finish it or wait for it to expire before choosing another.',
+        message: 'You have an unfinished purchase. Continue it below, or cancel it before choosing another pack.',
         tone: 'error'
       });
       return;
     }
     const intent: CheckoutIntent = existing ?? { kind, value, key: newKey(), checkoutId: null };
     writeIntent(browserStorage(), membershipId, intent);
+    setRetained(intent);
     setAction({ busy: `${kind}:${value}`, message: null, tone: 'info' });
     try {
       const response = await fetch('/api/billing/checkout', {
@@ -460,20 +493,8 @@ export default function BillingPortal({
         accessLabel={activePaid&&subscription?.paid_until?`${subscription.provider_status==='trialing'?'Trial ends':subscription.cancel_at_period_end?'Access ends':'Renews after'} ${new Date(subscription.paid_until).toLocaleDateString()}`:view.data.entitlement?.effective_source==='earned'?'Earned Pro · this calendar month':'Your seller benefits'}
         onAddCredits={()=>setFundingOpen(true)}
         onSelectPlan={()=>document.getElementById('seller-plans')?.scrollIntoView({behavior:'smooth',block:'start'})}/></div>
-        {openCheckout ? (
-          <div className="billing-message info" role="status">
-            A checkout is open right now. Complete it in the Stripe page, or choose the same option
-            again to reopen the same session.
-            {(openCheckout.kind === 'subscription' && openCheckout.plan_code) ||
-             (openCheckout.kind === 'credit_deposit' && (openCheckout.option_id||openCheckout.standard_deposit)) ? (
-              <button className="button secondary" type="button" disabled={action.busy !== null}
-                onClick={() => void startCheckout(openCheckout.kind === 'subscription' ? 'subscription' : 'credit_deposit',
-                  (openCheckout.kind === 'subscription' ? `${openCheckout.plan_code}:${openCheckout.billing_interval ?? 'month'}` : openCheckout.standard_deposit?`standard:${openCheckout.amount_minor}`:openCheckout.option_id)!)}>
-                Resume checkout
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <CheckoutRecovery checkout={openCheckout} retained={retained} busy={action.busy !== null}
+          onContinue={(kind,value)=>void startCheckout(kind,value)} onCancel={id=>void cancelCheckout(id)}/>
         {action.message ? (
           <p className={`billing-message ${action.tone}`} role={action.tone === 'error' ? 'alert' : 'status'}>
             {action.message}

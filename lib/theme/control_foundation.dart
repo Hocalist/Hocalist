@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'adaptive_palette.dart';
 
 import 'buyer_ui_foundation.dart';
 import 'seller_ui_foundation.dart';
@@ -307,18 +308,20 @@ class HocalistFilterChip extends StatelessWidget {
       showCheckmark: false,
       avatar: icon == null
           ? null
-          : Icon(icon, size: metrics.artSize(16), color: accent),
+          : Icon(icon, size: metrics.artSize(16), color: HocalistPalette.text(context, accent)),
       label: Text(label),
       labelStyle: _controlTextStyle(
         context,
         metrics,
         role,
         size: 11.5,
-        color: selected ? accent : _controlText(role),
+        color: HocalistPalette.text(context, selected ? accent : _controlText(role)),
       ),
-      selectedColor: _controlSurface(role),
-      backgroundColor: Colors.white,
-      side: BorderSide(color: selected ? accent : _controlBorder(role)),
+      selectedColor: HocalistPalette.surface(context,
+        Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xffe7e5ff) : _controlSurface(role)),
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
+      side: BorderSide(color: HocalistPalette.border(context, selected ? accent : _controlBorder(role))),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),

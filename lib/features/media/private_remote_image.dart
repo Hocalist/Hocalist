@@ -10,11 +10,13 @@ class PrivateRemoteImage extends StatefulWidget {
     required this.id,
     this.size = 100,
     this.read,
+    this.showWholeImage = false,
     super.key,
   });
   final String id;
   final double size;
   final Future<Uint8List> Function(String id)? read;
+  final bool showWholeImage;
   @override
   State<PrivateRemoteImage> createState() => _PrivateRemoteImageState();
 }
@@ -40,6 +42,9 @@ class _PrivateRemoteImageState extends State<PrivateRemoteImage> {
           if (mounted && run == generation) bytes = value;
           return value;
         });
+    // A retry may fail before the next frame attaches the FutureBuilder.
+    // Keep its error for the inline state without an unhandled async error.
+    loading.ignore();
   }
 
   @override
@@ -74,14 +79,18 @@ class _PrivateRemoteImageState extends State<PrivateRemoteImage> {
             snapshot.hasData) {
           return PhotoPreview(
             bytes: snapshot.data!,
+            showWholeImage: widget.showWholeImage,
             child: Image.memory(snapshot.data!, fit: BoxFit.cover),
           );
         }
         if (snapshot.hasError) {
-          return TextButton(
+          return Center(child: IconButton(
+            tooltip: 'Retry photo',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             onPressed: () => setState(load),
-            child: const Text('Retry photo'),
-          );
+            icon: const Icon(Icons.refresh_rounded, size: 22),
+          ));
         }
         return const Center(child: HocalistLoadingIndicator());
       },

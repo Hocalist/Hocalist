@@ -9,6 +9,8 @@ import '../components/hocalist_motion.dart';
 import '../features/approved/approved_replica_metrics.dart';
 import 'accessibility_visuals.dart';
 import 'input_foundation.dart';
+import 'approved_interface_icons.dart';
+import 'preserved_raster_glyph.dart';
 
 /// Shared Buyer colors. Page/flow accents remain explicit variants where the
 /// approved screenshots do not support one universal blue or navy.
@@ -78,16 +80,79 @@ class BuyerAssetIcon extends StatelessWidget {
   final BlendMode colorBlendMode;
   final String? semanticLabel;
 
+  static Color? adaptiveColor(BuildContext context, String asset) {
+    // These transparent interface glyphs are single-color artwork, unlike
+    // the illustrations and intentionally colored badge surfaces.
+    const darkModeGlyphs = {
+      'trend-filter.png', 'trend-search.png', 'trend-shield.png',
+      'trend-info.png', 'trend-up.png', 'trend-people.png',
+      'seller-filter.png', 'seller-search.png', 'seller-sort-down.png',
+      'seller-back.png', 'seller-list.png', 'seller-grid.png',
+      'seller-chat.png', 'seller-deals.png', 'seller-response.png',
+      'competitive-flame.png',
+    };
+    return (Theme.of(context).brightness == Brightness.dark &&
+                (asset.endsWith('/dashboard-trophy-glyph.png') ||
+                 (asset.contains('/transparent/') &&
+                    darkModeGlyphs.contains(asset.split('/').last)) ||
+                 (asset.contains('/approved_offers_chat/') &&
+                    {'header-buyer.png', 'header-bell.png', 'header-notification.png', 'offers-sort-down.png'}
+                        .contains(asset.split('/').last)))
+            ? HocalistPalette.text(context, BuyerUiTokens.action)
+            : null);
+  }
+
+  static String themedAsset(BuildContext context, String asset) {
+    if (Theme.of(context).brightness != Brightness.dark) return asset;
+    if (asset.endsWith('/ready-gift.png')) return 'assets/approved_onboarding_home/ready-gift-dark.png';
+    if (asset.endsWith('/offers-envelope.png')) return 'assets/approved_offers_chat/offers-envelope-dark.png';
+    return asset;
+  }
+
   @override
   Widget build(BuildContext context) {
+    const outlinedArtwork = {
+      'chat-back.png', 'detail-back.png', 'detail-clock.png',
+      'detail-location.png', 'detail-pin.png', 'detail-about.png',
+      'detail-chat-notice.png',
+    };
+    if (outlinedArtwork.contains(asset.split('/').last)) {
+      return PreservedRasterGlyph(asset: asset, width: slotSize, height: slotSize,
+        color: HocalistPalette.text(context,
+          asset.endsWith('back.png') ? const Color(0xff101443) : BuyerUiTokens.action),
+        semanticLabel: semanticLabel);
+    }
+    if (asset.endsWith('/transparent/trend-shield.png')) {
+      return PreservedRasterGlyph(asset: asset.replaceFirst('/transparent/', '/'), width: slotSize, height: slotSize,
+        color: adaptiveColor(context, asset) ?? BuyerUiTokens.action,
+        semanticLabel: semanticLabel);
+    }
+    if (asset.endsWith('/chat-plus.png')) {
+      return SizedBox.square(dimension: slotSize, child: Center(child: Container(
+        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(
+          color: HocalistPalette.border(context, const Color(0xff717590)), width: .7)),
+        child: ClipOval(
+        child: SizedBox.square(dimension: slotSize * .73, child: OverflowBox(
+          minWidth: slotSize, maxWidth: slotSize,
+          minHeight: slotSize, maxHeight: slotSize,
+          child: Image.asset(asset, width: slotSize, height: slotSize,
+            filterQuality: FilterQuality.high, semanticLabel: semanticLabel),
+        )),
+      ))));
+    }
+    if (ApprovedInterfaceIcon.kindFor(asset) != null) {
+      return ApprovedInterfaceIcon(key: ValueKey('buyer-icon-slot:$asset'), asset: asset,
+        size: slotSize, color: color, semanticLabel: semanticLabel);
+    }
+    final resolvedColor = color ?? adaptiveColor(context, asset);
     final image = Image.asset(
-      asset,
+      themedAsset(context, asset),
       width: slotSize,
       height: slotSize,
       fit: BoxFit.contain,
       alignment: alignment,
-      color: color,
-      colorBlendMode: color == null ? null : colorBlendMode,
+      color: resolvedColor,
+      colorBlendMode: resolvedColor == null ? null : colorBlendMode,
       filterQuality: FilterQuality.high,
       excludeFromSemantics: semanticLabel == null,
       semanticLabel: semanticLabel,
@@ -246,6 +311,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
             height: metrics.artSize(54),
             child: Image.asset(
               'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
               color: Theme.of(context).brightness == Brightness.dark
                   ? const Color(0xfff3f3ff)
                   : null,
@@ -1474,3 +1540,4 @@ class BuyerProgressStrip extends StatelessWidget {
     );
   }
 }
+

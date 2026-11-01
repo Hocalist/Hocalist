@@ -28,19 +28,24 @@ class Phase2MarketplaceStoreBackend implements MarketplaceStoreBackend {
 
   @override
   Future<List<LocalStoreListing>> loadListings() async {
-    final result = await adapter.fetchSellerListings(
-      sellerUserId: sellerUserId,
-    );
-    if (result.isFailure) {
-      throw StoreBackendException(
-        _message(result.errorOrNull),
-        ambiguous: _isAmbiguous(result.errorOrNull),
+    final listings = <LocalStoreListing>[];
+    String? cursor;
+    final seen = <String>{};
+    do {
+      final result = await adapter.fetchSellerListings(
+        sellerUserId: sellerUserId, page: PageQuery(limit: 100, cursor: cursor),
       );
-    }
-    return result.valueOrNull!.items
-        .where((listing) => listing.status != ListingStatus.archived)
-        .map(_toLocal)
-        .toList(growable: false);
+      if (result.isFailure) {
+        throw StoreBackendException(_message(result.errorOrNull), ambiguous: _isAmbiguous(result.errorOrNull));
+      }
+      final slice = result.valueOrNull!;
+      listings.addAll(slice.items.map(_toLocal));
+      cursor = slice.nextCursor;
+      if (cursor != null && !seen.add(cursor)) {
+        throw const StoreBackendException('Your listings could not be loaded. Please try again.');
+      }
+    } while (cursor != null);
+    return listings;
   }
 
   @override
@@ -174,6 +179,11 @@ class Phase2MarketplaceStoreBackend implements MarketplaceStoreBackend {
         'Open your Store again before changing this listing.',
       );
     }
+    if (status == LocalListingStatus.draft) {
+      return StoreWriteResult(listing: _require(await adapter.restoreStoreListing(
+        listingId: listingId, expectedRevision: expectedRevision, operationKey: operationKey,
+      )));
+    }
     final result = await adapter.setStoreListingPublication(
       SetStoreListingPublicationCommand(
         listingId: listingId,
@@ -272,8 +282,8 @@ class Phase2MarketplaceStoreBackend implements MarketplaceStoreBackend {
       status: switch (listing.status) {
         ListingStatus.active => LocalListingStatus.active,
         ListingStatus.paused => LocalListingStatus.paused,
-        ListingStatus.draft ||
-        ListingStatus.archived => LocalListingStatus.draft,
+        ListingStatus.draft => LocalListingStatus.draft,
+        ListingStatus.archived => LocalListingStatus.archived,
       },
       imageAsset: null,
       imageCount: listing.imageMediaIds.length,

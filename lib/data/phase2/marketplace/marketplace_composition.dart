@@ -151,6 +151,7 @@ MarketplaceChatBackend? createConfiguredMarketplaceChatBackend({
   try {
     final client = Supabase.instance.client;
     return Phase2MarketplaceChatBackend(
+      enquiryThreadsEnabled: const bool.fromEnvironment('HOCALIST_ENQUIRY_CHAT_THREADS'),
       dealRpc: const bool.fromEnvironment('HOCALIST_DEAL_CHAT_THREADS')
           ? (name,args) async {
               try {return await client.schema('hocalist').rpc(name,params:args);}

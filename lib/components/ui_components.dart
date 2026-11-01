@@ -61,6 +61,7 @@ class _HocalistWordmarkImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BrandHomeLink(child: Image.asset(
       'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
       color: Theme.of(context).brightness == Brightness.dark
           ? const Color(0xfff3f3ff)
           : null,
@@ -919,6 +920,7 @@ class HocalistBrandTitle extends StatelessWidget {
         ),
         child: Image.asset(
           'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
           color: Theme.of(context).brightness == Brightness.dark
               ? const Color(0xfff3f3ff)
               : null,

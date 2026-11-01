@@ -2,6 +2,7 @@ import '../../components/pull_refresh.dart';
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
+import '../../theme/original_gift_artwork.dart';
 import '../../components/notification_indicator.dart';
 
 import 'package:flutter/material.dart';
@@ -1320,7 +1321,7 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
                     ),
                   ),
                   SizedBox(height: metrics.geometry(5)),
-                  _ApprovedBuyerWelcome(name: firstName),
+                  _ApprovedBuyerWelcome(name: firstName, avatarName: widget.name),
                   SizedBox(height: metrics.geometry(14)),
                   Center(
                     child: SizedBox(
@@ -1483,9 +1484,10 @@ class _ApprovedBenefitsScrollCue extends StatelessWidget {
 }
 
 class _ApprovedBuyerWelcome extends StatelessWidget {
-  const _ApprovedBuyerWelcome({required this.name});
+  const _ApprovedBuyerWelcome({required this.name, this.avatarName});
 
   final String name;
+  final String? avatarName;
 
   @override
   Widget build(BuildContext context) {
@@ -1493,11 +1495,18 @@ class _ApprovedBuyerWelcome extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stack = _replicaMetrics(context).accessibilityReflow;
-        final avatar = Image.asset(
-          '$_approvedAssetRoot/buyer-avatar.png',
+        final parts = (avatarName ?? name).trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+        final initials = parts.isEmpty ? '?' : '${parts.first.characters.first}${parts.length > 1 ? parts.last.characters.first : ''}'.toUpperCase();
+        final avatar = Container(
           key: const ValueKey('approved-benefits-avatar'),
           width: metrics.geometry(70),
           height: metrics.geometry(70),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: HocalistPalette.surface(context, const Color(0xfff1edff)),
+          ),
+          child: Text(initials, style: _text(context, size: 24, weight: FontWeight.w800, color: _navy)),
         );
         final copy = Column(
           crossAxisAlignment: stack
@@ -1974,6 +1983,7 @@ class _ApprovedHeader extends StatelessWidget {
     final metrics = _replicaMetrics(context);
     final logo = Image.asset(
       'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
       color: Theme.of(context).brightness == Brightness.dark
           ? const Color(0xfff3f3ff)
           : null,
@@ -2545,6 +2555,7 @@ class BuyerRequestView {
     required this.statusLabel,
     this.acceptanceExpiresAt,
     this.createdAt,
+    this.isActive = true,
     this.canViewOffers = true,
   });
 
@@ -2554,6 +2565,7 @@ class BuyerRequestView {
       requestId: request.id,
       revision: request.stamp.revision,
       createdAt: request.stamp.createdAt,
+      isActive: request.status == RequestStatus.active,
       title: draft.title,
       budgetLabel: _formatBudget(draft.budget),
       statusLabel: switch (request.status) {
@@ -2579,6 +2591,7 @@ class BuyerRequestView {
   /// it. Shown as the authoritative countdown on the request card.
   final DateTime? acceptanceExpiresAt;
   final DateTime? createdAt;
+  final bool isActive;
 
   /// Device-local "Offers close …" label, or null before the first acceptance.
   String? get windowLabel {
@@ -2891,13 +2904,32 @@ class ApprovedBuyerHomePage extends StatelessWidget {
           availableWidth: viewport.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
+        final now = DateTime.now();
+        bool upcoming(BuyerRequestView row) =>
+            row.isActive &&
+            (row.acceptanceExpiresAt == null ||
+                row.acceptanceExpiresAt!.isAfter(now));
         final requests = realRequests == null
             ? null
-            : (List<BuyerRequestView>.of(realRequests!)..sort(
-                (a, b) => (b.createdAt ?? DateTime(1970)).compareTo(
+            : (List<BuyerRequestView>.of(realRequests!)..sort((a, b) {
+                final aUpcoming = upcoming(a);
+                final bUpcoming = upcoming(b);
+                if (aUpcoming != bUpcoming) return aUpcoming ? -1 : 1;
+                final aExpiry = aUpcoming ? a.acceptanceExpiresAt : null;
+                final bExpiry = bUpcoming ? b.acceptanceExpiresAt : null;
+                if (aExpiry != null && bExpiry == null) return -1;
+                if (aExpiry == null && bExpiry != null) return 1;
+                final expiryOrder = aExpiry == null
+                    ? 0
+                    : aExpiry.compareTo(bExpiry!);
+                if (expiryOrder != 0) return expiryOrder;
+                final createdOrder = (b.createdAt ?? DateTime(1970)).compareTo(
                   a.createdAt ?? DateTime(1970),
-                ),
-              ));
+                );
+                return createdOrder != 0
+                    ? createdOrder
+                    : a.requestId.compareTo(b.requestId);
+              }));
         return ApprovedReplicaScope(
           metrics: metrics,
           child: Material(
@@ -3043,7 +3075,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  child: const Text('View all'),
+                                  child: Text('View all', style: _text(context, size: 13, color: _blue)),
                                 ),
                             ],
                           ),
@@ -3483,44 +3515,6 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
           ),
           SizedBox(height: metrics.spacing(16)),
           Text(
-            'Reward activity',
-            style: _text(
-              context,
-              size: 16,
-              weight: FontWeight.w800,
-              color: _navy,
-            ),
-          ),
-          SizedBox(height: metrics.geometry(8)),
-          _ApprovedDetailSurface(
-            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Column(
-              children: [
-                _ApprovedRewardActivityRow(
-                  asset: 'dashboard-clipboard.png',
-                  title: 'iPad Air purchase',
-                  subtitle: 'Pending review',
-                  value: '+\$0.40',
-                ),
-                Divider(height: 1, color: _line),
-                _ApprovedRewardActivityRow(
-                  asset: 'dashboard-trophy.png',
-                  title: 'Samsung TV purchase',
-                  subtitle: 'Reward earned',
-                  value: '+\$3.20',
-                ),
-                Divider(height: 1, color: _line),
-                _ApprovedRewardActivityRow(
-                  asset: 'dashboard-clipboard.png',
-                  title: 'MacBook Air purchase',
-                  subtitle: 'Reward earned',
-                  value: '+\$6.40',
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: metrics.spacing(16)),
-          Text(
             'Payout destination',
             style: _text(
               context,
@@ -3664,6 +3658,44 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                       height: 1.4,
                     ).copyWith(fontSize: metrics.fontSize(11)),
                   ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: metrics.spacing(16)),
+          Text(
+            'Reward activity',
+            style: _text(
+              context,
+              size: 16,
+              weight: FontWeight.w800,
+              color: _navy,
+            ),
+          ),
+          SizedBox(height: metrics.geometry(8)),
+          _ApprovedDetailSurface(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Column(
+              children: [
+                _ApprovedRewardActivityRow(
+                  asset: 'dashboard-clipboard.png',
+                  title: 'iPad Air purchase',
+                  subtitle: 'Pending review',
+                  value: '+\$0.40',
+                ),
+                Divider(height: 1, color: _line),
+                _ApprovedRewardActivityRow(
+                  asset: 'dashboard-trophy.png',
+                  title: 'Samsung TV purchase',
+                  subtitle: 'Reward earned',
+                  value: '+\$3.20',
+                ),
+                Divider(height: 1, color: _line),
+                _ApprovedRewardActivityRow(
+                  asset: 'dashboard-clipboard.png',
+                  title: 'MacBook Air purchase',
+                  subtitle: 'Reward earned',
+                  value: '+\$6.40',
                 ),
               ],
             ),
@@ -3813,12 +3845,18 @@ class _ApprovedBuyerRewardsRealSectionsState
         _hero(wallet, metrics),
         SizedBox(height: metrics.spacing(12)),
         _metricsRow(wallet, metrics),
+        if (wallet?.estimatedMinor != null) ...[
+          SizedBox(height: metrics.spacing(8)),
+          Text(
+            'Pending estimates cannot be withdrawn. Eligible contributions '
+            'become earned after a PIN-confirmed purchase and fee collection. '
+            'Estimates expire if no purchase is confirmed.',
+            key: const ValueKey('approved-rewards-estimate-explanation'),
+            style: _text(context, size: 11.5, color: _muted),
+          ),
+        ],
         SizedBox(height: metrics.spacing(12)),
         _nextPayoutSection(wallet, metrics),
-        SizedBox(height: metrics.spacing(16)),
-        _sectionHeading('Reward activity'),
-        SizedBox(height: metrics.geometry(8)),
-        _activitySection(wallet, metrics),
         SizedBox(height: metrics.spacing(16)),
         _sectionHeading('Payout destination'),
         SizedBox(height: metrics.geometry(8)),
@@ -3844,6 +3882,10 @@ class _ApprovedBuyerRewardsRealSectionsState
         ),
         SizedBox(height: metrics.spacing(12)),
         _rewardPaymentNotice(metrics),
+        SizedBox(height: metrics.spacing(16)),
+        _sectionHeading('Reward activity'),
+        SizedBox(height: metrics.geometry(8)),
+        _activitySection(wallet, metrics),
       ],
     );
   }
@@ -3970,7 +4012,7 @@ class _ApprovedBuyerRewardsRealSectionsState
         key: const ValueKey('approved-rewards-hero'),
         padding: metrics.geometryInsets(const EdgeInsets.all(18)),
         decoration: BoxDecoration(
-          color: _lavender,
+          color: HocalistPalette.surface(context, _lavender),
           borderRadius: BorderRadius.circular(metrics.geometry(18)),
         ),
         child: Row(
@@ -4005,35 +4047,42 @@ class _ApprovedBuyerRewardsRealSectionsState
     final untilPayout = minimum == null || wallet == null
         ? null
         : (minimum - wallet.availableMinor).clamp(0, minimum);
-    final pending = wallet == null ? '—' : _usd(wallet.pendingMinor);
+    final pending = wallet == null
+        ? '—'
+        : _usd(wallet.estimatedMinor ?? wallet.pendingMinor);
     final placeholderNote = _busy ? 'Loading…' : 'Not available';
     final untilNote = wallet == null
         ? placeholderNote
         : untilPayout == null
         ? 'Policy not configured'
         : null;
-    return Row(
-      children: [
-        Expanded(
-          child: _ApprovedRewardMetric(
-            asset: 'dashboard-calendar.png',
-            label: 'Pending',
-            value: pending,
-            note: wallet == null ? placeholderNote : null,
-            valueKey: const ValueKey('approved-rewards-pending'),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _ApprovedRewardMetric(
+              asset: 'dashboard-calendar.png',
+              label: wallet?.estimatedMinor == null
+                  ? 'Pending'
+                  : 'Pending estimated',
+              value: pending,
+              note: wallet == null ? placeholderNote : null,
+              valueKey: const ValueKey('approved-rewards-pending'),
+            ),
           ),
-        ),
-        SizedBox(width: metrics.spacing(10)),
-        Expanded(
-          child: _ApprovedRewardMetric(
-            asset: 'ready-gift.png',
-            label: 'Until payout',
-            value: untilPayout == null ? '—' : _usd(untilPayout),
-            note: untilNote,
-            valueKey: const ValueKey('approved-rewards-until-payout'),
+          SizedBox(width: metrics.spacing(10)),
+          Expanded(
+            child: _ApprovedRewardMetric(
+              asset: 'ready-gift.png',
+              label: 'Until payout',
+              value: untilPayout == null ? '—' : _usd(untilPayout),
+              note: untilNote,
+              valueKey: const ValueKey('approved-rewards-until-payout'),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -4297,7 +4346,7 @@ class _ApprovedBuyerRewardsRealSectionsState
       asset: earned ? 'dashboard-trophy.png' : 'dashboard-clipboard.png',
       title: item.itemTitle ?? 'Confirmed purchase',
       subtitle:
-          '${earned ? (item.holdMinor > 0 ? 'Earned — on hold' : 'Reward earned') : 'On hold until the sale is confirmed'}'
+          '${earned ? (item.holdMinor > 0 ? 'Earned — on hold' : 'Reward earned') : 'On hold'}'
           ' • ${_date(item.createdAt)}',
       value: '${earned ? '+' : ''}${_usd(item.amountMinor)}',
       valueColor: earned ? _green : const Color(0xffb35b00),
@@ -5465,6 +5514,7 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
     this.onDirections,
     this.saleConfirmation,
     this.onReviewPurchase,
+    this.onReviewBuyer,
     this.onChoosePurchaseSeller,
     this.purchaseConfirmed = false,
     this.competingOffers,
@@ -5486,6 +5536,7 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
   final VoidCallback? onDirections;
   final Widget? saleConfirmation;
   final VoidCallback? onReviewPurchase;
+  final VoidCallback? onReviewBuyer;
   final VoidCallback? onChoosePurchaseSeller;
   final bool purchaseConfirmed;
   final Widget? competingOffers;
@@ -5501,8 +5552,8 @@ class _ApprovedMeetingDetailsPageState
   MeetingView? get _meeting => widget.meeting;
 
   MeetingScheduleView? get _schedule =>
-      _meeting?.pendingSchedule ??
       _meeting?.acceptedSchedule ??
+      _meeting?.pendingSchedule ??
       _meeting?.revisions.lastOrNull;
 
   bool get _needsNewProposal =>
@@ -5519,19 +5570,33 @@ class _ApprovedMeetingDetailsPageState
 
   String get _statusLabel => widget.purchaseConfirmed
       ? (_meeting != null && !_meeting!.purchaseSelected
-          ? 'Purchased from another seller'
-          : 'Purchase completed')
+            ? 'Purchased from another seller'
+            : 'Purchase completed')
       : _meeting != null && !_meeting!.purchaseSelected
       ? 'Awaiting buyer confirmation'
+      : _meeting?.latestProposalDeclined == true && _meeting!.hasAcceptedSchedule
+      ? _meeting!.declinedProposalMessage
       : _needsNewProposal
       ? 'Meeting time declined'
       : switch (_meeting?.status) {
           'accepted' => 'Meeting confirmed',
-          'proposed' => 'Meeting proposed',
-          'reschedule_proposed' => 'Reschedule requested',
+          'proposed' || 'reschedule_proposed' => _pendingStatus,
           'cancelled' => 'Meeting cancelled',
           _ => 'Offer accepted',
         };
+
+  String get _pendingStatus {
+    final meeting = _meeting!;
+    final proposer = meeting.pendingSchedule?.proposedByUserId;
+    if (proposer != widget.viewerUserId) return 'Your response needed';
+    return proposer == meeting.buyerUserId ? 'Waiting for seller' : 'Waiting for buyer';
+  }
+
+  Color get _statusColor => widget.purchaseConfirmed ? _green
+      : _meeting?.isCancelled == true || _meeting?.latestProposalDeclined == true
+      ? Theme.of(context).colorScheme.error
+      : _meeting?.hasPendingSchedule == true || _meeting?.purchaseSelected == false
+      ? const Color(0xff946000) : _green;
 
   String get _placeLabel {
     final schedule = _schedule;
@@ -5722,7 +5787,7 @@ class _ApprovedMeetingDetailsPageState
                         decoration: BoxDecoration(
                           color: HocalistPalette.surface(
                             context,
-                            const Color(0xffe9f8ee),
+                              _statusColor.withValues(alpha: .10),
                           ),
                           borderRadius: BorderRadius.circular(99),
                         ),
@@ -5732,7 +5797,7 @@ class _ApprovedMeetingDetailsPageState
                             context,
                             size: 10,
                             weight: FontWeight.w700,
-                            color: _green,
+                            color: _statusColor,
                           ),
                         ),
                       ),
@@ -5758,7 +5823,7 @@ class _ApprovedMeetingDetailsPageState
                 _ApprovedMeetingField(
                   key: const ValueKey('approved-meeting-time-field'),
                   asset: 'chat-time.png',
-                  label: 'Date and time',
+                  label: _meeting?.hasAcceptedSchedule == true ? 'Confirmed date and time' : 'Proposed date and time',
                   initialValue: realMode ? _timeLabel : 'Today • 5:00 PM',
                   readOnly: realMode,
                 ),
@@ -5766,6 +5831,16 @@ class _ApprovedMeetingDetailsPageState
               ],
             ),
           ),
+          if (realMode && _meeting!.hasPendingSchedule && !widget.purchaseConfirmed && !_meeting!.isCancelled)
+            BuyerStateNotice(
+              icon: Icons.schedule_outlined,
+              title: _pendingStatus,
+              body: '${_meeting!.hasAcceptedSchedule ? "Proposed change" : "Meeting proposal"}: '
+                  '${_meeting!.pendingSchedule!.date} · ${_meeting!.pendingSchedule!.startTime} · ${_meeting!.pendingSchedule!.timezoneId}\n'
+                  '${_meeting!.pendingSchedule!.placeAddress ?? _meeting!.pendingSchedule!.placeLabel ?? "Location not confirmed"}'
+                  '${_meeting!.hasAcceptedSchedule ? "\nYour confirmed meeting stays unchanged until this change is accepted." : "\nThe meeting is set only after the other person accepts."}',
+              tone: BuyerNoticeTone.warning,
+            ),
           if (realMode &&
               !widget.purchaseConfirmed &&
               !_meeting!.purchaseSelected &&
@@ -5873,7 +5948,7 @@ class _ApprovedMeetingDetailsPageState
           else if (!realMode || canDecline)
             BuyerPrimaryButton(
               key: const ValueKey('approved-confirm-meeting-button'),
-              label: 'Confirm meeting',
+              label: _meeting?.hasAcceptedSchedule == true ? 'Accept change' : 'Accept meeting',
               onPressed: widget.onConfirm,
               compact: compactViewport,
             ),
@@ -5882,13 +5957,18 @@ class _ApprovedMeetingDetailsPageState
             TextButton(
               key: const ValueKey('approved-decline-meeting-button'),
               onPressed: widget.busy ? null : widget.onDecline,
-              child: const Text('Decline this time'),
+              child: Text(_meeting?.hasAcceptedSchedule == true ? 'Decline change' : 'Decline proposal'),
             ),
           ],
           if (widget.purchaseConfirmed && widget.onReviewPurchase != null)
             BuyerPrimaryButton(
               label: 'Review your purchase',
               onPressed: widget.onReviewPurchase,
+            ),
+          if (widget.purchaseConfirmed && widget.onReviewBuyer != null)
+            BuyerPrimaryButton(
+              label: 'Review buyer',
+              onPressed: widget.onReviewBuyer,
             ),
           if (realMode &&
               !widget.purchaseConfirmed &&
@@ -6747,6 +6827,39 @@ class _ApprovedBuyerDealHistoryRealSectionsState
         _ApprovedHistoryRealSummary(detail: detail),
         SizedBox(height: metrics.spacing(10)),
         _ApprovedHistoryRealFacts(detail: detail),
+        if (detail.side == SaleSide.purchase && detail.reward != null) ...[
+          SizedBox(height: metrics.spacing(10)),
+          _ApprovedDetailSurface(
+            child: Column(
+              key: ValueKey('approved-history-reward-${detail.id}'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Buyer rewards',
+                  style: _text(
+                    context,
+                    size: 13,
+                    weight: FontWeight.w800,
+                    color: _navy,
+                  ),
+                ),
+                SizedBox(height: metrics.spacing(5)),
+                if (detail.reward!.earnedMinor != null)
+                  Text(
+                    'Earned ${_money('USD', detail.reward!.earnedMinor!)} • '
+                    'On hold ${_money('USD', detail.reward!.heldMinor!)} • '
+                    'Reversed ${_money('USD', detail.reward!.reversedMinor!)}',
+                    style: _text(context, size: 11.5, color: _muted),
+                  )
+                else
+                  Text(
+                    '${_money('USD', detail.reward!.amountMinor)} • ${detail.reward!.status}',
+                    style: _text(context, size: 11.5, color: _muted),
+                  ),
+              ],
+            ),
+          ),
+        ],
         SizedBox(height: metrics.spacing(10)),
         const _ApprovedLifecyclePinNotice(
           title: 'Purchase confirmed',
@@ -7607,6 +7720,8 @@ class ApprovedBuyerDealRecoveryPage extends StatelessWidget {
     this.actionError,
     this.actionUncertain = false,
     this.onDiscard,
+    this.realRequestTitle,
+    this.realRequestBudget,
     super.key,
   });
 
@@ -7615,6 +7730,8 @@ class ApprovedBuyerDealRecoveryPage extends StatelessWidget {
   final VoidCallback onReopen;
   final VoidCallback onBackup;
   final VoidCallback onReport;
+  final String? realRequestTitle;
+  final String? realRequestBudget;
 
   /// True while a reopen/backup server command is in flight; actions stay
   /// disabled so a second unknown outcome cannot start.
@@ -7645,10 +7762,39 @@ class ApprovedBuyerDealRecoveryPage extends StatelessWidget {
             onBack: onBack,
           ),
           const SizedBox(height: 16),
-          const _ApprovedLifecycleDealSummary(
-            status: 'Needs action',
-            statusColor: Color(0xffb35b00),
-          ),
+          if (realRequestTitle != null)
+            _ApprovedDetailSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    realRequestTitle!,
+                    style: _text(
+                      context,
+                      size: 16,
+                      color: const Color(0xff151515),
+                      weight: FontWeight.w800,
+                    ),
+                  ),
+                  if (realRequestBudget != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      realRequestBudget!,
+                      style: _text(
+                        context,
+                        size: 13,
+                        color: const Color(0xff666666),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            )
+          else
+            const _ApprovedLifecycleDealSummary(
+              status: 'Needs action',
+              statusColor: Color(0xffb35b00),
+            ),
           const SizedBox(height: 12),
           _ApprovedLifecycleAction(
             asset: 'offers-envelope.png',
@@ -8848,11 +8994,10 @@ class _ApprovedDashboardHero extends StatelessWidget {
             ),
           ],
         );
-        final art = Image.asset(
-          '$_approvedAssetRoot/dashboard-gift.png',
+        final art = OriginalGiftArtwork(
+          asset: 'assets/buyer_dashboard/dashboard-gift-art.png',
           width: metrics.geometry(90),
           height: metrics.geometry(70),
-          fit: BoxFit.contain,
         );
         if (stacked) {
           return Column(
@@ -9197,8 +9342,8 @@ class _ApprovedPostRequest extends StatelessWidget {
           child: Row(
             children: [
               BuyerAssetIcon(
-                asset: '$_approvedAssetRoot/dashboard-plus.png',
-                slotSize: metrics.artSize(BuyerIconTokens.feature - 2),
+                    asset: '$_approvedAssetRoot/dashboard-plus.png',
+                    slotSize: metrics.artSize(BuyerIconTokens.feature - 2),
               ),
               SizedBox(width: metrics.geometry(10)),
               Expanded(
@@ -9587,7 +9732,7 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
                           style: _text(context, size: 10.5, color: _muted),
                         ),
                     ],
-                    Text(switch (meeting.status) {
+                    Text(meeting.latestProposalDeclined ? meeting.declinedProposalMessage : switch (meeting.status) {
                       'accepted' => 'Confirmed',
                       'proposed' => 'Proposed',
                       'reschedule_proposed' => 'Reschedule requested',

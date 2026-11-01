@@ -8,6 +8,7 @@
 library;
 
 import '../../../domain/phase2/discovery.dart';
+import '../../../domain/phase2/customers.dart';
 import '../../../domain/phase2/failures.dart';
 import '../../local_marketplace_repository.dart';
 import 'discovery_adapter.dart';
@@ -68,6 +69,70 @@ class Phase2DiscoveryBackend
 
   final DiscoveryDataAdapter adapter;
   final String? Function() identity;
+
+  Future<SellerCustomerList> loadCustomers() async {
+    final result = await adapter.sellerCustomers();
+    if (result.errorOrNull case PermissionDeniedError(action: 'contacts_plan_required')) {
+      throw const StoreBackendException('Customers requires Pro or Elite.', code: 'contacts_plan_required');
+    }
+    if (result.isFailure) throw _exception(result.errorOrNull!, 'seller_customers');
+    final row = result.valueOrNull!;
+    if (row['insights_available'] is! bool || row['items'] is! List) {
+      throw const StoreBackendException('Could not verify customer records.');
+    }
+    final items = <SellerCustomer>[];
+    for (final raw in row['items'] as List) {
+      if (raw is! Map || raw['buyer_id'] is! String || raw['display_name'] is! String ||
+          raw['purchase_count'] is! int || (raw['purchase_count'] as int) < 1 ||
+          raw['saved'] is! bool || raw['note'] is! String ||
+          raw['last_purchase_at'] is! String || DateTime.tryParse(raw['last_purchase_at'] as String) == null) {
+        throw const StoreBackendException('Could not verify customer records.');
+      }
+      items.add(SellerCustomer(buyerId: raw['buyer_id'] as String,
+        displayName: raw['display_name'] as String, purchaseCount: raw['purchase_count'] as int,
+        lastPurchaseAt: DateTime.parse(raw['last_purchase_at'] as String),
+        saved: raw['saved'] as bool, note: raw['note'] as String));
+    }
+    return (insightsAvailable: row['insights_available'] as bool, items: List<SellerCustomer>.unmodifiable(items));
+  }
+
+  Future<void> saveCustomer(String buyerId, bool saved, String note) async {
+    final result = await adapter.sellerCustomerSave(buyerId, saved, note);
+    if (result.isFailure) throw _exception(result.errorOrNull!, 'seller_customer_save');
+    final row = result.valueOrNull!;
+    if (row['buyer_id'] != buyerId || row['saved'] != saved || row['note'] != note) {
+      throw const StoreBackendException('Customer save was not confirmed.', ambiguous: true);
+    }
+  }
+
+  Future<CustomerHistory> loadCustomerHistory(String buyerId) async {
+    final result = await adapter.sellerCustomerInsights(buyerId);
+    if (result.isFailure) throw _exception(result.errorOrNull!, 'seller_customer_insights');
+    final row = result.valueOrNull!;
+    final ended = row['concluded_requests'];
+    final bought = row['confirmed_purchases'];
+    final ongoing = row['ongoing_requests'];
+    final percent = row['completion_percent'];
+    if (row['buyer_id'] != buyerId || ended is! int || bought is! int || ongoing is! int ||
+        ended < 0 || bought < 0 || ongoing < 0 || bought > ended ||
+        (ended == 0 ? percent != null : percent is! num || percent < 0 || percent > 100)) {
+      throw const StoreBackendException('Could not verify purchase history.');
+    }
+    return CustomerHistory(concludedRequests: ended, confirmedPurchases: bought,
+      ongoingRequests: ongoing, completionPercent: (percent as num?)?.toDouble());
+  }
+
+  Future<({bool enabled, bool eligible})> hocatrendsOfferPreference(
+    String offerId, {bool? enabled}
+  ) async {
+    final result = await adapter.hocatrendsOfferPreference(offerId, enabled: enabled);
+    if (result.isFailure) throw _exception(result.errorOrNull!, 'hocatrends_preference');
+    final row = result.valueOrNull!;
+    if (row['offer_id'] != offerId || row['enabled'] is! bool || row['eligible'] is! bool) {
+      throw const StoreBackendException('Could not verify this Hocatrends preference.');
+    }
+    return (enabled: row['enabled'] as bool, eligible: row['eligible'] as bool);
+  }
 
   @override
   Future<RecommendedLeadsView> loadRecommendedLeads() async {

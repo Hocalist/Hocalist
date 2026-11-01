@@ -493,6 +493,7 @@ class _AccessibilityHeader extends StatelessWidget {
               ),
               icon: Image.asset(
                 'assets/accessibility/icons/back-chevron.png',
+                color: Theme.of(context).brightness == Brightness.dark ? HocalistPalette.text(context, _AccessibilityPageState._ink) : null,
                 width: metrics.size(17),
                 height: metrics.size(25),
                 filterQuality: FilterQuality.high,
@@ -523,6 +524,7 @@ class _IntroPanel extends StatelessWidget {
       alignment: Alignment.center,
       child: Image.asset(
         'assets/accessibility/icons/accessibility-person.png',
+        color: Theme.of(context).brightness == Brightness.dark ? HocalistPalette.text(context, _AccessibilityPageState._ink) : null,
         width: metrics.size(30),
         height: metrics.size(36),
         filterQuality: FilterQuality.high,
@@ -769,6 +771,7 @@ class _TextPreviewPanel extends StatelessWidget {
               children: [
                 Image.asset(
                   'assets/accessibility/icons/preview-eye-primary.png',
+                  color: Theme.of(context).brightness == Brightness.dark ? HocalistPalette.text(context, _AccessibilityPageState._ink) : null,
                   width: metrics.size(15),
                   height: metrics.size(12),
                   filterQuality: FilterQuality.high,

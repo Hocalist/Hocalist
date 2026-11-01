@@ -569,6 +569,7 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                               ),
                               child: Image.asset(
                                 'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
                                 key: const ValueKey(
                                   'real-account-onboarding-logo',
                                 ),

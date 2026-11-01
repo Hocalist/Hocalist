@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/brand_home_link.dart';
+import '../../components/notification_indicator.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_bottom_navigation.dart';
@@ -65,6 +66,7 @@ class SellerAppHeader extends StatelessWidget {
         final logo = BrandHomeLink(
           child: Image.asset(
             SellerAssets.brandWordmark,
+            cacheWidth: 528,
             color: Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xfff3f3ff)
                 : null,
@@ -147,7 +149,8 @@ class _SellerNotificationButton extends StatelessWidget {
             color: HocalistPalette.text(context, SellerUiColors.ink),
           ),
         ),
-        Positioned(
+        if (NotificationIndicatorScope.showDot(context)) Positioned(
+          key: const Key('sellerNotificationUnreadDot'),
           right: metrics.geometry(7),
           top: metrics.geometry(5),
           child: Container(

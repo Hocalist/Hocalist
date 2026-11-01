@@ -1093,6 +1093,12 @@ class MarketplaceDataAdapter
     }, decodeStoreListingJson);
   }
 
+  Future<RepositoryResult<StoreListing>> restoreStoreListing({
+    required String listingId, required int expectedRevision, required String operationKey,
+  }) => _read('marketplace_restore_store_listing', {
+    'p_listing': listingId, 'p_revision': expectedRevision, 'p_key': operationKey,
+  }, decodeStoreListingJson);
+
   @override
   Future<RepositoryResult<StoreListing>> archiveStoreListing(
     ArchiveStoreListingCommand command,

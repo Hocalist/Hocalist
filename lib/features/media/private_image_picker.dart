@@ -24,6 +24,7 @@ class PrivateImagePicker extends StatefulWidget {
     this.role = HocalistControlRole.seller,
     this.onPendingChanged,
     this.existingImageCount = 0,
+    this.showGuidance = true,
     super.key,
   });
   final ImageUpload upload;
@@ -33,6 +34,7 @@ class PrivateImagePicker extends StatefulWidget {
   final HocalistControlRole role;
   final ValueChanged<bool>? onPendingChanged;
   final int existingImageCount;
+  final bool showGuidance;
   @override
   State<PrivateImagePicker> createState() => _PrivateImagePickerState();
 }
@@ -152,7 +154,7 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (images.isEmpty && widget.existingImageCount == 0 && !busy)
+        if (widget.showGuidance && images.isEmpty && widget.existingImageCount == 0 && !busy)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _seller
@@ -199,8 +201,8 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                                 ),
                               ),
                               Positioned(
-                                right: -6,
-                                top: -6,
+                                right: 0,
+                                top: 0,
                                 child: Semantics(
                                   button: true,
                                   label: 'Remove photo',

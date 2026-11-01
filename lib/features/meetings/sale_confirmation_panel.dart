@@ -48,6 +48,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
   Timer? expiry;
   Timer? statusPoll;
   bool statusPolling = false;
+  bool get retryBlocked => result?.status == 'locked' || result?.status == 'support_required';
   @override
   void initState() {
     super.initState();
@@ -75,6 +76,15 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     try {
       final value = await widget.adapter.call(widget.meetingId, 'status');
       if (!mounted || token != generation) return;
+      if (!widget.isBuyer && (value.status == 'locked' || value.status == 'support_required' || retryBlocked)) {
+        // Older servers return unconfirmed while locked. Keep the local lock
+        // until its retry time; only the server can confirm a purchase.
+        final mayClear = result?.status == 'locked' &&
+            result?.retryAt != null && !result!.retryAt!.isAfter(DateTime.now().toUtc());
+        if (value.status != 'unconfirmed' || mayClear) {
+          setState(() => result = value);
+        }
+      }
       if (value.status == 'confirmed' ||
           value.status == 'completed_elsewhere') {
         expiry?.cancel();
@@ -101,7 +111,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
       if (mounted) {
         setState(() {
           // Clear transient PIN data, but a confirmed purchase is terminal.
-          if (result?.status != 'confirmed' &&
+          if (!retryBlocked && result?.status != 'confirmed' &&
               result?.status != 'completed_elsewhere') {
             result = null;
           }
@@ -123,12 +133,13 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
 
   Future<void> run(String action, {bool refreshMeeting = false}) async {
     if (busy) return;
+    if (action == 'verify' && retryBlocked) return;
     if (action != 'status' && !widget.meetingAccepted) return;
     final token = ++generation;
     setState(() {
       busy = true;
       error = null;
-      result = null;
+      if (!retryBlocked) result = null;
     });
     try {
       if (refreshMeeting) {
@@ -142,7 +153,10 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
       );
       if (!mounted || token != generation) return;
       setState(() {
-        result = value;
+        final keepLock = retryBlocked && value.status == 'unconfirmed' &&
+            (result?.status == 'support_required' || result?.retryAt == null ||
+             result!.retryAt!.isAfter(DateTime.now().toUtc()));
+        if (!keepLock) result = value;
         if (value.status == 'confirmed') input.clear();
       });
       if (value.status == 'confirmed' ||
@@ -188,7 +202,9 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
       'purchase_seller_required' =>
         'The buyer has not chosen you for the final purchase. Only the seller they purchased from can complete the PIN.',
       'support_required' => 'Too many attempts. Contact support for help.',
-      'locked' => 'Too many attempts. Wait 15 minutes before trying again.',
+      'locked' => result?.retryAt == null
+          ? 'Too many incorrect attempts. Wait 15 minutes, then refresh to check again.'
+          : 'Too many incorrect attempts. Try again after ${TimeOfDay.fromDateTime(result!.retryAt!.toLocal()).format(context)}.',
       'incorrect' => 'That PIN is incorrect. Check it with the buyer.',
       'invalid_format' => 'Enter the five-digit PIN.',
       _ when !widget.meetingAccepted && !done =>
@@ -237,7 +253,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
             SizedBox(height: metrics.spacing(12)),
             TextField(
               controller: input,
-              enabled: !busy,
+              enabled: !busy && !retryBlocked,
               keyboardType: TextInputType.number,
               obscureText: true,
               maxLength: 5,
@@ -305,7 +321,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
             else
               SellerPrimaryButton(
                 key: const Key('saleConfirmationAction'),
-                onPressed: busy ? null : () => run('verify'),
+                onPressed: busy || retryBlocked ? null : () => run('verify'),
                 label: 'Confirm completed purchase',
               ),
           ],

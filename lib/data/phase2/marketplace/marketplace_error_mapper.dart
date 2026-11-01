@@ -36,6 +36,11 @@ class MarketplaceErrorMapper {
       return MalformedResponseError(operation: operation, detail: 'payload');
     }
     final message = error.message ?? '';
+    if (_has(message, 'contacts_plan_required')) {
+      return const PermissionDeniedError(
+        action: 'contacts_plan_required', entityType: 'seller_customers',
+      );
+    }
     if (message.contains('active_request_limit_reached:')) {
       final limit = int.tryParse(
         RegExp(
@@ -142,6 +147,18 @@ class MarketplaceErrorMapper {
     }
     if (_has(message, 'payment_permission_required')) {
       return const ConflictError(conflictCode: 'payment_permission_required');
+    }
+    if (_has(message, 'meeting_seller_payment_required')) {
+      return const ConflictError(
+        conflictCode: 'meeting_seller_payment_required',
+        debugMessage: 'Update or approve your payment in Manage payment before arranging this meeting. You can still view or cancel it.',
+      );
+    }
+    if (_has(message, 'meeting_seller_account_pending')) {
+      return const ConflictError(
+        conflictCode: 'meeting_seller_account_pending',
+        debugMessage: 'Waiting for the seller to resolve an account issue. You can still view or cancel this meeting.',
+      );
     }
     if (_has(message, 'deal_payment_required')) {
       return const ConflictError(

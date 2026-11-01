@@ -178,6 +178,9 @@ class Phase2MarketplaceRequestsBackend
   }
 
   String _message(RepositoryError? error) {
+    if (error is ConflictError && error.conflictCode == 'request_not_editable') {
+      return 'This request can no longer be edited. Agree any deal changes with your seller in chat.';
+    }
     if (error is ValidationError) {
       for (final issue in error.issues) {
         if (issue.code == 'active_request_limit_reached') return issue.message;

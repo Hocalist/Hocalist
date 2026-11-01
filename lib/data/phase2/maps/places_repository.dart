@@ -19,10 +19,20 @@ class PlacesRepository {
     if (query.isEmpty || query.length>1000) throw const PlacesFailure(PlacesFailureCode.invalidInput);
     final resolver=transport;
     if (resolver is! AddressPlacesTransport) throw const PlacesFailure(PlacesFailureCode.unconfigured);
-    final result=await (resolver as AddressPlacesTransport).address(address:query,sessionToken:PlacesSession.start().token);
-    final place=_details(result.data);
-    if (place.timezoneId==null || place.timezoneId!.trim().isEmpty) throw const PlacesFailure(PlacesFailureCode.invalidResponse);
-    return place;
+    try {
+      final result=await (resolver as AddressPlacesTransport).address(address:query,sessionToken:PlacesSession.start().token);
+      final place=_details(result.data);
+      if (place.timezoneId==null || place.timezoneId!.trim().isEmpty) throw const PlacesFailure(PlacesFailureCode.invalidResponse);
+      return place;
+    } on PlacesFailure catch (error) {
+      if (error.code != PlacesFailureCode.unavailable &&
+          error.code != PlacesFailureCode.unconfigured) rethrow;
+      // Geocoding and Places suggestions are separate provider services.
+      // Only a single resolved suggestion is safe to use without asking.
+      final fallback = await resolveSavedAddress(query);
+      if (fallback != null) return fallback;
+      rethrow;
+    }
   }
 
   Future<PlaceDetails> resolveCoordinates({

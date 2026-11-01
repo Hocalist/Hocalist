@@ -200,7 +200,7 @@ class _ApprovedSellerRescheduleDialogState
                 SizedBox(height: metrics.geometry(4)),
                 Text(
                   !_editing && widget.offeredPlaceLabel != null
-                      ? 'Review the saved details. The other person must accept before the meeting is set.'
+                      ? (widget.initialProposal ? 'Review the saved details. The other person must accept before the meeting is set.' : 'Review your proposed changes. Your confirmed meeting stays unchanged until the other person accepts.')
                       : 'Choose a new date and arrival time for your meeting with ${widget.customerName}.',
                   style: sellerText(metrics, 12, color: SellerUiColors.body),
                 ),
@@ -211,11 +211,10 @@ class _ApprovedSellerRescheduleDialogState
                     title: "${widget.currentDate} · ${widget.currentTime}",
                     body: _placeLabel,
                   ),
-                  TextButton(
-                    onPressed: _busy || _uncertain
-                        ? null
-                        : () => setState(() => _editing = true),
-                    child: const Text('Change date or time'),
+                  SizedBox(height: metrics.spacing(10)),
+                  SellerSecondaryButton(
+                    label: 'Change date or time',
+                    onPressed: _busy || _uncertain ? null : () => setState(() => _editing = true),
                   ),
                 ],
                 if (_editing) ...[
@@ -263,8 +262,10 @@ class _ApprovedSellerRescheduleDialogState
                     },
                   ),
                 ],
-                if (widget.onChangeLocation != null)
-                  TextButton(
+                if (widget.onChangeLocation != null) ...[
+                  SizedBox(height: metrics.spacing(10)),
+                  SellerSecondaryButton(
+                    label: 'Change location',
                     onPressed: _busy || _uncertain
                         ? null
                         : () async {
@@ -273,10 +274,13 @@ class _ApprovedSellerRescheduleDialogState
                               setState(() => _placeLabel = value);
                             }
                           },
-                    child: const Text('Change location'),
                   ),
+                ],
                 if (widget.timezoneId != null) ...[
-                  Text('Meeting timezone: ${widget.timezoneId}'),
+                  SizedBox(height: metrics.spacing(12)),
+                  SellerStateNotice(icon: Icons.schedule_outlined,
+                    title: 'Meeting timezone: ${widget.timezoneId}',
+                    body: 'Times use the local timezone at the meeting location.'),
                   if (_requiresOccurrence)
                     DropdownButtonFormField<RepeatedTimeOccurrence>(
                       isExpanded: true,
@@ -376,7 +380,7 @@ class _ApprovedSellerRescheduleDialogState
                       ? 'Retry same request'
                       : !_editing && widget.offeredPlaceLabel != null
                       ? (widget.initialProposal
-                            ? 'Confirm these details'
+                            ? 'Send meeting proposal'
                             : 'Send change for acceptance')
                       : widget.initialProposal
                       ? 'Send meeting proposal'

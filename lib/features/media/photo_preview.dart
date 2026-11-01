@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 
 /// Views bytes already authorised by the owning media reader; no public URLs.
 class PhotoPreview extends StatelessWidget {
-  const PhotoPreview({required this.bytes, required this.child, super.key});
+  const PhotoPreview({required this.bytes, required this.child, this.showWholeImage = false, super.key});
   final Uint8List bytes;
   final Widget child;
+  final bool showWholeImage;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      container: true,
       button: true,
       label: 'Open photo preview',
       child: Material(
@@ -40,14 +42,16 @@ class PhotoPreview extends StatelessWidget {
                               : constraints.maxHeight;
                           final image = Image.memory(
                             bytes,
-                            fit: BoxFit.cover,
+                            fit: showWholeImage ? BoxFit.contain : BoxFit.cover,
                             semanticLabel: 'Full photo',
                           );
                           return Center(
                             child: InteractiveViewer(
                               minScale: 1,
                               maxScale: 5,
-                              child: SizedBox.square(
+                              child: showWholeImage
+                                  ? SizedBox(width: constraints.maxWidth, height: constraints.maxHeight, child: image)
+                                  : SizedBox.square(
                                       dimension: side.clamp(0, 440),
                                       child: ClipOval(child: image),
                                     )

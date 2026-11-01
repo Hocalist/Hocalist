@@ -7,6 +7,8 @@ import '../media/private_remote_image.dart';
 
 class ApprovedSellerMorePage extends StatelessWidget {
   const ApprovedSellerMorePage({
+    this.onAddresses,
+    this.onViewPublicProfile,
     required this.sellerName,
     required this.onProfile,
     required this.onEditProfile,
@@ -17,12 +19,15 @@ class ApprovedSellerMorePage extends StatelessWidget {
     required this.onHelp,
     required this.onLogout,
     this.onOfferHistory,
+    this.onCustomers,
     this.onBilling,
     this.sellerEmail = 'northside.tech@example.com',
     this.avatarMediaId,
     super.key,
   });
 
+  final VoidCallback? onAddresses;
+  final VoidCallback? onViewPublicProfile;
   final String sellerName;
   final String sellerEmail;
   final String? avatarMediaId;
@@ -35,6 +40,7 @@ class ApprovedSellerMorePage extends StatelessWidget {
   final VoidCallback onHelp;
   final VoidCallback onLogout;
   final VoidCallback? onOfferHistory;
+  final VoidCallback? onCustomers;
   final VoidCallback? onBilling;
 
   @override
@@ -63,11 +69,18 @@ class ApprovedSellerMorePage extends StatelessWidget {
               onProfile: onProfile,
               onEditProfile: onEditProfile,
             ),
-            if (onOfferHistory != null || onBilling != null) ...[
+            if (onOfferHistory != null || onBilling != null || onCustomers != null) ...[
               SizedBox(height: metrics.spacing(14)),
               _MoreSection(
                 title: 'Seller tools',
                 items: [
+                  if (onCustomers != null)
+                    _MoreItem(
+                      keyName: 'sellerMoreCustomers',
+                      icon: Icons.people_outline,
+                      label: 'Customers',
+                      onTap: onCustomers!,
+                    ),
                   if (onOfferHistory != null)
                     _MoreItem(
                       keyName: 'sellerMoreOfferHistory',
@@ -89,6 +102,8 @@ class ApprovedSellerMorePage extends StatelessWidget {
             _MoreSection(
               title: 'Account',
               items: [
+                if (onAddresses != null) _MoreItem(keyName: 'sellerMoreAddresses', icon: Icons.location_on_outlined, label: 'Locations & addresses', onTap: onAddresses!),
+                if (onViewPublicProfile != null) _MoreItem(keyName: 'sellerMorePublicProfile', icon: Icons.visibility_outlined, label: 'View public profile', onTap: onViewPublicProfile!),
                 _MoreItem(
                   keyName: 'sellerMoreSettings',
                   icon: Icons.settings_outlined,
@@ -378,4 +393,16 @@ class _MoreItem extends StatelessWidget {
       ),
     );
   }
+}
+
+class SellerEditProfileMenu extends StatelessWidget {
+  const SellerEditProfileMenu({super.key, required this.onDetails, required this.onVisibility, this.onCategories});
+  final VoidCallback onDetails, onVisibility;
+  final VoidCallback? onCategories;
+  @override
+  Widget build(BuildContext context) => _MoreSection(title: 'Profile', items: [
+    _MoreItem(keyName: 'sellerEditBusiness', icon: Icons.storefront_outlined, label: 'Business profile', onTap: onDetails),
+    if (onCategories != null) _MoreItem(keyName: 'sellerEditCategories', icon: Icons.category_outlined, label: 'Categories', onTap: onCategories!),
+    _MoreItem(keyName: 'sellerEditVisibility', icon: Icons.visibility_outlined, label: 'Contact & visibility', onTap: onVisibility),
+  ]);
 }

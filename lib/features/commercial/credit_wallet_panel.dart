@@ -17,7 +17,8 @@ import 'wallet_history_list.dart';
 /// it cannot complete. A missing loader, missing bundle or failed read renders
 /// an explicit unavailable/error state instead of a fabricated balance.
 class CreditWalletPanel extends StatefulWidget {
-  const CreditWalletPanel({this.load, this.additionalSections, super.key});
+  const CreditWalletPanel({this.load, this.additionalSections, this.initialSection, super.key});
+  final String? initialSection;
 
   final Future<CreditWalletView> Function()? load;
   final Map<String, List<Widget>>? additionalSections;
@@ -112,6 +113,7 @@ class _CreditWalletPanelState extends State<CreditWalletPanel> {
         ],
         if (widget.additionalSections != null)
           HocalistSectionTabs(
+            initialSection: widget.initialSection,
             subtle: true,
             accent: SellerUiColors.primaryBright,
             sections: {
