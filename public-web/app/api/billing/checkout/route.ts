@@ -18,7 +18,7 @@ import {
 } from "../../../lib/website-session";
 
 const CHECKOUT_MESSAGES: Record<string, string> = {
-  checkout_pending: "A checkout is already in progress for this account. Finish or cancel it before starting another.",
+  checkout_pending: "We’re checking your previous payment. Please try again shortly.",
   checkout_closed: "That checkout has closed. Check your recent purchases before starting another payment; a completed payment may still be confirming.",
   checkout_reconciliation_required: "The previous checkout attempt needs review. Contact support before starting another.",
   subscription_exists: "This account already has an active seller subscription. Manage it instead of starting a new one.",
