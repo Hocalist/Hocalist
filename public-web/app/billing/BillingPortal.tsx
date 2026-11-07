@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PaygoPaymentSetup from './PaygoPaymentSetup';
 import BillingLoading from './BillingLoading';
-import CheckoutRecovery from './CheckoutRecovery';
+import { closeUnpaidCheckout } from './close-unpaid-checkout';
 import {paygoReturn} from './paygo-return';
 import SellerBillingOverview, {type BillingEntitlement,type StandardRate} from './SellerBillingOverview';
 import CreditFundingDialog from './CreditFundingDialog';
@@ -114,7 +114,6 @@ export default function BillingPortal({
     tone: 'info'
   });
   const membershipRef = useRef<string | null>(null);
-  const [retained, setRetained] = useState<CheckoutIntent | null>(null);
 
   const applyPayload = useCallback((body: Record<string, unknown>, membershipId: string | null) => {
     const payload: StatusPayload = {
@@ -141,7 +140,6 @@ export default function BillingPortal({
       if (shouldClearIntent(intent, payload.selected)) {
         writeIntent(browserStorage(), membershipId, null);
       }
-      setRetained(readIntent(browserStorage(), membershipId));
     }
   }, []);
 
@@ -250,34 +248,6 @@ export default function BillingPortal({
     }
   }
 
-  async function cancelCheckout(checkoutId: string) {
-    if (view.kind !== 'ready' || view.data.preview || action.busy) return;
-    const membership = membershipRef.current;
-    const cancellingIntent = readIntent(browserStorage(), membership);
-    setAction({busy:'cancel',message:null,tone:'info'});
-    try {
-      const response = await fetch('/api/billing/checkout', {method:'POST',
-        headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind:'cancel',checkoutId})});
-      const body = await response.json();
-      if (membershipRef.current !== membership) return;
-      if (!response.ok || body.cancelled !== true || body.checkoutId !== checkoutId) {
-        throw new Error(body.message || 'Cancellation could not be confirmed. Check your purchase before trying again.');
-      }
-      const intent = readIntent(browserStorage(), membership);
-      if (intent && intent.key === cancellingIntent?.key &&
-          (intent.checkoutId === checkoutId || !intent.checkoutId)) {
-        // The server confirmed this account's sole pending checkout expired.
-        // Preserve any newer retry intent created in another tab.
-        writeIntent(browserStorage(), membership, null);
-      }
-      setRetained(readIntent(browserStorage(), membership));
-      setAction({busy:null,message:'Unpaid checkout cancelled. You can now choose another pack.',tone:'info'});
-      await load();
-    } catch (error) {
-      setAction({busy:null,message:error instanceof Error ? error.message : 'Could not cancel checkout. Please try again.',tone:'error'});
-    }
-  }
-
   async function startCheckout(kind: CheckoutIntent['kind'], value: string) {
     if (view.kind !== 'ready' || action.busy) return;
     if (view.data.preview) {
@@ -294,20 +264,20 @@ export default function BillingPortal({
       if (!value.includes(':')) value += ':month';
       if (existing?.kind === 'subscription' && !existing.value.includes(':')) existing = {...existing,value:`${existing.value}:month`};
     }
-    if (existing && !intentMatches(existing, kind, value)) {
-      setRetained(existing);
-      setAction({
-        busy: null,
-        message: 'You have an unfinished purchase. Continue it below, or cancel it before choosing another pack.',
-        tone: 'error'
-      });
-      return;
-    }
-    const intent: CheckoutIntent = existing ?? { kind, value, key: newKey(), checkoutId: null };
-    writeIntent(browserStorage(), membershipId, intent);
-    setRetained(intent);
     setAction({ busy: `${kind}:${value}`, message: null, tone: 'info' });
     try {
+      const pending = [view.data.selected, ...view.data.deposits].find(
+        row => row && (row.state === 'creating' || row.state === 'open')
+      );
+      const sameIntent = intentMatches(existing, kind, value);
+      if (pending && !(sameIntent && (!existing?.checkoutId || existing.checkoutId === pending.id))) {
+        if (pending.state === 'creating') throw new Error('Checkout is being prepared. Please try again shortly.');
+        await closeUnpaidCheckout(pending.id);
+        existing = null;
+      }
+      if (membershipRef.current !== membershipId) return;
+      const intent: CheckoutIntent = (sameIntent && existing) || { kind, value, key: newKey(), checkoutId: null };
+      writeIntent(browserStorage(), membershipId, intent);
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -340,8 +310,9 @@ export default function BillingPortal({
         tone: 'error'
       });
       await load();
-    } catch {
-      setAction({ busy: null, message: 'Checkout could not reach the server. Try again.', tone: 'error' });
+    } catch (error) {
+      setAction({ busy: null, message: error instanceof Error ? error.message : 'Checkout could not reach the server. Try again.', tone: 'error' });
+      await load();
     }
   }
 
@@ -476,9 +447,7 @@ export default function BillingPortal({
   const activePaid = !!subscription && !subscription.requires_review &&
     (subscription.provider_status === 'active' || subscription.provider_status === 'trialing') &&
     !!subscription.paid_until && new Date(subscription.paid_until).getTime()>Date.now();
-  const selectedPending = view.data.selected;
-  const openCheckout = selectedPending && ['creating', 'open'].includes(selectedPending.state)
-    ? selectedPending : deposits.find((checkout) => checkout.state === 'creating' || checkout.state === 'open');
+  const purchases = deposits.filter(row => row.state === 'complete');
 
   return (
     <section className="billing-section seller-billing-design">
@@ -493,8 +462,6 @@ export default function BillingPortal({
         accessLabel={activePaid&&subscription?.paid_until?`${subscription.provider_status==='trialing'?'Trial ends':subscription.cancel_at_period_end?'Access ends':'Renews after'} ${new Date(subscription.paid_until).toLocaleDateString()}`:view.data.entitlement?.effective_source==='earned'?'Earned Pro · this calendar month':'Your seller benefits'}
         onAddCredits={()=>setFundingOpen(true)}
         onSelectPlan={()=>document.getElementById('seller-plans')?.scrollIntoView({behavior:'smooth',block:'start'})}/></div>
-        <CheckoutRecovery checkout={openCheckout} retained={retained} busy={action.busy !== null}
-          onContinue={(kind,value)=>void startCheckout(kind,value)} onCancel={id=>void cancelCheckout(id)}/>
         {action.message ? (
           <p className={`billing-message ${action.tone}`} role={action.tone === 'error' ? 'alert' : 'status'}>
             {action.message}
@@ -559,26 +526,20 @@ export default function BillingPortal({
       <PlanChangeDialog target={planChange} onClose={()=>setPlanChange(null)} onContinue={()=>{setPlanChange(null);void openPortal();}} busy={action.busy!==null} entitlement={view.data.entitlement} paidUntil={subscription?.paid_until}/>
       <div className="billing-card">
         <h2>Recent credit purchases</h2>
-        {deposits.length === 0 ? (
+        {purchases.length === 0 ? (
           <div className="billing-empty">
             <span className="status-chip">No purchases yet</span>
             <p>A completed credit purchase appears here after the payment is verified.</p>
           </div>
         ) : (
           <ul className="billing-history">
-            {deposits.map((checkout) => (
+            {purchases.map((checkout) => (
               <li key={checkout.id}>
                 <div>
                   <strong>{formatUsdMinor(checkout.amount_minor)} credit pack</strong>
                   <span>{new Date(checkout.created_at ?? '').toLocaleString()}</span>
                 </div>
-                <span className={`status-chip ${checkout.state === 'complete' ? 'success' : ''}`}>
-                  {checkout.state === 'complete'
-                    ? 'Verified — credited'
-                    : checkout.state === 'open' || checkout.state === 'creating'
-                      ? 'Awaiting payment'
-                      : checkout.state}
-                </span>
+                <span className="status-chip success">Verified — credited</span>
               </li>
             ))}
           </ul>
