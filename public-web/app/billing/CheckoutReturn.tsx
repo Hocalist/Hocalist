@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatUsdMinor } from '../lib/website-rules';
 import { confirmationDelay, confirmationCopy } from '../lib/checkout-confirmation';
 import BillingLoading from './BillingLoading';
+import { closeUnpaidCheckout } from './close-unpaid-checkout';
 import {
   resolveCheckoutView,
   type CheckoutRow,
@@ -72,7 +73,12 @@ export function CheckoutReturn({
         }
         return;
       }
-      const selected: CheckoutRow | null = body.selected ?? null;
+      let selected: CheckoutRow | null = body.selected ?? null;
+      if (cancelled && !body.preview && selected?.state === 'open' && selected.id === checkoutHint) {
+        await closeUnpaidCheckout(selected.id);
+        if (!isCurrent()) return;
+        selected = { ...selected, state: 'expired' };
+      }
       const deposits: CheckoutRow[] = Array.isArray(body.deposits) ? body.deposits : [];
       const view = resolveCheckoutView({ selected, deposits }, { cancelled, hintProvided: Boolean(checkoutHint) });
       pendingSince.current = view.mode === 'pending' ? pendingSince.current ?? Date.now() : null;
@@ -112,9 +118,10 @@ export function CheckoutReturn({
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', resume); };
   }, [state.kind, state.kind === 'ready' ? state.view.mode : null, load]);
 
+  const returnRoute = cancelled ? '/billing/cancel' : '/billing/return';
   const returnPath = checkoutHint
-    ? `/billing/return?checkout=${encodeURIComponent(checkoutHint)}`
-    : '/billing/return';
+    ? `${returnRoute}?checkout=${encodeURIComponent(checkoutHint)}`
+    : returnRoute;
 
   if (state.kind === 'checking') {
     return (
