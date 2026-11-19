@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mediaEvidenceResolver } from "../app/lib/admin-media-evidence";
+import { mediaEvidenceResolver, reportImageResolver } from "../app/lib/admin-media-evidence";
 import { handleEvidenceCore, type CoreRequest } from "../app/lib/admin-http";
 
 const mediaId = "90000000-0000-4000-8000-000000000001";
@@ -35,6 +35,21 @@ test("denied reference never reads evidence bytes", async () => {
   const fetchImpl=(async()=>{calls++;return Response.json({reference_ok:false});}) as typeof fetch;
   const result=await handleEvidenceCore(req,{config,isProduction:false,mfaPolicy:"off",evidenceHost:null,fetchImpl},mediaEvidenceResolver);
   assert.equal(result.status,404);assert.equal(calls,1);assert.equal(result.image,undefined);
+});
+
+test("feedback screenshots use case-scoped admin reads, never ordinary user reads", async () => {
+  let calls=0;
+  const fetchImpl=(async(input,init)=>{
+    calls++;
+    const url=new URL(String(input));
+    assert.equal(new Headers(init?.headers).get('Authorization'),`Bearer ${token}`);
+    if(calls===1){assert.equal(url.pathname,'/rest/v1/rpc/admin_report_evidence_reference');return Response.json({reference_ok:true});}
+    assert.equal(url.searchParams.get('action'),'report-evidence');
+    assert.equal(url.searchParams.get('submission_id'),mediaId);
+    return new Response(new Uint8Array([255,216,255,217]),{headers:{'Content-Type':'image/jpeg'}});
+  }) as typeof fetch;
+  const result=await handleEvidenceCore(req,{config,isProduction:false,mfaPolicy:'off',evidenceHost:null,fetchImpl},reportImageResolver,'report');
+  assert.equal(result.status,200);assert.equal(calls,2);
 });
 
 test("gateway refuses HTML, oversized images and provider failure", async () => {
