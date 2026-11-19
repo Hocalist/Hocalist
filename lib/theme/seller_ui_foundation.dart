@@ -8,6 +8,7 @@ import '../components/hocalist_motion.dart';
 import '../features/approved/approved_replica_metrics.dart';
 import 'accessibility_visuals.dart';
 import 'adaptive_palette.dart';
+import 'sheet_content_theme.dart';
 
 export '../features/approved/approved_replica_metrics.dart';
 
@@ -205,6 +206,7 @@ class SellerPrimaryButton extends StatelessWidget {
     this.compact = false,
     this.minimumHeight,
     this.colors,
+    this.foreground = SellerUiColors.white,
     super.key,
   });
 
@@ -216,6 +218,7 @@ class SellerPrimaryButton extends StatelessWidget {
   final bool compact;
   final double? minimumHeight;
   final List<Color>? colors;
+  final Color foreground;
 
   @override
   Widget build(BuildContext context) {
@@ -293,9 +296,7 @@ class SellerPrimaryButton extends StatelessWidget {
                             metrics,
                             fontSize,
                             weight: FontWeight.w600,
-                            color: accessibility.foregroundOr(
-                              SellerUiColors.white,
-                            ),
+                            color: accessibility.foregroundOr(foreground),
                           ),
                         ),
                       ),
@@ -320,12 +321,14 @@ class SellerSecondaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.compact = false,
+    this.color = SellerUiColors.primaryBright,
     super.key,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool compact;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +366,7 @@ class SellerSecondaryButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: HocalistPalette.text(
               context,
-              SellerUiColors.primaryBright,
+              color,
             ),
             minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
             padding: EdgeInsets.symmetric(
@@ -375,7 +378,7 @@ class SellerSecondaryButton extends StatelessWidget {
                 context,
                 accessibility.usesHighContrastButton
                     ? accessibility.buttonBackground
-                    : SellerUiColors.primaryBright,
+                    : color,
               ),
               width: accessibility.usesHighContrastButton
                   ? accessibility.buttonBorderWidth
@@ -404,16 +407,16 @@ class SellerSecondaryButton extends StatelessWidget {
 /// confirmations, and pickers.
 class SellerModalSheet extends StatelessWidget {
   const SellerModalSheet({
-    required this.icon,
+    this.icon,
     required this.title,
-    required this.subtitle,
+    this.subtitle = '',
     required this.onClose,
     required this.child,
     this.accentColor = SellerUiColors.primaryBright,
     super.key,
   });
 
-  final IconData icon;
+  final IconData? icon;
   final String title;
   final String subtitle;
   final VoidCallback onClose;
@@ -471,23 +474,25 @@ class SellerModalSheet extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: metrics.artSize(34),
-                        height: metrics.artSize(34),
-                        decoration: BoxDecoration(
-                          color: HocalistPalette.surface(
-                            context,
-                            SellerUiColors.lavender,
+                      if (icon != null) ...[
+                        Container(
+                          width: metrics.artSize(34),
+                          height: metrics.artSize(34),
+                          decoration: BoxDecoration(
+                            color: HocalistPalette.surface(
+                              context,
+                              SellerUiColors.lavender,
+                            ),
+                            shape: BoxShape.circle,
                           ),
-                          shape: BoxShape.circle,
+                          child: Icon(
+                            icon,
+                            size: metrics.artSize(18),
+                            color: HocalistPalette.text(context, accentColor),
+                          ),
                         ),
-                        child: Icon(
-                          icon,
-                          size: metrics.artSize(18),
-                          color: HocalistPalette.text(context, accentColor),
-                        ),
-                      ),
-                      SizedBox(width: metrics.spacing(10)),
+                        SizedBox(width: metrics.spacing(10)),
+                      ],
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.only(top: metrics.spacing(1)),
@@ -503,16 +508,18 @@ class SellerModalSheet extends StatelessWidget {
                                   weight: FontWeight.w900,
                                 ),
                               ),
-                              SizedBox(height: metrics.spacing(3)),
-                              Text(
-                                subtitle,
-                                style: sellerText(
-                                  metrics,
-                                  10.75,
-                                  color: SellerUiColors.muted,
-                                  height: 1.35,
+                              if (subtitle.isNotEmpty) ...[
+                                SizedBox(height: metrics.spacing(3)),
+                                Text(
+                                  subtitle,
+                                  style: sellerText(
+                                    metrics,
+                                    10.75,
+                                    color: SellerUiColors.muted,
+                                    height: 1.35,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),
@@ -533,7 +540,28 @@ class SellerModalSheet extends StatelessWidget {
                     ],
                   ),
                   SizedBox(height: metrics.spacing(14)),
-                  child,
+                  SheetContentTheme(
+                    body: sellerText(
+                      metrics,
+                      12,
+                      color: SellerUiColors.body,
+                      height: 1.45,
+                    ),
+                    heading: sellerText(
+                      metrics,
+                      13,
+                      weight: FontWeight.w800,
+                      height: 1.3,
+                    ),
+                    caption: sellerText(
+                      metrics,
+                      11,
+                      color: SellerUiColors.muted,
+                      height: 1.35,
+                    ),
+                    action: sellerText(metrics, 13, weight: FontWeight.w800),
+                    child: child,
+                  ),
                 ],
               ),
             ),
@@ -944,7 +972,7 @@ class SellerSectionHeading extends StatelessWidget {
                   12,
                   weight: FontWeight.w800,
                   color: SellerUiColors.primaryBright,
-                ).copyWith(fontFamily: 'Nunito'),
+                ),
               ),
               child: Text(
                 actionLabel!,
@@ -997,6 +1025,96 @@ class SellerProgressStrip extends StatelessWidget {
           borderRadius: BorderRadius.circular(99),
           child: HocalistLoadingIndicator(),
         ),
+      ],
+    );
+  }
+}
+
+class SellerNestedHeader extends StatelessWidget {
+  const SellerNestedHeader({
+    required this.title,
+    required this.subtitle,
+    required this.onBack,
+    this.backKey,
+    super.key,
+  });
+
+  final String title, subtitle;
+  final VoidCallback? onBack;
+  final Key? backKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics =
+        ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (onBack != null) ...[
+          SizedBox(
+            width: metrics.artSize(44),
+            height: metrics.artSize(44),
+            child: IconButton(
+              key: backKey,
+              tooltip: 'Back',
+              onPressed: onBack,
+              padding: EdgeInsets.zero,
+              icon: Icon(
+                Icons.arrow_back,
+                color: HocalistPalette.text(
+                  context,
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).colorScheme.onSurface
+                      : SellerUiColors.ink,
+                ),
+                size: metrics.artSize(23),
+              ),
+            ),
+          ),
+          SizedBox(width: metrics.spacing(6)),
+        ],
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(top: metrics.spacing(3)),
+            child: Column(
+              children: [
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: sellerText(
+                    metrics,
+                    16,
+                    weight: FontWeight.w800,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).colorScheme.onSurface
+                        : SellerUiColors.ink,
+                  ),
+                ),
+                SizedBox(height: metrics.spacing(3)),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: sellerText(
+                    metrics,
+                    12,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                        : SellerUiColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (onBack != null) ...[
+          SizedBox(width: metrics.spacing(6)),
+          SizedBox(width: metrics.artSize(44)),
+        ],
       ],
     );
   }

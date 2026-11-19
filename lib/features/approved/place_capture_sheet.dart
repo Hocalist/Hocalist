@@ -63,7 +63,11 @@ class PlaceCaptureResult {
 /// Shows the capture sheet and returns the confirmed place, or null.
 Future<PlaceCaptureResult?> showPlaceCaptureSheet({
   required BuildContext context,
+  String? title,
+  String? subtitle,
+  String? confirmLabel,
   bool privateAddress = false,
+  bool savingPlace = false,
   bool requireTimezone = false,
   PlacesRepository? places,
   HocalistMapBuilder? mapBuilder,
@@ -89,8 +93,10 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
         child: Align(
           alignment: Alignment.bottomCenter,
           child: PlaceCaptureSheet(
+            title: title, subtitle: subtitle, confirmLabel: confirmLabel,
             requireTimezone: requireTimezone,
             privateAddress: privateAddress,
+      savingPlace: savingPlace,
             places: places,
             mapBuilder: mapBuilder,
             locationReader: locationReader,
@@ -117,8 +123,10 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
     backgroundColor: HocalistPalette.surface(context, Colors.transparent),
     barrierColor: const Color(0x990B1231),
     builder: (sheetContext) => PlaceCaptureSheet(
+      title: title, subtitle: subtitle, confirmLabel: confirmLabel,
       requireTimezone: requireTimezone,
       privateAddress: privateAddress,
+      savingPlace: savingPlace,
       places: places,
       mapBuilder: mapBuilder,
       locationReader: locationReader,
@@ -130,8 +138,12 @@ Future<PlaceCaptureResult?> showPlaceCaptureSheet({
 
 class PlaceCaptureSheet extends StatefulWidget {
   const PlaceCaptureSheet({
+    this.title,
+    this.subtitle,
+    this.confirmLabel,
     this.requireTimezone = false,
     this.privateAddress = false,
+    this.savingPlace = false,
     this.places,
     this.mapBuilder,
     this.locationReader,
@@ -141,8 +153,12 @@ class PlaceCaptureSheet extends StatefulWidget {
   });
 
   final PlacesRepository? places;
+  final String? title;
+  final String? subtitle;
+  final String? confirmLabel;
   final bool requireTimezone;
   final bool privateAddress;
+  final bool savingPlace;
   final HocalistMapBuilder? mapBuilder;
   final LocationReader? locationReader;
   final PlaceCaptureResult? initial;
@@ -160,7 +176,6 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
   final TextEditingController _regionController = TextEditingController();
   final TextEditingController _countryController = TextEditingController();
   Timer? _debounce;
-  Timer? _pinDebounce;
   int _pinToken = 0;
   bool _resolvingCoordinates = false;
   int _searchToken = 0;
@@ -197,7 +212,6 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
   @override
   void dispose() {
     _debounce?.cancel();
-    _pinDebounce?.cancel();
     _queryController.dispose();
     _labelController.dispose();
     _addressController.dispose();
@@ -227,7 +241,6 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
 
   void _onQueryChanged(String value) {
     _debounce?.cancel();
-    _pinDebounce?.cancel();
     _pinToken++;
     _searchToken++;
     setState(() {
@@ -310,7 +323,6 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
   Future<void> _choose(PlaceSuggestion suggestion) async {
     final places = widget.places;
     if (places == null) return;
-    _pinDebounce?.cancel();
     _pinToken++;
     final token = ++_searchToken;
     setState(() {
@@ -453,41 +465,6 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
     }
   }
 
-  void _movePin(HocalistCoordinates coordinates) {
-    final current = _confirmed;
-    if (current == null) return;
-    // Map initialisation can echo the existing pin. It must not discard an
-    // already resolved timezone unless the destination actually changes.
-    if (current.latitude == coordinates.latitude &&
-        current.longitude == coordinates.longitude) {
-      return;
-    }
-    _searchToken++;
-    setState(() {
-      _confirmed = PlaceCaptureResult(
-        label: current.label,
-        // Do not attach the old street address to a different destination.
-        address: '',
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-        attributions: current.attributions,
-        source: current.source,
-      );
-      _addressController.clear();
-      _queryController.clear();
-      _locationError = null;
-      _manual = false;
-      _resolvingCoordinates = true;
-    });
-    _pinDebounce?.cancel();
-    final token = ++_pinToken;
-    _pinDebounce = Timer(const Duration(milliseconds: 400), () {
-      if (mounted && token == _pinToken) {
-        unawaited(_resolveCoordinates(coordinates.latitude, coordinates.longitude));
-      }
-    });
-  }
-
   Future<void> _resolveCoordinates(double latitude, double longitude) async {
     final token = ++_pinToken;
     final places = widget.places;
@@ -514,7 +491,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
       if (!mounted || token != _pinToken) return;
       setState(() {
         _resolvingCoordinates = false;
-        _locationError = 'We could not find the address for this pin. Move it onto a street or search for the address above.';
+        _locationError = 'We could not find an address here. Search for your address above.';
       });
     }
   }
@@ -649,91 +626,6 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
     );
   }
 
-  Widget _mapPreview(BuildContext context, PlaceCaptureResult confirmed) {
-    final metrics =
-        ApprovedReplicaScope.maybeOf(context) ??
-        ApprovedReplicaMetrics.resolve(
-          brightness: Theme.of(context).brightness,
-          availableWidth: MediaQuery.sizeOf(context).width,
-          textScaler: MediaQuery.textScalerOf(context),
-        );
-    final hasMap = widget.mapBuilder != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Map preview',
-                style: BuyerTypography.style(
-                  context,
-                  metrics,
-                  BuyerTextRole.cardTitle,
-                ).copyWith(fontSize: metrics.fontSize(12.5)),
-              ),
-            ),
-            SizedBox(width: metrics.spacing(8)),
-            Flexible(
-              child: BuyerStatusChip(
-                label: hasMap ? 'Pin movable' : 'Preview only',
-                icon: hasMap
-                    ? Icons.open_with_rounded
-                    : Icons.visibility_outlined,
-                tone: hasMap ? BuyerNoticeTone.brand : BuyerNoticeTone.neutral,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: metrics.spacing(6)),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(metrics.geometry(14)),
-          child: SizedBox(
-            height: metrics.geometry(180),
-            child: hasMap
-                ? widget.mapBuilder!(
-                    context,
-                    latitude: confirmed.latitude!,
-                    longitude: confirmed.longitude!,
-                    onMoved: _movePin,
-                  )
-                : HocalistMapPlaceholder(
-                    latitude: confirmed.latitude!,
-                    longitude: confirmed.longitude!,
-                  ),
-          ),
-        ),
-        SizedBox(height: metrics.spacing(6)),
-        Text(
-          hasMap
-              ? widget.privateAddress
-                    ? 'Move the pin to your address. Your saved address stays private.'
-                    : 'Move the pin if the meeting point is slightly '
-                          'different. The other party sees the agreed place only.'
-              : 'Confirm the searched address, or search again to choose '
-                    'a different place. Pin movement needs the map preview.',
-          style: BuyerTypography.style(
-            context,
-            metrics,
-            BuyerTextRole.secondaryBody,
-          ),
-        ),
-        for (final attribution in confirmed.attributions) ...[
-          SizedBox(height: metrics.spacing(2)),
-          Text(
-            attribution.provider,
-            key: ValueKey('hocalistPlaceAttribution-${attribution.provider}'),
-            style: BuyerTypography.style(
-              context,
-              metrics,
-              BuyerTextRole.metadata,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _confirmedCard(BuildContext context, PlaceCaptureResult confirmed) {
     final metrics =
         ApprovedReplicaScope.maybeOf(context) ??
@@ -779,7 +671,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 BuyerStatusChip(
-                  label: _resolvingCoordinates ? 'Finding address…' : confirmed.address.isEmpty ? 'Selected pin' : 'Confirmed place',
+                  label: _resolvingCoordinates ? 'Finding address…' : confirmed.address.isEmpty ? 'Selected location' : 'Confirmed place',
                   icon: Icons.place_rounded,
                   tone: BuyerNoticeTone.brand,
                 ),
@@ -911,9 +803,9 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.privateAddress
+                            widget.title ?? (widget.savingPlace ? 'Add saved place' : widget.privateAddress
                                 ? 'Choose your saved address'
-                                : 'Choose the meeting place',
+                                : 'Choose the meeting place'),
                             style: BuyerTypography.style(
                               context,
                               metrics,
@@ -923,11 +815,11 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                           ),
                           SizedBox(height: metrics.spacing(3)),
                           Text(
-                            widget.privateAddress
+                            widget.subtitle ?? (widget.privateAddress
                                 ? 'Search for your address or use your current location. Your exact address stays private.'
                                 : 'Search for a public place or use your current '
                                       'location. The exact address is only shared with '
-                                      'the other party after the deal is agreed.',
+                                      'the other party after the deal is agreed.'),
                             style: BuyerTypography.style(
                               context,
                               metrics,
@@ -1203,7 +1095,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                   ],
                   if (_resolvingCoordinates) ...[
                     SizedBox(height: metrics.spacing(10)),
-                    const BuyerProgressStrip(label: 'Finding address and timezone…'),
+                    const BuyerProgressStrip(label: 'Finding your address…'),
                   ],
                   if (_locationError != null) ...[
                     SizedBox(height: metrics.spacing(10)),
@@ -1239,13 +1131,11 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                           TextField(key:const Key('hocalistPlaceCountryField'),controller:_countryController,
                             decoration:_placeInput(label:'Country',hint:'Country')),
                         ],
-                        if (confirmed != null && confirmed.hasCoordinates) ...[
-                          SizedBox(height: metrics.spacing(14)),
-                          _mapPreview(context, confirmed),
-                        ],
                         if (confirmed != null) ...[
                           SizedBox(height: metrics.spacing(12)),
                           _confirmedCard(context, confirmed),
+                          for(final attribution in confirmed.attributions)
+                            Padding(padding:const EdgeInsets.only(top:4),child:Text(attribution.provider,key:ValueKey('hocalistPlaceAttribution-${attribution.provider}'))),
                         ],
                       ],
                     ),
@@ -1267,11 +1157,11 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                   child: BuyerPrimaryButton(
                     key: const Key('hocalistPlaceConfirm'),
                     onPressed: _resolvingCoordinates || _searching ? null : _confirm,
-                    label: confirmed == null
+                    label: widget.confirmLabel ?? (widget.savingPlace ? 'Save place' : confirmed == null
                         ? 'Use this place'
                         : widget.privateAddress
                         ? 'Use this address'
-                        : 'Confirm meeting place',
+                        : 'Confirm meeting place'),
                   ),
                 ),
               ),

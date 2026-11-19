@@ -277,7 +277,7 @@ class Phase2WithdrawalBackend implements WithdrawalBackend {
 
 /// Set true only after the reviewed upgrade bundle is applied and provider
 /// execution is approved. Payout provider eligibility stays a coordinator gate.
-const bool kWithdrawalsEnabled = false;
+const bool kWithdrawalsEnabled = bool.fromEnvironment('HOCALIST_REWARD_PAYOUT_SANDBOX');
 
 /// Status reads do not enable withdrawal requests or provider execution.
 const bool kWithdrawalReadsEnabled = bool.fromEnvironment(

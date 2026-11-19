@@ -35,6 +35,34 @@ PublicStoreListing listing(String seller, {String id = 'listing'}) =>
       priceLabel: '\$250',
     );
 void main() {
+  testWidgets('profile listing photos stay compact across phone and desktop widths', (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    for (final width in [320.0, 390.0, 1440.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        await tester.binding.setSurfaceSize(Size(width, 900));
+        final repo = ListingsFake()..load = (seller, cursor) async => RepositorySuccess(PageSlice(items: [listing(seller)]));
+        await tester.pumpWidget(MaterialApp(home: MediaQuery(
+          data: MediaQueryData(size: Size(width, 900), textScaler: TextScaler.linear(scale)),
+          child: Scaffold(body: SingleChildScrollView(child: PublicSellerListings(key: ValueKey('$width-$scale'), repository: repo, sellerProfileId: 'seller'))),
+        )));
+        await tester.pumpAndSettle();
+        final photo = tester.getSize(find.byKey(const ValueKey('public-listing-photo-listing')));
+        expect(photo.height, lessThanOrEqualTo(96));
+        expect(photo.height, greaterThanOrEqualTo(64));
+        expect(find.text('Published tablet'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+  testWidgets('published listing opens its own enquiry and prevents duplicate taps',(tester) async {
+    final repo=ListingsFake()..load=(seller,cursor) async=>RepositorySuccess(PageSlice(items:[listing(seller)]));
+    final pending=Completer<void>();final opened=<String>[];
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:SingleChildScrollView(child:PublicSellerListings(repository:repo,sellerProfileId:'seller',onEnquire:(item) async {opened.add(item.id);await pending.future;})))));
+    await tester.pumpAndSettle();
+    final action=find.byKey(const ValueKey('enquire-listing'));await tester.ensureVisible(action);await tester.tap(action);await tester.pump();
+    expect(opened,['listing']);expect(tester.widget<FilledButton>(action).onPressed,isNull);
+    pending.complete();await tester.pumpAndSettle();expect(tester.widget<FilledButton>(action).onPressed,isNotNull);
+  });
   Future<void> pump(
     WidgetTester tester,
     ListingsFake repo, {
@@ -56,7 +84,7 @@ void main() {
   }
 
   testWidgets(
-    'published details expand; pagination failure retains items and cursor',
+    'published details open separately; pagination failure retains items and cursor',
     (tester) async {
       final repo = ListingsFake();
       final cursors = <String?>[];
@@ -73,6 +101,10 @@ void main() {
       await tester.tap(find.text('Published tablet'));
       await tester.pumpAndSettle();
       expect(find.text('Includes the original charger.'), findsOneWidget);
+      expect(find.text('Listing details'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Listing details'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Includes the original charger.'), findsNothing);
       for (var i = 0; i < 2; i++) {
         await tester.tap(find.text('Load more listings'));
         await tester.pumpAndSettle();

@@ -27,12 +27,14 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(fontFamily: 'Nunito'),
-        home: MediaQuery(
-          data: MediaQueryData(
-            size: Size(width, 1200),
-            textScaler: TextScaler.linear(scale),
+        builder: (context, child) => RepaintBoundary(
+          key: const Key('walletScreen'),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
           ),
-          child: Scaffold(
+        ),
+        home: Scaffold(
             body: PullRefreshHost(
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -45,12 +47,38 @@ void main() {
                 ),
               ),
             ),
-          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('current seller fees open their explanation', (tester) async {
+    await pump(tester, () async => CreditWalletView.fromJson(creditWalletJson()));
+    expect(find.text('Your current targeting fees'), findsOneWidget);
+    final help = find.text('How fees work');
+    await tester.ensureVisible(help);
+    await tester.tap(help);
+    await tester.pumpAndSettle();
+    expect(find.text('Do I pay both amounts?'), findsOneWidget);
+    expect(find.textContaining('winning total includes the initial fee'), findsOneWidget);
+  });
+
+  testWidgets('activity help explains every displayed status, including on an empty ledger', (tester) async {
+    await pump(tester, () async => CreditWalletView.fromJson(creditWalletJson(targets: [])), width: 320);
+    final help = find.byTooltip('What do these statuses mean?');
+    await tester.ensureVisible(help);
+    await tester.tap(help);
+    await tester.pumpAndSettle();
+    expect(find.text('Activity statuses'), findsOneWidget);
+    for (final label in ['Reserved', 'Initial fee charged', 'Completed', 'Released', 'Refunded']) {
+      expect(find.text(label), findsWidgets);
+    }
+    await tester.tap(find.byTooltip('Close').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Activity statuses'), findsNothing);
+    expect(find.text('No activity here yet'), findsOneWidget);
+  });
 
   testWidgets('a failed read shows no fabricated credits and offers retry', (
     tester,
@@ -105,6 +133,45 @@ void main() {
     expect(find.byKey(const Key('creditWalletNoPacks')), findsOneWidget);
     expect(find.textContaining('No credit packs available'), findsOneWidget);
     expect(find.textContaining('Item payment stays offline'), findsOneWidget);
+  });
+
+  testWidgets('seller opens the reserved total for holds outside recent activity', (tester) async {
+    final json = creditWalletJson(reserved: 550, reversalHold: 100, targets: [])
+      ..['reserved_offers'] = [
+        {'request_title': 'Kitchen repair', 'request_id': 'req-1', 'offer_id': 'abcd-1234',
+         'held_minor': 450, 'charged_minor': 0, 'next_step': 'meeting'},
+      ];
+    await pump(tester, () async => CreditWalletView.fromJson(json), width: 320, scale: 1.6);
+    await tester.tap(find.byKey(const Key('creditWalletReserved')));
+    await tester.pumpAndSettle();
+    expect(find.text('5.50 HC held in your wallet'), findsOneWidget);
+    expect(find.text('Kitchen repair'), findsOneWidget);
+    expect(find.text('4.50 HC'), findsOneWidget);
+    expect(find.textContaining('Your meeting is active'), findsOneWidget);
+    expect(find.text('Payment review'), findsOneWidget);
+    expect(find.text('Other reserved credits'), findsNothing);
+    expect(tester.takeException(), isNull);
+    if (const bool.fromEnvironment('HOCALIST_VISUAL_CAPTURE')) {
+      final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(const Key('walletScreen')));
+      await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await File('${Directory.systemTemp.path}/reserved-seller-layout.png').writeAsBytes(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+  });
+
+  testWidgets('previous wallet response shows only outstanding holds', (tester) async {
+    final json = creditWalletJson(targets: [targetJson(), targetJson(title: 'Finished',
+      status: 'won', reserved: 0, charged: 375)]);
+    await pump(tester, () async => CreditWalletView.fromJson(json));
+    await tester.tap(find.byKey(const Key('creditWalletReserved')));
+    await tester.pumpAndSettle();
+    final sheet = find.byType(BottomSheet);
+    expect(find.descendant(of: sheet, matching: find.text('Sold camera')), findsOneWidget);
+    expect(find.descendant(of: sheet, matching: find.text('Finished')), findsNothing);
+    expect(find.textContaining('The initial fee has been charged'), findsOneWidget);
   });
 
   testWidgets('empty ledger renders honest empty states', (tester) async {
@@ -196,7 +263,7 @@ void main() {
               final bytes = await image.toByteData(
                 format: ui.ImageByteFormat.png,
               );
-              final file = File('.codex-local/credit-wallet-current.png');
+              final file = File('${Directory.systemTemp.path}/credit-wallet-current.png');
               await file.parent.create(recursive: true);
               await file.writeAsBytes(bytes!.buffer.asUint8List());
               image.dispose();

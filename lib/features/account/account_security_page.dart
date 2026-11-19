@@ -195,7 +195,6 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
                     : 'Current email: ${controller.email}',
                 key: const ValueKey('security-current-email'),
                 style: TextStyle(
-                  fontFamily: 'Nunito',
                   fontSize: 12.5,
                   color: HocalistPalette.text(context, BuyerUiTokens.muted),
                 ),
@@ -241,7 +240,6 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
               Text(
                 'Email changes need confirmation from the new address before they take effect.',
                 style: TextStyle(
-                  fontFamily: 'Nunito',
                   fontSize: 11.5,
                   height: 1.35,
                   color: HocalistPalette.text(context, BuyerUiTokens.muted),

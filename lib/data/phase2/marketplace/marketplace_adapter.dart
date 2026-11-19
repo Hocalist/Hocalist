@@ -898,6 +898,14 @@ class MarketplaceDataAdapter
 
   @override
   Future<RepositoryResult<Offer>> submitOffer(SubmitOfferCommand command) {
+    final publication = command.terms.storePublication;
+    if (publication != null) {
+      return _read('hocatrends_submit_store_offer', {
+        'p_key': command.idempotencyKey,
+        'p_offer': {'request_id': command.requestId, ..._offerFields(command.terms)},
+        'p_listing': publication.toInput(),
+      }, decodeOfferJson);
+    }
     return _commandRecord('offer.submit', command.idempotencyKey, {
       'request_id': command.requestId,
       ..._offerFields(command.terms),
@@ -1092,6 +1100,12 @@ class MarketplaceDataAdapter
       'publish': command.publish,
     }, decodeStoreListingJson);
   }
+
+  Future<RepositoryResult<StoreListing>> restoreStoreListing({
+    required String listingId, required int expectedRevision, required String operationKey,
+  }) => _read('marketplace_restore_store_listing', {
+    'p_listing': listingId, 'p_revision': expectedRevision, 'p_key': operationKey,
+  }, decodeStoreListingJson);
 
   @override
   Future<RepositoryResult<StoreListing>> archiveStoreListing(

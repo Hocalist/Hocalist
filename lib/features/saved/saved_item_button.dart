@@ -141,7 +141,7 @@ class _SavedItemButtonState extends State<SavedItemButton> {
                 ? 'Retry saved action'
                 : saved
                 ? 'Remove from saved'
-                : 'Save request',
+                : 'Bookmark request',
           ),
         ),
       ],

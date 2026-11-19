@@ -12,6 +12,7 @@ import '../../domain/phase2/accounts.dart';
 class AuthIdentitySnapshot {
   const AuthIdentitySnapshot({
     this.userId,
+    this.lastSignInAt,
     this.email,
     this.displayName,
     this.recovery = false,
@@ -20,12 +21,14 @@ class AuthIdentitySnapshot {
 
   const AuthIdentitySnapshot.signedOut()
     : userId = null,
+      lastSignInAt = null,
       email = null,
       displayName = null,
       recovery = false,
       pendingEmailChange = null;
 
   final String? userId;
+  final String? lastSignInAt;
   final String? email;
 
   /// Optional `full_name` metadata, used only to prefill the onboarding form.
@@ -51,6 +54,7 @@ class AuthIdentitySnapshot {
   }) {
     return AuthIdentitySnapshot(
       userId: userId ?? this.userId,
+      lastSignInAt: lastSignInAt,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
       recovery: recovery ?? this.recovery,
@@ -62,6 +66,7 @@ class AuthIdentitySnapshot {
   bool operator ==(Object other) =>
       other is AuthIdentitySnapshot &&
       other.userId == userId &&
+      other.lastSignInAt == lastSignInAt &&
       other.email == email &&
       other.displayName == displayName &&
       other.recovery == recovery &&
@@ -69,7 +74,7 @@ class AuthIdentitySnapshot {
 
   @override
   int get hashCode =>
-      Object.hash(userId, email, displayName, recovery, pendingEmailChange);
+      Object.hash(userId, lastSignInAt, email, displayName, recovery, pendingEmailChange);
 
   @override
   String toString() =>
@@ -148,6 +153,8 @@ abstract interface class AccountAuthGateway {
     required String email,
     required String password,
   });
+
+  Future<void> resendSignupConfirmation(String email);
 
   /// Sends a passwordless email link for the loopback development preview.
   /// The Auth identity is still delivered through [identityChanges].

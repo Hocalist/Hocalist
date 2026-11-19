@@ -18,9 +18,11 @@ class SellerPaymentPanel extends StatefulWidget {
     this.creditPurchase = false,
     this.label,
     this.compact = false,
+    this.preserveDraft = false,
     super.key,
   });
   final bool compact;
+  final bool preserveDraft;
   final String? label;
   final Future<bool> Function(Uri)? open;
   final bool creditPurchase;
@@ -77,7 +79,9 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
           );
           fence.check();
           if (!mounted) return;
-          if (submitBillingSession(sellerBillingWebsite(), token, userId)) {
+          if (submitBillingSession(sellerBillingWebsite(), token, userId,
+              newWindow: widget.preserveDraft)) {
+            if (mounted) setState(() => _busy = false);
             return;
           }
         }
@@ -89,7 +93,7 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
                 mode: kIsWeb
                     ? LaunchMode.platformDefault
                     : LaunchMode.externalApplication,
-                webOnlyWindowName: kIsWeb ? '_self' : null,
+                webOnlyWindowName: kIsWeb ? (widget.preserveDraft ? '_blank' : '_self') : null,
               ))(sellerBillingWebsite());
       if (mounted) {
         setState(() {

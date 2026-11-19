@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'adaptive_palette.dart';
 
 import 'buyer_ui_foundation.dart';
 import 'seller_ui_foundation.dart';
@@ -11,6 +12,7 @@ ApprovedReplicaMetrics _controlMetrics(BuildContext context) {
       ApprovedReplicaMetrics.resolve(
         availableWidth: media.size.width,
         textScaler: media.textScaler,
+        brightness: Theme.of(context).brightness,
       );
 }
 
@@ -87,7 +89,7 @@ class HocalistSearchField extends StatelessWidget {
     final accent = _controlAccent(role);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(metrics.geometry(12)),
-      borderSide: BorderSide(color: _controlBorder(role)),
+      borderSide: BorderSide(color: HocalistPalette.border(context, _controlBorder(role))),
     );
     return TextField(
       controller: controller,
@@ -113,11 +115,11 @@ class HocalistSearchField extends StatelessWidget {
           color: _controlMuted(role),
         ),
         filled: true,
-        fillColor: _controlSurface(role),
+        fillColor: HocalistPalette.surface(context, _controlSurface(role)),
         prefixIcon: Icon(
           Icons.search_rounded,
           size: metrics.artSize(19),
-          color: _controlMuted(role),
+          color: HocalistPalette.text(context, _controlMuted(role)),
         ),
         suffixIcon: controller.text.isEmpty
             ? null
@@ -128,7 +130,7 @@ class HocalistSearchField extends StatelessWidget {
                 icon: Icon(
                   Icons.close_rounded,
                   size: metrics.artSize(18),
-                  color: accent,
+                  color: HocalistPalette.text(context, accent),
                 ),
               ),
         contentPadding: EdgeInsets.symmetric(
@@ -155,6 +157,7 @@ class HocalistSelectMenu<T> extends StatelessWidget {
     required this.labelBuilder,
     required this.onSelected,
     this.selectedLabelBuilder,
+    this.trigger,
     this.leading,
     this.expanded = false,
     this.compact = false,
@@ -167,7 +170,9 @@ class HocalistSelectMenu<T> extends StatelessWidget {
   final List<T> options;
   final String Function(T value) labelBuilder;
   final String Function(T value)? selectedLabelBuilder;
-  final ValueChanged<T> onSelected;
+  /// Keeps the approved artwork or compact label of an existing trigger.
+  final Widget? trigger;
+  final ValueChanged<T>? onSelected;
   final IconData? leading;
   final bool expanded;
   final bool compact;
@@ -176,9 +181,9 @@ class HocalistSelectMenu<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = _controlMetrics(context);
-    final accent = _controlAccent(role);
+    final accent = HocalistPalette.text(context, _controlAccent(role));
     final radius = metrics.geometry(11);
-    final control = Container(
+    final control = trigger ?? Container(
       width: expanded ? double.infinity : null,
       constraints: BoxConstraints(
         minHeight: metrics.geometry(compact ? 38 : 44),
@@ -187,8 +192,8 @@ class HocalistSelectMenu<T> extends StatelessWidget {
         horizontal: metrics.spacing(compact ? 9 : 11),
       ),
       decoration: BoxDecoration(
-        color: _controlSurface(role),
-        border: Border.all(color: _controlBorder(role)),
+        color: HocalistPalette.surface(context, _controlSurface(role)),
+        border: Border.all(color: HocalistPalette.border(context, _controlBorder(role))),
         borderRadius: BorderRadius.circular(radius),
       ),
       child: Row(
@@ -218,15 +223,17 @@ class HocalistSelectMenu<T> extends StatelessWidget {
           semanticLabel ??
           'Select ${(selectedLabelBuilder ?? labelBuilder)(value)}',
       child: PopupMenuButton<T>(
+        enabled: onSelected != null,
+        tooltip: semanticLabel,
         initialValue: value,
         position: PopupMenuPosition.under,
-        color: Colors.white,
-        surfaceTintColor: Colors.white,
+        color: HocalistPalette.surface(context, Colors.white),
+        surfaceTintColor: Colors.transparent,
         elevation: 8,
         constraints: const BoxConstraints(minWidth: 190, maxWidth: 300),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(metrics.geometry(14)),
-          side: BorderSide(color: _controlBorder(role)),
+          side: BorderSide(color: HocalistPalette.border(context, _controlBorder(role))),
         ),
         onSelected: onSelected,
         itemBuilder: (context) => [
@@ -307,18 +314,20 @@ class HocalistFilterChip extends StatelessWidget {
       showCheckmark: false,
       avatar: icon == null
           ? null
-          : Icon(icon, size: metrics.artSize(16), color: accent),
+          : Icon(icon, size: metrics.artSize(16), color: HocalistPalette.text(context, accent)),
       label: Text(label),
       labelStyle: _controlTextStyle(
         context,
         metrics,
         role,
         size: 11.5,
-        color: selected ? accent : _controlText(role),
+        color: HocalistPalette.text(context, selected ? accent : _controlText(role)),
       ),
-      selectedColor: _controlSurface(role),
-      backgroundColor: Colors.white,
-      side: BorderSide(color: selected ? accent : _controlBorder(role)),
+      selectedColor: HocalistPalette.surface(context,
+        Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xffe7e5ff) : _controlSurface(role)),
+      backgroundColor: HocalistPalette.surface(context, Colors.white),
+      side: BorderSide(color: HocalistPalette.border(context, selected ? accent : _controlBorder(role))),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
       ),

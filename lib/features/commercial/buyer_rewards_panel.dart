@@ -116,7 +116,7 @@ class _BuyerRewardsPanelState extends State<BuyerRewardsPanel> {
   String _statusLabel(RewardItemView item) => switch (item.status) {
     RewardItemStatus.earned =>
       item.holdMinor > 0 ? 'Earned — ${usd(item.holdMinor)} on hold' : 'Earned',
-    RewardItemStatus.held => 'On hold until the sale is confirmed',
+    RewardItemStatus.held => 'On hold',
   };
 
   BuyerNoticeTone _statusTone(RewardItemView item) => switch (item.status) {
@@ -359,6 +359,13 @@ class _BalanceCard extends StatelessWidget {
                   value: _BuyerRewardsPanelState.usd(value.earnedMinor),
                   valueKey: const Key('buyerRewardsEarned'),
                 ),
+                if (value.estimatedMinor != null)
+                  BuyerMetricTile(
+                    label: 'Pending estimated',
+                    value: _BuyerRewardsPanelState.usd(value.estimatedMinor!),
+                    valueKey: const Key('buyerRewardsEstimated'),
+                    tone: BuyerNoticeTone.neutral,
+                  ),
                 BuyerMetricTile(
                   label: 'Held',
                   value: _BuyerRewardsPanelState.usd(value.heldMinor),
@@ -380,6 +387,20 @@ class _BalanceCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (value.estimatedMinor != null) ...[
+              SizedBox(height: metrics.spacing(10)),
+              Text(
+                'Pending estimates cannot be withdrawn. Eligible contributions '
+                'become earned only after a PIN-confirmed purchase and fee '
+                'collection. Estimates expire if no purchase is confirmed.',
+                key: const Key('buyerRewardsEstimateExplanation'),
+                style: BuyerTypography.style(
+                  context,
+                  metrics,
+                  BuyerTextRole.secondaryBody,
+                ),
+              ),
+            ],
             if (value.shortfallMinor > 0) ...[
               SizedBox(height: metrics.spacing(12)),
               Container(

@@ -50,7 +50,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('TEST Library, Chicago'), findsOneWidget);
           expect(find.text('1. Select a date'), findsNothing);
-          expect(find.text('Confirm these details'), findsOneWidget);
+          expect(find.text('Send meeting proposal'), findsOneWidget);
           await tester.tap(find.text('Change location'));
           await tester.pumpAndSettle();
           expect(find.text('TEST new location'), findsOneWidget);

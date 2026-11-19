@@ -5,6 +5,7 @@ import '../../domain/phase2/schedule.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_schedule_controls.dart';
+import '../../theme/control_foundation.dart';
 
 class ApprovedSellerRescheduleDialog extends StatefulWidget {
   const ApprovedSellerRescheduleDialog({
@@ -200,7 +201,7 @@ class _ApprovedSellerRescheduleDialogState
                 SizedBox(height: metrics.geometry(4)),
                 Text(
                   !_editing && widget.offeredPlaceLabel != null
-                      ? 'Review the saved details. The other person must accept before the meeting is set.'
+                      ? (widget.initialProposal ? 'Review the saved details. The other person must accept before the meeting is set.' : 'Review your proposed changes. Your confirmed meeting stays unchanged until the other person accepts.')
                       : 'Choose a new date and arrival time for your meeting with ${widget.customerName}.',
                   style: sellerText(metrics, 12, color: SellerUiColors.body),
                 ),
@@ -211,11 +212,10 @@ class _ApprovedSellerRescheduleDialogState
                     title: "${widget.currentDate} · ${widget.currentTime}",
                     body: _placeLabel,
                   ),
-                  TextButton(
-                    onPressed: _busy || _uncertain
-                        ? null
-                        : () => setState(() => _editing = true),
-                    child: const Text('Change date or time'),
+                  SizedBox(height: metrics.spacing(10)),
+                  SellerSecondaryButton(
+                    label: 'Change date or time',
+                    onPressed: _busy || _uncertain ? null : () => setState(() => _editing = true),
                   ),
                 ],
                 if (_editing) ...[
@@ -263,8 +263,10 @@ class _ApprovedSellerRescheduleDialogState
                     },
                   ),
                 ],
-                if (widget.onChangeLocation != null)
-                  TextButton(
+                if (widget.onChangeLocation != null) ...[
+                  SizedBox(height: metrics.spacing(10)),
+                  SellerSecondaryButton(
+                    label: 'Change location',
                     onPressed: _busy || _uncertain
                         ? null
                         : () async {
@@ -273,33 +275,34 @@ class _ApprovedSellerRescheduleDialogState
                               setState(() => _placeLabel = value);
                             }
                           },
-                    child: const Text('Change location'),
                   ),
+                ],
                 if (widget.timezoneId != null) ...[
-                  Text('Meeting timezone: ${widget.timezoneId}'),
-                  if (_requiresOccurrence)
-                    DropdownButtonFormField<RepeatedTimeOccurrence>(
-                      isExpanded: true,
+                  SizedBox(height: metrics.spacing(12)),
+                  SellerStateNotice(icon: Icons.schedule_outlined,
+                    title: 'Meeting timezone: ${widget.timezoneId}',
+                    body: 'Times use the local timezone at the meeting location.'),
+                  if (_requiresOccurrence) ...[
+                    SizedBox(height: metrics.spacing(8)),
+                    Text('Choose which time', style: sellerText(metrics, 12, weight: FontWeight.w700)),
+                    SizedBox(height: metrics.spacing(6)),
+                    HocalistSelectMenu<RepeatedTimeOccurrence?>(
                       key: ValueKey(_occurrence),
-                      initialValue: _occurrence,
-                      decoration: sellerInputDecoration(
-                        context,
-                        labelText: 'Choose which time',
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: RepeatedTimeOccurrence.earlier,
-                          child: Text('Earlier occurrence'),
-                        ),
-                        DropdownMenuItem(
-                          value: RepeatedTimeOccurrence.later,
-                          child: Text('Later occurrence'),
-                        ),
-                      ],
-                      onChanged: _busy || _uncertain
+                      role: HocalistControlRole.seller,
+                      expanded: true,
+                      semanticLabel: 'Choose which time',
+                      value: _occurrence,
+                      options: const [RepeatedTimeOccurrence.earlier, RepeatedTimeOccurrence.later],
+                      labelBuilder: (value) => switch (value) {
+                        RepeatedTimeOccurrence.earlier => 'Earlier occurrence',
+                        RepeatedTimeOccurrence.later => 'Later occurrence',
+                        null => 'Select a time',
+                      },
+                      onSelected: _busy || _uncertain
                           ? null
                           : (value) => setState(() => _occurrence = value),
                     ),
+                  ],
                 ],
                 if (widget.onSubmit == null) ...[
                   SizedBox(height: metrics.spacing(12)),
@@ -363,10 +366,12 @@ class _ApprovedSellerRescheduleDialogState
                 ),
                 SizedBox(height: metrics.spacing(12)),
                 if (_error != null)
-                  Text(_error!, key: const Key('rescheduleError')),
+                  Text(_error!, key: const Key('rescheduleError'),
+                    style: sellerText(metrics, 12, color: SellerUiColors.red, height: 1.45)),
                 if (_uncertain)
-                  const Text(
+                  Text(
                     'The outcome is unconfirmed. Retry keeps the exact date, time and request.',
+                    style: sellerText(metrics, 12, color: SellerUiColors.body, height: 1.45),
                   ),
                 SellerPrimaryButton(
                   key: const Key('sellerSendReschedule'),
@@ -376,7 +381,7 @@ class _ApprovedSellerRescheduleDialogState
                       ? 'Retry same request'
                       : !_editing && widget.offeredPlaceLabel != null
                       ? (widget.initialProposal
-                            ? 'Confirm these details'
+                            ? 'Send meeting proposal'
                             : 'Send change for acceptance')
                       : widget.initialProposal
                       ? 'Send meeting proposal'
@@ -398,7 +403,7 @@ class _ApprovedSellerRescheduleDialogState
                       horizontal: metrics.spacing(16),
                       vertical: metrics.spacing(9),
                     ),
-                    textStyle: sellerText(metrics, 14, weight: FontWeight.w700).copyWith(fontFamily: 'Nunito'),
+                    textStyle: sellerText(metrics, 14, weight: FontWeight.w700),
                     side: BorderSide(
                       color: HocalistPalette.border(
                         context,

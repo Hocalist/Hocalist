@@ -63,110 +63,51 @@ class _WalletHistoryListState extends State<WalletHistoryList> {
     isScrollControlled: true,
     useSafeArea: true,
     constraints: const BoxConstraints(maxWidth: 560),
-    backgroundColor: HocalistPalette.surface(context, Colors.white),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
+    backgroundColor: Colors.transparent,
     sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-    builder: (context) => SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * .85,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: SellerUiColors.lavenderBorder,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
+    builder: (sheet) => SellerModalSheet(
+      title: entry.title,
+      onClose: () => Navigator.pop(sheet),
+      child: Builder(builder: (context) {
+        final text = Theme.of(context).textTheme;
+        final color = HocalistPalette.text(context, statusColor(entry.status));
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color),
+                color: color.withValues(alpha: .07),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      entry.title,
-                      style: const TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close details',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                child: Text(entry.status, style: text.labelLarge?.copyWith(color: color)),
               ),
-              Text(
-                entry.status,
-                style: const TextStyle(
-                  color: SellerUiColors.primaryBright,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                MaterialLocalizations.of(
-                  context,
-                ).formatFullDate(entry.date.toLocal()),
-              ),
-              const SizedBox(height: 16),
-              for (final fact in entry.facts.entries)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          fact.key,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          fact.value,
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (entry.note != null) ...[
-                const Divider(),
-                const SizedBox(height: 8),
-                Text(
-                  entry.note!,
-                  style: const TextStyle(fontSize: 12, height: 1.4),
-                ),
-                const SizedBox(height: 16),
-              ],
-              SellerPrimaryButton(
-                label: 'Done',
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+          const SizedBox(height: 6),
+          Text(MaterialLocalizations.of(context).formatFullDate(entry.date.toLocal()),
+            style: text.bodySmall),
+          const Divider(height: 24),
+          for (final fact in entry.facts.entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(flex: 3, child: Text(fact.key)),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: Text(fact.value,
+                  textAlign: TextAlign.end, style: text.titleSmall)),
+              ]),
+            ),
+          if (entry.note != null) ...[
+            const Divider(height: 24),
+            Text(entry.note!, style: text.bodySmall),
+          ],
+          const SizedBox(height: 16),
+          SellerPrimaryButton(label: 'Done', onPressed: () => Navigator.pop(sheet)),
+        ]);
+      }),
     ),
   );
 

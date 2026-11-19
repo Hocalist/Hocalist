@@ -6,8 +6,9 @@ import 'approved_billing_artwork.dart';
 import 'seller_payment_panel.dart';
 
 class SellerPlanSummary extends StatelessWidget {
-  const SellerPlanSummary({required this.value, super.key});
+  const SellerPlanSummary({required this.value, this.focusManagePlans = false, super.key});
   final SellerEntitlementView value;
+  final bool focusManagePlans;
   @override
   Widget build(BuildContext context) {
     final plan = value.effectivePlan, elite = plan == PlanCode.elite;
@@ -183,19 +184,23 @@ class SellerPlanSummary extends StatelessWidget {
         ),
         if (plan == PlanCode.free && value.earned.currentWindow != null)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Text(
               '${value.earned.currentWindow!.sales} / ${value.earned.threshold} confirmed sales this month',
             ),
           ),
         const SizedBox(height: 14),
-        const SellerPaymentPanel(
+        _RevealManagePlans(
+          reveal: focusManagePlans,
+          child: const SellerPaymentPanel(
+          key: Key('billingCompareManagePlans'),
           label: 'Compare and manage plans',
           compact: true,
+          ),
         ),
         if (elite)
           const Padding(
-            padding: EdgeInsets.only(top: 12),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Text(
               'Viewing competing offers removes refund eligibility for that request. You will be asked before viewing.',
               style: TextStyle(fontSize: 12, color: SellerUiColors.muted),
@@ -204,4 +209,26 @@ class SellerPlanSummary extends StatelessWidget {
       ],
     );
   }
+}
+
+class _RevealManagePlans extends StatefulWidget {
+  const _RevealManagePlans({required this.reveal, required this.child});
+  final bool reveal;
+  final Widget child;
+  @override
+  State<_RevealManagePlans> createState() => _RevealManagePlansState();
+}
+
+class _RevealManagePlansState extends State<_RevealManagePlans> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.reveal) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Scrollable.ensureVisible(context, alignment: .35);
+      });
+    }
+  }
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

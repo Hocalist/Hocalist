@@ -15,6 +15,7 @@ import '../../domain/phase2/requests.dart';
 import '../../domain/phase2/profiles.dart' show NotificationPreferences;
 import '../../domain/phase2/schedule.dart';
 import '../../theme/input_foundation.dart';
+import '../../theme/control_foundation.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/notification_preference_edits.dart';
 import '../../components/hocalist_section_tabs.dart';
@@ -187,7 +188,7 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SellerSubpageBlock(
-      tabbed: false,
+      tabbed: true,
       key: const Key('approvedSellerSettingsPage'),
       title: 'Account Settings',
       subtitle: 'Manage your Seller account, preferences, and privacy.',
@@ -248,7 +249,7 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
                 icon: Icons.manage_accounts_outlined,
                 title: 'Account data & deletion',
                 body:
-                    'Accept consent records, export your Hocalist data, or '
+                    'Review your privacy choices, download your Hocalist data, or '
                     'request account deletion.',
                 status: 'Review options',
                 onTap: onAccountLifecycle,
@@ -263,7 +264,7 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
                 icon: Icons.manage_accounts_outlined,
                 title: 'No account-management actions available',
                 body:
-                    'Delete and export actions remain hidden until secure account services support them.',
+                    'These options are currently unavailable. Please try again later.',
               ),
             ],
           ),
@@ -331,13 +332,13 @@ class ApprovedSellerEditProfilePage extends StatelessWidget {
         key: const Key('approvedSellerEditProfilePage'),
         title: 'Edit Profile',
         tabbed: true,
-        subtitle: 'Keep your Seller information accurate and concise.',
+        subtitle: 'Update your profile and contact details.',
         onBack: onBack,
         children: [
           _SellerSubpageSection(
             title: 'Profile picture',
             children: [
-              _SellerProfilePhotoEditor(
+              SellerProfilePhotoEditor(
                 sellerName: name,
                 onProfilePhotoAction: onProfilePhotoAction,
                 avatarMediaId: avatarMediaId,
@@ -686,8 +687,8 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
           children: [
             _SellerSubpageRow(
               icon: Icons.support_agent_outlined,
-              title: 'Ask for help',
-              body: 'Save a question with the details support will need.',
+              title: 'Get help or send feedback',
+              body: 'Ask a question, report an issue, or suggest an improvement.',
               status: 'Open support form',
               onTap:
                   onContactSupport ?? () => _showForm(context, safety: false),
@@ -816,30 +817,14 @@ class _SellerSupportFormSheetState extends State<_SellerSupportFormSheet> {
           ),
         ),
         const SizedBox(height: 5),
-        DropdownButtonFormField<String>(
+        HocalistSelectMenu<String>(
           key: const Key('sellerSupportTopic'),
-          initialValue: _topic,
-          isExpanded: true,
-          dropdownColor: SellerUiColors.white,
-          borderRadius: BorderRadius.circular(metrics.geometry(12)),
-          menuMaxHeight: metrics.geometry(240),
-          style: sellerText(metrics, 12.5, weight: FontWeight.w700),
-          decoration: _sellerSheetInputDecoration(context, ''),
-          items: const [
-            DropdownMenuItem(
-              value: 'Deal or meetup',
-              child: Text('Deal or meetup'),
-            ),
-            DropdownMenuItem(
-              value: 'Credits or billing',
-              child: Text('Credits or billing'),
-            ),
-            DropdownMenuItem(
-              value: 'Account or safety',
-              child: Text('Account or safety'),
-            ),
-          ],
-          onChanged: (value) => setState(() => _topic = value ?? _topic),
+          role: HocalistControlRole.seller,
+          expanded: true,
+          value: _topic,
+          options: const ['Deal or meetup', 'Credits or billing', 'Account or safety'],
+          labelBuilder: (value) => value,
+          onSelected: (value) => setState(() => _topic = value),
         ),
         const SizedBox(height: 12),
         _SellerSheetField(
@@ -1378,7 +1363,14 @@ class _ApprovedSellerNotificationsPageState
                       label: Text(_label(filter)),
                       selected: _filter == filter,
                       onSelected: (_) => setState(() => _filter = filter),
-                      selectedColor: SellerUiColors.lavender,
+                      selectedColor: HocalistPalette.surface(
+                        context,
+                        SellerUiColors.lavender,
+                      ),
+                      checkmarkColor: HocalistPalette.text(
+                        context,
+                        SellerUiColors.primaryBright,
+                      ),
                       side: BorderSide(
                         color: HocalistPalette.border(
                           context,
@@ -1921,102 +1913,205 @@ class ApprovedSellerVerificationPage extends StatelessWidget {
     required this.onBack,
     required this.onFinish,
     this.reviewSection,
+    this.contactSection,
+    this.emailSection,
+    this.areaSection,
     this.finishEnabled = true,
     this.identityStatus,
     this.phoneStatus,
+    this.emailStatus,
     this.areaStatus,
     super.key,
   });
-
-  final VoidCallback onBack;
-  final VoidCallback onFinish;
-
-  /// Optional real manual-review section (status, evidence submission, appeal).
-  /// Null keeps the approved prototype checklist.
-  final Widget? reviewSection;
-
-  /// False while a real review is pending, so navigation cannot imply a
-  /// self-granted verification.
+  final VoidCallback onBack, onFinish;
+  final Widget? reviewSection, contactSection, emailSection, areaSection;
   final bool finishEnabled;
-  final String? identityStatus;
-  final String? phoneStatus;
-  final String? areaStatus;
+  final String? identityStatus, phoneStatus, emailStatus, areaStatus;
+
+  Future<void> _open(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Widget? child,
+  ) async {
+    if (child == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (sheetContext) => SellerModalSheet(
+        icon: icon,
+        title: title,
+        subtitle: title == 'Identity review'
+            ? 'Add your photos and details for our team to review.'
+            : '',
+        onClose: () => Navigator.of(sheetContext).pop(),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final complete =
+        (emailStatus == 'Verified' ? 1 : 0) +
+        (phoneStatus == 'Verified' ? 1 : 0) +
+        (identityStatus == 'Review approved' ? 1 : 0) +
+        (areaStatus == 'Area saved' ? 1 : 0);
     return _SellerSubpageBlock(
       key: const Key('approvedSellerVerificationPage'),
       title: 'Seller verification',
-      subtitle: 'Complete the trust checks buyers see on your profile.',
+      subtitle: 'Build trust with buyers, one step at a time.',
       onBack: onBack,
       children: [
-        if (reviewSection != null) ...[
-          const SellerSectionHeading(title: 'Verification checklist'),
-          SellerStateNotice(
-            icon: Icons.badge_outlined,
-            title: 'Identity details',
-            body:
-                'Evidence is checked by a reviewer. Submitting does not grant verification.',
-            trailing: SellerStatusChip(
-              label: identityStatus ?? 'Checking status…',
-            ),
-          ),
-          SellerStateNotice(
-            icon: Icons.phone_iphone_outlined,
-            title: 'Phone verification',
-            body: 'Contact verification is separate from evidence review.',
-            trailing: SellerStatusChip(
-              label: phoneStatus ?? 'Checking status…',
-            ),
-          ),
-          SellerStateNotice(
-            icon: Icons.location_on_outlined,
-            title: 'Service area',
-            body:
-                'Manage your area in Edit profile. A saved area is not identity verification.',
-            trailing: SellerStatusChip(label: areaStatus ?? 'Checking status…'),
-          ),
-        ] else
-          _SellerSubpageSection(
-            title: 'Verification checklist',
-            children: [
-              _SellerSubpageRow(
-                icon: Icons.badge_outlined,
-                title: 'Identity details',
-                body: 'Confirm the name attached to your Seller account.',
-                status: identityStatus ?? 'Ready to submit',
-              ),
-              _SellerSubpageRow(
-                icon: Icons.phone_iphone_outlined,
-                title: 'Phone verification',
-                body: 'Verify a phone number for important account alerts.',
-                status: phoneStatus ?? 'Ready to submit',
-              ),
-              _SellerSubpageRow(
-                icon: Icons.location_on_outlined,
-                title: 'Service area',
-                body: 'Confirm the local area where you can meet buyers.',
-                status: areaStatus ?? 'Ready to submit',
-              ),
-            ],
-          ),
-        if (reviewSection != null) ...[
-          const SizedBox(height: 8),
-          reviewSection!,
-        ],
-        SellerPrimaryButton(
+        SellerStateNotice(
+          icon: Icons.verified_user_outlined,
+          title: '$complete of 4 checks complete',
+          body: 'Complete email, phone, identity review and service area.',
+        ),        _VerificationStep(
+          title: 'Email',
+          body: 'Confirm the email on your account.',
+          status: emailStatus ?? 'Checking…',
+          icon: Icons.email_outlined,
+          onTap: emailSection == null
+              ? null
+              : () => _open(
+                  context,
+                  'Email verification',
+                  Icons.email_outlined,
+                  emailSection,
+                ),
+        ),
+        _VerificationStep(
+          title: 'Phone',
+          body: 'Receive a code by text message.',
+          status: phoneStatus ?? 'Checking…',
+          icon: Icons.phone_iphone_outlined,
+          onTap: contactSection == null
+              ? null
+              : () => _open(
+                  context,
+                  'Verify your phone',
+                  Icons.phone_iphone_outlined,
+                  contactSection,
+                ),
+        ),
+        _VerificationStep(
+          title: 'Identity review',
+          body: 'Add photos and send them to our review team.',
+          status: identityStatus ?? 'Not submitted',
+          icon: Icons.badge_outlined,
+          onTap: reviewSection == null
+              ? null
+              : () => _open(
+                  context,
+                  'Identity review',
+                  Icons.badge_outlined,
+                  reviewSection,
+                ),
+        ),        const SellerSectionHeading(title: 'Where you sell'),
+        _VerificationStep(
+          title: 'Service area',
+          body: 'Choose the area you serve and how far you travel.',
+          status: areaStatus ?? 'Not added',
+          icon: Icons.location_on_outlined,
+          onTap: areaSection == null
+              ? null
+              : () => _open(
+                  context,
+                  'Service area',
+                  Icons.location_on_outlined,
+                  areaSection,
+                ),
+        ),        SellerSecondaryButton(
           key: const Key('sellerVerificationFinish'),
-          label: 'Finish setup',
+          label: 'Done',
           onPressed: finishEnabled ? onFinish : null,
-          leading: Icon(
-            Icons.check_circle_outline,
-            size: 18,
-            color: HocalistPalette.text(context, Colors.white),
-          ),
         ),
       ],
     );
   }
+}
+
+class _VerificationStep extends StatelessWidget {
+  const _VerificationStep({
+    required this.title,
+    required this.body,
+    required this.status,
+    required this.icon,
+    this.onTap,
+  });
+  final String title, body, status;
+  final IconData icon;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.zero,
+    child: Material(
+      color: HocalistPalette.surface(context, SellerUiColors.white),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: HocalistPalette.border(context, SellerUiColors.line),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                icon,
+                size: 24,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.ink,
+                        ),
+                      ),
+                    ), SellerStatusChip(label: status)]),
+                    const SizedBox(height: 4),
+                    Text(
+                      body,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: HocalistPalette.text(
+                          context,
+                          SellerUiColors.body,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (onTap != null)
+                const Icon(Icons.chevron_right_rounded, size: 20),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Seller-facing projection of one authoritative offer.
@@ -2337,168 +2432,6 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
   }
 }
 
-class ApprovedSellerOfferDetailPage extends StatelessWidget {
-  const ApprovedSellerOfferDetailPage({
-    required this.onBack,
-    required this.onChat,
-    this.latestOffer,
-    this.realOffer,
-    this.withdrawBusy = false,
-    this.withdrawError,
-    this.onWithdraw,
-    this.onEdit,
-    this.onArrangeMeeting,
-    super.key,
-  });
-
-  final VoidCallback onBack;
-  final VoidCallback onChat;
-  final LocalOfferRecord? latestOffer;
-
-  /// Authoritative offer shown in real mode.
-  final SellerOfferView? realOffer;
-  final bool withdrawBusy;
-  final String? withdrawError;
-  final VoidCallback? onWithdraw;
-  final VoidCallback? onEdit;
-  final VoidCallback? onArrangeMeeting;
-
-  @override
-  Widget build(BuildContext context) {
-    final offer = realOffer;
-    return _SellerSubpageBlock(
-      key: const Key('approvedSellerOfferDetailPage'),
-      title: 'Offer details',
-      subtitle: 'Review the terms currently shared with the buyer.',
-      onBack: onBack,
-      children: [
-        if (offer != null &&
-            (offer.requestAcceptanceExpiresAt != null ||
-                offer.purchaseSelected)) ...[
-          _SellerSubpageSection(
-            title: offer.purchaseSelected ? 'Final purchase' : 'Buyer window',
-            children: [
-              _SellerSubpageRow(
-                icon: Icons.verified_outlined,
-                title: offer.status == OfferStatus.completed
-                    ? 'Purchase confirmed'
-                    : offer.purchaseSelected
-                    ? 'The buyer chose you to complete the purchase.'
-                    : 'New offers close for this request.',
-                body: offer.status == OfferStatus.completed
-                    ? 'This purchase is complete. Item payment remains between buyer and seller.'
-                    : offer.purchaseSelected
-                    ? 'Only you can complete the request PIN. Other negotiations close after a confirmed purchase.'
-                    : 'Accepted meetings stay valid to their own next-local-midnight cutoff.',
-                status: offer.requestAcceptanceExpiresAt == null
-                    ? ''
-                    : _sellerOfferWindowLabel(
-                        offer.requestAcceptanceExpiresAt!,
-                      ),
-              ),
-            ],
-          ),
-        ],
-        _SellerSubpageSection(
-          title: 'Agreed offer',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.tablet_mac_outlined,
-              title:
-                  offer?.requestTitle ??
-                  latestOffer?.requestTitle ??
-                  'iPad Air 5th Gen 64GB',
-              body: offer != null
-                  ? offer.placeLabel
-                  : latestOffer == null
-                  ? 'Good condition • Pickup in Yonkers, NY'
-                  : 'Good condition • ${latestOffer!.location}',
-              status: offer?.priceLabel ?? latestOffer?.price ?? r'$650',
-            ),
-            _SellerSubpageRow(
-              icon: Icons.schedule_outlined,
-              title: 'Meeting time',
-              body:
-                  offer?.meetingLabel ??
-                  (latestOffer == null
-                      ? 'Today • 5:00 PM'
-                      : '${latestOffer!.meetingDate} • '
-                            '${latestOffer!.meetingTime}'),
-              status: offer?.statusLabel ?? 'Meeting set',
-            ),
-          ],
-        ),
-        if (offer != null && offer.message.isNotEmpty)
-          _SellerSubpageSection(
-            title: 'Your message',
-            children: [
-              _SellerSubpageRow(
-                icon: Icons.chat_bubble_outline,
-                title: 'Message sent with the offer',
-                body: offer.message,
-                status: '',
-              ),
-            ],
-          ),
-        if (withdrawError != null) ...[
-          SizedBox(height: 8),
-          Text(
-            withdrawError!,
-            key: const Key('sellerOfferWithdrawError'),
-            style: sellerText(
-              ApprovedReplicaScope.of(context),
-              11.5,
-              weight: FontWeight.w700,
-              color: SellerUiColors.red,
-            ),
-          ),
-        ],
-        if (offer?.purchaseSelected == true && onArrangeMeeting != null)
-          SellerPrimaryButton(
-            label: 'Review meeting details',
-            onPressed: onArrangeMeeting,
-          ),
-        SellerPrimaryButton(
-          key: const Key('sellerOfferDetailChat'),
-          label: 'Open conversation',
-          onPressed: onChat,
-          leading: Icon(
-            Icons.chat_bubble_outline,
-            size: 18,
-            color: HocalistPalette.text(context, Colors.white),
-          ),
-        ),
-        if (offer != null && offer.isWithdrawable && onEdit != null) ...[
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('sellerOfferEdit'),
-            onPressed: onEdit,
-            child: const Text('Update offer'),
-          ),
-        ],
-        if (offer != null && offer.isWithdrawable && onWithdraw != null) ...[
-          SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('sellerOfferWithdraw'),
-            onPressed: withdrawBusy ? null : onWithdraw,
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(44),
-              foregroundColor: HocalistPalette.text(
-                context,
-                SellerUiColors.red,
-              ),
-              side: BorderSide(
-                color: HocalistPalette.border(context, SellerUiColors.red),
-              ),
-            ),
-            child: Text(withdrawBusy ? 'Withdrawing…' : 'Withdraw offer'),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 enum _SellerBillingFilter { all, spent, restored, purchased }
 
 class _SellerCreditActivity {
@@ -2528,12 +2461,14 @@ class ApprovedSellerBillingPage extends StatefulWidget {
     required this.onBack,
     required this.onPayment,
     this.realContent,
+    this.focusUpgrade = false,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback onPayment;
   final Widget? realContent;
+  final bool focusUpgrade;
 
   @override
   State<ApprovedSellerBillingPage> createState() =>
@@ -2612,9 +2547,9 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
   Widget build(BuildContext context) {
     if (widget.realContent != null) {
       final plans = <Widget>[
-        const _SellerSubpageSection(
+        _SellerSubpageSection(
           title: 'Current plan',
-          children: [SellerSubscriptionPanel()],
+          children: [SellerSubscriptionPanel(focusManagePlans: widget.focusUpgrade)],
         ),
         const _SellerSubpageSection(
           title: 'Payment method',
@@ -2634,6 +2569,7 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
                 CreditWalletPanel(
                   load: wallet.load,
                   additionalSections: {'Plans': plans},
+                  initialSection: widget.focusUpgrade ? 'Plans' : null,
                 ),
               ]
             : [
@@ -2681,40 +2617,14 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
                     ),
                   ),
                 ),
-                PopupMenuButton<_SellerBillingFilter>(
+                HocalistSelectMenu<_SellerBillingFilter>(
                   key: const Key('sellerBillingFilter'),
-                  initialValue: _filter,
-                  position: PopupMenuPosition.under,
-                  color: SellerUiColors.white,
-                  surfaceTintColor: SellerUiColors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(metrics.geometry(12)),
-                    side: BorderSide(
-                      color: HocalistPalette.border(
-                        context,
-                        SellerUiColors.line,
-                      ),
-                    ),
-                  ),
+                  role: HocalistControlRole.seller,
+                  value: _filter,
+                  options: _SellerBillingFilter.values,
+                  labelBuilder: _filterLabel,
                   onSelected: (value) => setState(() => _filter = value),
-                  itemBuilder: (context) => [
-                    for (final value in _SellerBillingFilter.values)
-                      PopupMenuItem(
-                        value: value,
-                        height: metrics.geometry(44),
-                        child: Text(
-                          _filterLabel(value),
-                          style: sellerText(
-                            metrics,
-                            11.5,
-                            weight: value == _filter
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
-                  child: Container(
+                  trigger: Container(
                     padding: EdgeInsets.symmetric(
                       horizontal: metrics.spacing(10),
                       vertical: metrics.spacing(7),
@@ -3907,7 +3817,7 @@ class _SellerSubpageBlock extends StatelessWidget {
           in billing
               ? ['Credits', 'Activity', 'Plans']
               : editing
-              ? ['Seller info', 'Categories', 'Private contact']
+              ? ['Profile', 'Categories', 'Contact']
               : [
                   'Security',
                   'Preferences',
@@ -3917,7 +3827,7 @@ class _SellerSubpageBlock extends StatelessWidget {
                         c is _SellerSubpageSection &&
                         c.title == 'Private contact',
                   ))
-                    'Private contact',
+                    'Contact',
                 ])
         label: [],
     };
@@ -3939,12 +3849,12 @@ class _SellerSubpageBlock extends StatelessWidget {
                     section == 'Profile details' ||
                     child.key == const Key('sellerProfileDetailsEditor') ||
                     child is SellerPrimaryButton
-                ? 'Seller info'
+                ? 'Profile'
                 : section == 'Seller categories'
                 ? 'Categories'
-                : 'Private contact')
+                : 'Contact')
           : section == 'Private contact'
-          ? 'Private contact'
+          ? 'Contact'
           : (section == 'Account' || section == 'Account management'
                 ? 'Security'
                 : section == 'Preferences'
@@ -3952,6 +3862,7 @@ class _SellerSubpageBlock extends StatelessWidget {
                 : 'Privacy');
       groups[label]!.add(child);
     }
+    groups.removeWhere((_, children) => children.isEmpty);
     return groups;
   }
 
@@ -3967,67 +3878,7 @@ class _SellerSubpageBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: metrics.artSize(44),
-                height: metrics.artSize(44),
-                child: IconButton(
-                  key: const Key('sellerSubpageBack'),
-                  tooltip: 'Back',
-                  onPressed: onBack,
-                  padding: EdgeInsets.zero,
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: HocalistPalette.text(
-                      context,
-                      Theme.of(context).brightness == Brightness.dark
-                          ? Theme.of(context).colorScheme.onSurface
-                          : SellerUiColors.ink,
-                    ),
-                    size: metrics.artSize(23),
-                  ),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(6)),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(top: metrics.spacing(3)),
-                  child: Column(
-                    children: [
-                      Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        style: sellerText(
-                          metrics,
-                          16,
-                          weight: FontWeight.w800,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Theme.of(context).colorScheme.onSurface
-                              : SellerUiColors.ink,
-                        ),
-                      ),
-                      SizedBox(height: metrics.spacing(3)),
-                      Text(
-                        subtitle,
-                        textAlign: TextAlign.center,
-                        style: sellerText(
-                          metrics,
-                          12,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Theme.of(context).colorScheme.onSurfaceVariant
-                              : SellerUiColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(6)),
-              SizedBox(width: metrics.artSize(44)),
-            ],
-          ),
+          SellerNestedHeader(title: title, subtitle: subtitle, onBack: onBack, backKey: const Key('sellerSubpageBack')),
           SizedBox(height: metrics.spacing(18)),
           if (tabbed)
             HocalistSectionTabs(
@@ -4398,8 +4249,8 @@ class _SellerProfileSummary extends StatelessWidget {
   }
 }
 
-class _SellerProfilePhotoEditor extends StatelessWidget {
-  const _SellerProfilePhotoEditor({
+class SellerProfilePhotoEditor extends StatelessWidget {
+  const SellerProfilePhotoEditor({
     required this.sellerName,
     this.onProfilePhotoAction,
     this.avatarMediaId,
@@ -4664,48 +4515,19 @@ Future<void> _showSellerProfilePhotoOptions(
   await showModalBottomSheet<void>(
     context: context,
     sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-    backgroundColor: HocalistPalette.surface(context, SellerUiColors.white),
+    backgroundColor: Colors.transparent,
     isScrollControlled: true,
     useSafeArea: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
     builder: (sheetContext) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(
-          metrics.spacing(20),
-          metrics.spacing(10),
-          metrics.spacing(20),
-          metrics.spacing(20),
-        ),
+      return SellerModalSheet(
+        title: 'Change profile picture',
+        icon: Icons.account_circle_outlined,
+        subtitle: 'Choose how you want to update your Seller photo.',
+        onClose: () => Navigator.pop(sheetContext),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: metrics.artSize(42),
-                height: metrics.geometry(4),
-                decoration: BoxDecoration(
-                  color: HocalistPalette.surface(
-                    context,
-                    SellerUiColors.lavenderBorder,
-                  ),
-                  borderRadius: BorderRadius.circular(metrics.geometry(10)),
-                ),
-              ),
-            ),
-            SizedBox(height: metrics.spacing(14)),
-            Text(
-              'Change profile picture',
-              style: sellerText(metrics, 18, weight: FontWeight.w800),
-            ),
-            SizedBox(height: metrics.spacing(4)),
-            Text(
-              'Choose how you want to update your Seller photo.',
-              style: sellerText(metrics, 12, color: SellerUiColors.muted),
-            ),
-            SizedBox(height: metrics.spacing(12)),
             _SellerPhotoOption(
               metrics: metrics,
               optionKey: const Key('sellerPhotoTakePhoto'),

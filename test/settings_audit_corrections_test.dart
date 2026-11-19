@@ -69,9 +69,11 @@ void main() {
         expect(find.text('Account data & deletion'), findsOneWidget);
         if (seller) {
           expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
+          expect(find.text('Appearance'), findsNothing);
+          await tap(t, find.byKey(const ValueKey('section-tab-Preferences')));
           expect(find.text('Appearance'), findsOneWidget);
         } else {
-          await tap(t, find.byKey(const ValueKey('section-tab-Privacy')));
+          await tap(t, find.byKey(const ValueKey('section-tab-Preferences')));
           expect(find.text('Account data & deletion'), findsNothing);
         }
         await tap(t, find.byTooltip('Back'));
@@ -149,6 +151,7 @@ void main() {
     expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
     expect(find.text('Public Seller visibility'), findsNothing);
     expect(find.text('Service-area privacy'), findsNothing);
+    await tap(t, find.byKey(const ValueKey('section-tab-Preferences')));
     expect(find.text('Appearance'), findsOneWidget);
     expect(opened, 0);
   });
@@ -186,7 +189,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      final tab = find.byKey(const ValueKey('section-tab-Privacy'));
+      final tab = find.byKey(const ValueKey('section-tab-Preferences'));
       await t.tap(tab);
       await t.pumpAndSettle();
       final strip = find

@@ -4,7 +4,10 @@ import '../../components/hocalist_motion.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../../components/notification_indicator.dart';
+import '../commercial/money_help.dart';
+import '../../theme/approved_interface_icons.dart';
+import '../../theme/preserved_raster_glyph.dart';
+import '../../theme/control_foundation.dart';
 import '../media/private_remote_image.dart';
 import 'package:flutter/services.dart';
 
@@ -381,6 +384,10 @@ class ApprovedOffersReceivedPage extends StatefulWidget {
     this.offersError,
     this.onRefreshOffers,
     this.onOpenOffer,
+    this.onViewSeller,
+    this.selectionBusy = false,
+    this.selectionUncertain = false,
+    this.selectionError,
     super.key,
   });
 
@@ -400,8 +407,12 @@ class ApprovedOffersReceivedPage extends StatefulWidget {
   final String? offersError;
   final VoidCallback? onRefreshOffers;
 
-  /// Opens the detail view for one real offer.
+  /// Selects the seller if needed, then opens this offer's conversation.
   final ValueChanged<BuyerOfferView>? onOpenOffer;
+  final ValueChanged<BuyerOfferView>? onViewSeller;
+  final bool selectionBusy;
+  final bool selectionUncertain;
+  final String? selectionError;
 
   bool get usesRealOffers => realOffers != null;
 
@@ -423,6 +434,7 @@ class _ApprovedOffersReceivedPageState
 
   Future<void> _showFilters() async {
     var draft = _underFourHundredOnly;
+    final metrics = _chatMetrics(context);
     final applied = await showModalBottomSheet<bool>(
       context: context,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
@@ -442,20 +454,33 @@ class _ApprovedOffersReceivedPageState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Material(
-                color: Colors.transparent,
+                color: HocalistPalette.surface(context, _lavender),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(metrics.geometry(12)),
+                  side: BorderSide(color: HocalistPalette.border(context, _line)),
+                ),
+                clipBehavior: Clip.antiAlias,
                 child: CheckboxListTile(
                   key: const Key('approved-offers-under-400-filter'),
-                  contentPadding: EdgeInsets.zero,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: metrics.geometry(12),
+                    vertical: metrics.geometry(8),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  checkboxShape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(metrics.geometry(4)),
+                  ),
                   value: draft,
                   onChanged:
                       widget.usesRealOffers && widget.budgetMaximum == null
                       ? null
                       : (value) => setSheetState(() => draft = value ?? false),
-                  activeColor: _offersBlue,
+                  activeColor: BuyerUiTokens.action,
                   title: Text(
                     widget.usesRealOffers
                         ? 'Within your request budget'
                         : r'Offers under $400',
+                    style: _text(context, size: 13, weight: FontWeight.w800, color: _navy),
                   ),
                   subtitle: Text(
                     widget.usesRealOffers
@@ -463,23 +488,24 @@ class _ApprovedOffersReceivedPageState
                               ? 'This request has no maximum budget.'
                               : 'Show offers up to \$${widget.budgetMaximum!.toStringAsFixed(2)}.'
                         : 'Show offers within the lower end of the budget.',
+                    style: _text(context, size: 11.5, color: _muted),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: metrics.spacing(16)),
               BuyerPrimaryButton(
                 key: const Key('approved-offers-apply-filter'),
                 label: 'Apply filters',
                 onPressed: () => Navigator.pop(sheetContext, true),
-                colors: const [_offersBlue, _offersBlue],
               ),
-              TextButton(
+              SizedBox(height: metrics.spacing(8)),
+              BuyerSecondaryButton(
                 key: const Key('approved-offers-clear-filter'),
+                label: 'Clear filters',
                 onPressed: () {
                   draft = false;
                   Navigator.pop(sheetContext, true);
                 },
-                child: const Text('Clear filters'),
               ),
             ],
           ),
@@ -517,10 +543,17 @@ class _ApprovedOffersReceivedPageState
       });
     }
     return [
+      if (widget.selectionError != null)
+        BuyerStateNotice(title: 'Could not open the conversation', body: widget.selectionError, icon: Icons.info_outline, tone: BuyerNoticeTone.error),
       for (var index = 0; index < visible.length; index++)
         _ApprovedOfferCard(
           key: ValueKey('approved-real-offer-${visible[index].offerId}'),
           realMode: true,
+          actionLabel: visible[index].conversationId != null ? 'Open chat' : widget.selectionUncertain ? 'Retry selection & chat' : 'Select seller & chat',
+          actionBusy: widget.selectionBusy,
+          onProfile: widget.onViewSeller == null ? null : () => widget.onViewSeller!(visible[index]),
+          photoId: visible[index].imageMediaIds.firstOrNull,
+          additionalPhotos: visible[index].imageMediaIds.skip(1).toList(),
           seller: visible[index].sellerName,
           initials: visible[index].initials,
           reviews: '',
@@ -617,7 +650,7 @@ class _ApprovedOffersReceivedPageState
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
           sliver: SliverList.list(
             children: [
-              _ApprovedGlobalHeader(onNotifications: widget.onNotifications),
+              BuyerTopLevelHeader(onNotifications: widget.onNotifications),
               const SizedBox(height: 6),
               const _OffersHero(),
               const SizedBox(height: 8),
@@ -758,7 +791,7 @@ class ApprovedViewOfferPage extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: real.imageMediaIds
-                      .map((id) => PrivateRemoteImage(id: id))
+                      .map((id) => PrivateRemoteImage(id: id, showWholeImage: true))
                       .toList(),
                 ),
               const SizedBox(height: 6),
@@ -1019,6 +1052,7 @@ class ApprovedDealView {
     this.actionLabel,
     this.completed = false,
     this.meetingAccepted = false,
+    this.unreadCount = 0,
   }) : assert(meetingId != null || offerId != null);
 
   final String? meetingId;
@@ -1027,14 +1061,19 @@ class ApprovedDealView {
 
   factory ApprovedDealView.fromSelectedOffer(Offer offer, {bool buyer = true}) {
     final terms = (offer.acceptedRevision ?? offer.latestRevision).terms;
+    final historical = offer.status != OfferStatus.selected;
     return ApprovedDealView(
       offerId: offer.id,
       title: offer.requestTitle ?? 'Selected offer',
       priceLabel: BuyerOfferView._formatMoney(terms.price),
-      statusLabel: offer.purchaseSelected
+      statusLabel: offer.requestClosed && offer.status != OfferStatus.completed ? 'Request closed' : historical
+          ? (offer.status == OfferStatus.completed ? 'Purchase completed' : 'Deal closed')
+          : offer.purchaseSelected
           ? 'Seller confirmed · review offered meeting'
           : 'Awaiting buyer confirmation',
-      actionLabel: offer.purchaseSelected
+      actionLabel: historical
+          ? 'View offer details'
+          : offer.purchaseSelected
           ? 'Review offered meeting'
           : buyer
           ? 'Confirm seller'
@@ -1057,6 +1096,16 @@ class ApprovedDealView {
   final String? actionLabel;
   final bool completed;
   final bool meetingAccepted;
+  final int unreadCount;
+
+  ApprovedDealView withUnreadCount(int count) => ApprovedDealView(
+    meetingId: meetingId, offerId: offerId, title: title,
+    priceLabel: priceLabel, statusLabel: statusLabel, statusTone: statusTone,
+    scheduleLabel: scheduleLabel, zoneLabel: zoneLabel, placeLabel: placeLabel,
+    pendingLabel: pendingLabel, purchaseSelected: purchaseSelected,
+    actionLabel: actionLabel, completed: completed,
+    meetingAccepted: meetingAccepted, unreadCount: count,
+  );
 }
 
 class ApprovedBuyerChatPage extends StatelessWidget {
@@ -1089,6 +1138,9 @@ class ApprovedBuyerChatPage extends StatelessWidget {
     this.onRefreshRealDeals,
     this.onOpenRealDeal,
     this.selectedDealId,
+    this.enquiries = const [],
+    this.selectedEnquiryId,
+    this.onSelectEnquiry,
     this.onSelectRealDeal,
     this.messagesLoading = false,
     this.messagesError,
@@ -1154,6 +1206,9 @@ class ApprovedBuyerChatPage extends StatelessWidget {
   /// Opens the authoritative meeting/management surface for one deal card.
   final ValueChanged<String>? onOpenRealDeal;
   final String? selectedDealId;
+  final List<ChatEnquiry> enquiries;
+  final String? selectedEnquiryId;
+  final ValueChanged<String>? onSelectEnquiry;
   final ValueChanged<String>? onSelectRealDeal;
   final bool messagesLoading;
   final String? messagesError;
@@ -1227,6 +1282,9 @@ class ApprovedBuyerChatPage extends StatelessWidget {
         onRefreshRealDeals: onRefreshRealDeals,
         onOpenRealDeal: onOpenRealDeal,
         selectedDealId: selectedDealId,
+        enquiries: enquiries,
+        selectedEnquiryId: selectedEnquiryId,
+        onSelectEnquiry: onSelectEnquiry,
         onSelectRealDeal: onSelectRealDeal,
         messagesLoading: messagesLoading,
         messagesError: messagesError,
@@ -1296,6 +1354,10 @@ class ApprovedConversationBody extends StatefulWidget {
     this.onRefreshRealDeals,
     this.onOpenRealDeal,
     this.selectedDealId,
+    this.entryOfferId,
+    this.enquiries = const [],
+    this.selectedEnquiryId,
+    this.onSelectEnquiry,
     this.onSelectRealDeal,
     this.messagesLoading = false,
     this.messagesError,
@@ -1374,6 +1436,10 @@ class ApprovedConversationBody extends StatefulWidget {
   /// Opens the authoritative meeting/management surface for one deal card.
   final ValueChanged<String>? onOpenRealDeal;
   final String? selectedDealId;
+  final String? entryOfferId;
+  final List<ChatEnquiry> enquiries;
+  final String? selectedEnquiryId;
+  final ValueChanged<String>? onSelectEnquiry;
   final ValueChanged<String>? onSelectRealDeal;
   final bool messagesLoading;
   final String? messagesError;
@@ -1424,7 +1490,7 @@ class ApprovedConversationBody extends StatefulWidget {
 }
 
 class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
-  ApprovedDealView? get _selectedRealDeal =>
+  ApprovedDealView? get _selectedRealDeal => widget.selectedEnquiryId!=null ? null :
       <ApprovedDealView>[...?widget.realDeals, ...?widget.previousDeals]
           .where(
             (deal) =>
@@ -1435,6 +1501,34 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
       widget.realDeals?.firstOrNull;
   final _controller = TextEditingController();
   final Map<String?,String> _dealDrafts = {};
+  // Current deals open first; history remains available from Manage.
+  bool? _showPastDeals = false;
+  bool _dealsExpanded = true;
+  bool _restoredDealView = false;
+
+  void _setDealView(bool? past, bool expanded) {
+    setState(() {
+      _showPastDeals = past;
+      _dealsExpanded = expanded;
+    });
+    PageStorage.maybeOf(context)?.writeState(context, (past, expanded),
+      identifier: (widget.key, 'deal-view'));
+  }
+  List<ApprovedDealView>? get _visibleDeals {
+    if (_showPastDeals == true) return widget.previousDeals;
+    if (_showPastDeals == false) return widget.realDeals;
+    if (widget.realDeals == null && widget.previousDeals == null) return null;
+    return <String, ApprovedDealView>{
+      for (final deal in [...?widget.realDeals, ...?widget.previousDeals]) deal.id: deal,
+    }.values.toList();
+  }
+  void _chooseDealGroup(bool? past) {
+    final effectivePast = past == false && widget.realDeals?.isEmpty == true &&
+        widget.previousDeals?.isNotEmpty == true ? true : past;
+    _setDealView(effectivePast, _dealsExpanded);
+    final deals = _visibleDeals;
+    if (deals != null && deals.isNotEmpty) widget.onSelectRealDeal?.call(deals.first.id);
+  }
   bool _messagesMuted = false;
   bool _muteWritePending = false;
   bool _secondDealAdded = false;
@@ -1447,16 +1541,30 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
   @override
   void initState() {
     super.initState();
+    if (widget.entryOfferId != null) _showPastDeals = null;
     _sentEntries = List<ApprovedConversationEntry>.of(widget.sentEntries);
     if (widget.usesRealEntries) _controller.text = widget.initialDraft ?? '';
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_restoredDealView) return;
+    _restoredDealView = true;
+    final saved = PageStorage.maybeOf(context)?.readState(context,
+      identifier: (widget.key, 'deal-view'));
+    if (saved is (bool?, bool)) {
+      _showPastDeals = saved.$1;
+      _dealsExpanded = saved.$2;
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant ApprovedConversationBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if(widget.usesRealEntries && widget.selectedDealId!=oldWidget.selectedDealId) {
-      _dealDrafts[oldWidget.selectedDealId]=_controller.text;
-      _controller.text=widget.initialDraft ?? _dealDrafts[widget.selectedDealId] ?? '';
+    if(widget.usesRealEntries && (widget.selectedEnquiryId ?? widget.selectedDealId)!=(oldWidget.selectedEnquiryId ?? oldWidget.selectedDealId)) {
+      _dealDrafts[oldWidget.selectedEnquiryId ?? oldWidget.selectedDealId]=_controller.text;
+      _controller.text=widget.initialDraft ?? _dealDrafts[widget.selectedEnquiryId ?? widget.selectedDealId] ?? '';
     }
     for (final entry in widget.sentEntries) {
       final alreadyPresent = _sentEntries.any(
@@ -1502,10 +1610,17 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
         return;
       }
       _submittingMessage = true;
+      final submittedDealId = widget.selectedEnquiryId ?? widget.selectedDealId;
       try {
         final acknowledged = await submit(text);
-        if (mounted && acknowledged && _controller.text.trim() == text) {
-          _controller.clear();
+        if (mounted && acknowledged) {
+          if ((widget.selectedEnquiryId ?? widget.selectedDealId) == submittedDealId &&
+              _controller.text.trim() == text) {
+            _controller.clear();
+          }
+          if (_dealDrafts[submittedDealId]?.trim() == text) {
+            _dealDrafts.remove(submittedDealId);
+          }
         }
       } finally {
         _submittingMessage = false;
@@ -1682,7 +1797,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                   widget.onViewProfile?.call();
                 },
               ),
-              if (widget.viewerIsSeller)
+              if (widget.viewerIsSeller && widget.selectedEnquiryId == null)
                 _ApprovedMenuAction(
                   asset: 'detail-description.png',
                   title: widget.usesRealEntries
@@ -2116,7 +2231,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _ApprovedRealDealDetailsSheet(
+      builder: (sheetContext) => ApprovedRealDealDetailsSheet(
         deal: deal!,
         viewerIsSeller: widget.viewerIsSeller,
         onClose: () => Navigator.pop(sheetContext),
@@ -2144,6 +2259,11 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (sheetContext) => _ApprovedRealDealsSheet(
+          pastSelected: _showPastDeals,
+          onChooseGroup: (past) {
+            Navigator.pop(sheetContext);
+            _chooseDealGroup(past);
+          },
           deals: widget.realDeals,
           loading: widget.realDealsLoading,
           error: widget.realDealsError,
@@ -2157,6 +2277,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
           onClose: () => Navigator.pop(sheetContext),
           onOpenDeal: (meetingId) {
             Navigator.pop(sheetContext);
+            _setDealView(null, true);
             widget.onSelectRealDeal?.call(meetingId);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) unawaited(_showRealDealDetails(meetingId));
@@ -2259,36 +2380,70 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                       widget.onWithdrawFromRequest ?? () {},
                                 ),
                               ],
-                              const SizedBox(height: 18),
+                              if (widget.enquiries.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Wrap(spacing: 8, runSpacing: 6, children: [
+                                  ChoiceChip(showCheckmark: false, label: const Text('Deals'),
+                                    selected: widget.selectedEnquiryId == null,
+                                    onSelected: (widget.realDeals?.isNotEmpty == true || widget.previousDeals?.isNotEmpty == true)
+                                      ? (_) => _chooseDealGroup(false) : null),
+                                  ChoiceChip(showCheckmark: false, label: const Text('Enquiries'),
+                                    selected: widget.selectedEnquiryId != null,
+                                    onSelected: widget.onSelectEnquiry == null ? null : (_) => widget.onSelectEnquiry!(widget.enquiries.first.id)),
+                                ]),
+                                if (widget.selectedEnquiryId != null)
+                                  Padding(padding: const EdgeInsets.only(top: 8),
+                                    child: _EnquiryContextPanel(enquiries: widget.enquiries,
+                                      selectedId: widget.selectedEnquiryId, onSelect: widget.onSelectEnquiry)),
+                              ],
+                              if (widget.selectedEnquiryId == null) ...[
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      widget.usesRealEntries
-                                          ? ((widget.realDeals?.isEmpty ?? true)
-                                                ? 'Active Deals'
-                                                : 'Active Deals (${widget.realDeals!.length})')
-                                          : 'Active Deals (${_secondDealAdded ? 2 : 1})',
-                                      style: _text(
-                                        context,
-                                        size: 15,
-                                        weight: FontWeight.w900,
+                                    child: Tooltip(
+                                      message: _dealsExpanded ? 'Hide deals' : 'Show deals',
+                                      child: TextButton(
+                                        key: const Key('chat-toggle-deals'),
+                                        onPressed: () => _setDealView(_showPastDeals, !_dealsExpanded),
+                                        style: TextButton.styleFrom(
+                                          alignment: Alignment.centerLeft,
+                                          minimumSize: const Size(0, 44),
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                          backgroundColor: HocalistPalette.surface(context, _lavender),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          foregroundColor: HocalistPalette.text(context, _blue),
+                                        ),
+                                        child: Row(children: [
+                                          Expanded(child: Text(
+                                            widget.usesRealEntries
+                                              ? (_showPastDeals == null ? 'All deals' : _showPastDeals! ? 'Past deals' : 'Current deals')
+                                              : 'Active deals (${_secondDealAdded ? 2 : 1})',
+                                            style: BuyerTypography.style(context, _chatMetrics(context),
+                                              BuyerTextRole.buttonLabel, weight: FontWeight.w700),
+                                          )),
+                                          const SizedBox(width: 6),
+                                          Icon(_dealsExpanded ? Icons.expand_less : Icons.expand_more, size: 20),
+                                        ]),
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
                                   TextButton.icon(
                                     key: const Key(
                                       'approved-manage-conversation-deals',
                                     ),
                                     onPressed: _showConversationDeals,
                                     style: TextButton.styleFrom(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      side: BorderSide(color: HocalistPalette.border(context, _line)),
                                       foregroundColor: HocalistPalette.text(
                                         context,
                                         _blue,
                                       ),
-                                      minimumSize: const Size(44, 40),
+                                      minimumSize: const Size(44, 44),
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
+                                        horizontal: 10,
                                       ),
                                     ),
                                     icon: BuyerGlyphIcon(
@@ -2312,6 +2467,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                   ),
                                 ],
                               ),
+                              if (_dealsExpanded) ...[
                               const SizedBox(height: 6),
                               if (!widget.usesRealEntries)
                                 _ActiveDealsPanel(
@@ -2332,7 +2488,9 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                 )
                               else
                                 _RealActiveDealsPanel(
-                                  deals: widget.realDeals,
+                                  deals: _visibleDeals,
+                                  entryOfferId: widget.entryOfferId,
+                                  past: _showPastDeals == true,
                                   selectedDealId: widget.selectedDealId,
                                   loading: widget.realDealsLoading,
                                   error: widget.realDealsError,
@@ -2355,19 +2513,32 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                     }
                                   },
                                 ),
-                              const SizedBox(height: 12),
-                              if (widget.usesRealEntries) ...[
-                                if (_selectedRealDeal != null)
-                                  Text(
-                                    'Selected deal: ${_selectedRealDeal!.title}',
-                                    key: const Key('chat-selected-deal'),
-                                    style: _text(
-                                      context,
-                                      size: 12,
-                                      weight: FontWeight.w800,
-                                    ),
-                                  ),
                               ],
+                              ],
+                              Divider(height: 20, thickness: 1,
+                                color: HocalistPalette.border(context, const Color(0xffd8d9e5)).withValues(alpha: .45)),
+                              if (widget.usesRealEntries && _selectedRealDeal != null)
+                                Semantics(
+                                  key: const Key('chat-selected-deal'),
+                                  label: 'Selected deal: ${_selectedRealDeal!.title}',
+                                  excludeSemantics: true,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Selected deal', style: BuyerTypography.style(
+                                        context, _chatMetrics(context), BuyerTextRole.metadata)),
+                                      const SizedBox(height: 2),
+                                      Tooltip(
+                                        message: _selectedRealDeal!.title,
+                                        child: Text(_selectedRealDeal!.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: BuyerTypography.style(context, _chatMetrics(context),
+                                            BuyerTextRole.cardTitle, weight: FontWeight.w700)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               if (widget.usesRealEntries &&
                                   widget.blockState != null &&
                                   (widget.blockState!.isBlockedByMe ||
@@ -2783,6 +2954,22 @@ Widget _asset(
   BoxFit fit = BoxFit.contain,
   String? semanticLabel,
 }) {
+  if (name == 'chat-more.png') {
+    return Builder(builder: (context) => PreservedRasterGlyph(
+      asset: '$_assetRoot/$name', width: width ?? 14, height: height ?? 27,
+      fit: BoxFit.cover, color: HocalistPalette.text(context, const Color(0xff101443)),
+      semanticLabel: semanticLabel));
+  }
+  if (name == 'offers-envelope.png') {
+    return Builder(builder: (context) => Image.asset(
+      BuyerAssetIcon.themedAsset(context, '$_assetRoot/$name'), width: width,
+      height: height, fit: fit, semanticLabel: semanticLabel));
+  }
+  if (ApprovedInterfaceIcon.kindFor('$_assetRoot/$name') != null) {
+    return SizedBox(width: width, height: height, child: Center(child:
+      ApprovedInterfaceIcon(asset: '$_assetRoot/$name', size: height ?? width ?? 24,
+        semanticLabel: semanticLabel)));
+  }
   if (width != null &&
       height != null &&
       (width - height).abs() < .01 &&
@@ -2862,6 +3049,9 @@ class _ApprovedRasterAssetState extends State<_ApprovedRasterAsset> {
           }
           return Image.memory(
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+            color: Theme.of(context).brightness == Brightness.dark &&
+                    widget.asset.endsWith('/header-notification.png')
+                ? HocalistPalette.text(context, _blue) : null,
             width: widget.width,
             height: widget.height,
             fit: widget.fit,
@@ -2871,96 +3061,6 @@ class _ApprovedRasterAssetState extends State<_ApprovedRasterAsset> {
           );
         },
       ),
-    );
-  }
-}
-
-class _ApprovedGlobalHeader extends StatelessWidget {
-  const _ApprovedGlobalHeader({required this.onNotifications});
-
-  final VoidCallback onNotifications;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final scaler = MediaQuery.textScalerOf(context).scale(1);
-        final stacked = scaler > 1.3;
-        final compact = constraints.maxWidth < 320;
-        final logo = Semantics(
-          image: true,
-          label: 'Hocalist Reverse Marketplace',
-          child: Image.asset(
-            'assets/brand/hocalist-wordmark.png',
-            width: compact ? 64 : (constraints.maxWidth < 350 ? 84 : 92),
-            height: compact ? 38 : 48,
-            fit: BoxFit.contain,
-            alignment: Alignment.centerLeft,
-            filterQuality: FilterQuality.high,
-            excludeFromSemantics: true,
-          ),
-        );
-        final mode = Container(
-          height: compact ? 30 : 36,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 10),
-          decoration: BoxDecoration(
-            color: HocalistPalette.surface(context, _lavender),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _asset(
-                'header-buyer.png',
-                width: compact ? 17 : 21,
-                height: compact ? 17 : 21,
-              ),
-              SizedBox(width: compact ? 4 : 5),
-              Text(
-                'Buyer mode',
-                style: _text(
-                  context,
-                  size: compact ? 9 : 12,
-                  weight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        );
-        final notification = IconButton(
-          key: const Key('approved-notifications'),
-          tooltip: 'Notifications',
-          onPressed: onNotifications,
-          icon: NotificationArtwork(
-            child: _asset(
-              'header-bell.png',
-              width: compact ? 21 : 28,
-              height: compact ? 21 : 28,
-            ),
-          ),
-        );
-        if (stacked) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(children: [logo, const Spacer(), notification]),
-              Align(alignment: Alignment.centerRight, child: mode),
-            ],
-          );
-        }
-        return SizedBox(
-          height: compact ? 42 : 56,
-          child: Row(
-            children: [
-              logo,
-              const Spacer(),
-              mode,
-              const SizedBox(width: 4),
-              notification,
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -3031,7 +3131,6 @@ class _OffersRewardsCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final stacked = _usesAccessibilityReflow(context);
           final tight = constraints.maxWidth < 300;
           final gift = Container(
             width: tight ? 54 : 70,
@@ -3071,55 +3170,16 @@ class _OffersRewardsCard extends StatelessWidget {
               ),
             ],
           );
-          final explanation = Text(
-            realMode
-                ? 'Rewards become pending after you confirm one qualifying sale '
-                      'with your request PIN. Pending rewards are not '
-                      'withdrawable until applicable fees are collected.'
-                : 'Rewards are earned after you confirm your purchase with your unique request PIN.',
-            style: _text(
-              context,
-              size: tight ? 8 : 10,
-              weight: FontWeight.w500,
-              color: _muted,
-              height: 1.45,
-            ),
-          );
-          if (stacked) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    gift,
-                    const SizedBox(width: 10),
-                    Expanded(child: total),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                explanation,
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              gift,
-              SizedBox(width: tight ? 6 : 9),
-              Expanded(flex: 4, child: total),
-              SizedBox(width: tight ? 5 : 9),
-              Container(
-                width: 1,
-                height: tight ? 54 : 72,
-                color: HocalistPalette.surface(
-                  context,
-                  const Color(0xffdedff0),
-                ),
-              ),
-              SizedBox(width: tight ? 5 : 9),
-              Expanded(flex: 6, child: explanation),
-            ],
-          );
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            gift,
+            SizedBox(width: tight ? 8 : 12),
+            Expanded(child: total),
+            IconButton(tooltip: 'How offer rewards work', icon: const Icon(Icons.info_outline_rounded),
+              color: HocalistPalette.text(context, _offersBlue),
+              onPressed: () => showMoneyHelp(context, title: 'Offer rewards', answers: const {
+                'When do I earn a reward?': 'Confirm a qualifying purchase with your request PIN. The reward becomes available after the applicable seller fees are collected.',
+              })),
+          ]);
         },
       ),
     );
@@ -3157,66 +3217,30 @@ class _OffersToolbar extends StatelessWidget {
             ),
             SizedBox(width: compact ? 5 : 8),
             Expanded(
-              child: DropdownButtonFormField<String>(
+              child: HocalistSelectMenu<String>(
                 key: const Key('approved-offers-sort'),
-                initialValue: value,
-                isExpanded: true,
-                dropdownColor: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                menuMaxHeight: 240,
-                icon: _asset(
-                  'offers-sort-down.png',
-                  width: compact ? 13 : 16,
-                  height: compact ? 13 : 16,
-                ),
-                decoration: InputDecoration(
-                  isDense: false,
-                  constraints: BoxConstraints(
-                    minHeight: compact
-                        ? HocalistInputTokens.compactMinimumHeight
-                        : HocalistInputTokens.minimumHeight,
-                  ),
-                  visualDensity: compact
-                      ? VisualDensity.compact
-                      : VisualDensity.standard,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: compact
-                        ? HocalistInputTokens.compactHorizontalPadding
-                        : HocalistInputTokens.horizontalPadding,
-                    vertical: compact
-                        ? HocalistInputTokens.compactVerticalPadding
-                        : HocalistInputTokens.verticalPadding,
-                  ),
-                  border: OutlineInputBorder(
+                role: HocalistControlRole.buyer,
+                value: value,
+                labelBuilder: (item) => item,
+                options: realMode
+                    ? const ['Newest first', 'Lowest price']
+                    : const ['Best match', 'Lowest price', 'Closest'],
+                onSelected: onChanged,
+                trigger: Container(
+                  constraints: BoxConstraints(minHeight: compact
+                      ? HocalistInputTokens.compactMinimumHeight : HocalistInputTokens.minimumHeight),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(context, Colors.white),
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: HocalistPalette.border(context, _line),
-                    ),
+                    border: Border.all(color: HocalistPalette.border(context, _line)),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: HocalistPalette.border(context, _line),
-                    ),
-                  ),
+                  child: Row(children: [
+                    Expanded(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: _text(context, size: compact ? 9 : 11, weight: FontWeight.w800))),
+                    _asset('offers-sort-down.png', width: compact ? 13 : 16, height: compact ? 13 : 16),
+                  ]),
                 ),
-                style: _text(
-                  context,
-                  size: compact ? 9 : 11,
-                  weight: FontWeight.w800,
-                ),
-                items:
-                    (realMode
-                            ? const ['Newest first', 'Lowest price']
-                            : const ['Best match', 'Lowest price', 'Closest'])
-                        .map(
-                          (item) =>
-                              DropdownMenuItem(value: item, child: Text(item)),
-                        )
-                        .toList(),
-                onChanged: (next) {
-                  if (next != null) onChanged(next);
-                },
               ),
             ),
             SizedBox(width: compact ? 5 : 8),
@@ -3398,8 +3422,13 @@ class _ApprovedOfferCard extends StatelessWidget {
     required this.availability,
     required this.onDetails,
     this.placeLabel,
+    this.photoId,
+    this.additionalPhotos = const [],
     this.topMatch = false,
     this.realMode = false,
+    this.actionLabel = 'Select seller & chat',
+    this.actionBusy = false,
+    this.onProfile,
     super.key,
   });
 
@@ -3419,8 +3448,13 @@ class _ApprovedOfferCard extends StatelessWidget {
 
   /// Authoritative meet-up place for the real-mode fact row.
   final String? placeLabel;
+  final String? photoId;
+  final List<String> additionalPhotos;
   final bool topMatch;
   final bool realMode;
+  final String actionLabel;
+  final bool actionBusy;
+  final VoidCallback? onProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -3520,9 +3554,10 @@ class _ApprovedOfferCard extends StatelessWidget {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
+                            if (photoId != null || !realMode) ...[
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: _asset(
+                              child: photoId != null ? SizedBox(width: compact ? 38 : 50, height: compact ? 25 : 33, child: PrivateRemoteImage(key: ValueKey(photoId), id: photoId!, showWholeImage: true)) : _asset(
                                 'offer-thumbnail.png',
                                 width: compact ? 38 : 50,
                                 height: compact ? 25 : 33,
@@ -3530,6 +3565,7 @@ class _ApprovedOfferCard extends StatelessWidget {
                               ),
                             ),
                             SizedBox(width: compact ? 5 : 7),
+                            ],
                             Expanded(
                               child: Text(
                                 description,
@@ -3617,8 +3653,8 @@ class _ApprovedOfferCard extends StatelessWidget {
                         final compact = constraints.maxWidth < 300;
                         final details = _PrimaryButton(
                           key: Key('approved-view-offer-$initials'),
-                          label: 'View offer details',
-                          onPressed: onDetails,
+                          label: actionBusy ? 'Opening…' : actionLabel,
+                          onPressed: actionBusy ? null : onDetails,
                           height: compact ? 30 : 44,
                           backgroundColor: HocalistPalette.surface(
                             context,
@@ -3634,6 +3670,17 @@ class _ApprovedOfferCard extends StatelessWidget {
                         return SizedBox(width: double.infinity, child: details);
                       },
                     ),
+                    if (onProfile != null)
+                      TextButton(onPressed: onProfile, child: const Text('View seller profile')),
+                    if (additionalPhotos.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Wrap(spacing: 8, runSpacing: 8, children: [
+                          for (final id in additionalPhotos)
+                            ClipRRect(borderRadius: BorderRadius.circular(8),
+                              child: PrivateRemoteImage(id: id, size: 64, showWholeImage: true)),
+                        ]),
+                      ),
                   ],
                 ),
               ),
@@ -3858,58 +3905,14 @@ class _OfferDetailHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            IconButton(
-              key: const Key('approved-offer-back'),
-              tooltip: 'Back',
-              onPressed: onBack,
-              icon: _asset('detail-back.png', width: 24, height: 24),
-            ),
-            Expanded(
-              child: Center(
-                child: Image.asset(
-                  'assets/brand/hocalist-wordmark.png',
-                  width: 84,
-                  height: 48,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                  semanticLabel: 'Hocalist Reverse Marketplace',
-                ),
-              ),
-            ),
-            Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: HocalistPalette.surface(context, _lavender),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _asset('header-buyer.png', width: 19, height: 19),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Buyer mode',
-                    style: _text(
-                      context,
-                      size: 10,
-                      weight: FontWeight.w800,
-                      color: _blue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              tooltip: 'Notifications',
-              onPressed: onNotifications,
-              icon: NotificationArtwork(
-                child: _asset('header-bell.png', width: 25, height: 25),
-              ),
-            ),
-          ],
+        BuyerTopLevelHeader(
+          onNotifications: onNotifications,
+          backButton: IconButton(
+            key: const Key('approved-offer-back'),
+            tooltip: 'Back',
+            onPressed: onBack,
+            icon: _asset('detail-back.png', width: 24, height: 24),
+          ),
         ),
         Text(
           'Offer details',
@@ -4611,7 +4614,7 @@ class _AboutSeller extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       realMode
-                          ? 'Public seller details, ratings and verified history appear once an authorized profile projection exists.'
+                          ? 'Seller details and ratings are currently unavailable. Please try again later.'
                           : 'Local seller with 230+ successful deals. Usually responds in a few hours.',
                       style: _text(
                         context,
@@ -5336,7 +5339,9 @@ class _NewDealCard extends StatelessWidget {
 class _RealActiveDealsPanel extends StatelessWidget {
   const _RealActiveDealsPanel({
     required this.deals,
+    this.past = false,
     this.selectedDealId,
+    this.entryOfferId,
     required this.loading,
     required this.error,
     required this.onRefresh,
@@ -5344,8 +5349,10 @@ class _RealActiveDealsPanel extends StatelessWidget {
     required this.onViewDeal,
   });
 
+  final bool past;
   final List<ApprovedDealView>? deals;
   final String? selectedDealId;
+  final String? entryOfferId;
   final bool loading;
   final String? error;
   final VoidCallback? onRefresh;
@@ -5357,10 +5364,14 @@ class _RealActiveDealsPanel extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final spacing = constraints.maxWidth < 330 ? 6.0 : 9.0;
-        final baseHeight = constraints.maxWidth < 330 ? 148.0 : 164.0;
+        final baseHeight = constraints.maxWidth < 330 ? 156.0 : 172.0;
         final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
-        final height = baseHeight + ((textScale - 1).clamp(0, 1) * 68);
-        final list = deals;
+        final height = baseHeight + ((textScale - 1).clamp(0, 1) * 104);
+        final rows = deals;
+        final entry = entryOfferId == null ? null : rows?.where(
+          (deal) => deal.offerId == entryOfferId || deal.id == entryOfferId,
+        ).firstOrNull;
+        final list = entry == null ? rows : [entry, ...rows!.where((row) => row.id != entry.id)];
         final showState = list == null || (list.isEmpty && error != null);
         if (showState) {
           return SizedBox(
@@ -5380,18 +5391,20 @@ class _RealActiveDealsPanel extends StatelessWidget {
                     loading: loading,
                     message:
                         error ??
-                        'Active deals are not available for this conversation yet.',
+                        (past ? 'Your past deals could not be loaded. Try again.' : 'Your deals could not be loaded. Try again.'),
                     onRetry: onRefresh,
                   ),
                 ),
-                SizedBox(width: spacing),
-                const Expanded(child: _NewDealCard()),
+                if (!past) ...[
+                  SizedBox(width: spacing),
+                  const Expanded(child: _NewDealCard()),
+                ],
               ],
             ),
           );
         }
         if (list.isEmpty) {
-          return SizedBox(height: height, child: const _NewDealCard());
+          return past ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('No past deals yet.', style: _text(context, size: 13))) : SizedBox(height: height, child: const _NewDealCard());
         }
         if (list.length == 1) {
           final deal = list.first;
@@ -5403,6 +5416,7 @@ class _RealActiveDealsPanel extends StatelessWidget {
                 Expanded(
                   child: _RealDealCard(
                     key: ValueKey('active-deal-${deal.id}'),
+                    emphasizeExplore: entry == deal && (selectedDealId == deal.offerId || selectedDealId == deal.id),
                     deal: deal,
                     selected:
                         selectedDealId == null ||
@@ -5412,8 +5426,10 @@ class _RealActiveDealsPanel extends StatelessWidget {
                     onViewDetails: () => onViewDeal(deal.id),
                   ),
                 ),
-                SizedBox(width: spacing),
-                const Expanded(child: _NewDealCard()),
+                if (!past) ...[
+                  SizedBox(width: spacing),
+                  const Expanded(child: _NewDealCard()),
+                ],
               ],
             ),
           );
@@ -5423,6 +5439,7 @@ class _RealActiveDealsPanel extends StatelessWidget {
         return SizedBox(
           height: height,
           child: ListView(
+            key: const PageStorageKey('chat-deal-cards'),
             scrollDirection: Axis.horizontal,
             children: [
               for (final deal in list) ...[
@@ -5430,6 +5447,7 @@ class _RealActiveDealsPanel extends StatelessWidget {
                   width: dealWidth,
                   child: _RealDealCard(
                     key: ValueKey('active-deal-${deal.id}'),
+                    emphasizeExplore: entry == deal && (selectedDealId == deal.offerId || selectedDealId == deal.id),
                     deal: deal,
                     selected:
                         deal.id == selectedDealId ||
@@ -5441,7 +5459,7 @@ class _RealActiveDealsPanel extends StatelessWidget {
                 ),
                 SizedBox(width: spacing),
               ],
-              SizedBox(
+              if (!past) SizedBox(
                 width: addWidth,
                 child: const _NewDealCard(compact: true),
               ),
@@ -5535,11 +5553,13 @@ class _RealDealCard extends StatelessWidget {
     required this.onTap,
     required this.onViewDetails,
     this.selected = false,
+    this.emphasizeExplore = false,
     super.key,
   });
 
   final ApprovedDealView deal;
   final bool selected;
+  final bool emphasizeExplore;
   final VoidCallback onTap;
   final VoidCallback onViewDetails;
 
@@ -5613,16 +5633,29 @@ class _RealDealCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              deal.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: _text(
-                                context,
-                                size: compact ? 9 : 11,
-                                weight: FontWeight.w900,
-                              ),
-                            ),
+                            Row(children: [
+                              Expanded(child: Text(
+                                deal.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: _text(context, size: compact ? 9 : 11,
+                                  weight: FontWeight.w900),
+                              )),
+                              if (deal.unreadCount > 0) ...[
+                                const SizedBox(width: 4),
+                                Tooltip(message: '${deal.unreadCount} unread messages',
+                                  child: Semantics(
+                                    label: '${deal.unreadCount} unread messages',
+                                    child: Container(
+                                      key: ValueKey('deal-unread-${deal.id}'),
+                                      width: 10, height: 10,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xffd32f2f), shape: BoxShape.circle),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ]),
                             const SizedBox(height: 4),
                             Text(
                               deal.priceLabel,
@@ -5640,6 +5673,8 @@ class _RealDealCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  Divider(height: 10, thickness: 1,
+                    color: HocalistPalette.border(context, const Color(0xffd8d9e5)).withValues(alpha: .45)),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -5663,38 +5698,20 @@ class _RealDealCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      BuyerGlyphIcon(
-                        icon: Icons.event_outlined,
-                        slotSize: compact ? 11 : 13,
-                        glyphSize: compact ? 11 : 13,
-                        color: HocalistPalette.text(context, _blue),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          deal.scheduleLabel ??
-                              (deal.meetingId != null
-                                  ? 'Meeting time unavailable'
-                                  : deal.purchaseSelected
-                                  ? 'Ready to propose meeting'
-                                  : 'Buyer confirmation pending'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _text(context, size: compact ? 7 : 8.5),
-                        ),
-                      ),
-                    ],
-                  ),
+                  if (!deal.completed && deal.scheduleLabel != null)
+                    Text(deal.scheduleLabel!, maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _text(context, size: compact ? 7 : 8.5)),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton(
                       key: ValueKey('deal-details-${deal.id}'),
                       onPressed: onViewDetails,
                       style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
+                        padding: EdgeInsets.symmetric(vertical: 8, horizontal: emphasizeExplore ? 6 : 0),
                         minimumSize: const Size(0, 32),
+                        backgroundColor: emphasizeExplore ? HocalistPalette.surface(context, _lavender) : Colors.transparent,
+                        side: BorderSide.none,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         foregroundColor: HocalistPalette.text(context, _blue),
                         textStyle: _text(
@@ -5703,7 +5720,11 @@ class _RealDealCard extends StatelessWidget {
                           weight: FontWeight.w800,
                         ),
                       ),
-                      child: const Text('View details'),
+                      child: const Row(children: [
+                        Expanded(child: Text('Explore deal', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        SizedBox(width: 6),
+                        Icon(Icons.arrow_forward_rounded, size: 14),
+                      ]),
                     ),
                   ),
                 ],
@@ -5724,6 +5745,8 @@ class _RealDealCard extends StatelessWidget {
 /// stays visible with a designed unavailable state instead of invented rows.
 class _ApprovedRealDealsSheet extends StatelessWidget {
   const _ApprovedRealDealsSheet({
+    required this.pastSelected,
+    required this.onChooseGroup,
     required this.deals,
     required this.loading,
     required this.error,
@@ -5736,6 +5759,8 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
   });
 
   final List<ApprovedDealView>? deals;
+  final bool? pastSelected;
+  final ValueChanged<bool?> onChooseGroup;
   final bool loading;
   final String? error;
   final bool truncated;
@@ -5761,6 +5786,21 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('Show in chat', style: _text(context, size: 12,
+            weight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            HocalistFilterChip(key: const Key('chat-all-deals'),
+              role: HocalistControlRole.buyer, label: 'All',
+              selected: pastSelected == null, onSelected: (_) => onChooseGroup(null)),
+            HocalistFilterChip(key: const Key('chat-current-deals'),
+              role: HocalistControlRole.buyer, label: 'Current',
+              selected: pastSelected == false, onSelected: (_) => onChooseGroup(false)),
+            HocalistFilterChip(key: const Key('chat-past-deals'),
+              role: HocalistControlRole.buyer, label: 'Past',
+              selected: pastSelected == true, onSelected: (_) => onChooseGroup(true)),
+          ]),
+          const SizedBox(height: 16),
           if (list == null) ...[
             if (loading)
               const BuyerProgressStrip(label: 'Loading active deals…')
@@ -5772,8 +5812,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
                 title: 'Active deals are unavailable',
                 body:
                     error ??
-                    'The server has not provided a deal projection for this '
-                        'conversation yet.',
+                    'Your deals could not be loaded. Please try again.',
               ),
               if (onRefresh != null) ...[
                 SizedBox(height: metrics.geometry(8)),
@@ -5861,7 +5900,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
           if (truncated && list != null && list.isNotEmpty) ...[
             SizedBox(height: metrics.geometry(8)),
             Text(
-              'Some meeting pages were not scanned, so more deals may exist.',
+              'More deals may be available. Refresh to load them.',
               key: const ValueKey('approved-real-deals-truncated'),
               textAlign: TextAlign.center,
               style: _text(context, size: 10, color: _muted, height: 1.35),
@@ -5878,8 +5917,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
                       icon: Icons.history_rounded,
                       title: 'Previous deals are not available yet',
                       body:
-                          'Completed or cancelled deals will appear here once '
-                          'the conversation history read is available.',
+                          'Refresh to load your completed and cancelled deals.',
                     ),
                   ]
                 : previous.isEmpty
@@ -5971,8 +6009,10 @@ class _ConversationDealStateRow extends StatelessWidget {
 }
 
 /// Approved deal-details sheet bound to authoritative meeting data.
-class _ApprovedRealDealDetailsSheet extends StatelessWidget {
-  const _ApprovedRealDealDetailsSheet({
+class ApprovedRealDealDetailsSheet extends StatelessWidget {
+  const ApprovedRealDealDetailsSheet({
+    this.hideUnavailableAction = false,
+    this.offerMessage,
     required this.deal,
     required this.viewerIsSeller,
     required this.onClose,
@@ -5980,6 +6020,8 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
     this.onViewOriginalRequest,
   });
 
+  final bool hideUnavailableAction;
+  final String? offerMessage;
   final ApprovedDealView deal;
   final bool viewerIsSeller;
   final VoidCallback onClose;
@@ -6162,11 +6204,13 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                     value: deal.pendingLabel!,
                   ),
                 const _DealChangeRow(label: 'Item payment', value: 'Offline'),
+                if (offerMessage?.isNotEmpty == true)
+                  _DealChangeRow(label: 'Offer message', value: offerMessage!),
               ],
             ),
           ),
           SizedBox(height: metrics.geometry(16)),
-          BuyerPrimaryButton(
+          if (onOpenMeeting != null || !hideUnavailableAction) BuyerPrimaryButton(
             key: const ValueKey('approved-real-deal-open-meeting'),
             label:
                 deal.actionLabel ??
@@ -6177,7 +6221,7 @@ class _ApprovedRealDealDetailsSheet extends StatelessWidget {
                     : 'Open meeting details'),
             onPressed: onOpenMeeting,
           ),
-          if (onOpenMeeting == null) ...[
+          if (onOpenMeeting == null && !hideUnavailableAction) ...[
             SizedBox(height: metrics.geometry(6)),
             Text(
               'Meeting details are not connected in this build.',
@@ -7027,6 +7071,7 @@ class _ApprovedSearchConversationSheetState
 
   @override
   Widget build(BuildContext context) {
+    final metrics = _chatMetrics(context);
     return _ApprovedChatSheetFrame(
       key: const ValueKey('approved-search-conversation-sheet'),
       title: 'Search conversation',
@@ -7096,18 +7141,16 @@ class _ApprovedSearchConversationSheetState
                 _serverError!,
                 key: const Key('approvedConversationSearchError'),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: HocalistPalette.text(
-                    context,
-                    Theme.of(context).colorScheme.error,
-                  ),
+                style: BuyerTypography.style(
+                  context, metrics, BuyerTextRole.secondaryBody,
+                  color: Theme.of(context).colorScheme.error,
                 ),
               ),
               const SizedBox(height: 6),
-              TextButton(
+              BuyerTextAction(
                 key: const Key('approvedConversationSearchRetry'),
                 onPressed: () => unawaited(_runServerSearch(reset: true)),
-                child: const Text('Try again'),
+                label: 'Try again',
               ),
             ] else if (_hasSearched &&
                 _serverResults.isEmpty &&
@@ -7116,10 +7159,7 @@ class _ApprovedSearchConversationSheetState
               Text(
                 'No messages found',
                 key: const Key('approvedConversationSearchEmpty'),
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: HocalistPalette.text(context, _muted),
-                  fontWeight: FontWeight.w800,
-                ),
+                style: BuyerTypography.style(context, metrics, BuyerTextRole.cardTitle, color: _muted),
               ),
             ] else ...[
               if (_serverResults.isNotEmpty) ...[
@@ -7138,12 +7178,12 @@ class _ApprovedSearchConversationSheetState
                 ],
               ],
               if (_serverCursor != null)
-                TextButton(
+                BuyerTextAction(
                   key: const Key('approvedConversationSearchMore'),
                   onPressed: _serverSearching
                       ? null
                       : () => unawaited(_runServerSearch(reset: false)),
-                  child: const Text('Load more results'),
+                  label: 'Load more results',
                 ),
             ],
           ] else if (_hasSearched) ...[
@@ -8941,4 +8981,43 @@ class _Surface extends StatelessWidget {
       child: child,
     );
   }
+}
+
+class _EnquiryContextPanel extends StatelessWidget {
+  const _EnquiryContextPanel({required this.enquiries,required this.selectedId,required this.onSelect});
+  final List<ChatEnquiry> enquiries;
+  final String? selectedId;
+  final ValueChanged<String>? onSelect;
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const Key('approved-enquiry-contexts'),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: HocalistPalette.surface(context,Colors.white),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color:HocalistPalette.text(context,_blue).withValues(alpha:.18)),
+    ),
+    child: Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+
+      for(final enquiry in enquiries)
+        TextButton(
+          key: ValueKey('enquiry-${enquiry.id}'),
+          onPressed:onSelect==null?null:()=>onSelect!(enquiry.id),
+          style:TextButton.styleFrom(
+            minimumSize:const Size(44,48),alignment:Alignment.centerLeft,
+            padding:const EdgeInsets.symmetric(horizontal:10,vertical:10),
+            backgroundColor:selectedId==enquiry.id?HocalistPalette.text(context,_blue).withValues(alpha:.08):null,
+            shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12)),
+          ),
+          child:Row(children:[
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text(enquiry.originLabel,style:_text(context,size:11,weight:FontWeight.w700,color:_blue)),
+              Text(enquiry.label,style:_text(context,size:13,weight:FontWeight.w800)),
+            ])),
+            if(selectedId==enquiry.id) const Icon(Icons.check_rounded,size:20),
+          ]),
+        ),
+
+    ]),
+  );
 }

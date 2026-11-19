@@ -56,13 +56,16 @@ void main() {
       expect(find.text('This deal needs a payment update.'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('active-deal-b')));
       await tester.pumpAndSettle();
-      expect(find.text('Selected deal: Deal B'), findsOneWidget);
+      expect(find.bySemanticsLabel('Selected deal: Deal B'), findsOneWidget);
       expect(find.text('This deal needs a payment update.'), findsNothing);
       expect(find.byKey(const Key('approvedChatManagePayment')), findsNothing);
+      await tester.enterText(find.byType(TextField).last, 'Keep my unfinished message');
       // The first deal's delayed response arrives while the second is open.
       rebuild(() => feedback.setError(a, 'Late payment failure for A.'));
       await tester.pumpAndSettle();
       expect(find.text('Late payment failure for A.'), findsNothing);
+      expect(find.text('Keep my unfinished message'), findsOneWidget);
+      expect(find.bySemanticsLabel('Selected deal: Deal B'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('active-deal-a')));
       await tester.pumpAndSettle();
       expect(find.text('Late payment failure for A.'), findsOneWidget);

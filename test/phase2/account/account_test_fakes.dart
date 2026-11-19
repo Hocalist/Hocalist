@@ -188,6 +188,9 @@ class FakeAuthGateway implements AccountAuthGateway {
   }
 
   @override
+  Future<void> resendSignupConfirmation(String email) async {}
+
+  @override
   Future<void> requestEmailLink({
     required String email,
     required String name,
@@ -277,6 +280,7 @@ class FakeAuthGateway implements AccountAuthGateway {
 }
 
 class FakeAccountRepository implements AccountRepository {
+  List<MembershipRecord> memberships = [];
   Future<RepositoryResult<MembershipRecord>>? membershipFuture;
   Future<RepositoryResult<OnboardResult>>? onboardFuture;
   RepositoryResult<MembershipRecord> Function(HocalistRole role)?
@@ -302,7 +306,7 @@ class FakeAccountRepository implements AccountRepository {
 
   @override
   Future<RepositoryResult<List<MembershipRecord>>> fetchMemberships() async {
-    return const RepositorySuccess(<MembershipRecord>[]);
+    return RepositorySuccess(memberships);
   }
 
   @override

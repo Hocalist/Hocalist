@@ -110,6 +110,17 @@ void main() {
     });
     expect((await adapter.cases()).errorOrNull?.kind.name, 'malformedResponse');
   });
+  test('feedback screenshots keep their case and retry identity', () async {
+    transport.handler = (_) => const MarketplaceTransportData({'case_id': caseId});
+    const media = '10000000-0000-4000-8000-000000000002';
+    for (var retry = 0; retry < 2; retry++) {
+      expect((await adapter.attachScreenshots(caseId: caseId,
+        mediaIds: [media], operationKey: 'feedback-screenshots')).valueOrNull, caseId);
+    }
+    expect(transport.calls[0].params, transport.calls[1].params);
+    expect(transport.calls.first.function, 'report_evidence_attach');
+    expect(transport.calls.first.params['p_input'], {'case_id': caseId, 'media_ids': [media]});
+  });
   testWidgets(
     'validation keeps case state visible and does not claim a loading failure',
     (tester) async {

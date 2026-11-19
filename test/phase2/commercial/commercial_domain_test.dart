@@ -48,16 +48,20 @@ void main() {
         () => CreditWalletView.fromJson(wrongCurrency),
         throwsA(isA<CommercialContractError>()),
       );
-      final badStatus = creditWalletJson(targets: [
-        {...targetJson(), 'status': 'pending_review'},
-      ]);
+      final badStatus = creditWalletJson(
+        targets: [
+          {...targetJson(), 'status': 'pending_review'},
+        ],
+      );
       expect(
         () => CreditWalletView.fromJson(badStatus),
         throwsA(isA<CommercialContractError>()),
       );
-      final badBatch = creditWalletJson(batches: [
-        {...batchJson(), 'winning_total_minor': 9999},
-      ]);
+      final badBatch = creditWalletJson(
+        batches: [
+          {...batchJson(), 'winning_total_minor': 9999},
+        ],
+      );
       expect(
         () => CreditWalletView.fromJson(badBatch),
         throwsA(isA<CommercialContractError>()),
@@ -66,6 +70,42 @@ void main() {
   });
 
   group('reward wallet decoding', () {
+    test('mixed purchase rewards require a complete balanced split', () {
+      final payload = <String, Object?>{
+        'status': 'mixed',
+        'amount_minor': 30,
+        'earned_minor': 15,
+        'held_minor': 15,
+        'reversed_minor': 0,
+        'rule_version': 'test',
+      };
+      expect(SaleRewardView.fromJson(payload).earnedMinor, 15);
+      expect(SaleRewardView.fromJson(payload).heldMinor, 15);
+      expect(
+        () => SaleRewardView.fromJson({...payload, 'earned_minor': 30}),
+        throwsA(isA<CommercialContractError>()),
+      );
+      expect(
+        () => SaleRewardView.fromJson({...payload}..remove('held_minor')),
+        throwsA(isA<CommercialContractError>()),
+      );
+    });
+    test('estimates stay outside earned and available money', () {
+      final payload = rewardWalletJson()..['estimated_minor'] = 45;
+      final view = RewardWalletView.fromJson(payload);
+      expect(view.estimatedMinor, 45);
+      expect(view.earnedMinor, payload['earned_minor']);
+      expect(view.availableMinor, payload['available_minor']);
+      expect(view.toDashboardMap()['earned_minor'], payload['available_minor']);
+      expect(
+        RewardWalletView.fromJson(rewardWalletJson()).estimatedMinor,
+        isNull,
+      );
+      expect(
+        () => RewardWalletView.fromJson(payload..['estimated_minor'] = -1),
+        throwsA(isA<CommercialContractError>()),
+      );
+    });
     test('earned, held, processing and available stay separate', () {
       final view = RewardWalletView.fromJson(
         rewardWalletJson(processing: 3000, paid: 1000),
@@ -87,10 +127,7 @@ void main() {
 
     test('a missing policy reports unavailable instead of a default rate', () {
       final view = RewardWalletView.fromJson(
-        rewardWalletJson(
-          policyConfigured: false,
-          withdrawalConfigured: false,
-        ),
+        rewardWalletJson(policyConfigured: false, withdrawalConfigured: false),
       );
       expect(view.rewardPolicyConfigured, false);
       expect(view.normalMinor, isNull);
@@ -107,7 +144,9 @@ void main() {
         throwsA(isA<CommercialContractError>()),
       );
       expect(
-        () => RewardWalletView.fromJson(rewardWalletJson(earned: 10, held: 10, pending: 20)),
+        () => RewardWalletView.fromJson(
+          rewardWalletJson(earned: 10, held: 10, pending: 20),
+        ),
         throwsA(isA<CommercialContractError>()),
       );
     });
@@ -151,15 +190,17 @@ void main() {
 
     test('an unknown side or non-offline item payment is refused', () {
       expect(
-        () => SaleHistoryEntryView.fromJson(
-          {...saleHistorySaleJson(), 'side': 'refund'},
-        ),
+        () => SaleHistoryEntryView.fromJson({
+          ...saleHistorySaleJson(),
+          'side': 'refund',
+        }),
         throwsA(isA<CommercialContractError>()),
       );
       expect(
-        () => SaleDetailView.fromJson(
-          {...saleDetailJson(), 'item_payment': 'card'},
-        ),
+        () => SaleDetailView.fromJson({
+          ...saleDetailJson(),
+          'item_payment': 'card',
+        }),
         throwsA(isA<CommercialContractError>()),
       );
     });
@@ -204,21 +245,23 @@ void main() {
       expect(view.earned.applied, true);
     });
 
-    test('a paid/earned overlap without an approved rule reports unconfigured',
-        () {
-      final view = SellerEntitlementView.fromJson(
-        entitlementJson(
-          effectivePlan: 'pro',
-          effectiveSource: 'billing',
-          calendarConfigured: true,
-          billingPlan: 'pro',
-          overlapUnconfigured: true,
-        ),
-      );
-      expect(view.earned.plan, PlanCode.pro);
-      expect(view.earned.applied, false);
-      expect(view.earned.overlapUnconfigured, true);
-    });
+    test(
+      'a paid/earned overlap without an approved rule reports unconfigured',
+      () {
+        final view = SellerEntitlementView.fromJson(
+          entitlementJson(
+            effectivePlan: 'pro',
+            effectiveSource: 'billing',
+            calendarConfigured: true,
+            billingPlan: 'pro',
+            overlapUnconfigured: true,
+          ),
+        );
+        expect(view.earned.plan, PlanCode.pro);
+        expect(view.earned.applied, false);
+        expect(view.earned.overlapUnconfigured, true);
+      },
+    );
 
     test('impossible source and trial shapes are refused', () {
       expect(
@@ -313,38 +356,40 @@ void main() {
       );
     });
 
-    test('the dashboard projection is never more than what is withdrawable',
-        () {
-      final view = RewardWalletView.fromJson(
-        rewardWalletJson(
-          earned: 100,
-          pending: 0,
-          hold: 15,
-          reversed: 10,
-          processing: 20,
-          paid: 30,
-          items: [
-            {
-              'id': 'a',
-              'amount_minor': 100,
-              'created_at': '2026-09-23T12:00:00Z',
-              'status': 'held',
-              'hold_minor': 15,
-              'reversed_minor': 10,
-              'shortfall_minor': 0,
-              'item_title': 'Sold laptop',
-            },
-          ],
-        ),
-      );
-      final map = view.toDashboardMap();
-      expect(map['earned_minor'], view.availableMinor);
-      expect(map['earned_minor'], 25);
-      expect(map['held_minor'], 15);
-      expect(map['reversed_minor'], 10);
-      expect((map['items'] as List).single['status'], 'held');
-      expect((map['items'] as List).single['reversed_minor'], 10);
-    });
+    test(
+      'the dashboard projection is never more than what is withdrawable',
+      () {
+        final view = RewardWalletView.fromJson(
+          rewardWalletJson(
+            earned: 100,
+            pending: 0,
+            hold: 15,
+            reversed: 10,
+            processing: 20,
+            paid: 30,
+            items: [
+              {
+                'id': 'a',
+                'amount_minor': 100,
+                'created_at': '2026-09-23T12:00:00Z',
+                'status': 'held',
+                'hold_minor': 15,
+                'reversed_minor': 10,
+                'shortfall_minor': 0,
+                'item_title': 'Sold laptop',
+              },
+            ],
+          ),
+        );
+        final map = view.toDashboardMap();
+        expect(map['earned_minor'], view.availableMinor);
+        expect(map['earned_minor'], 25);
+        expect(map['held_minor'], 15);
+        expect(map['reversed_minor'], 10);
+        expect((map['items'] as List).single['status'], 'held');
+        expect((map['items'] as List).single['reversed_minor'], 10);
+      },
+    );
     test('an unrecovered shortfall is audit-only and never deducted again', () {
       final view = RewardWalletView.fromJson(
         rewardWalletJson(

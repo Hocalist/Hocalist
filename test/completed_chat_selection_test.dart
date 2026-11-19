@@ -49,8 +49,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Selected deal: Completed deal'), findsOneWidget);
-      expect(find.text('Selected deal: Other deal'), findsNothing);
+      expect(find.bySemanticsLabel('Selected deal: Completed deal'), findsOneWidget);
+      expect(find.bySemanticsLabel('Selected deal: Other deal'), findsNothing);
       expect(find.text('Completed deal: purchase completed.'), findsNothing);
       expect(tester.takeException(), isNull);
     },

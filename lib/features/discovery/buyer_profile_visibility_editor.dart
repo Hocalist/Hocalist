@@ -1,6 +1,5 @@
 import '../../components/pull_refresh.dart';
-import '../../components/hocalist_account_field.dart';
-import 'package:hocalist/theme/adaptive_palette.dart';
+import '../profiles/profile_ui.dart';
 import 'package:flutter/material.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../data/phase2/discovery/discovery_backends.dart';
@@ -127,7 +126,7 @@ class _BuyerProfileVisibilityEditorState
 
   Widget _buildContent(BuildContext context) {
     final enabled = !_loading && !_saving && _base != null && _pending == null;
-    return HocalistAccountFormCard(
+    return ProfileCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -217,58 +216,10 @@ class _BuyerProfileVisibilityEditorState
     required ValueChanged<bool> onChanged,
     bool primary = false,
   }) {
-    final accent = Theme.of(context).colorScheme.primary;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: HocalistPalette.surface(
-          context,
-          selected ? const Color(0xfff2efff) : Colors.white,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: selected
-                ? accent.withValues(alpha: .45)
-                : HocalistPalette.border(context, BuyerUiTokens.border),
-          ),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: enabled ? () => onChanged(!selected) : null,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                if (primary)
-                  Switch(value: selected, onChanged: enabled ? onChanged : null)
-                else
-                  Checkbox(
-                    value: selected,
-                    onChanged: enabled ? (v) => onChanged(v ?? false) : null,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return ProfileSharingChoice(
+      icon: primary ? Icons.visibility_outlined : label == 'Display name' ? Icons.person_outline : label == 'Approximate area' ? Icons.location_on_outlined : Icons.category_outlined,
+      label: label, description: description, value: selected,
+      checkbox: !primary, onChanged: enabled ? onChanged : null,
     );
   }
 }

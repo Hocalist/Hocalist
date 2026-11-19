@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/phase2/commercial/withdrawal_backend.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 import '../../test_fonts.dart';
 import 'support/commercial_payloads.dart';
@@ -57,13 +58,14 @@ RewardWalletView _wallet({
 );
 
 WithdrawalStatusView _withdrawals({
+  int available = 5000,
   List<WithdrawalRequestView> requests = const [],
 }) => WithdrawalStatusView(
   minimumMinor: 2000,
   feeMinor: 250,
   earnedMinor: 7000,
   processingMinor: 1000,
-  availableMinor: 5000,
+  availableMinor: available,
   emailVerified: true,
   phoneVerified: true,
   requests: requests,
@@ -99,7 +101,114 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('open payout history follows processing to paid and stops polling', (tester) async {
+    var reads = 0;
+    await _pump(tester, ApprovedBuyerRewardsRealSections(
+      load: () async => _wallet(),
+      loadWithdrawals: () async => _withdrawals(requests: [
+        WithdrawalRequestView(id: 'withdrawal', amountMinor: 6000, feeMinor: 250,
+          netMinor: 5750, status: ++reads == 1 ? 'processing' : 'paid',
+          createdAt: DateTime.utc(2026, 11, 7)),
+      ]),
+    ));
+    expect(find.textContaining('Processing • funds reserved'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 20));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Paid •'), findsOneWidget);
+    final settledReads = reads;
+    await tester.pump(const Duration(minutes: 1));
+    expect(reads, settledReads);
+  });
+  for (final cents in [0, 1999, 2000, 6000]) {
+    testWidgets('withdraw button uses available balance of $cents cents', (tester) async {
+      await _pump(tester, ApprovedBuyerRewardsRealSections(
+        load: () async => _wallet(available: cents),
+        loadWithdrawals: () async => _withdrawals(available: cents),
+        openWithdrawal: (_) async => false,
+      ));
+      final button = tester.widget<BuyerPrimaryButton>(
+        find.byKey(const ValueKey('approved-rewards-withdraw-button')),
+      );
+      expect(button.onPressed != null, cents >= 2000);
+    });
+  }
   setUpAll(loadHocalistTestFonts);
+
+  for (final width in [320.0, 360.0, 390.0, 430.0]) {
+    for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+      testWidgets('approved pending estimates fit $width at $scale', (
+        tester,
+      ) async {
+        final wallet = RewardWalletView.fromJson(
+          rewardWalletJson()..['estimated_minor'] = 45,
+        );
+        await _pump(
+          tester,
+          ApprovedBuyerRewardsDetailPage(
+              onBack: () {},
+              onDealHistory: () {},
+            realContent: ApprovedBuyerRewardsRealSections(
+              load: () async => wallet,
+            ),
+          ),
+          width: width,
+          scale: scale,
+        );
+        expect(find.text('Pending estimated'), findsOneWidget);
+        final pending = tester.widget<Text>(
+          find.byKey(const ValueKey('approved-rewards-pending')),
+        );
+        expect(pending.data, r'$0.45');
+        expect(find.text(r'Available to withdraw: $0.15'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('approved-rewards-estimate-explanation')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('approved deal details show the combined reward split', (
+    tester,
+  ) async {
+    final detail = saleDetailJson(id: 'so-2', side: 'purchase');
+    detail['reward'] = <String, Object?>{
+      'status': 'mixed',
+      'amount_minor': 30,
+      'earned_minor': 15,
+      'held_minor': 15,
+      'reversed_minor': 0,
+      'rule_version': 'test',
+    };
+    await _pump(
+      tester,
+      ApprovedBuyerDealHistoryRealSections(
+        load: ({DateTime? beforeTime, String? beforeId}) async => [
+          SaleHistoryEntryView.fromJson(saleHistoryPurchaseJson()),
+        ],
+        loadDetail: (_) async => SaleDetailView.fromJson(detail),
+      ),
+      width: 320,
+      scale: 1.3,
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('approved-deal-history-record-so-2')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('approved-deal-history-record-so-2')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('approved-history-reward-so-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.text(r'Earned $0.15 • On hold $0.15 • Reversed $0.00'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('approved reward sections render from the authoritative wallet', (
     tester,
@@ -145,6 +254,12 @@ void main() {
     expect(find.textContaining('128.45'), findsNothing);
     expect(find.textContaining('42 completed'), findsNothing);
     expect(find.textContaining('15230'), findsNothing);
+    final help = find.text('How rewards and withdrawals work');
+    await tester.ensureVisible(help);
+    await tester.tap(help);
+    await tester.pumpAndSettle();
+    expect(find.textContaining(r'The minimum withdrawal is $20.00'), findsOneWidget);
+    expect(find.textContaining(r'The payout fee is $2.50'), findsOneWidget);
   });
 
   testWidgets('missing reward policy and withdrawal terms stay designed', (

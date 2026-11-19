@@ -141,6 +141,7 @@ class FakeMeetingsBackend implements MarketplaceMeetingsBackend {
 
   @override
   Future<MeetingView> cancelMeeting({
+    String? reason,
     required String meetingId,
     required int expectedRevision,
     required String operationKey,

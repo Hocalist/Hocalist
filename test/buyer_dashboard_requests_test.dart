@@ -11,12 +11,14 @@ import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 import 'test_fonts.dart';
 
 MarketplaceRequest _request({
+  String? purchaseOfferId,
   String id = '30000000-0000-4000-8000-000000000001',
   String title = 'iPad Air, 5th gen or newer',
   int minimum = 35000,
   int maximum = 48000,
   RequestStatus status = RequestStatus.active,
 }) => MarketplaceRequest(
+  purchaseOfferId: purchaseOfferId,
   id: id,
   buyerProfileId: '10000000-0000-4000-8000-00000000000a',
   buyerUserId: 'user-a',
@@ -73,6 +75,7 @@ ApprovedBuyerHomePage _page({
   Future<Map<String, dynamic>> Function()? loadRealRewards,
   List<MeetingView>? realMeetings,
   ValueChanged<MeetingView>? onOpenMeeting,
+  ValueChanged<MeetingView>? onOpenPinMeeting,
   List<ApprovedActivityView>? realActivity,
   bool activityLoading = false,
   String? activityError,
@@ -99,6 +102,7 @@ ApprovedBuyerHomePage _page({
   loadRealRewards: loadRealRewards,
   realMeetings: realMeetings,
   onOpenMeeting: onOpenMeeting,
+  onOpenPinMeeting: onOpenPinMeeting,
   realActivity: realActivity,
   activityLoading: activityLoading,
   activityError: activityError,
@@ -106,6 +110,35 @@ ApprovedBuyerHomePage _page({
 );
 
 void main() {
+  testWidgets('home orders requests by creation date regardless of deadline', (
+    tester,
+  ) async {
+    final rows = List.generate(
+      5,
+      (i) => BuyerRequestView(
+        requestId: 'expiry-$i', revision: 1, title: 'Expiry $i',
+        budgetLabel: 'Budget', statusLabel: 'Active request',
+        createdAt: DateTime.utc(2026, 10, i + 1),
+        acceptanceExpiresAt: i == 4 ? null : DateTime.utc(2030, 1, i + 1),
+      ),
+    );
+    rows.add(BuyerRequestView(
+      requestId: 'closed', revision: 1, title: 'Closed history',
+      budgetLabel: 'Budget', statusLabel: 'Closed request', isActive: false,
+      createdAt: DateTime.utc(2031), acceptanceExpiresAt: DateTime.utc(2020),
+    ));
+    await _pump(tester, _page(realRequests: rows.reversed.toList()));
+    expect(find.text('Expiry 4'), findsOneWidget);
+    expect(find.text('Expiry 0'), findsNothing);
+    expect(tester.getTopLeft(find.text('Expiry 4')).dy,
+        lessThan(tester.getTopLeft(find.text('Expiry 3')).dy));
+    await tester.ensureVisible(find.text('View all').first);
+    await tester.tap(find.text('View all').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Expiry 0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('home shows newest four and View all reveals older requests', (
     tester,
   ) async {
@@ -240,6 +273,10 @@ void main() {
     );
     await tester.ensureVisible(find.text('View offers  ›').first);
     await tester.pumpAndSettle();
+    expect(
+      tester.getCenter(find.text('PIN').first).dy,
+      closeTo(tester.getCenter(find.text('View offers  ›').first).dy, 1),
+    );
     await tester.tap(find.text('View offers  ›').first);
     await tester.pumpAndSettle();
     expect(opened?.title, 'Gaming laptop');
@@ -316,14 +353,36 @@ void main() {
       revisions: const [],
     );
     MeetingView? opened;
+    MeetingView? pinMeeting;
     await _pump(
       tester,
       _page(
-        realRequests: const [],
+        realRequests: [BuyerRequestView.fromRequest(_request(id: meeting.requestId))],
         realMeetings: [meeting],
         onOpenMeeting: (value) => opened = value,
+        onOpenPinMeeting: (value) => pinMeeting = value,
       ),
     );
+    await tester.ensureVisible(find.text('PIN'));
+    await tester.tap(find.text('PIN'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a seller to access the purchase PIN.'), findsOneWidget);
+    expect(pinMeeting, isNull);
+    expect(opened, isNull);
+    await tester.tap(find.byKey(const ValueKey('buyer-modal-sheet-close')));
+    await tester.pumpAndSettle();
+    await _pump(tester, _page(
+      realRequests: [BuyerRequestView.fromRequest(
+        _request(id: meeting.requestId, purchaseOfferId: meeting.offerId),
+      )],
+      realMeetings: [meeting],
+      onOpenMeeting: (value) => opened = value,
+      onOpenPinMeeting: (value) => pinMeeting = value,
+    ));
+    await tester.ensureVisible(find.text('PIN'));
+    await tester.tap(find.text('PIN'));
+    expect(pinMeeting?.meetingId, meeting.meetingId);
+    expect(opened, isNull);
     final row = find.byKey(const ValueKey('buyerMeeting-meeting-42'));
     await tester.ensureVisible(row);
     await tester.pumpAndSettle();
@@ -332,8 +391,9 @@ void main() {
     expect(opened?.meetingId, 'meeting-42');
   });
 
-  testWidgets('real request rows open by identity', (tester) async {
+  testWidgets('request card opens offers and editing stays in its menu', (tester) async {
     BuyerRequestView? opened;
+    BuyerRequestView? edited;
     await _pump(
       tester,
       _page(
@@ -342,7 +402,8 @@ void main() {
             _request(id: '30000000-0000-4000-8000-000000000042'),
           ),
         ],
-        onOpenRequest: (view) => opened = view,
+        onOpenOffers: (view) => opened = view,
+        onOpenRequest: (view) => edited = view,
       ),
     );
     await tester.ensureVisible(
@@ -354,6 +415,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(opened?.requestId, '30000000-0000-4000-8000-000000000042');
+    expect(edited, isNull);
+    await tester.tap(find.byTooltip('Request options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit request'));
+    await tester.pumpAndSettle();
+    expect(edited?.requestId, opened?.requestId);
   });
 
   testWidgets('dashboard shows loading, error and empty request states', (

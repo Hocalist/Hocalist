@@ -11,7 +11,7 @@ import 'package:hocalist/domain/phase2/profiles.dart';
 import 'package:hocalist/domain/phase2/repositories.dart';
 import 'package:hocalist/domain/phase2/offers.dart';
 import 'buyer_offers_backend_test.dart' show selectedOffer;
-import 'support/marketplace_fakes.dart' show leadJson;
+import 'support/marketplace_fakes.dart' show leadJson, offerJson;
 import 'package:hocalist/data/phase2/marketplace/marketplace_codecs.dart';
 
 class MeetingOfferRepository implements OfferRepository {
@@ -191,6 +191,31 @@ class FakeConversationRepository implements ConversationRepository {
 }
 
 void main() {
+  test('background inbox refresh keeps loaded content and never shows loading', () async {
+    final conversations = FakeConversationRepository();
+    final repository = LocalMarketplaceRepository(chatBackend: Phase2MarketplaceChatBackend(
+      conversations: conversations, currentUserId: _viewerId,
+    ));
+    await repository.refreshChatInbox();
+    final pending = Completer<RepositoryResult<PageSlice<ConversationSummary>>>();
+    conversations.onInbox = () => pending.future;
+    final loadingStates = <bool>[];
+    repository.addListener(() => loadingStates.add(repository.chatInboxLoading));
+    final refresh = repository.refreshChatInbox(background: true);
+    expect(repository.chatInboxLoading, false);
+    expect(repository.chatInbox, hasLength(1));
+    pending.complete(RepositorySuccess(PageSlice<ConversationSummary>(items: [])));
+    await refresh;
+    expect(repository.chatInbox, isEmpty);
+    expect(loadingStates, everyElement(false));
+    conversations.onInbox = () async => const RepositoryFailureResult(NetworkError(retryable: true));
+    await repository.refreshChatInbox(background: true);
+    expect(repository.chatInboxError, isNull);
+    await repository.refreshChatInbox();
+    expect(repository.chatInboxError, isNotNull);
+    expect(loadingStates, contains(true));
+    repository.dispose();
+  });
   test(
     'refresh restarts older pagination when newest page has a gap',
     () async {
@@ -467,6 +492,37 @@ void main() {
       backend.loadConversationRequest(_conversationId),
       throwsA(isA<StoreBackendException>()),
     );
+  });
+
+  test('selected historical deal loads its request and rejects foreign deals', () async {
+    const otherRequest = '30000000-0000-4000-8000-000000000002';
+    final source = MeetingOfferRepository()
+      ..value = decodeOfferJson({
+        ...offerJson(),
+        'request_id': otherRequest,
+        'conversation_id': _conversationId,
+      }, 'historical offer');
+    final reads = <String>[];
+    final backend = Phase2MarketplaceChatBackend(
+      conversations: FakeConversationRepository(), currentUserId: _viewerId,
+      offers: source,
+      requestReader: (id) async {
+        reads.add(id);
+        return RepositorySuccess(decodeLeadJson({
+          ...leadJson(), 'request_id': id,
+        }, 'lead'));
+      },
+    );
+    final request = await backend.loadConversationRequest(
+      _conversationId, offerId: source.value.id,
+    );
+    expect(request!.requestId, otherRequest);
+    expect(reads, [otherRequest]);
+    source.value = source.value.copyWith(conversationId: 'foreign');
+    await expectLater(backend.loadConversationRequest(
+      _conversationId, offerId: source.value.id,
+    ), throwsA(isA<StoreBackendException>()));
+    expect(reads, [otherRequest]);
   });
 
   group('Phase2MarketplaceChatBackend', () {

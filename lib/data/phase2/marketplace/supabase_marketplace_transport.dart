@@ -30,6 +30,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'support_reasons',
     'support_list',
     'support_command',
+    'report_evidence_attach',
     'marketplace_catalogue',
     'marketplace_locations',
     'marketplace_timezones',
@@ -53,6 +54,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'chat_deals',
     'marketplace_store_summary',
     'marketplace_my_store_listings',
+    'marketplace_restore_store_listing',
     'marketplace_store_listing',
     'marketplace_public_store_listings',
     'marketplace_saved_items',
@@ -86,6 +88,12 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'hocatrends_trends',
     'hocatrends_winners',
     'hocatrends_topic_sellers',
+    'hocatrends_offer_preference',
+    'hocatrends_listing_preference',
+    'hocatrends_submit_store_offer',
+    'seller_customers',
+    'seller_customer_save',
+    'seller_customer_insights',
     'discovery_open_enquiry',
   };
 

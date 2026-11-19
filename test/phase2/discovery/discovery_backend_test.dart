@@ -53,6 +53,53 @@ Map<String, Object?> reviewJson({int revision = 1, String status = 'published'})
     };
 
 void main() {
+  test('customer saves bind exact buyer and payload; history fences identity', () async {
+    final transport = FakeMarketplaceTransport();
+    final session = FakeMarketplaceSession(sellerId);
+    final backend = Phase2DiscoveryBackend(
+      adapter: DiscoveryDataAdapter(transport: transport, session: session),
+      identity: () => session.currentUserId,
+    );
+    transport.handler = (call) {
+      expect(call.params, {'p_buyer': buyerId, 'p_saved': true, 'p_note': 'Private note'});
+      return MarketplaceTransportData({'buyer_id': buyerId, 'saved': true, 'note': 'Private note'});
+    };
+    await backend.saveCustomer(buyerId, true, 'Private note');
+    transport.handler = (_) => MarketplaceTransportData({'buyer_id': 'wrong', 'saved': true, 'note': 'Private note'});
+    await expectLater(backend.saveCustomer(buyerId, true, 'Private note'), throwsA(isA<StoreBackendException>()));
+    transport.handler = (_) => MarketplaceTransportData({'buyer_id': buyerId, 'concluded_requests': 2,
+      'confirmed_purchases': 3, 'ongoing_requests': 0, 'completion_percent': 150});
+    await expectLater(backend.loadCustomerHistory(buyerId), throwsA(isA<StoreBackendException>()));
+    transport.handler = (_) {
+      session.currentUserId = buyerId;
+      return MarketplaceTransportData({'buyer_id': buyerId, 'concluded_requests': 2,
+        'confirmed_purchases': 1, 'ongoing_requests': 0, 'completion_percent': 50});
+    };
+    await expectLater(backend.loadCustomerHistory(buyerId), throwsA(isA<StoreBackendException>()));
+  });
+  test('Hocatrends preference checks exact offer and session on response', () async {
+    final transport = FakeMarketplaceTransport();
+    final session = FakeMarketplaceSession(sellerId);
+    final backend = Phase2DiscoveryBackend(
+      adapter: DiscoveryDataAdapter(transport: transport, session: session),
+      identity: () => session.currentUserId,
+    );
+    transport.handler = (call) {
+      expect(call.function, 'hocatrends_offer_preference');
+      expect(call.params['p_offer'], offerId);
+      expect(call.params['p_enabled'], true);
+      return MarketplaceTransportData({'offer_id': offerId, 'enabled': true, 'eligible': true});
+    };
+    expect(await backend.hocatrendsOfferPreference(offerId, enabled: true), (enabled: true, eligible: true));
+    transport.handler = (_) => MarketplaceTransportData({'offer_id': 'wrong-offer', 'enabled': true, 'eligible': true});
+    await expectLater(backend.hocatrendsOfferPreference(offerId), throwsA(isA<StoreBackendException>()));
+    transport.handler = (_) {
+      session.currentUserId = buyerId;
+      return MarketplaceTransportData({'offer_id': offerId, 'enabled': true, 'eligible': true});
+    };
+    await expectLater(backend.hocatrendsOfferPreference(offerId), throwsA(isA<StoreBackendException>()));
+  });
+
   group('paged seller discovery', () {
     test('propagates cursors, filters, sorts and match reasons', () async {
       final transport = FakeMarketplaceTransport();

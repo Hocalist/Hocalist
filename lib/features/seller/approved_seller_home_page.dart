@@ -6,6 +6,7 @@ import '../../components/hocalist_status_fact.dart';
 
 import '../../domain/phase2/discovery.dart';
 import '../../domain/phase2/requests.dart';
+import '../../domain/phase2/offers.dart';
 import '../../theme/seller_ui_foundation.dart';
 import 'approved_seller_leads_page.dart';
 import '../../domain/phase2/commercial/commercial.dart';
@@ -15,6 +16,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   const ApprovedSellerHomePage({
     required this.onLeads,
     this.onOpenLead,
+    this.onOpenRecentOffer,
     this.onRefresh,
     required this.onBrowseRequests,
     this.onOfferHistory,
@@ -23,6 +25,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.avatarMediaId,
     this.loadSummary,
     this.realLeads,
+    this.sellerOffers = const [],
     this.leadsLoading = false,
     this.leadsError,
     this.onRefreshLeads,
@@ -31,10 +34,12 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.offersError,
     this.onRefreshOffers,
     this.recommendedLeads,
+    this.recommendationsLocked = false,
     this.recommendedLoading = false,
     this.recommendedError,
     this.onRefreshRecommended,
     this.accountHealth,
+    this.serviceAreaSaved = false,
     this.accountHealthLoading = false,
     this.accountHealthError,
     this.onRefreshAccountHealth,
@@ -45,6 +50,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
 
   final VoidCallback onLeads;
   final ValueChanged<SellerLeadView>? onOpenLead;
+  final ValueChanged<Offer>? onOpenRecentOffer;
   final VoidCallback onBrowseRequests;
   final VoidCallback? onOfferHistory;
   final VoidCallback? onSetupBusiness;
@@ -52,6 +58,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   final String? avatarMediaId;
   final Future<SellerHomeSummaryView> Function()? loadSummary;
   final List<SellerLeadView>? realLeads;
+  final List<Offer> sellerOffers;
   final Future<void> Function()? onRefresh;
   final bool leadsLoading;
   final String? leadsError;
@@ -67,6 +74,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   /// prototype cards; a view with items renders real cards and a designed
   /// empty state keeps the section visible when nothing matches.
   final RecommendedLeadsView? recommendedLeads;
+  final bool recommendationsLocked;
   final bool recommendedLoading;
   final String? recommendedError;
   final VoidCallback? onRefreshRecommended;
@@ -74,6 +82,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   /// Manual review status mapped from the trust projection. Null keeps the
   /// honest "Not available yet" slot.
   final SellerAccountHealthView? accountHealth;
+  final bool serviceAreaSaved;
   final bool accountHealthLoading;
   final String? accountHealthError;
   final VoidCallback? onRefreshAccountHealth;
@@ -138,6 +147,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 realName: realLeads == null ? null : widget.sellerName ?? '',
                 avatarMediaId: widget.avatarMediaId,
                 accountHealth: widget.accountHealth,
+                serviceAreaSaved: widget.serviceAreaSaved,
                 accountHealthLoading: widget.accountHealthLoading,
                 accountHealthError: widget.accountHealthError,
                 onRefreshAccountHealth: widget.onRefreshAccountHealth,
@@ -261,14 +271,15 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                     icon: Icons.inbox_outlined,
                     title: 'No recent leads yet',
                     body:
-                        'Buyer requests that match your business appear here '
-                        'as they are posted.',
+                        'Leads you open or send an offer on appear here.',
                     actionLabel: 'Browse requests',
                     onAction: widget.onBrowseRequests,
                   )
                 else
                   _RealRecentLeadsCard(
                     leads: realLeads.take(3).toList(growable: false),
+                    offers: widget.sellerOffers,
+                    onOpenOffer: widget.onOpenRecentOffer,
                     onTap: (lead) => widget.onOpenLead != null
                         ? widget.onOpenLead!(lead)
                         : widget.onLeads(),
@@ -281,13 +292,17 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
-                _RealRecommendedSection(
+                if (widget.recommendationsLocked)
+                  _SellerHomeEmptyCard(icon: Icons.lock_outline, title: 'Pro and Elite recommendations',
+                    body: 'Browse all leads with your Free plan.', actionLabel: 'Browse leads', onAction: widget.onBrowseRequests)
+                else _RealRecommendedSection(
                   view: widget.recommendedLeads,
                   loading: widget.recommendedLoading,
                   error: widget.recommendedError,
                   onRetry: widget.onRefreshRecommended,
                   onBrowseRequests: widget.onBrowseRequests,
                   onOpenLeads: widget.onLeads,
+                  onOpenLead: widget.onOpenLead,
                   onSetupBusiness:widget.onSetupBusiness,
                 ),
               ],
@@ -313,6 +328,7 @@ class _RealRecommendedSection extends StatelessWidget {
     required this.onRetry,
     required this.onBrowseRequests,
     required this.onOpenLeads,
+    this.onOpenLead,
     this.onSetupBusiness,
   });
 
@@ -322,6 +338,7 @@ class _RealRecommendedSection extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback onBrowseRequests;
   final VoidCallback onOpenLeads;
+  final ValueChanged<SellerLeadView>? onOpenLead;
   final VoidCallback? onSetupBusiness;
 
   @override
@@ -336,21 +353,19 @@ class _RealRecommendedSection extends StatelessWidget {
     }
     if (data == null || data.items.isEmpty) {
       final basis = data?.basis;
-      final hasBasis = data?.hasBasis ?? false;
+      final hasBasis = basis?.declaredCategoryLabels.isNotEmpty ?? false;
       return _SellerHomeEmptyCard(
         key: const Key('sellerHomeRecommendedEmpty'),
         icon: Icons.recommend_outlined,
         title: hasBasis
             ? 'No matching requests right now'
-            : 'Add your business details for recommendations',
+            : 'Choose your seller categories',
         body: hasBasis
             ? 'Your recommendations are based on '
                   '${_basisLabel(basis)}. New matching buyer requests '
                   'appear here as they are posted.'
-            : 'Recommendations use your Store listing categories and your '
-                  'service area. Add at least one of them to see matching '
-                  'buyer requests here.',
-        actionLabel: hasBasis ? 'Browse requests' : onSetupBusiness==null ? null : 'Set up your Store',
+            : 'Choose what you sell in your profile to see matching buyer requests.',
+        actionLabel: hasBasis ? 'Browse requests' : onSetupBusiness==null ? null : 'Edit seller categories',
         onAction: hasBasis ? onBrowseRequests : onSetupBusiness,
       );
     }
@@ -373,9 +388,9 @@ class _RealRecommendedSection extends StatelessWidget {
                     location: _leadLocationLabel(leads[index]),
                     match: (leads[index].matchPercent ?? 0) > 0
                         ? '${leads[index].matchPercent}% Match'
-                        : 'New request',
+                        : SellerLeadView.postedLabel(context, leads[index].publishedAt),
                     budget: _leadBudgetLabel(leads[index]),
-                    onTap: onOpenLeads,
+                    onTap: onOpenLead == null ? onOpenLeads : () => onOpenLead!(SellerLeadView.fromProjection(leads[index])),
                   ),
                 ),
               ),
@@ -451,6 +466,7 @@ class _SellerHero extends StatelessWidget {
     this.realName,
     this.avatarMediaId,
     this.accountHealth,
+    this.serviceAreaSaved = false,
     this.accountHealthLoading = false,
     this.accountHealthError,
     this.onRefreshAccountHealth,
@@ -461,6 +477,7 @@ class _SellerHero extends StatelessWidget {
   final String? realName;
   final String? avatarMediaId;
   final SellerAccountHealthView? accountHealth;
+  final bool serviceAreaSaved;
   final bool accountHealthLoading;
   final String? accountHealthError;
   final VoidCallback? onRefreshAccountHealth;
@@ -473,8 +490,8 @@ class _SellerHero extends StatelessWidget {
     final hour=DateTime.now().hour;
     final salutation=hour<12 ? 'Good morning' : hour<18 ? 'Good afternoon' : 'Good evening';
     final name=realName?.trim() ?? 'Alex';
-    final portraitSize=realName==null ? metrics.artSize(72) : (metrics.availableWidth*0.18).clamp(56.0,72.0);
-    final heroSize=realName==null ? metrics.artSize(122) : (metrics.availableWidth*0.23).clamp(72.0,105.0);
+    final portraitSize=realName==null ? metrics.artSize(62) : (metrics.availableWidth*0.155).clamp(48.0,62.0);
+    final heroSize=realName==null ? metrics.artSize(104) : (metrics.availableWidth*0.20).clamp(62.0,90.0);
     final greeting = Text(
       realName==null ? 'Good morning, Alex! 👋' : name.isEmpty ? '$salutation!\u00a0👋' : '$salutation, $name!\u00a0👋',
       maxLines: realName!=null || metrics.accessibilityReflow ? null : 1,
@@ -490,7 +507,7 @@ class _SellerHero extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: greeting,
               ),
-        SizedBox(height: metrics.geometry(14)),
+        SizedBox(height: metrics.geometry(8)),
         Text(
           'Account health',
           style: sellerText(metrics, 11.5, color: SellerUiColors.body),
@@ -498,7 +515,7 @@ class _SellerHero extends StatelessWidget {
         SizedBox(height: metrics.geometry(5)),
         if (realName==null) const _AccountHealthBar()
         else _AccountHealthSlot(
-          health:accountHealth,loading:accountHealthLoading,error:accountHealthError,
+          health:accountHealth,serviceAreaSaved:serviceAreaSaved,loading:accountHealthLoading,error:accountHealthError,
           onRetry:onRefreshAccountHealth,onOpenVerification:onOpenVerification,
           onAppealRestriction:onAppealRestriction,
         ),
@@ -512,17 +529,20 @@ class _SellerHero extends StatelessWidget {
             color:HocalistPalette.surface(context,SellerUiColors.lavender),
             alignment:Alignment.center,child:Text(_sellerInitials(name),style:sellerText(metrics,24,weight:FontWeight.w800)))) : Image.asset(
         SellerAssets.homeAvatar,
-        width: metrics.artSize(72),
-        height: metrics.artSize(72),
+        width: portraitSize,
+        height: portraitSize,
         fit: BoxFit.cover,
         semanticLabel: 'Alex seller portrait',
       ),
     );
-    final art = Image.asset(
+    final art = ClipRRect(
+      borderRadius: BorderRadius.circular(Theme.of(context).brightness == Brightness.dark ? 20 : 0),
+      child: Image.asset(
       SellerAssets.homeHero,
       width: heroSize,
       fit: BoxFit.contain,
       excludeFromSemantics: true,
+      ),
     );
     if (metrics.accessibilityReflow) {
       return Column(
@@ -587,6 +607,7 @@ class _RealSellerHomeNotice extends StatelessWidget {
 class _AccountHealthSlot extends StatefulWidget {
   const _AccountHealthSlot({
     this.health,
+    this.serviceAreaSaved = false,
     this.loading = false,
     this.error,
     this.onRetry,
@@ -595,6 +616,7 @@ class _AccountHealthSlot extends StatefulWidget {
   });
 
   final SellerAccountHealthView? health;
+  final bool serviceAreaSaved;
   final bool loading;
   final String? error;
   final VoidCallback? onRetry;
@@ -757,9 +779,26 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                     },
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    'Evidence review: ${value.reviewStatus.replaceAll('_', ' ')}',
-                    style: sellerText(metrics, 12, color: SellerUiColors.body),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: HocalistStatusFact(
+                        seller: true, icon: Icons.location_on_outlined,
+                        label: widget.serviceAreaSaved ? 'Service area saved' : 'Service area not saved',
+                        confirmed: widget.serviceAreaSaved,
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: HocalistStatusFact(
+                        seller: true, icon: Icons.badge_outlined,
+                        label: switch (value.reviewStatus) {
+                          'approved' => 'Identity approved',
+                          'pending' => 'Identity under review',
+                          'rejected' => 'Identity not approved',
+                          _ => 'Identity not submitted',
+                        },
+                        confirmed: value.reviewStatus == 'approved',
+                      )),
+                    ],
                   ),
                   if (value.restrictions.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -863,27 +902,33 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
         ? null
         : (value.emailVerified ? 1 : 0) +
               (value.phoneVerified ? 1 : 0) +
-              (value.reviewStatus == 'approved' ? 1 : 0);
+              (value.reviewStatus == 'approved' ? 1 : 0) +
+              (widget.serviceAreaSaved ? 1 : 0);
     return Semantics(
       label: completed == null
           ? 'Verification progress unavailable'
-          : '$completed of 3 verification steps complete',
+          : '$completed of 4 verification steps complete',
       child: Material(
         color: HocalistPalette.surface(context, Colors.transparent),
         child: InkWell(
           key: const Key('sellerAccountHealth'),
           onTap: () => _showDetail(context),
-          child: Column(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: ApprovedReplicaScope.of(context).spacing(8),
+              vertical: ApprovedReplicaScope.of(context).spacing(4),
+            ),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _AccountHealthBar(
-                progress: completed == null ? 0 : completed / 3,
+                steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
               ),
               if (completed != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    '$completed of 3 verification steps complete · View steps',
+                    '$completed of 4 verification steps complete · View steps',
                     style: sellerText(
                       ApprovedReplicaScope.of(context),
                       11,
@@ -914,6 +959,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                   ),
                 ),
             ],
+            ),
           ),
         ),
       ),
@@ -1035,7 +1081,10 @@ class _SellerHomeEmptyCard extends StatelessWidget {
 
 /// Real recent leads rendered with the approved recent-lead row geometry.
 class _RealRecentLeadsCard extends StatelessWidget {
-  const _RealRecentLeadsCard({required this.leads, required this.onTap});
+  const _RealRecentLeadsCard({required this.leads, required this.offers, required this.onTap, this.onOpenOffer});
+
+  final List<Offer> offers;
+  final ValueChanged<Offer>? onOpenOffer;
 
   final List<SellerLeadView> leads;
   final ValueChanged<SellerLeadView> onTap;
@@ -1043,6 +1092,13 @@ class _RealRecentLeadsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
+    final byRequest = <String, Offer>{};
+    for (final offer in offers) {
+      final previous = byRequest[offer.requestId];
+      if (previous == null || offer.stamp.createdAt.isAfter(previous.stamp.createdAt)) {
+        byRequest[offer.requestId] = offer;
+      }
+    }
     return Container(
       key: const Key('sellerHomeRealRecentLeads'),
       padding: EdgeInsets.symmetric(horizontal: metrics.geometry(11)),
@@ -1058,54 +1114,68 @@ class _RealRecentLeadsCard extends StatelessWidget {
         children: [
           for (var index = 0; index < leads.length; index++) ...[
             if (index > 0) const Divider(height: 1, color: SellerUiColors.line),
-            _RecentLeadRow(
-              data: (
-                leads[index].initials,
-                leads[index].request,
-                leads[index].city,
-                leads[index].budget,
-                'Available',
-                '',
-                SellerUiColors.primaryBright,
-                SellerUiColors.lavender,
-                const Color(0xFFF2EFFF),
-              ),
-              onTap: () => onTap(leads[index]),
-            ),
+            _realRow(leads[index], byRequest[leads[index].requestId]),
           ],
         ],
       ),
     );
   }
+
+  Widget _realRow(SellerLeadView lead, Offer? offer) {
+    final (label, ink, surface) = switch (offer?.status) {
+      OfferStatus.submitted => ('Pending', SellerUiColors.amber, SellerUiColors.amberSurface),
+      OfferStatus.selected => ('Offer Accepted', SellerUiColors.green, SellerUiColors.greenSurface),
+      OfferStatus.completed => ('Completed', SellerUiColors.green, SellerUiColors.greenSurface),
+      OfferStatus.declined => ('Declined', SellerUiColors.red, SellerUiColors.redSurface),
+      OfferStatus.cancelled => ('Cancelled', SellerUiColors.red, SellerUiColors.redSurface),
+      OfferStatus.withdrawn => ('Withdrawn', SellerUiColors.body, SellerUiColors.lavender),
+      OfferStatus.expired => ('Expired', SellerUiColors.body, SellerUiColors.lavender),
+      null => ('', SellerUiColors.body, SellerUiColors.lavender),
+    };
+    return _RecentLeadRow(
+      initialColor: SellerUiColors.primaryBright,
+      data: (
+        lead.initials,
+        lead.request, lead.city, lead.budget, label,
+        offer == null ? '' : _offerAge(offer.stamp.updatedAt),
+        ink, surface, const Color(0xFFF2EFFF),
+      ),
+      onTap: () {
+        if (offer != null && onOpenOffer != null) {
+          onOpenOffer!(offer);
+        } else {
+          onTap(lead);
+        }
+      },
+    );
+  }
+
+  String _offerAge(DateTime updatedAt) {
+    final age = DateTime.now().toUtc().difference(updatedAt);
+    if (age.inMinutes < 1) return 'Just now';
+    if (age.inHours < 1) return '${age.inMinutes}m ago';
+    if (age.inDays < 1) return '${age.inHours}h ago';
+    return '${age.inDays}d ago';
+  }
 }
 
 class _AccountHealthBar extends StatelessWidget {
-  const _AccountHealthBar({this.progress = 14 / 17});
+  const _AccountHealthBar({this.steps = const [false, false, false, false]});
 
-  final double progress;
+  final List<bool> steps;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     const colors = [
-      SellerUiColors.red,
-      SellerUiColors.red,
-      SellerUiColors.red,
-      SellerUiColors.amber,
-      SellerUiColors.amber,
-      Color(0xFFE4D700),
-      Color(0xFFE4D700),
-      Color(0xFF82D51B),
-      Color(0xFF82D51B),
-      Color(0xFF82D51B),
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
-      SellerUiColors.green,
+      SellerUiColors.red, SellerUiColors.red, SellerUiColors.red,
+      SellerUiColors.amber, SellerUiColors.amber,
+      Color(0xFFE4D700), Color(0xFFE4D700),
+      Color(0xFF82D51B), Color(0xFF82D51B), Color(0xFF82D51B),
+      SellerUiColors.green, SellerUiColors.green, SellerUiColors.green,
+      SellerUiColors.green, SellerUiColors.green, SellerUiColors.green, SellerUiColors.green,
     ];
+    final filled = (steps.where((step) => step).length / 4 * colors.length).ceil();
     return LayoutBuilder(
       builder: (context, constraints) {
         return Row(
@@ -1116,13 +1186,14 @@ class _AccountHealthBar extends StatelessWidget {
                   for (var index = 0; index < colors.length; index++)
                     Expanded(
                       child: AnimatedContainer(
+                        key: ValueKey('sellerVerificationStep-$index-${index < filled ? "complete" : "incomplete"}'),
                         duration: HocalistMotion.duration(context, 350),
                         height: metrics.geometry(8),
                         margin: EdgeInsets.only(right: metrics.geometry(2)),
                         decoration: BoxDecoration(
                           color: HocalistPalette.surface(
                             context,
-                            index < (progress * colors.length).ceil()
+                            index < filled
                                 ? colors[index]
                                 : const Color(0xFFE8E9F3),
                           ),
@@ -1237,12 +1308,24 @@ class _SellerMetricCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Image.asset(
-                    asset,
-                    width: metrics.artSize(48),
-                    height: metrics.artSize(48),
-                    fit: BoxFit.contain,
-                    excludeFromSemantics: true,
+                  ClipOval(
+                    child: FractionalTranslation(
+                      // Center the original artwork's horizontally offset badge.
+                      translation: Offset(
+                        asset == SellerAssets.homeDeals ? -9 / 109 * 1.24 : 0,
+                        0,
+                      ),
+                      child: Transform.scale(
+                        scale: asset == SellerAssets.homeDeals ? 1.24 : 1,
+                        child: Image.asset(
+                          asset,
+                          width: metrics.artSize(48),
+                          height: metrics.artSize(48),
+                          fit: BoxFit.contain,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1361,11 +1444,14 @@ class _FindBuyersBanner extends StatelessWidget {
                 ),
               ),
               SizedBox(width: metrics.geometry(5)),
-              Image.asset(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(Theme.of(context).brightness == Brightness.dark ? 16 : 0),
+                child: Image.asset(
                 SellerAssets.homeFindBuyers,
                 width: metrics.artSize(76),
                 fit: BoxFit.contain,
                 excludeFromSemantics: true,
+                ),
               ),
             ],
           ),
@@ -1502,7 +1588,8 @@ class _RecentLeadsCard extends StatelessWidget {
 }
 
 class _RecentLeadRow extends StatelessWidget {
-  const _RecentLeadRow({required this.data, required this.onTap});
+  const _RecentLeadRow({required this.data, required this.onTap, this.initialColor});
+  final Color? initialColor;
 
   final (String, String, String, String, String, String, Color, Color, Color)
   data;
@@ -1540,7 +1627,7 @@ class _RecentLeadRow extends StatelessWidget {
                   ),
                   child: Text(
                     initials,
-                    style: sellerText(metrics, 17, color: statusColor),
+                    style: sellerText(metrics, 17, color: initialColor ?? statusColor),
                   ),
                 ),
                 SizedBox(width: metrics.geometry(10)),
@@ -1560,7 +1647,7 @@ class _RecentLeadRow extends StatelessWidget {
                           weight: FontWeight.w700,
                         ),
                       ),
-                      Text(
+                      if (location.isNotEmpty) Text(
                         location,
                         maxLines: metrics.accessibilityReflow ? null : 1,
                         overflow: metrics.accessibilityReflow
@@ -1587,6 +1674,7 @@ class _RecentLeadRow extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (status.isNotEmpty) ...[
                 SizedBox(width: metrics.geometry(5)),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -1602,15 +1690,17 @@ class _RecentLeadRow extends StatelessWidget {
                           metrics.geometry(6),
                         ),
                       ),
-                      child: Text(
-                        status,
-                        style: sellerText(
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.circle, size: metrics.geometry(6),
+                          color: HocalistPalette.text(context, statusColor)),
+                        SizedBox(width: metrics.geometry(5)),
+                        Text(status, style: sellerText(
                           metrics,
                           9.5,
                           color: statusColor,
                           weight: FontWeight.w600,
-                        ),
-                      ),
+                        )),
+                      ]),
                     ),
                     SizedBox(height: metrics.geometry(5)),
                     Text(
@@ -1623,6 +1713,7 @@ class _RecentLeadRow extends StatelessWidget {
                     ),
                   ],
                 ),
+                ],
                 Icon(
                   Icons.chevron_right,
                   size: metrics.geometry(20),

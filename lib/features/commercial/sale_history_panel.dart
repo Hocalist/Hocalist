@@ -390,11 +390,24 @@ class _EntryCard extends StatelessWidget {
                         BuyerStatusChip(
                           key: Key('saleHistoryReward-${entry.id}'),
                           label:
-                              'Reward ${entry.reward!.status}'
+                              'Reward ${entry.reward!.status == 'mixed' ? 'partly earned' : entry.reward!.status}'
                               '${entry.reward!.amountMinor > 0 ? ' · ${_usd(entry.reward!.amountMinor)}' : ''}',
                           tone: BuyerNoticeTone.warning,
                           icon: Icons.redeem_rounded,
                         ),
+                        if (entry.reward!.earnedMinor != null) ...[
+                          SizedBox(height: metrics.spacing(4)),
+                          Text(
+                            'Earned ${_usd(entry.reward!.earnedMinor!)} · '
+                            'Held ${_usd(entry.reward!.heldMinor!)} · '
+                            'Reversed ${_usd(entry.reward!.reversedMinor!)}',
+                            style: BuyerTypography.style(
+                              context,
+                              metrics,
+                              BuyerTextRole.metadata,
+                            ),
+                          ),
+                        ],
                       ],
                       if (entry.fee != null) ...[
                         SizedBox(height: metrics.spacing(6)),

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/phase2/calls/call_gateway.dart';
 import '../../domain/phase2/communication_completion.dart';
 import '../../theme/buyer_ui_foundation.dart';
+import '../approved/approved_replica_metrics.dart';
 
 /// Optional two-person call surface. The admin switch, participant fence and
 /// terminal states are server-owned; this page renders them and closes media on
@@ -593,15 +594,14 @@ class _HocalistCallPageState extends State<HocalistCallPage>
       backgroundColor: HocalistPalette.surface(context, Colors.white),
       appBar: AppBar(
         backgroundColor: HocalistPalette.surface(context, Colors.white),
-        surfaceTintColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: HocalistPalette.text(context, BuyerUiTokens.text),
         title: Text(
           'Hocalist call',
-          style: TextStyle(
-            color: HocalistPalette.text(context, BuyerUiTokens.text),
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
+          style: BuyerTypography.style(context,
+            ApprovedReplicaScope.maybeOf(context) ?? ApprovedReplicaMetrics.resolve(
+              brightness: Theme.of(context).brightness, availableWidth: MediaQuery.sizeOf(context).width,
+              textScaler: MediaQuery.textScalerOf(context)), BuyerTextRole.pageTitle),
         ),
       ),
       body: SafeArea(

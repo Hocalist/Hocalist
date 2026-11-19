@@ -11,12 +11,14 @@ class NotificationDestination {
     this.id, {
     this.requestId,
     this.offerId,
+    this.enquiryId,
   });
 
   final NotificationDestinationKind kind;
   final String id;
   final String? requestId;
   final String? offerId;
+  final String? enquiryId;
 
   static final _uuid = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -50,6 +52,8 @@ class NotificationDestination {
       _ => null,
     };
     if (kind == null) return null;
+    final enquiryId=item.payload?['enquiry_id'];
+    if(enquiryId!=null && (kind!=NotificationDestinationKind.chat || enquiryId is! String || !_uuid.hasMatch(enquiryId) || item.payload?['offer_id']!=null)) return null;
     final requestId = item.payload?['request_id'];
     if (kind == NotificationDestinationKind.offer &&
         (requestId is! String || !_uuid.hasMatch(requestId))) {
@@ -59,6 +63,7 @@ class NotificationDestination {
       kind,
       uri.pathSegments.single,
       requestId: requestId is String ? requestId : null,
+      enquiryId: enquiryId is String ? enquiryId : null,
       offerId:
           item.payload?['offer_id'] is String &&
               _uuid.hasMatch(item.payload!['offer_id'] as String)

@@ -257,11 +257,13 @@ class MeetingDataAdapter {
   }
 
   Future<RepositoryResult<MeetingView>> cancelMeeting({
+    String? reason,
     required String meetingId,
     required int expectedRevision,
     required String operationKey,
   }) async {
     final result = await _rpc('meeting_cancel', {
+      if (reason != null) 'p_reason': reason,
       'p_meeting': meetingId,
       'p_expected_revision': expectedRevision,
       'p_key': operationKey,

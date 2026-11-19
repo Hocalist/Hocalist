@@ -61,25 +61,42 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
       widget.onBack();
       return;
     }
-    final discard = await showDialog<bool>(
+    final discard = await showModalBottomSheet<bool>(
       context: context,
-      animationStyle: HocalistMotion.dialogStyle(context),
-      builder: (context) => AlertDialog(
-        title: const Text('Discard accessibility changes?'),
-        content: const Text(
-          'Your preview choices have not been applied to Hocalist.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep editing'),
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      builder: (sheet) {
+        const title = 'Discard accessibility changes?';
+        const subtitle =
+            'Your preview choices have not been applied to Hocalist.';
+        void keep() => Navigator.pop(sheet, false);
+        void discard() => Navigator.pop(sheet, true);
+        return AccountModalSheet(
+          seller: widget.seller,
+          title: title,
+          subtitle: subtitle,
+          icon: Icons.accessibility_new,
+          onClose: keep,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AccountActionButton(
+                seller: widget.seller,
+                label: 'Keep editing',
+                onPressed: keep,
+              ),
+              const SizedBox(height: 8),
+              AccountSecondaryButton(
+                seller: widget.seller,
+                label: 'Discard',
+                onPressed: discard,
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     if (discard == true && mounted) widget.onBack();
   }
@@ -106,118 +123,22 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
     final appliedScale = widget.appliedPreferences.textSize.scale;
     final systemScale = currentScale > appliedScale ? currentScale : 1.0;
     final previewScale = math.max(systemScale, draft.textSize.scale);
-    final basePreviewTheme = HocalistTheme.lightFor(draft);
-    final previewTheme = widget.seller
-        ? basePreviewTheme.copyWith(
-            colorScheme: basePreviewTheme.colorScheme.copyWith(
-              primary: SellerUiColors.primaryBright,
-            ),
-            filledButtonTheme: FilledButtonThemeData(
-              style: FilledButton.styleFrom(
-                backgroundColor: SellerUiColors.primaryBright,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          )
-        : basePreviewTheme;
+    final previewTheme = Theme.of(context).brightness == Brightness.dark
+        ? HocalistTheme.darkFor(draft)
+        : HocalistTheme.lightFor(draft);
     final applied = await showDialog<bool>(
       context: context,
       animationStyle: HocalistMotion.dialogStyle(context),
       useSafeArea: false,
-      builder: (dialogContext) {
-        final media = MediaQuery.of(dialogContext);
-        return MediaQuery(
-          data: media.copyWith(textScaler: TextScaler.linear(previewScale)),
-          child: Theme(
-            data: previewTheme,
-            child: Dialog.fullscreen(
-              child: SafeArea(
-                child: Scaffold(
-                  backgroundColor: HocalistPalette.surface(context, Colors.white),
-                  body: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            tooltip: 'Close preview',
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(false),
-                            icon: const Icon(Icons.close),
-                          ),
-                          const Expanded(
-                            child: Text(
-                              'Preview',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 48),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'This is how Hocalist will look',
-                        style: Theme.of(dialogContext).textTheme.headlineLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Review titles, descriptions, controls, and buttons before applying your selection.',
-                        style: Theme.of(dialogContext).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 20),
-                      const TextField(
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Example field',
-                          hintText: 'Your content remains easy to read',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Example request card',
-                              style: Theme.of(
-                                dialogContext,
-                              ).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Important descriptions can wrap without hiding the next action.',
-                              style: Theme.of(
-                                dialogContext,
-                              ).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      PrimaryButton(
-                        label: 'Apply changes',
-                        icon: Icons.check_circle_outline,
-                        color: _primaryFor(context),
-                        onPressed: () => Navigator.of(dialogContext).pop(true),
-                      ),
-                      const SizedBox(height: 10),
-                      SecondaryButton(
-                        label: 'Cancel',
-                        color: _primaryFor(context),
-                        onPressed: () => Navigator.of(dialogContext).pop(false),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (dialogContext) => MediaQuery(
+        data: MediaQuery.of(
+          dialogContext,
+        ).copyWith(textScaler: TextScaler.linear(previewScale)),
+        child: Theme(
+          data: previewTheme,
+          child: _AccessibilityFullPreview(seller: widget.seller),
+        ),
+      ),
     );
     if (applied == true && mounted) {
       widget.onApply(draft);
@@ -429,6 +350,98 @@ class _AccessibilityPageState extends State<AccessibilityPage> {
   }
 }
 
+class _AccessibilityFullPreview extends StatefulWidget {
+  const _AccessibilityFullPreview({required this.seller});
+
+  final bool seller;
+
+  @override
+  State<_AccessibilityFullPreview> createState() =>
+      _AccessibilityFullPreviewState();
+}
+
+class _AccessibilityFullPreviewState extends State<_AccessibilityFullPreview> {
+  final _example = TextEditingController();
+
+  @override
+  void dispose() {
+    _example.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const title = 'Preview';
+    const subtitle = 'This is how Hocalist will look';
+    final text = Theme.of(context).textTheme;
+    void close() => Navigator.pop(context, false);
+
+    return Dialog.fullscreen(
+      child: Scaffold(
+        backgroundColor: HocalistPalette.surface(context, Colors.white),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            children: [
+              if (widget.seller)
+                SellerNestedHeader(
+                  title: title,
+                  subtitle: subtitle,
+                  onBack: close,
+                )
+              else
+                BuyerNestedHeader(
+                  title: title,
+                  subtitle: subtitle,
+                  onBack: close,
+                ),
+              const SizedBox(height: 18),
+              Text(
+                'Review titles, descriptions, controls, and buttons before applying your selection.',
+                style: text.bodyLarge,
+              ),
+              const SizedBox(height: 20),
+              HocalistAccountField(
+                label: 'Example field',
+                hintText: 'Your content remains easy to read',
+                controller: _example,
+                seller: widget.seller,
+                readOnly: true,
+              ),
+              const SizedBox(height: 16),
+              HocalistAccountFormCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Example request card', style: text.titleLarge),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Important descriptions can wrap without hiding the next action.',
+                      style: text.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              AccountActionButton(
+                seller: widget.seller,
+                label: 'Apply changes',
+                onPressed: () => Navigator.pop(context, true),
+              ),
+              const SizedBox(height: 10),
+              AccountSecondaryButton(
+                seller: widget.seller,
+                label: 'Cancel',
+                onPressed: close,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AccessibilityHeader extends StatelessWidget {
   const _AccessibilityHeader({required this.onBack});
 
@@ -493,6 +506,12 @@ class _AccessibilityHeader extends StatelessWidget {
               ),
               icon: Image.asset(
                 'assets/accessibility/icons/back-chevron.png',
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? HocalistPalette.text(
+                        context,
+                        _AccessibilityPageState._ink,
+                      )
+                    : null,
                 width: metrics.size(17),
                 height: metrics.size(25),
                 filterQuality: FilterQuality.high,
@@ -523,6 +542,9 @@ class _IntroPanel extends StatelessWidget {
       alignment: Alignment.center,
       child: Image.asset(
         'assets/accessibility/icons/accessibility-person.png',
+        color: Theme.of(context).brightness == Brightness.dark
+            ? HocalistPalette.text(context, _AccessibilityPageState._ink)
+            : null,
         width: metrics.size(30),
         height: metrics.size(36),
         filterQuality: FilterQuality.high,
@@ -769,6 +791,12 @@ class _TextPreviewPanel extends StatelessWidget {
               children: [
                 Image.asset(
                   'assets/accessibility/icons/preview-eye-primary.png',
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? HocalistPalette.text(
+                          context,
+                          _AccessibilityPageState._ink,
+                        )
+                      : null,
                   width: metrics.size(15),
                   height: metrics.size(12),
                   filterQuality: FilterQuality.high,

@@ -98,6 +98,52 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('PIN shortcut shows a masked card before schedule acceptance', (tester) async {
+    await _pump(tester, ApprovedMeetingDetailsPage(
+      meeting: _meeting(status: 'proposed', purchaseSelected: false),
+      focusPurchasePin: true,
+      onBack: () {},
+      onConfirm: () {},
+      saleConfirmation: const Text('Eligible purchase controls'),
+    ));
+    expect(find.text('•••••'), findsOneWidget);
+    expect(find.text('Eligible purchase controls'), findsNothing);
+  });
+  testWidgets('reschedule preserves confirmed details and labels proposed changes', (tester) async {
+    var accepted = 0;
+    await _pump(tester, ApprovedMeetingDetailsPage(
+      meeting: _meeting(status: 'accepted',
+        acceptedSchedule: _schedule(status: 'accepted', placeLabel: 'Original meeting place')),
+      viewerUserId: 'user-b', onBack: () {}, onConfirm: () => accepted++,
+    ));
+    expect(find.text('Original meeting place'), findsOneWidget);
+    expect(find.textContaining('Proposed change:'), findsOneWidget);
+    expect(find.textContaining('Your confirmed meeting stays unchanged'), findsOneWidget);
+    expect(find.text('Your response needed'), findsWidgets);
+    await tester.ensureVisible(find.text('Accept change'));
+    await tester.tap(find.text('Accept change'));
+    expect(accepted, 1);
+  });
+  testWidgets('meeting list shows declined change with retained schedule', (tester) async {
+    await _pump(tester, ApprovedSellerMeetsPage(
+      onOpenChat: () {},
+      meetings: [_meeting(status: 'accepted', withPending: false, declined: true,
+        meetingExpiresAt: DateTime.utc(2099))],
+    ), scroll: false);
+    expect(find.text('Change declined'), findsOneWidget);
+    expect(find.text('Proposed change declined. Your original meeting is still confirmed.'), findsOneWidget);
+    expect(find.textContaining('18:30'), findsWidgets);
+  });
+  testWidgets('declined reschedule explains original meeting is retained', (tester) async {
+    await _pump(tester, ApprovedMeetingDetailsPage(
+      meeting: _meeting(status: 'accepted', withPending: false, declined: true),
+      viewerUserId: 'user-a',
+      onBack: () {},
+      onConfirm: () {},
+    ));
+    expect(find.text('Proposed change declined. Your original meeting is still confirmed.'), findsOneWidget);
+    expect(find.text('Meeting confirmed'), findsNothing);
+  });
   setUpAll(loadHocalistTestFonts);
   testWidgets('completed elsewhere names the other seller outcome', (tester) async {
     await _pump(tester, ApprovedMeetingDetailsPage(
@@ -195,6 +241,22 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('seller can review buyer only after purchase confirmation', (tester) async {
+    var opened = 0;
+    for (final confirmed in [false, true]) {
+      await _pump(tester, ApprovedMeetingDetailsPage(
+        onBack: () {}, onConfirm: () {},
+        onReviewBuyer: () => opened++,
+        meeting: _meeting(status: 'accepted', withPending: false),
+        purchaseConfirmed: confirmed,
+      ));
+      expect(find.text('Review buyer'), confirmed ? findsOneWidget : findsNothing);
+    }
+    await tester.ensureVisible(find.text('Review buyer'));
+    await tester.tap(find.text('Review buyer'));
+    expect(opened, 1);
   });
 
   testWidgets(
@@ -346,7 +408,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Past meetings · needs attention'), findsOneWidget);
+      expect(find.text('No upcoming appointments'), findsOneWidget);
+      expect(find.text('Loop Resale iPad Air'), findsNothing);
+      await tester.tap(find.byKey(const Key('sellerMeetFilterPast')));
+      await tester.pumpAndSettle();
+      expect(find.text('Meeting was confirmed'), findsOneWidget);
+      expect(find.text('No purchase recorded.'), findsOneWidget);
+      expect(find.text('No upcoming appointments'), findsNothing);
       expect(find.text('Loop Resale iPad Air'), findsOneWidget);
       await tester.ensureVisible(find.text('View meeting'));
       await tester.pumpAndSettle();
@@ -382,7 +450,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Past meetings · needs attention'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('Past appointments, 0')), findsOneWidget);
     expect(find.text('Loop Resale iPad Air'), findsNothing);
     await tester.tap(find.byKey(const Key('sellerMeetFilterCompleted')));
     await tester.pumpAndSettle();
@@ -566,7 +634,7 @@ void main() {
     );
     expect(find.text('Loop Resale iPad Air'), findsOneWidget);
     expect(find.text(r'$390'), findsOneWidget);
-    expect(find.text('Meeting proposed'), findsOneWidget);
+    expect(find.text('Your response needed'), findsWidgets);
     expect(find.text('Cross County Mall'), findsOneWidget);
     expect(find.text('Oct 1 • 6:30 PM · America/New_York'), findsOneWidget);
     expect(find.text('iPad Air 5th Gen 64GB'), findsNothing);

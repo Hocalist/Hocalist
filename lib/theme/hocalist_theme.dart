@@ -211,7 +211,7 @@ class HocalistTheme {
       useMaterial3: true,
       fontFamily: fontFamily,
       fontFamilyFallback: appFontFallback,
-      extensions: [visuals],
+      extensions: [visuals.copyWith(fontFamily: fontFamily)],
       scaffoldBackgroundColor: background,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
@@ -350,7 +350,7 @@ class HocalistTheme {
       brightness: Brightness.dark,
       fontFamily: fontFamily,
       fontFamilyFallback: appFontFallback,
-      extensions: [visuals],
+      extensions: [visuals.copyWith(fontFamily: fontFamily)],
       scaffoldBackgroundColor: darkBackground,
       colorScheme: ColorScheme.fromSeed(
         brightness: Brightness.dark,
@@ -420,11 +420,13 @@ class HocalistTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
+          foregroundColor: darkBuyer,
           textStyle: _controlText(darkBuyer, fontFamily: fontFamily),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          foregroundColor: darkBuyer,
           textStyle: _controlText(darkBuyer, fontFamily: fontFamily),
         ),
       ),

@@ -92,12 +92,16 @@ class ConversationMessage {
     required DateTime sentAt,
     this.clientMessageId,
     this.offerId,
+    this.enquiryId,
     this.readByCounterpart = false,
   }) : id = requireNonBlank(id, 'id'),
        conversationId = requireNonBlank(conversationId, 'conversationId'),
        senderUserId = requireNonBlank(senderUserId, 'senderUserId'),
        attachments = List<MediaReference>.unmodifiable(attachments),
        sentAt = sentAt.toUtc() {
+    if(offerId!=null && enquiryId!=null) {
+      throw ArgumentError('a message cannot belong to both a deal and an enquiry');
+    }
     if (text.trim().isEmpty && attachments.isEmpty) {
       throw ArgumentError(
         'a message must carry text or at least one attachment',
@@ -126,6 +130,7 @@ class ConversationMessage {
   /// Client-generated deduplication key, echoed by the server when present.
   final String? clientMessageId;
   final String? offerId;
+  final String? enquiryId;
   final bool readByCounterpart;
 
   @override
@@ -136,6 +141,16 @@ class ConversationMessage {
 
 /// A conversation record. Messages are read separately so history can be
 /// paginated instead of reduced to a single latest slot.
+class ChatEnquiry {
+  const ChatEnquiry({required this.id,required this.conversationId,required this.origin,required this.subjectId,required this.label});
+  final String id;
+  final String conversationId;
+  final String origin;
+  final String subjectId;
+  final String label;
+  String get originLabel => origin=='store_listing' ? 'Store enquiry' : 'Hocatrends enquiry';
+}
+
 class Conversation {
   Conversation({
     required String id,

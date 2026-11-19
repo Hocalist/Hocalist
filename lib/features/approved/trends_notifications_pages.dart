@@ -1,6 +1,10 @@
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
+import 'dart:typed_data';
+import '../media/private_remote_image.dart';
+import '../media/trend_request_photo.dart';
+import '../../theme/original_gift_artwork.dart';
 import '../../components/notification_indicator.dart';
 import '../../components/hocalist_paged_list.dart';
 
@@ -110,8 +114,9 @@ Widget _approvedAsset(
       semanticLabel: semanticLabel,
     );
   }
-  return Image.asset(
+  return Builder(builder: (context) => Image.asset(
     '$_approvedAssetRoot/$name',
+    color: BuyerAssetIcon.adaptiveColor(context, '$_approvedAssetRoot/$name'),
     width: width,
     height: height,
     fit: fit,
@@ -131,7 +136,7 @@ Widget _approvedAsset(
               ),
       );
     },
-  );
+  ));
 }
 
 /// Screenshot-approved Hocatrends body. The app shell continues to own its
@@ -203,7 +208,9 @@ class ApprovedHocatrendsPage extends StatefulWidget {
     this.trendsLoading = false,
     this.trendsError,
     this.onRefreshTrends,
+    this.onSyncTrends,
     this.onSeeSellersForTopic,
+    this.loadSellerPhotos,
     super.key,
   });
 
@@ -220,20 +227,58 @@ class ApprovedHocatrendsPage extends StatefulWidget {
   final bool trendsLoading;
   final String? trendsError;
   final VoidCallback? onRefreshTrends;
+  final VoidCallback? onSyncTrends;
 
   /// Opens the real seller results for one topic id.
   final ValueChanged<String>? onSeeSellersForTopic;
+  final Future<HocatrendsSellerResults> Function(String)? loadSellerPhotos;
 
   @override
   State<ApprovedHocatrendsPage> createState() => _ApprovedHocatrendsPageState();
 }
 
-enum _TrendCompetitionFilter { all, veryHigh, medium }
+enum _TrendCompetitionFilter { all, veryHigh, high, medium }
 
-class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
+class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage>
+    with WidgetsBindingObserver {
+  Timer? _syncTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleSync(WidgetsBinding.instance.lifecycleState);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) => _scheduleSync(state);
+
+  void _scheduleSync(AppLifecycleState? state) {
+    _syncTimer?.cancel();
+    if (widget.onSyncTrends == null ||
+        (state != null && state != AppLifecycleState.resumed &&
+            state != AppLifecycleState.inactive)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _syncTimer?.isActive == true) widget.onSyncTrends?.call();
+    });
+    _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      widget.onSyncTrends?.call();
+    });
+  }
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   _TrendCompetitionFilter _competition = _TrendCompetitionFilter.all;
+
+  bool get _hasSearchOrFilter =>
+      _query.trim().isNotEmpty || _competition != _TrendCompetitionFilter.all;
+
+  void _clearSearchAndFilters() {
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _competition = _TrendCompetitionFilter.all;
+    });
+  }
 
   List<_ApprovedTrendData> get _visibleCategories {
     final query = _query.trim().toLowerCase();
@@ -246,6 +291,7 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
       final matchesCompetition = switch (_competition) {
         _TrendCompetitionFilter.all => true,
         _TrendCompetitionFilter.veryHigh => item.competition == 'Very High',
+        _TrendCompetitionFilter.high => item.competition == 'High',
         _TrendCompetitionFilter.medium => item.competition == 'Medium',
       };
       return matchesQuery && matchesCompetition;
@@ -254,6 +300,8 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _syncTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -286,6 +334,7 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
                       label: switch (option) {
                         _TrendCompetitionFilter.all => 'All levels',
                         _TrendCompetitionFilter.veryHigh => 'Very high',
+                        _TrendCompetitionFilter.high => 'High',
                         _TrendCompetitionFilter.medium => 'Medium',
                       },
                       selected: draft == option,
@@ -319,7 +368,7 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => BuyerModalSheet(
           title: 'Search Hocatrends',
-          subtitle: 'Find products, services, or competitive categories.',
+          subtitle: 'Find published products and services.',
           icon: Icons.search_rounded,
           onClose: () => Navigator.of(sheetContext).pop(),
           child: Column(
@@ -401,13 +450,13 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
                       Expanded(
                         child: Text(
                           widget.trendsError!,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: BuyerTypography.style(context, metrics, BuyerTextRole.secondaryBody),
                         ),
                       ),
                       if (widget.onRefreshTrends != null)
-                        TextButton(
+                        BuyerTextAction(
                           onPressed: widget.onRefreshTrends,
-                          child: const Text('Retry'),
+                          label: 'Retry',
                         ),
                     ],
                   ),
@@ -416,22 +465,20 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
                   !widget.trendsLoading &&
                   widget.trendsError == null)
                 _ApprovedTrendsEmptyState(
-                  onClear: () {
-                    _searchController.clear();
-                    setState(() {
-                      _query = '';
-                      _competition = _TrendCompetitionFilter.all;
-                    });
-                  },
+                  onClear: _hasSearchOrFilter ? _clearSearchAndFilters : null,
                 )
               else if (_visibleRealTopics(realTrends).isNotEmpty) ...[
                 for (final topic in _visibleRealTopics(realTrends)) ...[
                   _ApprovedTrendCard(
                     item: _trendDataFor(topic),
+                    photo: topic.coverPhotoId != null ? PrivateRemoteImage(id: topic.coverPhotoId!,
+                      size: metrics.geometry(58), showWholeImage: true) : TrendRequestPhoto(key: ValueKey('trend-photo-${topic.subjectId}'),
+                      requestId: topic.subjectId, size: metrics.geometry(58),
+                      version: realTrends, load: widget.loadSellerPhotos),
                     accent: widget.accent,
                     onSeeSellers: widget.onSeeSellersForTopic == null
                         ? widget.onSeeSellers
-                        : () => widget.onSeeSellersForTopic!(topic.categoryId),
+                        : () => widget.onSeeSellersForTopic!(topic.subjectId),
                   ),
                   if (topic != _visibleRealTopics(realTrends).last)
                     SizedBox(height: metrics.geometry(8)),
@@ -439,13 +486,7 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
               ],
             ] else if (_visibleCategories.isEmpty)
               _ApprovedTrendsEmptyState(
-                onClear: () {
-                  _searchController.clear();
-                  setState(() {
-                    _query = '';
-                    _competition = _TrendCompetitionFilter.all;
-                  });
-                },
+                onClear: _hasSearchOrFilter ? _clearSearchAndFilters : null,
               )
             else
               for (
@@ -473,13 +514,14 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
         .where((topic) {
           final matchesQuery =
               query.isEmpty ||
-              '${topic.label} ${topic.competition} ${topic.activityCopy}'
+              '${topic.label} ${topic.categoryLabel ?? ''} ${topic.competition} ${topic.activityCopy}'
                   .toLowerCase()
                   .contains(query);
           final matchesCompetition = switch (_competition) {
             _TrendCompetitionFilter.all => true,
             _TrendCompetitionFilter.veryHigh =>
               topic.competition == 'Very High',
+            _TrendCompetitionFilter.high => topic.competition == 'High',
             _TrendCompetitionFilter.medium =>
               topic.competition == 'Medium' || topic.competition == 'New',
           };
@@ -496,7 +538,10 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage> {
       title: topic.label,
       competition: topic.competition,
       percent: topic.percent,
-      sellerCopy: topic.activityCopy,
+      availableSellers: topic.availableSellers,
+      sellerCopy: topic.listingId == null
+          ? '${topic.availableSellers ?? topic.competingSellers} ${(topic.availableSellers ?? topic.competingSellers) == 1 ? 'seller is' : 'sellers are'} offering deals for ${topic.label} buyers.'
+          : [if (topic.storePriceLabel case final price?) price, topic.activityCopy].join(' · '),
       image: 'transparent/trend-up.png',
       rankColor: switch (topic.rank) {
         1 => const Color(0xffffb900),
@@ -578,7 +623,7 @@ class _ApprovedTrendsHero extends StatelessWidget {
               ),
             SizedBox(height: metrics.geometry(8)),
             Text(
-              'Explore verified sellers offering\ndiscounts on products & services.',
+              'Discover products and services\nfrom Pro and Elite sellers.',
               key: const ValueKey('approved-saving-opportunities-description'),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: HocalistPalette.text(context, _pageMuted(context)),
@@ -592,11 +637,10 @@ class _ApprovedTrendsHero extends StatelessWidget {
             ),
           ],
         );
-        final art = _approvedAsset(
-          'saving-gift.png',
+        final art = OriginalGiftArtwork(
+          asset: 'assets/hocatrends/gift-offers.png',
           width: metrics.geometry(stack ? 120 : 150),
           height: metrics.geometry(stack ? 92 : 108),
-          semanticLabel: 'Gift box and savings coin',
         );
 
         if (stack) {
@@ -667,7 +711,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Skip the Rewards & save on current offers',
+                'Shop from seller Stores',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: metrics.fontSize(12),
@@ -680,7 +724,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(3)),
               Text(
-                'Hocatrends shows exclusive offers and discounts created by sellers for other buyers.',
+                'Browse public Store listings and chat with a seller about an item or service.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: HocalistPalette.text(context, _pageMuted(context)),
                   fontSize: metrics.fontSize(10.5),
@@ -829,7 +873,7 @@ class _ApprovedSearchField extends StatelessWidget {
 class _ApprovedTrendsEmptyState extends StatelessWidget {
   const _ApprovedTrendsEmptyState({required this.onClear});
 
-  final VoidCallback onClear;
+  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -860,11 +904,13 @@ class _ApprovedTrendsEmptyState extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(height: metrics.spacing(4)),
-          TextButton(
-            onPressed: onClear,
-            child: const Text('Clear search and filters'),
-          ),
+          if (onClear != null) ...[
+            SizedBox(height: metrics.spacing(4)),
+            BuyerTextAction(
+              onPressed: onClear,
+              label: 'Clear search and filters',
+            ),
+          ],
         ],
       ),
     );
@@ -887,7 +933,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
       builder: (sheetContext) => BuyerModalSheet(
         title: 'How Hocatrends works',
         subtitle:
-            'Compare opportunities where sellers are competing for buyers.',
+            'Explore public Store listings and contact a seller directly.',
         icon: Icons.trending_up_rounded,
         onClose: () => Navigator.of(sheetContext).pop(),
         child: const Column(
@@ -897,14 +943,14 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
               icon: Icons.insights_outlined,
               title: 'Competition level',
               body:
-                  'Shows how actively sellers are competing in each category.',
+                  'Competition shows how many sellers list the same product or service. The percentage shows its share of published listings.',
             ),
             SizedBox(height: 10),
             _ApprovedHowItWorksPoint(
               icon: Icons.savings_outlined,
-              title: 'Savings opportunity',
+              title: 'Store prices',
               body:
-                  'Open a category to compare current seller offers and savings.',
+                  'Select See Sellers to compare current Store prices or ask about a listing.',
             ),
           ],
         ),
@@ -928,7 +974,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
             SizedBox(width: metrics.geometry(5)),
             Flexible(
               child: Text(
-                'Most Competitive Categories Today',
+                'Trending Products & Services',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: metrics.fontSize(11.5),
@@ -1026,9 +1072,11 @@ class _ApprovedTrendCard extends StatelessWidget {
     required this.item,
     required this.accent,
     required this.onSeeSellers,
+    this.photo,
   });
 
   final _ApprovedTrendData item;
+  final Widget? photo;
   final Color accent;
   final VoidCallback onSeeSellers;
 
@@ -1080,7 +1128,7 @@ class _ApprovedTrendCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(
                           metrics.geometry(6),
                         ),
-                        child: _approvedAsset(
+                        child: photo ?? _approvedAsset(
                           item.image,
                           width: imageSize,
                           height: imageSize,
@@ -1097,7 +1145,8 @@ class _ApprovedTrendCard extends StatelessWidget {
                     borderWidth: accessibility.usesHighContrastButton
                         ? metrics.geometry(accessibility.buttonBorderWidth)
                         : 0,
-                    onPressed: onSeeSellers,
+                    onPressed: item.availableSellers == 0 ? null : onSeeSellers,
+                    label: item.availableSellers == 0 ? 'None available' : 'See Sellers',
                   );
 
                   if (stackAction) {
@@ -1140,6 +1189,7 @@ class _ApprovedTrendCard extends StatelessWidget {
 
 class _ApprovedTrendAction extends StatelessWidget {
   const _ApprovedTrendAction({
+    required this.label,
     required this.background,
     required this.foreground,
     required this.radius,
@@ -1151,13 +1201,15 @@ class _ApprovedTrendAction extends StatelessWidget {
   final Color foreground;
   final double radius;
   final double borderWidth;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
     return Semantics(
       button: true,
+      enabled: onPressed != null,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(radius),
@@ -1182,7 +1234,7 @@ class _ApprovedTrendAction extends StatelessWidget {
                     : null,
               ),
               child: Text(
-                'See Sellers',
+                label,
                 maxLines: 1,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: HocalistPalette.text(context, foreground),
@@ -1342,6 +1394,7 @@ class _ApprovedTrendDetails extends StatelessWidget {
 
 class _ApprovedTrendData {
   const _ApprovedTrendData({
+    this.availableSellers,
     required this.rank,
     required this.title,
     required this.competition,
@@ -1352,6 +1405,7 @@ class _ApprovedTrendData {
     this.medium = false,
   });
 
+  final int? availableSellers;
   final int rank;
   final String title;
   final String competition;
@@ -1421,11 +1475,13 @@ class ApprovedHocatrendsPickedSellersPage extends StatefulWidget {
     this.realResults,
     this.realMode = false,
     this.topicLabel,
+    this.topicCategoryLabel,
     this.topicCompetition,
     this.resultsLoading = false,
     this.resultsError,
     this.onRetryResults,
     this.onChatSellerView,
+    this.readPhoto,
     super.key,
   });
 
@@ -1439,6 +1495,7 @@ class ApprovedHocatrendsPickedSellersPage extends StatefulWidget {
   final HocatrendsSellerResults? realResults;
   final bool realMode;
   final String? topicLabel;
+  final String? topicCategoryLabel;
   final String? topicCompetition;
   final bool resultsLoading;
   final String? resultsError;
@@ -1446,6 +1503,7 @@ class ApprovedHocatrendsPickedSellersPage extends StatefulWidget {
 
   /// Origin-isolated chat opener for one real seller result.
   final void Function(HocatrendsSellerView seller)? onChatSellerView;
+  final Future<Uint8List> Function(String)? readPhoto;
 
   @override
   State<ApprovedHocatrendsPickedSellersPage> createState() =>
@@ -1459,12 +1517,12 @@ class _ApprovedHocatrendsPickedSellersPageState
   bool savesAtLeast160 = false;
   bool gridView = false;
   String sortLabel = 'Best deal';
-  bool listingsOnly = false;
+  bool reviewedSellersOnly = false;
 
   List<HocatrendsSellerView> get visibleRealSellers {
     final sellers =
         (widget.realResults?.items ?? const <HocatrendsSellerView>[])
-            .where((seller) => !listingsOnly || seller.listingId != null)
+            .where((seller) => !reviewedSellersOnly || seller.verified)
             .toList();
     if (sortLabel == 'Top rated') {
       sellers.sort(
@@ -1472,7 +1530,7 @@ class _ApprovedHocatrendsPickedSellersPageState
       );
     } else if (sortLabel == 'Lowest price') {
       double price(HocatrendsSellerView seller) =>
-          double.tryParse(
+          seller.offerPriceMinor != null ? seller.offerPriceMinor! / 100 : double.tryParse(
             (seller.priceLabel ?? '').replaceAll(RegExp(r'[^0-9.]'), ''),
           ) ??
           double.infinity;
@@ -1494,11 +1552,11 @@ class _ApprovedHocatrendsPickedSellersPageState
         mainAxisSize: MainAxisSize.min,
         children: [
           BuyerSecondaryButton(
-            label: listingsOnly
+            label: reviewedSellersOnly
                 ? 'Show all sellers'
-                : 'Show sellers with listings',
+                : 'Show verified sellers',
             onPressed: () {
-              setState(() => listingsOnly = !listingsOnly);
+              setState(() => reviewedSellersOnly = !reviewedSellersOnly);
               Navigator.of(sheetContext).pop();
             },
           ),
@@ -1637,21 +1695,28 @@ class _ApprovedHocatrendsPickedSellersPageState
 
   _ApprovedSellerData _realSellerData(HocatrendsSellerView seller) {
     final average = seller.averageRating;
+    String money(int minor) => '${seller.currencyCode == 'USD' ? '\$' : '${seller.currencyCode ?? ''} '}'
+        '${(minor / 100).toStringAsFixed(minor % 100 == 0 ? 0 : 2)}';
     return _ApprovedSellerData(
+      listingTitle: seller.listingTitle,
       name: seller.displayName,
       avatar: '',
+      avatarMediaId: seller.avatarMediaId,
+      readPhoto: widget.readPhoto,
+      verified: seller.verified,
       rating: average == null
           ? 'No reviews yet'
-          : '${average.toStringAsFixed(1)} (${seller.ratingCount} reviews)',
+          : '${average.toStringAsFixed(1)} (${seller.ratingCount} ${seller.ratingCount == 1 ? 'review' : 'reviews'})',
       location: seller.areaLabel ?? 'Area not shared',
-      distance: '—',
-      price: seller.priceLabel ?? '',
-      savings: '',
-      badge: '',
+      distance: seller.distanceMiles == null ? '' : '${seller.distanceMiles!.toStringAsFixed(1)} mi to request',
+      price: seller.offerPriceMinor != null ? money(seller.offerPriceMinor!)
+          : seller.priceLabel?.trim().isNotEmpty == true ? seller.priceLabel! : 'Ask for price',
+      savings: (seller.savingsMinor ?? 0) > 0 ? 'Save ${money(seller.savingsMinor!)}' : '',
+      badge: seller.verified ? 'Admin reviewed' : '',
       badgeIcon: 'transparent/trend-shield.png',
       badgeColor: _approvedAction,
-      deals: '${seller.completedDeals} confirmed deals',
-      response: '—',
+      deals: '${seller.completedDeals} ${seller.completedDeals == 1 ? 'deal' : 'deals'} completed',
+      response: seller.responseMinutes == null ? '' : 'Usually replies in ${seller.responseMinutes} min',
     );
   }
 
@@ -1665,11 +1730,18 @@ class _ApprovedHocatrendsPickedSellersPageState
           children: [
             Row(
               children: [
-                _approvedAsset(
-                  'transparent/trend-up.png',
-                  width: metrics.geometry(63),
-                  height: metrics.geometry(80),
-                ),
+                if (results != null && results.items.any((s) => s.offerImageMediaIds.isNotEmpty))
+                  SizedBox(width: metrics.geometry(96), height: metrics.geometry(112),
+                    child: PageView(children: [
+                      for (final seller in results.items)
+                        for (final id in seller.offerImageMediaIds)
+                          Column(children: [
+                            ClipRRect(borderRadius: BorderRadius.circular(12),
+                              child: PrivateRemoteImage(id: id, read: widget.readPhoto, size: metrics.geometry(80), showWholeImage: true)),
+                            Text(seller.displayName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: metrics.fontSize(10))),
+                          ]),
+                    ])),
                 SizedBox(width: metrics.geometry(20)),
                 Expanded(
                   child: Column(
@@ -1678,13 +1750,15 @@ class _ApprovedHocatrendsPickedSellersPageState
                       BuyerSectionHeading(
                         title: widget.topicLabel ?? 'Sellers',
                       ),
+                      if (widget.topicCategoryLabel != null) Text('Category: ${widget.topicCategoryLabel}'),
+                      Text(results != null && results.items.any((s) => s.offerImageMediaIds.isNotEmpty) ? 'Photos from sellers • Swipe to browse' : 'No seller photos yet', style: Theme.of(context).textTheme.bodySmall),
                       SizedBox(height: metrics.geometry(6)),
                       Text(
                         widget.resultsLoading
                             ? 'Loading seller results…'
                             : widget.resultsError != null
                             ? 'Seller results unavailable'
-                            : '${results?.items.length ?? 0} matching ${results?.items.length == 1 ? 'seller' : 'sellers'}',
+                            : '${results?.items.length ?? 0} Store ${results?.items.length == 1 ? 'listing' : 'listings'}',
                       ),
                       if (widget.topicCompetition != null) ...[
                         SizedBox(height: metrics.geometry(10)),
@@ -1699,7 +1773,7 @@ class _ApprovedHocatrendsPickedSellersPageState
             ),
             SizedBox(height: metrics.geometry(12)),
             _ApprovedSellerControls(
-              filtersOn: listingsOnly,
+              filtersOn: reviewedSellersOnly,
               sortLabel: sortLabel,
               gridView: gridView,
               sortOptions: const ['Best deal', 'Lowest price', 'Top rated'],
@@ -2174,24 +2248,14 @@ class _ApprovedSellerControls extends StatelessWidget {
             ),
           ),
         );
-        final sort = PopupMenuButton<String>(
+        final sort = HocalistSelectMenu<String>(
           key: const Key('approved-trends-seller-sort'),
-          initialValue: sortLabel,
-          position: PopupMenuPosition.under,
-          color: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(metrics.geometry(12)),
-            side: BorderSide(
-              color: HocalistPalette.border(context, _approvedBorder),
-            ),
-          ),
+          role: HocalistControlRole.buyer,
+          value: sortLabel,
+          options: sortOptions,
+          labelBuilder: (option) => option,
           onSelected: onSort,
-          itemBuilder: (context) => [
-            for (final option in sortOptions)
-              PopupMenuItem(value: option, child: Text(option)),
-          ],
-          child: Container(
+          trigger: Container(
             constraints: BoxConstraints(
               minHeight: _sellerDimension(metrics, 38, floor: 36),
             ),
@@ -2392,7 +2456,7 @@ class _ApprovedSellerEmptyState extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          TextButton(onPressed: onClear, child: const Text('Clear filters')),
+          BuyerTextAction(onPressed: onClear, label: 'Clear filters'),
         ],
       ),
     );
@@ -2502,7 +2566,9 @@ class _ApprovedSellerIdentity extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (seller.avatar.isEmpty)
+        if (seller.avatarMediaId != null)
+          ClipOval(child: PrivateRemoteImage(id: seller.avatarMediaId!, read: seller.readPhoto, size: _sellerDimension(metrics, 49, floor: 44)))
+        else if (seller.avatar.isEmpty)
           Container(
             width: _sellerDimension(metrics, 49, floor: 44),
             height: _sellerDimension(metrics, 52, floor: 47),
@@ -2533,8 +2599,9 @@ class _ApprovedSellerIdentity extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
+                  Flexible(
                     child: Text(
                       seller.name,
                       maxLines: metrics.accessibilityReflow ? 2 : 1,
@@ -2555,13 +2622,15 @@ class _ApprovedSellerIdentity extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: metrics.geometry(4)),
-                  _approvedAsset(
+                  if (seller.verified) _approvedAsset(
                     'transparent/seller-verified.png',
                     width: metrics.geometry(11),
                     height: metrics.geometry(12),
                   ),
                 ],
               ),
+              if (seller.listingTitle case final title?)
+                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
               SizedBox(height: metrics.geometry(6)),
               Row(
                 children: [
@@ -2589,9 +2658,9 @@ class _ApprovedSellerIdentity extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(5)),
               Text(
-                '${seller.location}  •  ${seller.distance}',
-                maxLines: 1,
-                softWrap: false,
+                seller.distance.isEmpty ? seller.location : '${seller.location}  •  ${seller.distance}',
+                maxLines: 2,
+                softWrap: true,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: HocalistPalette.text(context, _pageMuted(context)),
@@ -2730,11 +2799,8 @@ class _ApprovedSellerCommerce extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _approvedAsset(
-              'transparent/seller-chat.png',
-              width: metrics.geometry(13),
-              height: metrics.geometry(13),
-            ),
+            Icon(Icons.chat_bubble_outline_rounded,
+              size: metrics.geometry(16), color: accessibility.foregroundOr(Colors.white)),
             SizedBox(width: metrics.geometry(3)),
             Flexible(
               child: Text(
@@ -2752,23 +2818,9 @@ class _ApprovedSellerCommerce extends StatelessWidget {
         ),
       ),
     );
-    if (fullWidth || seller.price.length > 14) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          values,
-          SizedBox(height: metrics.geometry(9)),
-          chat,
-        ],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(child: values),
-        SizedBox(width: metrics.geometry(3)),
-        SizedBox(width: _sellerDimension(metrics, 98, floor: 98), child: chat),
-      ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [values, SizedBox(height: metrics.geometry(9)), chat],
     );
   }
 }
@@ -2801,6 +2853,7 @@ class _ApprovedSellerStats extends StatelessWidget {
           label: seller.response,
           style: style,
         );
+        if (seller.response.isEmpty) return deals;
         if (constraints.maxWidth < 220 || metrics.accessibilityReflow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2876,7 +2929,9 @@ String _approvedSellerInitials(String displayName) {
 }
 
 class _ApprovedSellerData {
+  final String? listingTitle;
   const _ApprovedSellerData({
+    this.listingTitle,
     required this.name,
     required this.avatar,
     required this.rating,
@@ -2889,10 +2944,16 @@ class _ApprovedSellerData {
     required this.badgeColor,
     required this.deals,
     required this.response,
+    this.avatarMediaId,
+    this.readPhoto,
+    this.verified = false,
   });
 
   final String name;
   final String avatar;
+  final String? avatarMediaId;
+  final Future<Uint8List> Function(String)? readPhoto;
+  final bool verified;
   final String rating;
   final String location;
   final String distance;
@@ -3125,11 +3186,11 @@ class _ApprovedBuyerNotificationsPageState
                       ),
                     ),
                     SizedBox(height: metrics.geometry(8)),
-                    TextButton(
+                    BuyerTextAction(
                       key: const Key('approvedActivityRetry'),
                       onPressed: () =>
                           unawaited(repository!.refreshNotifications()),
-                      child: const Text('Try again'),
+                      label: 'Try again',
                     ),
                   ],
                 ),

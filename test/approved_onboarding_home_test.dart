@@ -8,6 +8,7 @@ import 'package:hocalist/features/approved/buyer_bottom_navigation.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 
 import 'test_fonts.dart';
+import 'visual_proof_capture.dart';
 
 class _WorkspaceAssetBundle extends CachingAssetBundle {
   @override
@@ -984,7 +985,8 @@ void main() {
       textScale: 1,
     );
 
-    expect(find.text('Earn rewards on every purchase'), findsOneWidget);
+    expect(find.text('Earn rewards on eligible purchases'), findsOneWidget);
+    expect(find.textContaining('Reviews are optional.'), findsOneWidget);
     expect(find.text('Mileage logic for less driving'), findsOneWidget);
     expect(find.text('Continue'), findsNothing);
     await tester.scrollUntilVisible(
@@ -1260,12 +1262,13 @@ void main() {
   });
 
   testWidgets(
-    'signed-out home 426 rendered artifact after pubspec registration',
+    'signed-out home at 426 shows the approved introduction and opens signup',
     (tester) async {
+      var starts = 0;
       await pumpSurface(
         tester,
         ApprovedNoAccountHomePage(
-          onStart: () {},
+          onStart: () => starts++,
           onBuyer: () {},
           onSeller: () {},
         ),
@@ -1273,13 +1276,17 @@ void main() {
         textScale: 1,
       );
 
-      await expectLater(
-        find.byType(ApprovedNoAccountHomePage),
-        matchesGoldenFile(
-          '../assets/approved_onboarding_home/rendered-no-account-home-426.png',
-        ),
+      expect(find.text('We Are The Better Option'), findsOneWidget);
+      if (const bool.fromEnvironment('HOCALIST_WRITE_ONBOARDING_HOME_PROOF')) {
+        await writeProofImage(tester, find.byType(ApprovedNoAccountHomePage), 'signed-out-home-426.png');
+      }
+      final signup = find.text('Create Free Account');
+      await tester.scrollUntilVisible(
+        signup, 300, scrollable: find.byType(Scrollable).first,
       );
+      await tester.tap(signup);
+      await tester.pumpAndSettle();
+      expect(starts, 1);
     },
-    skip: true,
   );
 }

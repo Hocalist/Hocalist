@@ -257,7 +257,7 @@ void main() {
   });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
-      testWidgets('pin lookup progress fits $width at $scale', (tester) async {
+      testWidgets('address lookup without a map fits $width at $scale', (tester) async {
         tester.view.physicalSize = Size(width, 900);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
@@ -267,23 +267,23 @@ void main() {
           theme:ThemeData(fontFamily:'Nunito'),
           home:MediaQuery(data:MediaQueryData(size:Size(width,900),textScaler:TextScaler.linear(scale)),
             child:Scaffold(body:RepaintBoundary(key:const Key('pin-progress-capture'),
-              child:PlaceCaptureSheet(requireTimezone:true,places:PlacesRepository(transport:transport),mapBuilder:_stubMapBuilder,
+              child:PlaceCaptureSheet(requireTimezone:true,places:PlacesRepository(transport:transport),mapBuilder:_stubMapBuilder,locationReader:()async=>const LocationReading(latitude:40.01,longitude:-73.99),
                 initial:const PlaceCaptureResult(label:'Meeting place',address:'Synthetic Street',latitude:40,longitude:-74,
                   timezoneId:'America/New_York',source:PlaceCaptureSource.search)),
             ))),
         ));
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.byKey(const Key('stubMovePin')));
-        await tester.tap(find.byKey(const Key('stubMovePin')));
+        await tester.ensureVisible(find.byKey(const Key('hocalistPlaceUseLocation')));
+        await tester.tap(find.byKey(const Key('hocalistPlaceUseLocation')));
         await tester.pump(const Duration(milliseconds:450));
-        expect(find.text('Finding address and timezone…'),findsOneWidget);
+        expect(find.text('Finding your address…'),findsOneWidget);
         expect(tester.takeException(),isNull);
         if (const bool.fromEnvironment('HOCALIST_VISUAL_CAPTURE') && scale == 1.0 && (width == 320 || width == 390)) {
           final boundary=tester.renderObject<RenderRepaintBoundary>(find.byKey(const Key('pin-progress-capture')));
           await tester.runAsync(()async{
             final image=await boundary.toImage();
             final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
-            await File('.codex-local/pin-progress-${width.toInt()}.png').writeAsBytes(bytes!.buffer.asUint8List());
+            await File('output/pin-progress-${width.toInt()}.png').writeAsBytes(bytes!.buffer.asUint8List());
             image.dispose();
           });
         }
@@ -308,41 +308,34 @@ void main() {
     expect(capture.results.single?.placeId,isNull);
   });
 
-  testWidgets('late pin responses cannot replace the newest address', (tester) async {
-    final transport = _DelayedPinTransport();
-    final capture = await _openSheet(tester, PlaceCaptureSheet(
-      requireTimezone: true, places: PlacesRepository(transport: transport),
-      mapBuilder: _stubMapBuilder,
-      initial: const PlaceCaptureResult(label:'Original',address:'Original street',
-        latitude:40,longitude:-74,timezoneId:'America/New_York',source:PlaceCaptureSource.search),
+  testWidgets('late location lookup cannot replace a newly typed address', (tester) async {
+    final transport=_DelayedPinTransport();
+    final capture=await _openSheet(tester,PlaceCaptureSheet(
+      places:PlacesRepository(transport:transport),
+      locationReader:()async=>const LocationReading(latitude:40.01,longitude:-74),
     ));
-    await tester.tap(find.byKey(const Key('stubMovePin')));
+    await tester.tap(find.byKey(const Key('hocalistPlaceUseLocation')));
     await tester.pump(const Duration(milliseconds:450));
     expect(transport.requests.length,1);
-    expect(tester.widget<BuyerPrimaryButton>(find.byKey(const Key('hocalistPlaceConfirm'))).onPressed,isNull);
-    await tester.tap(find.byKey(const Key('stubMovePin')));
+    await tester.enterText(find.byKey(const Key('hocalistPlaceSearchField')),'Newest street');
     await tester.pump(const Duration(milliseconds:450));
-    expect(transport.requests.length,2);
-    transport.complete(1,'Newest street');
-    await tester.pumpAndSettle();
     transport.complete(0,'Stale street');
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('hocalistPlaceConfirm')));
-    await tester.pumpAndSettle();
-    expect(capture.results.single?.address,'Newest street');
-    expect(capture.results.single?.latitude,closeTo(40.02,0.00001));
+    expect(tester.widget<TextField>(find.byKey(const Key('hocalistPlaceSearchField'))).controller!.text,'Newest street');
+    expect(find.text('Stale street'),findsNothing);
+    expect(capture.results,isEmpty);
   });
 
-  testWidgets('failed pin lookup never confirms an old address or timezone', (tester) async {
+  testWidgets('failed location lookup cannot confirm an old address', (tester) async {
     final capture = await _openSheet(tester, PlaceCaptureSheet(
-      requireTimezone:true,places:PlacesRepository(transport:_StubTransport(fail:true)),mapBuilder:_stubMapBuilder,
+      requireTimezone:true,places:PlacesRepository(transport:_StubTransport(fail:true)),mapBuilder:_stubMapBuilder,locationReader:()async=>const LocationReading(latitude:40.01,longitude:-73.99),
       initial:const PlaceCaptureResult(label:'Original',address:'Original street',latitude:40,longitude:-74,
         timezoneId:'America/New_York',source:PlaceCaptureSource.search),
     ));
-    await tester.tap(find.byKey(const Key('stubMovePin')));
+    await tester.tap(find.byKey(const Key('hocalistPlaceUseLocation')));
     await tester.pump(const Duration(milliseconds:450));
     await tester.pumpAndSettle();
-    expect(find.textContaining('We could not find the address for this pin'),findsOneWidget);
+    expect(find.textContaining('We could not find an address here'),findsOneWidget);
     await tester.tap(find.byKey(const Key('hocalistPlaceConfirm')));
     await tester.pumpAndSettle();
     expect(capture.results,isEmpty);
@@ -421,7 +414,7 @@ void main() {
               format: ui.ImageByteFormat.png,
             );
             await File(
-              '.codex-local/place-design-current.png',
+              'output/place-design-current.png',
             ).writeAsBytes(bytes!.buffer.asUint8List());
             image.dispose();
           });
@@ -462,7 +455,7 @@ void main() {
     expect(find.text('Second matching address'), findsOneWidget);
   });
 
-  testWidgets('editing a saved request starts at its saved address and pin', (
+  testWidgets('editing a saved request preserves its address without showing a map', (
     tester,
   ) async {
     final capture = await _openSheet(
@@ -479,7 +472,8 @@ void main() {
       ),
     );
     expect(find.textContaining('123 Synthetic Ave'), findsWidgets);
-    expect(find.text('stub map'), findsOneWidget);
+    expect(find.text('stub map'), findsNothing);
+    expect(find.text('Map preview'),findsNothing);
     await tester.tap(find.byKey(const Key('hocalistPlaceConfirm')));
     await tester.pumpAndSettle();
     expect(capture.results.single?.latitude, 40.9);
@@ -538,24 +532,21 @@ void main() {
           .text,
       '123 Synthetic Ave',
     );
-    expect(find.text('stub map'), findsOneWidget);
+    expect(find.text('stub map'), findsNothing);
+    expect(find.text('Map preview'),findsNothing);
     expect(find.byKey(const Key('hocalistPlaceAddressField')), findsNothing);
     expect(find.text('Google Maps'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('stubMovePin')));
-    await tester.pump(const Duration(milliseconds: 450));
-    await tester.pumpAndSettle();
-    expect(find.text('40.91,-73.79'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('hocalistPlaceConfirm')));
     await tester.pumpAndSettle();
     final result = capture.results.single;
     expect(result?.source, PlaceCaptureSource.search);
     expect(result?.placeId, 'place-1');
-    expect(result?.latitude, closeTo(40.91, 0.001));
-    expect(result?.address, 'Moved pin address');
+    expect(result?.latitude, closeTo(40.9, 0.001));
+    expect(result?.address, '123 Synthetic Ave');
     expect(result?.timezoneId, 'America/New_York');
-    expect(result?.postalAddress?.state, 'NY');
+    expect(result?.longitude, -73.8);
   });
 
   testWidgets('a provider failure keeps manual entry available', (
@@ -600,11 +591,11 @@ void main() {
       find.byKey(const ValueKey('hocalistPlaceSuggestion-place-1')),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('hocalistMapPlaceholder')), findsOneWidget);
+    expect(find.byKey(const Key('hocalistMapPlaceholder')), findsNothing);
     expect(find.textContaining('Move the pin'), findsNothing);
     expect(
       find.textContaining('Pin movement needs the map preview'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(tester.takeException(), isNull);
     await tester.tap(find.byKey(const Key('hocalistPlaceConfirm')));
@@ -625,7 +616,8 @@ void main() {
     await tester.tap(find.byKey(const Key('hocalistPlaceUseLocation')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('hocalistPlaceConfirmed')), findsOneWidget);
-    expect(find.text('40.70,-74.00'), findsOneWidget);
+    expect(find.text('40.70,-74.00'), findsNothing);
+    expect(find.text('Near my current location'),findsOneWidget);
   });
 
   testWidgets('denied location is explained and manual entry stays', (
@@ -658,7 +650,7 @@ void main() {
     expect(find.textContaining('system settings'), findsOneWidget);
   });
 
-  testWidgets('the map placeholder is used without a map builder', (
+  testWidgets('no map or map placeholder is shown for a selected location', (
     tester,
   ) async {
     await _openSheet(
@@ -670,7 +662,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('hocalistPlaceUseLocation')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('hocalistMapPlaceholder')), findsOneWidget);
+    expect(find.byKey(const Key('hocalistMapPlaceholder')), findsNothing);
   });
 
   testWidgets('an expired search session restarts once and succeeds', (

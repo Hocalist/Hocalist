@@ -16,6 +16,8 @@
 library;
 
 import 'dart:async';
+import '../commercial/payout_return_stub.dart'
+    if (dart.library.js_interop) '../commercial/payout_return_web.dart' as payout_return;
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -26,6 +28,8 @@ import '../../domain/phase2/failures.dart';
 import '../../domain/phase2/patch.dart';
 import '../../domain/phase2/profiles.dart';
 import 'account_auth_gateway.dart';
+import 'tab_role_stub.dart'
+    if (dart.library.js_interop) 'tab_role_web.dart' as tab_role;
 
 /// Where the account gate currently is.
 enum AccountAccessPhase {
@@ -169,6 +173,13 @@ class HocalistAccountController extends ChangeNotifier {
 
   AccountAccessPhase _phase = AccountAccessPhase.booting;
   HocalistRole _selectedRole = HocalistRole.buyer;
+  String? _roleResolvedForUser;
+  String? _payoutReturnUser;
+  bool takeBuyerRewardsReturn() {
+    final returning = _payoutReturnUser != null && _payoutReturnUser == _identity.userId;
+    _payoutReturnUser = null;
+    return returning;
+  }
   MembershipRecord? _membership;
   AccountRoleProfile? _profile;
   PrivateContactRecord? _contact;
@@ -242,6 +253,9 @@ class HocalistAccountController extends ChangeNotifier {
     if (_started) return;
     _started = true;
     _identity = _auth.currentIdentity;
+    if (!_identity.recovery && payout_return.takePayoutReturn(_identity.userId)) {
+      _payoutReturnUser = _identity.userId;
+    }
     _identitySubscription = _auth.identityChanges.listen(
       _onIdentityChanged,
       onError: (_) {},
@@ -283,6 +297,9 @@ class HocalistAccountController extends ChangeNotifier {
 
   void _onIdentityChanged(AuthIdentitySnapshot next) {
     final identityChanged = next.userId != _identity.userId;
+    if (identityChanged && _identity.userId != null) {
+      tab_role.clearRole(_identity.userId!);
+    }
     if (!identityChanged && _identity.recovery && !next.recovery) {
       // A recovery session only completes through the explicit password-update
       // action below. An ordinary same-user refresh or user-update event must
@@ -293,6 +310,7 @@ class HocalistAccountController extends ChangeNotifier {
     final recoveryChanged = next.recovery != _identity.recovery;
     final pendingEmailChanged =
         next.pendingEmailChange != _identity.pendingEmailChange;
+    if (identityChanged) _returnRole = null;
     _identity = next;
     if (!identityChanged && !recoveryChanged) {
       // Same identity, for example a token refresh or an email-change
@@ -329,6 +347,9 @@ class HocalistAccountController extends ChangeNotifier {
     _awaitingProvider = false;
     _formBusy = false;
     if (next.isSignedIn) {
+      if (!next.recovery && payout_return.takePayoutReturn(next.userId)) {
+        _payoutReturnUser = next.userId;
+      }
       _phase = next.recovery
           ? AccountAccessPhase.passwordRecovery
           : AccountAccessPhase.booting;
@@ -342,10 +363,21 @@ class HocalistAccountController extends ChangeNotifier {
     }
   }
 
-  /// Explicit buyer/seller selection; the gate never guesses the role.
+  HocalistRole? _returnRole;
+  HocalistRole? get returnRole => _returnRole;
+
+  void returnToPreviousRole() {
+    final previous = _returnRole;
+    if (previous != null) selectRole(previous);
+  }
+
+  /// An explicit in-app role switch keeps server membership checks intact.
   void selectRole(HocalistRole role) {
+    _roleResolvedForUser = _identity.userId;
     if (role == _selectedRole) return;
+    _returnRole = _phase == AccountAccessPhase.active ? _selectedRole : null;
     _selectedRole = role;
+    if (_identity.userId != null) tab_role.saveRole(_identity.userId!, role.name, _identity.lastSignInAt);
     _clearMembershipState();
     _errorCode = null;
     if (_identity.isSignedIn) {
@@ -382,6 +414,30 @@ class HocalistAccountController extends ChangeNotifier {
     _errorCode = null;
     _notify();
 
+    if (_roleResolvedForUser != userId) {
+      final memberships = await _accounts.fetchMemberships();
+      if (!_isCurrent(token, generation, userId)) return;
+      if (memberships.isFailure) {
+        _fail(memberships.errorOrNull!);
+        return;
+      }
+      final registered = [...memberships.valueOrNull!]
+        ..sort((a, b) => a.stamp.createdAt.compareTo(b.stamp.createdAt));
+      if (_payoutReturnUser == userId &&
+          registered.any((m) => m.role == HocalistRole.buyer && m.status == MembershipStatus.active)) {
+        _selectedRole = HocalistRole.buyer;
+      } else {
+        _payoutReturnUser = null;
+        if (registered.isNotEmpty) {
+          final saved = tab_role.readRole(userId, _identity.lastSignInAt);
+          _selectedRole = registered.firstWhere(
+            (m) => m.role.name == saved && m.status == MembershipStatus.active,
+            orElse: () => registered.first,
+          ).role;
+        }
+      }
+      _roleResolvedForUser = userId;
+    }
     final membershipResult = await _accounts.fetchMembership(
       role: _selectedRole,
     );
@@ -438,6 +494,7 @@ class HocalistAccountController extends ChangeNotifier {
       _contactUnavailable = contactResult.errorOrNull is! NotFoundError;
     }
 
+    tab_role.saveRole(userId, _selectedRole.name, _identity.lastSignInAt);
     _phase = AccountAccessPhase.active;
     _finishLoad();
   }
@@ -554,6 +611,9 @@ class HocalistAccountController extends ChangeNotifier {
       _notify();
     });
   }
+
+  Future<void> resendSignupConfirmation(String email) =>
+      _runForm(() => _auth.resendSignupConfirmation(email));
 
   Future<void> requestEmailLink({required String email, required String name}) {
     return _runForm(() async {
@@ -974,6 +1034,7 @@ class HocalistAccountController extends ChangeNotifier {
   void _adoptCurrentIdentity() {
     final next = _auth.currentIdentity;
     if (next.userId != _identity.userId) {
+      if (_identity.userId != null) tab_role.clearRole(_identity.userId!);
       _identity = next;
       _generation++;
       _clearPrivateState();
@@ -981,6 +1042,7 @@ class HocalistAccountController extends ChangeNotifier {
     }
     _identity = AuthIdentitySnapshot(
       userId: next.userId,
+      lastSignInAt: next.lastSignInAt,
       email: next.email,
       displayName: next.displayName,
       recovery: _identity.recovery,
@@ -1003,6 +1065,8 @@ class HocalistAccountController extends ChangeNotifier {
   }
 
   void _clearPrivateState() {
+    _roleResolvedForUser = null;
+    _payoutReturnUser = null;
     _clearMembershipState();
     _email = null;
     _suggestedDisplayName = null;

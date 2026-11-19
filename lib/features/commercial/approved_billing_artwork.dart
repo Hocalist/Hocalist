@@ -63,7 +63,12 @@ class _ApprovedBillingArtworkState extends State<ApprovedBillingArtwork> {
   Widget build(BuildContext context) => ExcludeSemantics(
     child: SizedBox.square(
       dimension: widget.size,
-      child: CustomPaint(painter: _ArtworkPainter(_image, widget.crop)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(
+          Theme.of(context).brightness == Brightness.dark ? widget.size * .28 : 0,
+        ),
+        child: CustomPaint(painter: _ArtworkPainter(_image, widget.crop)),
+      ),
     ),
   );
 }

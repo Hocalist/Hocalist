@@ -3,10 +3,11 @@ import '../marketplace/marketplace_session.dart';
 import '../accounts/timestamptz.dart';
 
 class SaleConfirmationResult {
-  const SaleConfirmationResult(this.status, {this.pin, this.expiresAt});
+  const SaleConfirmationResult(this.status, {this.pin, this.expiresAt, this.retryAt});
   final String status;
   final String? pin;
   final DateTime? expiresAt;
+  final DateTime? retryAt;
   @override
   String toString() => 'SaleConfirmationResult($status, redacted)';
 }
@@ -77,6 +78,11 @@ class SaleConfirmationAdapter {
         expiresAt: expiry.toUtc(),
       );
     }
-    return SaleConfirmationResult(status as String);
+    final retryAt = data['retry_at'] == null
+        ? (status == 'locked' ? DateTime.now().toUtc().add(const Duration(minutes: 15)) : null)
+        : parsePostgresTimestamptz(
+      data['retry_at'].toString(), context: 'sale.retry_at',
+    ).toUtc();
+    return SaleConfirmationResult(status as String, retryAt: retryAt);
   }
 }

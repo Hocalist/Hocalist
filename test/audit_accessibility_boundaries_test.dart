@@ -28,6 +28,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('section-tab-Preferences')));
+    await tester.pumpAndSettle();
     final row = tester.getSemantics(find.text('Accessibility'));
     expect(row.label, contains('Accessibility'));
     expect(row.label, isNot(contains('Account Settings')));

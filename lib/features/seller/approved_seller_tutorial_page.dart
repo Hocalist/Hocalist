@@ -3,18 +3,21 @@ import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
+import '../media/private_remote_image.dart';
 
 class ApprovedSellerTutorialPage extends StatefulWidget {
   const ApprovedSellerTutorialPage({
     required this.onContinue,
     required this.onClose,
     this.name = '',
+    this.avatarMediaId,
     super.key,
   });
 
   final VoidCallback onContinue;
   final VoidCallback onClose;
   final String name;
+  final String? avatarMediaId;
 
   @override
   State<ApprovedSellerTutorialPage> createState() =>
@@ -135,7 +138,7 @@ class _ApprovedSellerTutorialPageState
                       SizedBox(height: metrics.spacing(14)),
                       Transform.translate(
                         offset: Offset(-metrics.geometry(9), 0),
-                        child: _TutorialWelcome(name: widget.name),
+                        child: _TutorialWelcome(name: widget.name, avatarMediaId: widget.avatarMediaId),
                       ),
                       SizedBox(height: metrics.spacing(18)),
                       Padding(
@@ -192,7 +195,7 @@ class _ApprovedSellerTutorialPageState
               SizedBox(height: metrics.spacing(14)),
               Transform.translate(
                 offset: Offset(-metrics.geometry(9), 0),
-                child: _TutorialWelcome(name: widget.name),
+                child: _TutorialWelcome(name: widget.name, avatarMediaId: widget.avatarMediaId),
               ),
               SizedBox(height: metrics.spacing(18)),
               Padding(
@@ -311,20 +314,26 @@ class _TutorialClose extends StatelessWidget {
 }
 
 class _TutorialWelcome extends StatelessWidget {
-  const _TutorialWelcome({required this.name});
+  const _TutorialWelcome({required this.name, this.avatarMediaId});
   final String name;
+  final String? avatarMediaId;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
+    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+    final initials = parts.isEmpty ? '?' : '${parts.first.characters.first}${parts.length > 1 ? parts.last.characters.first : ''}'.toUpperCase();
     final portrait = ClipOval(
-      child: Image.asset(
-        SellerAssets.tutorialPortrait,
-        width: metrics.artSize(82),
-        height: metrics.artSize(82),
-        fit: BoxFit.cover,
-        semanticLabel: 'Seller welcome illustration',
-      ),
+      child: avatarMediaId?.isNotEmpty == true
+          ? PrivateRemoteImage(id: avatarMediaId!, size: metrics.artSize(82))
+          : Container(
+              key: const Key('sellerTutorialInitials'),
+              width: metrics.artSize(82),
+              height: metrics.artSize(82),
+              color: HocalistPalette.surface(context, SellerUiColors.lavender),
+              alignment: Alignment.center,
+              child: Text(initials, style: sellerText(metrics, 28, weight: FontWeight.w800)),
+            ),
     );
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -21,11 +21,12 @@ class _HocalistLoadingIndicatorState extends State<HocalistLoadingIndicator>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context)) {
+    // Screen-reader navigation does not request reduced motion. Keep loading
+    // feedback animated unless the platform explicitly disables animations.
+    if (MediaQuery.disableAnimationsOf(context)) {
       _pulse.stop();
       _pulse.value = 1;
-    } else {
+    } else if (!_pulse.isAnimating) {
       _pulse.repeat();
     }
   }

@@ -1,6 +1,9 @@
+import '../../components/account_role_switch.dart';
+import '../../domain/phase2/profiles.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/brand_home_link.dart';
+import '../../components/notification_indicator.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_bottom_navigation.dart';
@@ -65,15 +68,17 @@ class SellerAppHeader extends StatelessWidget {
         final logo = BrandHomeLink(
           child: Image.asset(
             SellerAssets.brandWordmark,
+            cacheWidth: 528,
             color: Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xfff3f3ff)
                 : null,
             width: metrics.artSize(104),
+            height: metrics.artSize(44),
             fit: BoxFit.contain,
             semanticLabel: 'Hocalist Reverse Marketplace',
           ),
         );
-        final mode = _SellerModePill(metrics: metrics);
+        final mode = AccountRoleSwitch(role: HocalistRole.seller, child: _SellerModePill(metrics: metrics));
         final notification = _SellerNotificationButton(
           metrics: metrics,
           onNotifications: onNotifications,
@@ -147,7 +152,8 @@ class _SellerNotificationButton extends StatelessWidget {
             color: HocalistPalette.text(context, SellerUiColors.ink),
           ),
         ),
-        Positioned(
+        if (NotificationIndicatorScope.showDot(context)) Positioned(
+          key: const Key('sellerNotificationUnreadDot'),
           right: metrics.geometry(7),
           top: metrics.geometry(5),
           child: Container(

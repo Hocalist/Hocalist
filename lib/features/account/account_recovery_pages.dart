@@ -51,6 +51,7 @@ class AccountRecoveryScaffold extends StatelessWidget {
                     height: metrics.artSize(46),
                     child: Image.asset(
                       'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
                       excludeFromSemantics: true,

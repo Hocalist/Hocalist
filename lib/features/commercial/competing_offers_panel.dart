@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/phase2/commercial/entitlement_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
-import '../../theme/buyer_ui_foundation.dart';
+import '../../theme/seller_ui_foundation.dart';
 
 /// Prices are loaded only after explicit consent. The server owns eligibility.
 class CompetingOffersPanel extends StatefulWidget {
@@ -95,51 +95,57 @@ class _CompetingOffersPanelState extends State<CompetingOffersPanel> {
   @override
   Widget build(BuildContext context) {
     if (!_elite) return const SizedBox.shrink();
+    final metrics = ApprovedReplicaScope.maybeOf(context) ?? ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
+      availableWidth: MediaQuery.sizeOf(context).width,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    final body = sellerText(metrics, 12, color: SellerUiColors.body, height: 1.45);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_prices != null) ...[
-            const Text(
-              'Competing offer prices',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+            const SellerSectionHeading(title: 'Competing offer prices'),
             const SizedBox(height: 8),
             Text(
               _prices!.isEmpty
                   ? 'No competing offers are available.'
                   : _prices!.join('\n'),
+              style: body,
             ),
             const SizedBox(height: 8),
-            const Text('Refund eligibility has been removed for this request.'),
+            Text('Refund eligibility has been removed for this request.', style: body),
           ] else if (_confirm) ...[
-            const Text(
+            Text(
               'Viewing competing offers removes your refund eligibility for this request. Only prices will be shown.',
+              style: body,
             ),
             const SizedBox(height: 12),
-            BuyerPrimaryButton(
+            SellerPrimaryButton(
               label: _busy ? 'Opening…' : 'View prices and give up refund',
               onPressed: _busy ? null : _view,
             ),
-            TextButton(
+            const SizedBox(height: 8),
+            SellerSecondaryButton(
+              label: 'Keep refund eligibility',
               onPressed: _busy
                   ? null
                   : () => setState(() {
                       _confirm = false;
                       _error = null;
                     }),
-              child: const Text('Keep refund eligibility'),
             ),
           ] else
-            BuyerPrimaryButton(
+            SellerPrimaryButton(
               label: 'View competing offers',
               onPressed: () => setState(() => _confirm = true),
             ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(_error!),
+              child: SellerStateNotice(icon: Icons.info_outline, title: _error!, tone: SellerNoticeTone.error),
             ),
         ],
       ),

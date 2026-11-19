@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Return to your offer | Hocalist</title></head>
+<body><main><h1>Return to your offer</h1><p>Your offer is still open in Hocalist. You can close this tab.</p></main>
+<script>
+const params = new URLSearchParams(location.search);
+const setup = params.get('setup');
+const result = params.get('result');
+if (/^[a-f0-9-]{36}$/i.test(setup || '') && ['finished', 'canceled'].includes(result)) {
+  try { localStorage.setItem('hocalist.offer-return.' + setup, result); } finally { window.close(); }
+}
+</script></body></html>

@@ -5,10 +5,60 @@ import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
 import 'package:hocalist/features/seller/approved_seller_more_page.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
+import 'package:hocalist/theme/control_foundation.dart';
+import 'package:hocalist/theme/approved_interface_icons.dart';
 import 'test_fonts.dart';
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  test('dark text and outline button icons have readable default colors', () {
+    for (final style in [HocalistTheme.dark.textButtonTheme.style!, HocalistTheme.dark.outlinedButtonTheme.style!]) {
+      final foreground = style.foregroundColor!.resolve({})!;
+      expect((foreground.computeLuminance() + .05) /
+        (HocalistTheme.dark.scaffoldBackgroundColor.computeLuminance() + .05), greaterThan(3));
+    }
+  });
+  testWidgets('dark glyph tint preserves light icons and colored artwork', (tester) async {
+    for (final theme in [HocalistTheme.light, HocalistTheme.dark]) {
+      await tester.pumpWidget(MaterialApp(theme: theme, home: const Row(children: [
+        BuyerAssetIcon(asset: 'assets/approved_offers_chat/header-bell.png', slotSize: 24),
+        BuyerAssetIcon(asset: 'assets/approved_onboarding_home/dashboard-plus.png', slotSize: 24),
+        BuyerAssetIcon(asset: 'assets/approved_onboarding_home/dashboard-trophy-glyph.png', slotSize: 24),
+        BuyerAssetIcon(asset: 'assets/approved_trends_notifications/transparent/trend-filter.png', slotSize: 24),
+        BuyerAssetIcon(asset: 'assets/approved_onboarding_home/ready-gift.png', slotSize: 24),
+      ])));
+      await tester.pumpAndSettle();
+      final images = tester.widgetList<Image>(find.byType(Image)).toList();
+      expect(images[0].color, theme.brightness == Brightness.dark ? isNotNull : isNull);
+      expect(images[1].color, theme.brightness == Brightness.dark ? isNotNull : isNull);
+      expect(images[2].color, isNull);
+      expect(find.byType(ApprovedInterfaceIcon), findsNWidgets(2));
+    }
+  });
+  testWidgets('filter chips keep dark surfaces with readable labels and icons', (tester) async {
+    await tester.pumpWidget(MaterialApp(theme: HocalistTheme.dark, home: Scaffold(body:
+      HocalistFilterChip(role: HocalistControlRole.buyer, label: 'All levels', selected: true,
+        icon: Icons.tune, onSelected: (_) {}))));
+    final chip = tester.widget<FilterChip>(find.byType(FilterChip));
+    expect(chip.backgroundColor!.computeLuminance(), lessThan(.1));
+    expect(chip.selectedColor!.computeLuminance(), lessThan(.1));
+    expect((tester.widget<Icon>(find.byType(Icon)).color!.computeLuminance() + .05) /
+      (chip.selectedColor!.computeLuminance() + .05), greaterThan(3));
+  });
+  testWidgets('seller meeting filter labels have contrast in both states', (tester) async {
+    for (final selected in [false, true]) {
+      await tester.pumpWidget(MaterialApp(theme: HocalistTheme.dark,
+        home: Scaffold(body: HocalistFilterChip(
+          role: HocalistControlRole.seller, label: 'Today', selected: selected,
+          onSelected: (_) {},
+        ))));
+      final chip = tester.widget<FilterChip>(find.byType(FilterChip));
+      final background = selected ? chip.selectedColor! : chip.backgroundColor!;
+      expect((chip.labelStyle!.color!.computeLuminance() + .05) /
+        (background.computeLuminance() + .05), greaterThan(4.5));
+    }
+  });
   testWidgets(
     'palette preserves light artwork colors and gives dark text contrast',
     (tester) async {

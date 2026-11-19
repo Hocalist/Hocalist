@@ -10,6 +10,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'test_fonts.dart';
+import 'package:hocalist/domain/phase2/offers.dart';
+import 'package:hocalist/data/phase2/marketplace/marketplace_codecs.dart';
+import 'phase2/marketplace/support/marketplace_fakes.dart' as fixtures;
 
 const realLead = SellerLeadView(
   requestId: 'request-1',
@@ -32,11 +35,13 @@ const realLead = SellerLeadView(
 Future<void> pumpHome(
   WidgetTester tester, {
   List<SellerLeadView> leads = const [realLead],
+  List<Offer> offers = const [],
   bool loading = false,
   String? error,
   VoidCallback? onRetry,
   VoidCallback? onOfferHistory,
   ValueChanged<SellerLeadView>? onOpenLead,
+  ValueChanged<Offer>? onOpenRecentOffer,
   VoidCallback? onSetupBusiness,
   Future<SellerHomeSummaryView> Function()? loadSummary,
   double width = 390,
@@ -56,12 +61,14 @@ Future<void> pumpHome(
         body: RepaintBoundary(key:const Key('seller-home-capture'),child:ApprovedSellerHomePage(
           onLeads: () {},
           onOpenLead: onOpenLead,
+          onOpenRecentOffer: onOpenRecentOffer,
           onSetupBusiness:onSetupBusiness,
           onBrowseRequests: () {},
           onOfferHistory: onOfferHistory,
           sellerName: sellerName,
           loadSummary:loadSummary,
           realLeads: leads,
+          sellerOffers: offers,
           leadsLoading: loading,
           leadsError: error,
           onRefreshLeads: onRetry,
@@ -94,10 +101,39 @@ void main() {
   testWidgets('missing recommendation details provide a Store setup route',(tester)async{
     var opened=0;
     await pumpHome(tester,onSetupBusiness:()=>opened++);
-    await tester.ensureVisible(find.text('Set up your Store'));
-    await tester.tap(find.text('Set up your Store'));
+    await tester.ensureVisible(find.text('Edit seller categories'));
+    await tester.tap(find.text('Edit seller categories'));
     expect(opened,1);
   });
+  testWidgets('recent leads show only their own offer status and last update', (tester) async {
+    final row = fixtures.offerJson()
+      ..['updated_at'] = DateTime.now().toUtc().subtract(const Duration(minutes: 12)).toIso8601String();
+    final offer = decodeOfferJson(row, 'offer');
+    final lead = SellerLeadView.fromOffer(offer);
+    for (final entry in {
+      OfferStatus.submitted: 'Pending', OfferStatus.selected: 'Offer Accepted',
+      OfferStatus.declined: 'Declined', OfferStatus.cancelled: 'Cancelled',
+      OfferStatus.expired: 'Expired', OfferStatus.completed: 'Completed',
+      OfferStatus.withdrawn: 'Withdrawn',
+    }.entries) {
+      Offer? opened;
+      final displayed = offer.copyWith(status: entry.key);
+      await pumpHome(tester, width: 320, scale: 1.3, leads: [realLead, lead],
+        offers: [displayed], onOpenRecentOffer: (value) => opened = value);
+      final recent = find.byKey(const Key('sellerHomeRealRecentLeads'));
+      Finder inRecent(Finder child) => find.descendant(of: recent, matching: child);
+      expect(inRecent(find.text(entry.value)), findsOneWidget);
+      await tester.ensureVisible(inRecent(find.text(entry.value)));
+      await tester.tap(inRecent(find.text(entry.value)));
+      expect(opened, same(displayed));
+      expect(inRecent(find.text('12m ago')), findsOneWidget);
+      expect(inRecent(find.byIcon(Icons.circle)), findsOneWidget);
+      final browsedRow = find.ancestor(of: find.text(realLead.request), matching: find.byType(InkWell)).first;
+      expect(find.descendant(of: browsedRow, matching: find.byIcon(Icons.circle)), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('recent lead tap carries the exact request identity', (
     tester,
   ) async {
@@ -247,7 +283,7 @@ void main() {
           final boundary=tester.renderObject<RenderRepaintBoundary>(find.byKey(const Key('seller-home-capture')));
           await tester.runAsync(()async{
             final image=await boundary.toImage(); final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
-            await File('.codex-local/seller-home-restored-${width.toInt()}.png').writeAsBytes(bytes!.buffer.asUint8List()); image.dispose();
+            await File('${Directory.systemTemp.path}/seller-home-restored-${width.toInt()}.png').writeAsBytes(bytes!.buffer.asUint8List()); image.dispose();
           });
         }
       });

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:hocalist/main.dart' show findDealMeeting;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/phase2/meetings/meeting_codecs.dart';
@@ -7,6 +8,7 @@ import 'package:hocalist/features/chat/conversation_meeting_actions.dart';
 
 MeetingView meeting({
   bool accepted = false,
+  bool declined = false,
   String? proposer = 'seller',
   bool chosen = true,
   String id = 'meeting',
@@ -36,7 +38,7 @@ MeetingView meeting({
     acceptedSchedule: accepted ? schedule('accepted') : null,
     pendingSchedule: proposer == null ? null : schedule('proposed'),
     purchaseSelected: chosen,
-    revisions: [],
+    revisions: declined ? [schedule('rejected')] : [],
   );
 }
 
@@ -86,6 +88,20 @@ Future<void> pump(
 }
 
 void main() {
+  test('seller opens the selected offer meeting in a shared buyer conversation', () {
+    final meetings = [meeting(id: 'first'), meeting(id: 'second')];
+    expect(findDealMeeting(meetings, 'chat', 'offer-second')?.meetingId, 'second');
+    expect(findDealMeeting(meetings, 'chat', 'offer-without-meeting'), isNull);
+    expect(findDealMeeting(meetings, 'another-chat', 'offer-second'), isNull);
+  });
+  for (final compact in [false, true]) {
+    testWidgets('declined change retains original schedule (compact=$compact)', (tester) async {
+      await pump(tester, deal: meeting(accepted: true, declined: true, proposer: null), compact: compact);
+      expect(find.text('Proposed change declined. Your original meeting is still confirmed.'), findsOneWidget);
+      expect(find.text('Accept meeting'), findsNothing);
+      expect(find.textContaining('Oct 18'), findsWidgets);
+    });
+  }
   testWidgets(
     'compact meeting controls stay usable across phone widths and text scales',
     (tester) async {

@@ -1,5 +1,6 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
+import '../theme/accessibility_visuals.dart';
 import '../theme/buyer_ui_foundation.dart';
 import '../theme/seller_ui_foundation.dart';
 
@@ -15,6 +16,7 @@ class HocalistAccountField extends StatefulWidget {
     this.maxLength,
     this.keyboardType,
     this.fieldKey,
+    this.hintText,
     this.autofillHints,
     this.textInputAction,
     this.onSubmitted,
@@ -28,6 +30,7 @@ class HocalistAccountField extends StatefulWidget {
   final int? maxLength;
   final TextInputType? keyboardType;
   final Key? fieldKey;
+  final String? hintText;
   final Iterable<String>? autofillHints;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
@@ -50,7 +53,7 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
           textScaler: MediaQuery.textScalerOf(context),
         );
     final style = TextStyle(
-      fontFamily: 'Nunito',
+      fontFamily: hocalistAccessibilityVisualsOf(context).fontFamily,
       fontSize: metrics.fontSize(13),
       fontWeight: FontWeight.w700,
       color: HocalistPalette.text(
@@ -93,6 +96,7 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
             onChanged: widget.onChanged,
             style: style,
             decoration: InputDecoration(
+              hintText: widget.hintText,
               isDense: true,
               filled: true,
               fillColor: HocalistPalette.surface(context, Colors.white),
@@ -141,18 +145,21 @@ class _HocalistAccountFieldState extends State<HocalistAccountField> {
 }
 
 class HocalistAccountFormCard extends StatelessWidget {
-  const HocalistAccountFormCard({required this.child, super.key});
+  const HocalistAccountFormCard({required this.child, this.onTap, super.key});
+  final VoidCallback? onTap;
   final Widget child;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: HocalistPalette.surface(context, Colors.white),
+  Widget build(BuildContext context) => Material(
+    clipBehavior: Clip.antiAlias,
+    color: HocalistPalette.surface(context, Colors.white),
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(
+      side: BorderSide(
         color: HocalistPalette.border(context, SellerUiColors.line),
       ),
     ),
-    child: child,
+    child: onTap == null
+        ? Padding(padding: const EdgeInsets.all(14), child: child)
+        : InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.all(14), child: child)),
   );
 }

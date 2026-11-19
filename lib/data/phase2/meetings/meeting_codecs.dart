@@ -100,7 +100,23 @@ class MeetingView {
 
   bool get hasPendingSchedule => pendingSchedule != null;
 
+  /// A declined proposal does not cancel an already agreed meeting.
+  bool get latestProposalDeclined {
+    if (isCancelled || hasPendingSchedule || revisions.isEmpty) return false;
+    final latest = revisions.reduce((a, b) => a.sequence > b.sequence ? a : b);
+    return latest.status == 'rejected';
+  }
+
+  String get declinedProposalMessage => hasAcceptedSchedule
+      ? 'Proposed change declined. Your original meeting is still confirmed.'
+      : 'Meeting proposal declined. Propose a new date or location.';
+
   bool get isCancelled => status == 'cancelled';
+
+  bool isPastAcceptedAt(DateTime now) =>
+      hasAcceptedSchedule &&
+      (status == 'accepted' || status == 'reschedule_proposed') &&
+      !isUpcomingAt(now);
 
   /// Display eligibility only; accepted meetings retain the server's cutoff.
   bool isUpcomingAt(DateTime now) {

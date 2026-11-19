@@ -12,6 +12,8 @@ import 'package:hocalist/domain/phase2/offers.dart';
 import 'package:hocalist/domain/phase2/schedule.dart';
 import 'package:hocalist/features/seller/approved_seller_account_pages.dart';
 import 'package:hocalist/features/seller/seller_offer_revision_editor.dart';
+import 'package:hocalist/features/seller/approved_seller_leads_page.dart' show SellerOfferPlace;
+import 'package:hocalist/features/media/private_image_picker.dart';
 
 import 'phase2/marketplace/support/marketplace_fakes.dart';
 import 'test_fonts.dart';
@@ -20,6 +22,7 @@ Offer _offer({
   OfferStatus status = OfferStatus.submitted,
   int revision = 1,
   String message = 'Can meet tomorrow.',
+  List<String> photos = const [],
 }) => Offer(
   id: offerId,
   requestId: requestId,
@@ -35,6 +38,7 @@ Offer _offer({
       terms: OfferTerms(
         price: Money(minorUnits: 42000, currencyCode: 'USD'),
         message: message,
+        imageMediaIds: photos,
         schedule: LocalSchedule(
           date: LocalDate(year: 2026, month: 10, day: 1),
           startTime: LocalTime(hour: 18, minute: 30),
@@ -314,41 +318,87 @@ void main() {
     expect(find.byKey(const Key('sellerOffersEmpty')), findsOneWidget);
   });
 
-  testWidgets('a submitted real offer can be withdrawn', (tester) async {
-    var withdrawn = 0;
-    await _pump(
-      tester,
-      ApprovedSellerOfferDetailPage(
-        onBack: () {},
-        onChat: () {},
-        realOffer: SellerOfferView.fromOffer(
-          _offer(),
-          requestTitle: 'iPad Air request',
-        ),
-        onWithdraw: () => withdrawn += 1,
-      ),
-    );
-    final withdraw = find.byKey(const Key('sellerOfferWithdraw'));
-    await tester.ensureVisible(withdraw);
-    await tester.pumpAndSettle();
-    await tester.tap(withdraw);
-    await tester.pumpAndSettle();
-    expect(withdrawn, 1);
+  testWidgets('pending offer saves revised photos, meeting location, date and time together', (tester) async {
+    OfferTerms? saved;
+    await _pump(tester, SellerOfferRevisionEditor(
+      offer: _offer(photos: ['first-photo', 'keep-photo']),
+      uploadImage: (_, _) async => 'new-photo',
+      choosePlace: (_) async => const SellerOfferPlace(name: 'Market Hall',
+        address: '123 Main St', latitude: 41.8, longitude: -87.6, timezoneId: 'America/Chicago'),
+      onSave: (terms, _) async {
+        saved = terms;
+        return SellerOfferActionResult.success(_offer(revision: 2));
+      },
+    ));
+    Future<void> tap(Finder item) async {
+      await tester.ensureVisible(item);
+      await tester.tap(item);
+      await tester.pumpAndSettle();
+    }
+    await tap(find.descendant(of: find.byKey(const ValueKey('first-photo')), matching: find.byTooltip('Remove photo')));
+    tester.widget<PrivateImagePicker>(find.byType(PrivateImagePicker)).onChanged(['new-photo']);
+    await tester.pump();
+    await tap(find.byKey(const Key('sellerOfferSpecificLocation')));
+    await tap(find.byKey(const Key('sellerOfferDate')));
+    await tap(find.byKey(const Key('sellerOfferScheduleNextMonth')));
+    await tap(find.byKey(const Key('sellerOfferScheduleDay3')));
+    await tap(find.byKey(const Key('sellerOfferScheduleConfirm')));
+    await tap(find.byKey(const Key('sellerOfferTime')));
+    await tap(find.byKey(const Key('sellerOfferSchedule2:00 PM')));
+    await tap(find.byKey(const Key('sellerOfferScheduleConfirm')));
+    await tap(find.byKey(const Key('sellerOfferRevisionSave')));
+    expect(saved?.imageMediaIds, ['keep-photo', 'new-photo']);
+    expect(saved?.place.address, '123 Main St');
+    expect(saved?.place.latitude, 41.8);
+    expect(saved?.schedule.timezoneId, 'America/Chicago');
+    expect(saved?.schedule.date.day, 3);
+    expect(saved?.schedule.startTime.hour, 14);
+    expect(saved?.price.minorUnits, 42000);
+  });
 
-    await _pump(
-      tester,
-      ApprovedSellerOfferDetailPage(
-        onBack: () {},
-        onChat: () {},
-        realOffer: SellerOfferView.fromOffer(
-          _offer(status: OfferStatus.withdrawn),
-          requestTitle: 'iPad Air request',
-        ),
-        onWithdraw: () => withdrawn += 1,
-      ),
-    );
+  testWidgets('the original pending offer form hides withdrawal for an ineligible plan', (tester) async {
+    await _pump(tester, SellerOfferRevisionEditor(
+      offer: _offer(), withdrawalEligibility: Future.value(false),
+      onSave: (_, _) async => throw StateError('Unexpected save'),
+      onWithdraw: () async => throw StateError('Unexpected withdrawal'),
+    ));
+    expect(find.text('Your offer'), findsOneWidget);
+    expect(find.text('420.00'), findsOneWidget);
+    expect(find.text('Can meet tomorrow.'), findsOneWidget);
     expect(find.byKey(const Key('sellerOfferWithdraw')), findsNothing);
-    expect(find.text('Withdrawn'), findsOneWidget);
+  });
+
+  testWidgets('the pending offer editor withdraws the displayed offer and keeps a failed attempt open', (tester) async {
+    var attempts = 0;
+    Offer? returned;
+    await _pump(tester, Builder(builder: (context) => TextButton(
+      child: const Text('Edit pending offer'),
+      onPressed: () async {
+        returned = await showModalBottomSheet<Offer>(
+          context: context, isScrollControlled: true,
+          builder: (_) => SellerOfferRevisionEditor(
+            offer: _offer(),
+            onSave: (_, _) async => throw StateError('Unexpected save'),
+            onWithdraw: () async => ++attempts == 1
+                ? const SellerOfferActionResult.failure('Please retry.', outcomeUncertain: true)
+                : SellerOfferActionResult.success(_offer(status: OfferStatus.withdrawn)),
+          ),
+        );
+      },
+    )));
+    await tester.tap(find.text('Edit pending offer'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsOneWidget);
+    expect(find.text('Your offer'), findsOneWidget);
+    await tester.ensureVisible(find.text('Withdraw offer'));
+    await tester.tap(find.text('Withdraw offer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Please retry.'), findsOneWidget);
+    await tester.ensureVisible(find.text('Retry withdrawal'));
+    await tester.tap(find.text('Retry withdrawal'));
+    await tester.pumpAndSettle();
+    expect(returned?.id, _offer().id);
+    expect(returned?.status, OfferStatus.withdrawn);
   });
 
   testWidgets(
@@ -380,6 +430,7 @@ void main() {
         find.byKey(const Key('sellerOfferRevisionMessage')),
         'Can meet after six.',
       );
+      await tester.ensureVisible(find.byKey(const Key('sellerOfferRevisionSave')));
       await tester.tap(find.byKey(const Key('sellerOfferRevisionSave')));
       await tester.pumpAndSettle();
       expect(find.text('Retry same update'), findsOneWidget);
@@ -391,6 +442,7 @@ void main() {
             .readOnly,
         isTrue,
       );
+      await tester.ensureVisible(find.byKey(const Key('sellerOfferRevisionSave')));
       await tester.tap(find.byKey(const Key('sellerOfferRevisionSave')));
       await tester.pumpAndSettle();
       expect(intents, hasLength(2));

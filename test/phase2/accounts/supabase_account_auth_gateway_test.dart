@@ -42,6 +42,35 @@ void main() {
   }
 
   test(
+    'verified phone-only sessions survive SMS confirmation and refresh',
+    () async {
+      backend.phoneOnly = true;
+      final snapshots = <AuthIdentitySnapshot>[];
+      final subscription = gateway.identityChanges.listen(snapshots.add);
+      await gateway.confirmPhoneCode(phone: '+15555550100', code: '123456');
+      await pumpEventQueue();
+      expect(gateway.currentIdentity.userId, syntheticUserA);
+      expect(gateway.currentIdentity.email, isNull);
+      expect(snapshots.last.isSignedIn, isTrue);
+      await client.auth.refreshSession();
+      await pumpEventQueue();
+      expect(gateway.currentIdentity.userId, syntheticUserA);
+      expect(snapshots.last.isSignedIn, isTrue);
+      await subscription.cancel();
+    },
+  );
+
+  test('an invalid SMS code does not create an identity', () async {
+    backend.phoneOnly = true;
+    await expectLater(
+      gateway.confirmPhoneCode(phone: '+15555550100', code: '654321'),
+      throwsA(isA<AccountAuthException>()),
+    );
+    expect(gateway.currentIdentity.isSignedIn, isFalse);
+    expect(client.auth.currentSession, isNull);
+  });
+
+  test(
     'an unconfirmed email session cannot enter through login or restoration',
     () async {
       backend.emailConfirmed = false;

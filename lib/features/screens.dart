@@ -3876,28 +3876,18 @@ class _HocatrendsSellerControls extends StatelessWidget {
           selected: filtersOn,
           onTap: onFilters,
         );
-        final sort = PopupMenuButton<String>(
-          tooltip: 'Sort sellers',
-          initialValue: sortLabel,
+        Widget sortMenu({required bool compact}) => HocalistSelectMenu<String>(
+          role: HocalistControlRole.buyer,
+          value: sortLabel,
+          options: const ['Best deal', 'Lowest price', 'Nearest'],
+          labelBuilder: (label) => label,
           onSelected: onSortChanged,
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'Best deal', child: Text('Best deal')),
-            PopupMenuItem(value: 'Lowest price', child: Text('Lowest price')),
-            PopupMenuItem(value: 'Nearest', child: Text('Nearest')),
-          ],
-          child: _HocatrendsSortButton(label: 'Sort by: $sortLabel'),
+          semanticLabel: compact ? 'Sort by $sortLabel' : 'Sort sellers',
+          trigger: compact ? _HocatrendsSortIconButton(label: sortLabel)
+              : _HocatrendsSortButton(label: 'Sort by: $sortLabel'),
         );
-        final compactSort = PopupMenuButton<String>(
-          tooltip: 'Sort by $sortLabel',
-          initialValue: sortLabel,
-          onSelected: onSortChanged,
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'Best deal', child: Text('Best deal')),
-            PopupMenuItem(value: 'Lowest price', child: Text('Lowest price')),
-            PopupMenuItem(value: 'Nearest', child: Text('Nearest')),
-          ],
-          child: _HocatrendsSortIconButton(label: sortLabel),
-        );
+        final sort = sortMenu(compact: false);
+        final compactSort = sortMenu(compact: true);
         final toggle = _HocatrendsViewToggle(
           gridView: gridView,
           onChanged: onViewChanged,
@@ -7887,37 +7877,14 @@ class _OfferToolbar extends StatelessWidget {
         context,
       ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
     );
-    final menu = DecoratedBox(
-      decoration: BoxDecoration(
-        color: HocalistPalette.surface(context, Colors.white),
-        border: Border.all(
-          color: HocalistPalette.border(context, const Color(0xffdfe1ef)),
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            key: const Key('offers-sort'),
-            value: value,
-            isExpanded: true,
-            dropdownColor: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            items: const ['Best match', 'Lowest price', 'Nearest']
-                .map(
-                  (item) => DropdownMenuItem(
-                    value: item,
-                    child: Text(item, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
-            onChanged: (item) {
-              if (item != null) onChanged(item);
-            },
-          ),
-        ),
-      ),
+    final menu = HocalistSelectMenu<String>(
+      key: const Key('offers-sort'),
+      role: HocalistControlRole.buyer,
+      value: value,
+      options: const ['Best match', 'Lowest price', 'Nearest'],
+      labelBuilder: (label) => label,
+      expanded: true,
+      onSelected: onChanged,
     );
     final filter = OutlinedButton.icon(
       key: const Key('offers-filter'),
@@ -10701,6 +10668,8 @@ enum BuyerProfilePhotoAction { camera, gallery, remove }
 
 class SupportPage extends StatelessWidget {
   const SupportPage({
+    this.onAddresses,
+    this.onViewPublicProfile,
     required this.accent,
     required this.name,
     required this.email,
@@ -10718,6 +10687,8 @@ class SupportPage extends StatelessWidget {
     super.key,
   });
 
+  final VoidCallback? onAddresses;
+  final VoidCallback? onViewPublicProfile;
   final Color accent;
   final String name;
   final String email;
@@ -10766,6 +10737,9 @@ class SupportPage extends StatelessWidget {
         SizedBox(height: metrics.spacing(7)),
         _BuyerMoreMenuGroup(
           items: [
+            if (onAddresses != null) _BuyerMoreItem(icon: Icons.location_on_outlined, title: 'Addresses', onTap: onAddresses!),
+            if (onViewPublicProfile != null)
+              _BuyerMoreItem(icon: Icons.visibility_outlined, title: 'View public profile', onTap: onViewPublicProfile!),
             _BuyerMoreItem(
               icon: Icons.account_balance_wallet_outlined,
               title: 'Rewards & payouts',
@@ -10800,7 +10774,7 @@ class SupportPage extends StatelessWidget {
             ),
             _BuyerMoreItem(
               icon: Icons.support_agent_outlined,
-              title: 'Help & Support',
+              title: 'Help & feedback',
               onTap: onHelp,
             ),
           ],
@@ -11047,8 +11021,8 @@ class _BuyerProfileAvatar extends StatelessWidget {
   }
 }
 
-class _BuyerProfilePhotoEditor extends StatelessWidget {
-  const _BuyerProfilePhotoEditor({
+class BuyerProfilePhotoEditor extends StatelessWidget {
+  const BuyerProfilePhotoEditor({
     this.onProfilePhotoAction,
     this.avatarMediaId,
     this.avatarPending = false,
@@ -11580,7 +11554,7 @@ class _BuyerSubpageBlock extends StatelessWidget {
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
-    final onBack = this.onBack ?? _TitleBackScope.maybeOf(context);
+    final onBack = this.onBack ?? _TitleBackScope.maybeOf(context)?.onBack;
     return ApprovedReplicaScope(
       metrics: metrics,
       child: Column(
@@ -11655,7 +11629,13 @@ class _BuyerSubpageBlock extends StatelessWidget {
                   ? 'account-settings'
                   : null,
               accent: BuyerUiTokens.action,
-              sections: {
+              sections: title == 'Edit Profile' ? {
+                'Profile': children.where((c) => c.key != const Key('buyer-profile-contact') && c.key != const Key('buyer-profile-privacy')).toList(),
+                if (children.any((c) => c.key == const Key('buyer-profile-contact')))
+                  'Contact': children.where((c) => c.key == const Key('buyer-profile-contact')).toList(),
+                if (children.any((c) => c.key == const Key('buyer-profile-privacy')))
+                  'Privacy': children.where((c) => c.key == const Key('buyer-profile-privacy')).toList(),
+              } : {
                 'Security': children
                     .where(
                       (child) =>
@@ -11671,21 +11651,11 @@ class _BuyerSubpageBlock extends StatelessWidget {
                           child.title == 'Preferences',
                     )
                     .toList(),
-                'Privacy': children
-                    .where(
-                      (child) =>
-                          child is _BuyerSubpageSection &&
-                          child.title != 'Account' &&
-                          child.title != 'Account Management' &&
-                          child.title != 'Preferences' &&
-                          child.title != 'Private contact',
-                    )
-                    .toList(),
                 if (children.any(
                   (c) =>
                       c is _BuyerSubpageSection && c.title == 'Private contact',
                 ))
-                  'Private contact': children
+                  'Contact': children
                       .where(
                         (c) =>
                             c is _BuyerSubpageSection &&
@@ -11975,7 +11945,7 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
       tabbed: true,
       onBack: onBack,
       title: 'Account Settings',
-      subtitle: 'Manage your Buyer account, preferences, and privacy.',
+      subtitle: 'Manage your Buyer account and preferences.',
       children: [
         if (contactEditor != null)
           _BuyerSubpageSection(
@@ -12020,18 +11990,6 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
               body: 'Text size, font readability, and button visibility.',
               status: textSize.label,
               onTap: onAccessibility,
-            ),
-          ],
-        ),
-        const _BuyerSubpageSection(
-          title: 'Privacy',
-          children: [
-            _BuyerSubpageRow(
-              icon: Icons.location_on_outlined,
-              title: 'Request & location privacy',
-              body:
-                  'Requests use an approximate area until meeting details are shared in chat.',
-              status: 'Approximate location',
             ),
           ],
         ),
@@ -12366,12 +12324,13 @@ class BuyerProfileEditPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return _BuyerSubpageBlock(
       title: 'Edit Profile',
-      subtitle: 'Keep your Buyer information accurate and concise.',
+      tabbed: true,
+      subtitle: 'Update your profile and contact details.',
       children: [
         _BuyerSubpageSection(
           title: 'Profile picture',
           children: [
-            _BuyerProfilePhotoEditor(
+            BuyerProfilePhotoEditor(
               onProfilePhotoAction: onProfilePhotoAction,
               avatarMediaId: avatarMediaId,
               avatarPending: avatarPending,
@@ -12443,8 +12402,8 @@ class BuyerProfileEditPage extends StatelessWidget {
           ],
         ),
         ?profileDetailsEditor,
-        ?contactEditor,
-        ?visibilityEditor,
+        if (contactEditor != null) KeyedSubtree(key: const Key('buyer-profile-contact'), child: contactEditor!),
+        if (visibilityEditor != null) KeyedSubtree(key: const Key('buyer-profile-privacy'), child: visibilityEditor!),
         if (contactEditor == null)
           _BuyerSubpageSection(
             title: 'Buying preferences',
@@ -13123,8 +13082,8 @@ class HelpSupportPage extends StatelessWidget {
           children: [
             _BuyerSubpageRow(
               icon: Icons.support_agent_outlined,
-              title: 'Contact support',
-              body: 'Open the existing support request and status area.',
+              title: 'Get help or send feedback',
+              body: 'Ask a question, report an issue, or suggest an improvement.',
               onTap: onContactSupport,
             ),
             _BuyerSubpageRow(
@@ -13879,4 +13838,18 @@ class FormStepPage extends StatelessWidget {
       ],
     );
   }
+}
+
+class BuyerEditProfileMenu extends StatelessWidget {
+  const BuyerEditProfileMenu({super.key, required this.onDetails, required this.onVisibility});
+  final VoidCallback onDetails, onVisibility;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    const _BuyerMoreSectionLabel('PROFILE'),
+    const SizedBox(height: 8),
+    _BuyerMoreMenuGroup(items: [
+      _BuyerMoreItem(icon: Icons.person_outline, title: 'Profile details', onTap: onDetails),
+      _BuyerMoreItem(icon: Icons.visibility_outlined, title: 'Profile visibility', onTap: onVisibility),
+    ]),
+  ]);
 }

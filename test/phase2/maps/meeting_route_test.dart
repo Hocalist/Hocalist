@@ -1,10 +1,26 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/phase2/maps/route_repository.dart';
 import 'package:hocalist/features/approved/meeting_directions_page.dart';
 
 void main() {
+  testWidgets('route panel expands with mouse dragging on web', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: MeetingDirectionsPage(meetingId: 'meeting', destination: 'Test meeting place')));
+    final panel = find.byKey(const Key('meeting-directions-scroll'));
+    final before = tester.getTopLeft(panel).dy;
+    final gesture = await tester.startGesture(tester.getCenter(find.text('Meet here')), kind: PointerDeviceKind.mouse);
+    await gesture.moveBy(const Offset(0, -300));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(panel).dy, lessThan(before));
+    expect(tester.takeException(), isNull);
+  });
   test('decodes route geometry and rejects malformed/cross-meeting data', () {
     final data = {
       'meetingId': 'meeting',
@@ -33,7 +49,11 @@ void main() {
     (tester) async {
       final pending = Completer<MeetingRoute>();
       var calls = 0;
-      await tester.pumpWidget(
+      tester.view.physicalSize = const Size(390, 1200);
+tester.view.devicePixelRatio = 1;
+addTearDown(tester.view.resetPhysicalSize);
+addTearDown(tester.view.resetDevicePixelRatio);
+await tester.pumpWidget(
         MaterialApp(
           home: MeetingDirectionsPage(
             meetingId: 'meeting',
@@ -48,7 +68,11 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('Show directions'));
+      await tester.ensureVisible(find.text('Show directions'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Show directions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show directions'));
       await tester.pump();
       expect(
         find.text('Enter a starting address, including the city.'),
@@ -56,7 +80,11 @@ void main() {
       );
       expect(calls, 0);
       await tester.enterText(find.byType(TextField), 'Public TEST origin');
-      await tester.tap(find.text('Show directions'));
+      await tester.ensureVisible(find.text('Show directions'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Show directions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show directions'));
       await tester.pump();
       expect(find.text('Finding route…'), findsOneWidget);
       expect(calls, 1);
@@ -69,18 +97,22 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.byKey(const Key('meeting-map-panel'))).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('meeting-directions-scroll'))).dy),
+      );
       final list = find
           .descendant(
             of: find.byKey(const Key('meeting-directions-scroll')),
             matching: find.byType(Scrollable),
           )
           .first;
-      await tester.scrollUntilVisible(
-        find.text('Route map'),
-        200,
-        scrollable: list,
-      );
+
       expect(find.text('Route map'), findsOneWidget);
+      expect(find.text('Turn right'), findsNothing);
+      await tester.ensureVisible(find.text('Step-by-step directions'));
+      await tester.tap(find.text('Step-by-step directions'));
+      await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
         find.text('Turn right'),
         200,
@@ -93,7 +125,11 @@ void main() {
   testWidgets('route failures retain input and offer retry inside app', (
     tester,
   ) async {
-    await tester.pumpWidget(
+    tester.view.physicalSize = const Size(390, 1200);
+tester.view.devicePixelRatio = 1;
+addTearDown(tester.view.resetPhysicalSize);
+addTearDown(tester.view.resetDevicePixelRatio);
+await tester.pumpWidget(
       MaterialApp(
         home: MeetingDirectionsPage(
           meetingId: 'meeting',
@@ -103,6 +139,8 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextField), 'Public TEST origin');
+    await tester.ensureVisible(find.text('Show directions'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Show directions'));
     await tester.pumpAndSettle();
     expect(find.textContaining('No route was found'), findsOneWidget);

@@ -331,6 +331,19 @@ class PaygoTermsView {
   }
 }
 
+class ReservedOfferView {
+  const ReservedOfferView(this.title, this.reference, this.heldMinor, this.chargedMinor, this.nextStep);
+
+  final String? title;
+  final String reference, nextStep;
+  final int heldMinor, chargedMinor;
+
+  factory ReservedOfferView.fromJson(Map<String, Object?> json) => ReservedOfferView(
+    _optString(json, 'request_title'), _optString(json, 'offer_id') ?? _string(json, 'request_id'),
+    _int(json, 'held_minor', minimum: 1), _int(json, 'charged_minor', minimum: 0), _string(json, 'next_step'),
+  );
+}
+
 class CreditWalletView {
   const CreditWalletView({
     required this.currency,
@@ -344,6 +357,7 @@ class CreditWalletView {
     required this.depositOptions,
     required this.batches,
     required this.targets,
+    this.reservedOffers,
     required this.depositOptionsConfigured,
     this.paygo,
   });
@@ -359,6 +373,7 @@ class CreditWalletView {
   final List<DepositOptionView> depositOptions;
   final List<CreditBatchView> batches;
   final List<CreditTargetView> targets;
+  final List<ReservedOfferView>? reservedOffers;
   final bool depositOptionsConfigured;
   final PaygoTermsView? paygo;
 
@@ -397,6 +412,9 @@ class CreditWalletView {
         json,
         'targets',
       ).map(CreditTargetView.fromJson).toList(growable: false),
+      reservedOffers: json.containsKey('reserved_offers')
+          ? _rows(json, 'reserved_offers').map(ReservedOfferView.fromJson).toList(growable: false)
+          : null,
       depositOptionsConfigured: _bool(
         Map<String, Object?>.from(policy),
         'deposit_options_configured',
@@ -543,6 +561,8 @@ class ReversalPolicyView {
 
 class RewardWalletView {
   const RewardWalletView({
+    this.testCreditMinor = 0,
+    this.estimatedMinor,
     required this.currency,
     required this.earnedMinor,
     required this.heldMinor,
@@ -565,6 +585,12 @@ class RewardWalletView {
   });
 
   final String currency;
+
+  /// Qualified interactions awaiting a confirmed purchase and collected fees.
+  /// Separate from earned funds and never included in withdrawal admission.
+  /// Null means the connected backend does not provide this projection yet.
+  final int? estimatedMinor;
+  final int testCreditMinor;
   final int earnedMinor;
   final int heldMinor;
   final int pendingMinor;
@@ -625,7 +651,9 @@ class RewardWalletView {
       throw const CommercialContractError('reward_wallet_shape');
     }
     return RewardWalletView(
+      testCreditMinor: _optInt(json, 'test_credit_minor', minimum: 0) ?? 0,
       currency: currency,
+      estimatedMinor: _optInt(json, 'estimated_minor', minimum: 0),
       earnedMinor: earned,
       heldMinor: held,
       pendingMinor: pending,
@@ -657,6 +685,7 @@ class RewardWalletView {
   /// held item is reported as `held` so the card's held total stays coherent.
   Map<String, Object?> toDashboardMap() => {
     'currency': currency,
+    if (estimatedMinor != null) 'estimated_minor': estimatedMinor,
     'earned_minor': availableMinor,
     'available_minor': availableMinor,
     'held_minor': heldMinor,
@@ -694,23 +723,57 @@ class SaleRewardView {
     required this.status,
     required this.amountMinor,
     required this.ruleVersion,
+    this.earnedMinor,
+    this.heldMinor,
+    this.reversedMinor,
   });
 
   final String status;
   final int amountMinor;
   final String? ruleVersion;
+  final int? earnedMinor;
+  final int? heldMinor;
+  final int? reversedMinor;
 
   factory SaleRewardView.fromJson(Map<String, Object?> json) {
     final status = _string(json, 'status');
-    if (!const {'none', 'earned', 'held'}.contains(status)) {
+    if (!const {
+      'none',
+      'earned',
+      'held',
+      'mixed',
+      'reversed',
+    }.contains(status)) {
       throw const CommercialContractError('bad_enum:reward_status');
+    }
+    final amount = status == 'none' && json['amount_minor'] == null
+        ? 0
+        : _int(json, 'amount_minor', minimum: 0);
+    final earned = _optInt(json, 'earned_minor', minimum: 0);
+    final held = _optInt(json, 'held_minor', minimum: 0);
+    final reversed = _optInt(json, 'reversed_minor', minimum: 0);
+    if (earned != null ||
+        held != null ||
+        reversed != null ||
+        status == 'mixed' ||
+        status == 'reversed') {
+      if (earned == null ||
+          held == null ||
+          reversed == null ||
+          earned + held + reversed != amount ||
+          (status == 'mixed' && (earned == 0 || held == 0)) ||
+          (status == 'reversed' &&
+              (earned != 0 || held != 0 || reversed == 0))) {
+        throw const CommercialContractError('sale_reward_shape');
+      }
     }
     return SaleRewardView(
       status: status,
-      amountMinor: status == 'none' && json['amount_minor'] == null
-          ? 0
-          : _int(json, 'amount_minor', minimum: 0),
+      amountMinor: amount,
       ruleVersion: _optString(json, 'rule_version'),
+      earnedMinor: earned,
+      heldMinor: held,
+      reversedMinor: reversed,
     );
   }
 }
@@ -812,16 +875,28 @@ class DealSummaryView {
 }
 
 class SellerHomeSummaryView {
-  const SellerHomeSummaryView({required this.leadsTargeted,required this.dealsClosed,required this.monthStart,required this.monthEnd,required this.timezone});
-  final int leadsTargeted,dealsClosed;
-  final DateTime monthStart,monthEnd;
+  const SellerHomeSummaryView({
+    required this.leadsTargeted,
+    required this.dealsClosed,
+    required this.monthStart,
+    required this.monthEnd,
+    required this.timezone,
+  });
+  final int leadsTargeted, dealsClosed;
+  final DateTime monthStart, monthEnd;
   final String timezone;
-  factory SellerHomeSummaryView.fromJson(Map<String,Object?> json) {
-    final start=DateTime.tryParse(_string(json,'month_start'));
-    final end=DateTime.tryParse(_string(json,'month_end'));
-    if (start==null || end==null || !end.isAfter(start)) throw const CommercialContractError('seller_home_period');
-    return SellerHomeSummaryView(leadsTargeted:_int(json,'leads_targeted',minimum:0),
-      dealsClosed:_int(json,'deals_closed',minimum:0),monthStart:start,monthEnd:end,timezone:_string(json,'timezone'));
+  factory SellerHomeSummaryView.fromJson(Map<String, Object?> json) {
+    final start = DateTime.tryParse(_string(json, 'month_start'));
+    final end = DateTime.tryParse(_string(json, 'month_end'));
+    if (start == null || end == null || !end.isAfter(start))
+      throw const CommercialContractError('seller_home_period');
+    return SellerHomeSummaryView(
+      leadsTargeted: _int(json, 'leads_targeted', minimum: 0),
+      dealsClosed: _int(json, 'deals_closed', minimum: 0),
+      monthStart: start,
+      monthEnd: end,
+      timezone: _string(json, 'timezone'),
+    );
   }
 }
 

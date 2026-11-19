@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 /// Keeps shared page structure while allowing each role to use its approved
 /// artwork. Requests below [sourceRoot] are transparently served from
 /// [variantRoot]; all other assets continue through the parent bundle.
-class RoleAssetVariant extends StatelessWidget {
+class RoleAssetVariant extends StatefulWidget {
   const RoleAssetVariant({
     required this.sourceRoot,
     required this.variantRoot,
@@ -17,16 +17,47 @@ class RoleAssetVariant extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return DefaultAssetBundle(
-      bundle: _RoleAssetBundle(
-        parent: DefaultAssetBundle.of(context),
-        sourceRoot: sourceRoot,
-        variantRoot: variantRoot,
-      ),
-      child: child,
+  State<RoleAssetVariant> createState() => _RoleAssetVariantState();
+}
+
+class _RoleAssetVariantState extends State<RoleAssetVariant> {
+  AssetBundle? _parent;
+  late _RoleAssetBundle _bundle;
+
+  void _replaceBundle() {
+    _bundle = _RoleAssetBundle(
+      parent: _parent!,
+      sourceRoot: widget.sourceRoot,
+      variantRoot: widget.variantRoot,
     );
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final parent = DefaultAssetBundle.of(context);
+    if (!identical(parent, _parent)) {
+      _parent = parent;
+      _replaceBundle();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant RoleAssetVariant oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sourceRoot != widget.sourceRoot ||
+        oldWidget.variantRoot != widget.variantRoot) {
+      _replaceBundle();
+    }
+  }
+
+  // AssetImage includes bundle identity in its cache key. Keep it stable on
+  // data refreshes so unchanged artwork does not disappear and decode again.
+  @override
+  Widget build(BuildContext context) => DefaultAssetBundle(
+    bundle: _bundle,
+    child: widget.child,
+  );
 }
 
 class _RoleAssetBundle extends CachingAssetBundle {

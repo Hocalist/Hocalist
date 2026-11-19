@@ -197,12 +197,12 @@ void main() {
       expect(find.text('Connected category editor'), findsOneWidget);
       expect(find.byKey(const Key('sellerSaveProfile')), findsNothing);
       await tester.tap(
-        find.byKey(const ValueKey('section-tab-Private contact')),
+        find.byKey(const ValueKey('section-tab-Contact')),
       );
       await tester.pumpAndSettle();
       expect(find.text('Private contact fields'), findsOneWidget);
       expect(find.text('Connected service-area editor'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('section-tab-Seller info')));
+      await tester.tap(find.byKey(const ValueKey('section-tab-Profile')));
       await tester.pumpAndSettle();
       expect(find.text('Updated store'), findsOneWidget);
       expect(find.byKey(const Key('sellerSaveProfile')), findsNothing);
@@ -243,23 +243,14 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        if (seller) {
-          expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
-          expect(find.text('Public Seller visibility'), findsNothing);
-          expect(find.text('Service-area privacy'), findsNothing);
-          expect(find.text('Saved business address fields'), findsOneWidget);
-          expect(find.text('Appearance'), findsOneWidget);
-          expect(find.text('Account data & deletion'), findsOneWidget);
-          await tester.tap(find.text('Password & security'));
-          expect(edits, 1);
-          return;
-        }
-        await tester.tap(find.byKey(const ValueKey('section-tab-Private contact')));
+        await tester.tap(find.byKey(const ValueKey('section-tab-Contact')));
         await tester.pumpAndSettle();
         expect(find.text(seller ? 'Saved business address fields' : 'Saved home address fields'), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('section-tab-Security')));
         await tester.pumpAndSettle();
         expect(find.text('Appearance'), findsNothing);
+        expect(find.text('Preview public profile'), findsNothing);
+        expect(find.text('View public profile'), findsNothing);
         expect(find.text('Account data & deletion'), findsOneWidget);
         expect(
           find.text(seller ? 'Seller information' : 'Personal information'),
@@ -271,16 +262,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Appearance'), findsOneWidget);
         expect(find.text('Password & security'), findsNothing);
-        await tester.tap(find.byKey(const ValueKey('section-tab-Privacy')));
-        await tester.pumpAndSettle();
-        expect(find.text('Account data & deletion'), findsNothing);
-        expect(
-          find.text(
-            seller ? 'Public Seller visibility' : 'Request & location privacy',
-          ),
-          findsOneWidget,
-        );
-        expect(find.text('Appearance'), findsNothing);
+        expect(find.byKey(const ValueKey('section-tab-Privacy')), findsNothing);
+        expect(find.text('Request & location privacy'), findsNothing);
       },
     );
   }

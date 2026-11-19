@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'hocalist_loading_indicator.dart';
 
 class PullRefreshScrollBehavior extends MaterialScrollBehavior {
   const PullRefreshScrollBehavior();
@@ -119,9 +120,7 @@ class _PullRefreshHostState extends State<PullRefreshHost> {
                                 child: SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                  child: HocalistLoadingIndicator(),
                                 ),
                               ),
                             Text(

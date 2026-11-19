@@ -416,7 +416,8 @@ void main() {
       expect(find.text('Your Pro Plan'), findsOneWidget);
       expect(find.text(r'Initial bid $1.90'), findsOneWidget);
       expect(find.text(r'Winning Bid $4.75'), findsOneWidget);
-      expect(find.text('Buyer is not open to higher offers.'), findsOneWidget);
+      expect(find.textContaining('Buyer’s budget:'), findsOneWidget);
+      expect(find.byKey(const Key('sellerHigherOffersAllowed')), findsNothing);
       expect(find.text('Send your offer to the buyer.'), findsOneWidget);
       expect(
         find.byKey(const Key('sellerOfferCurrencyPrefix')),
@@ -530,9 +531,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('sellerOfferScheduleDialog')), findsOneWidget);
-    expect(find.text('1. Select a date'), findsOneWidget);
-    expect(find.text('2. Select arrival time'), findsOneWidget);
+    expect(find.text('Select a date'), findsOneWidget);
+    expect(find.text('Select arrival time'), findsNothing);
     await tester.tap(find.byKey(const Key('sellerOfferScheduleDay23')));
+    await tester.ensureVisible(find.byKey(const Key('sellerOfferScheduleConfirm')));
+    await tester.tap(find.byKey(const Key('sellerOfferScheduleConfirm')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('sellerOfferTime')));
+    await tester.tap(find.byKey(const Key('sellerOfferTime')));
+    await tester.pumpAndSettle();
+    expect(find.text('Select arrival time'), findsOneWidget);
+    expect(find.text('Select a date'), findsNothing);
     final scheduleScroll = find
         .descendant(
           of: find.byKey(const Key('sellerOfferScheduleDialog')),
@@ -1164,7 +1173,6 @@ void main() {
         sellerOfferSent: true,
         offerSelected: false,
       ),
-      ApprovedSellerOfferDetailPage(onBack: () {}, onChat: () {}),
       ApprovedSellerBillingPage(onBack: () {}, onPayment: () {}),
       ApprovedSellerPaymentMethodPage(onBack: () {}, onDone: () {}),
     ];

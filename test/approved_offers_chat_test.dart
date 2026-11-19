@@ -10,6 +10,7 @@ import 'package:hocalist/features/approved/offers_chat_pages.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 import 'test_fonts.dart';
+import 'visual_proof_capture.dart';
 
 final _captureKey = GlobalKey();
 final _assetBundle = _WorkspaceAssetBundle();
@@ -61,7 +62,14 @@ class _Calls {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(loadHocalistTestFonts);
+  setUpAll(() async {
+    await loadHocalistTestFonts();
+    if (_writeOffersChatProof) {
+      final icons = FontLoader('MaterialIcons')
+        ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+      await icons.load();
+    }
+  });
 
   tearDown(() {
     final binding = TestWidgetsFlutterBinding.instance;
@@ -127,7 +135,7 @@ void main() {
 
       await _pumpPage(tester, _chat(calls), width: 320, height: 693);
       _expectSameRow(tester, 'John D.', 'Verified Seller');
-      expect(find.text('Active Deals (1)'), findsOneWidget);
+      expect(find.text('Active deals (1)'), findsOneWidget);
       expect(find.byKey(const Key('active-deal-ipad')), findsOneWidget);
       expect(find.byKey(const Key('active-deal-new')), findsOneWidget);
       expect(find.text('Seller\'s Final Offer'), findsNothing);
@@ -315,13 +323,27 @@ void main() {
     });
   });
 
+  testWidgets('buyer sees the reward range and can open its corner help', (tester) async {
+    final calls = _Calls();
+    await _pumpPage(tester, ApprovedOffersReceivedPage(
+      onBack: () {}, onNotifications: () {}, onViewOffer: () {},
+      onChat: () {}, onFilter: () {}, navigation: calls.navigation, realOffers: const [],
+    ), width: 320);
+    expect(find.text(r'$0.15–$0.30'), findsOneWidget);
+    final help = find.byTooltip('How offer rewards work');
+    await tester.ensureVisible(help);
+    await tester.tap(help);
+    await tester.pumpAndSettle();
+    expect(find.text('When do I earn a reward?'), findsOneWidget);
+  });
+
   testWidgets('approved offer callbacks preserve the current route behavior', (
     tester,
   ) async {
     final calls = _Calls();
 
     await _pumpPage(tester, _offers(calls), width: 390);
-    await _tapReachable(tester, const Key('approved-notifications'));
+    await _tapReachable(tester, const ValueKey('buyer-top-level-header-notifications'));
     await _tapReachable(tester, const Key('approved-offers-filter'));
     await _tapReachable(tester, const Key('approved-offers-apply-filter'));
     await _tapReachable(tester, const Key('approved-view-offer-NT'));
@@ -406,7 +428,7 @@ void main() {
 
     await _pumpPage(tester, _chat(calls), width: 390, height: 844);
     await _tapReachable(tester, const Key('active-deal-new'));
-    expect(find.text('Active Deals (2)'), findsOneWidget);
+    expect(find.text('Active deals (2)'), findsOneWidget);
     expect(find.byKey(const Key('active-deal-second')), findsOneWidget);
     expect(find.byKey(const Key('active-deal-new')), findsOneWidget);
     await tester.tap(
@@ -558,9 +580,10 @@ void main() {
         findsWidgets,
         reason: '${entry.key} must render decoded approved rasters',
       );
+      await writeProofImage(tester, find.byKey(_captureKey), entry.key);
       await expectLater(
         find.byKey(_captureKey),
-        matchesGoldenFile('../assets/approved_offers_chat/${entry.key}'),
+        matchesGoldenFile('goldens/approved_offers_chat/${entry.key}'),
       );
     }
   }, skip: !_writeOffersChatProof);

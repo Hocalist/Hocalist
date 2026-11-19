@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 
+enum SellerSchedulePickerMode { date, time, both }
+
 @immutable
 class SellerScheduleSelection {
   const SellerScheduleSelection({required this.date, required this.time});
@@ -17,6 +19,7 @@ Future<SellerScheduleSelection?> showSellerSchedulePicker({
   required DateTime initialDate,
   required TimeOfDay initialTime,
   DateTime? earliestDate,
+  SellerSchedulePickerMode mode = SellerSchedulePickerMode.both,
 }) {
   return showDialog<SellerScheduleSelection>(
     context: context,
@@ -25,6 +28,7 @@ Future<SellerScheduleSelection?> showSellerSchedulePicker({
       initialDate: initialDate,
       initialTime: initialTime,
       earliestDate: earliestDate,
+      mode: mode,
     ),
   );
 }
@@ -34,11 +38,13 @@ class _SellerSchedulePickerDialog extends StatefulWidget {
     required this.initialDate,
     required this.initialTime,
     this.earliestDate,
+    required this.mode,
   });
 
   final DateTime initialDate;
   final TimeOfDay initialTime;
   final DateTime? earliestDate;
+  final SellerSchedulePickerMode mode;
 
   @override
   State<_SellerSchedulePickerDialog> createState() =>
@@ -99,7 +105,7 @@ class _SellerSchedulePickerDialogState
                     ),
                     Expanded(
                       child: Text(
-                        'Choose date and time',
+                        widget.mode == SellerSchedulePickerMode.time ? 'Choose time' : widget.mode == SellerSchedulePickerMode.date ? 'Choose date' : 'Choose date and time',
                         textAlign: TextAlign.center,
                         style: sellerText(metrics, 20, weight: FontWeight.w800),
                       ),
@@ -108,8 +114,9 @@ class _SellerSchedulePickerDialogState
                   ],
                 ),
                 SizedBox(height: metrics.spacing(12)),
+                if (widget.mode != SellerSchedulePickerMode.time) ...[
                 Text(
-                  '1. Select a date',
+                  'Select a date',
                   style: sellerText(metrics, 14, weight: FontWeight.w800),
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -123,8 +130,10 @@ class _SellerSchedulePickerDialogState
                       setState(() => displayedMonth = month),
                 ),
                 SizedBox(height: metrics.spacing(14)),
+                ],
+                if (widget.mode != SellerSchedulePickerMode.date) ...[
                 Text(
-                  '2. Select arrival time',
+                  'Select arrival time',
                   style: sellerText(metrics, 14, weight: FontWeight.w800),
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -133,10 +142,11 @@ class _SellerSchedulePickerDialogState
                   selectedTime: selectedTime,
                   onSelected: (time) => setState(() => selectedTime = time),
                 ),
+                ],
                 SizedBox(height: metrics.spacing(16)),
                 SellerPrimaryButton(
                   key: const Key('sellerOfferScheduleConfirm'),
-                  label: 'Use this date & time',
+                  label: widget.mode == SellerSchedulePickerMode.time ? 'Use this time' : widget.mode == SellerSchedulePickerMode.date ? 'Use this date' : 'Use this date & time',
                   onPressed: () => Navigator.pop(
                     context,
                     SellerScheduleSelection(

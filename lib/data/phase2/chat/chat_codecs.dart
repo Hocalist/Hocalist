@@ -171,6 +171,7 @@ ConversationMessage decodeMessageJson(Map<String, Object?> json) {
     clientMessageId: _optionalString(json, 'client_message_id'),
     offerId: _optionalString(json, 'offer_id'),
     readByCounterpart: json['read_by_counterpart'] == true,
+    enquiryId: _optionalString(json, 'enquiry_id'),
   );
 }
 

@@ -17,7 +17,10 @@ import '../../data/phase2/providers/provider_connections.dart';
 import '../../data/phase2/providers/provider_runtime.dart';
 import '../../data/phase2/trust/trust_backend.dart';
 import '../../domain/phase2/profiles.dart';
+import '../../components/account_role_components.dart';
 import '../../theme/buyer_ui_foundation.dart';
+import '../../theme/seller_ui_foundation.dart' show SellerUiColors, sellerText;
+import '../approved/approved_replica_metrics.dart';
 import '../approved/onboarding_home_pages.dart';
 import '../seller/approved_seller_tutorial_page.dart';
 import 'account_auth_gateway.dart';
@@ -210,6 +213,7 @@ class HocalistRealAccountGate extends StatelessWidget {
             return _wrap(
               _AccountGatePage(
                 key: const ValueKey('real-account-confirmation-pending'),
+                seller: controller.selectedRole == HocalistRole.seller,
                 title: 'Confirm your email',
                 body:
                     'We sent a confirmation link to your email address. '
@@ -243,14 +247,15 @@ class HocalistRealAccountGate extends StatelessWidget {
             return _wrap(
               _AccountGatePage(
                 key: const ValueKey('real-account-membership-pending'),
+                seller: controller.selectedRole == HocalistRole.seller,
                 title: '${_roleLabel(controller.selectedRole)} account pending',
                 body:
                     'Your ${controller.selectedRole.name} account is waiting '
                     'for review. App access starts after it is active.',
                 primaryLabel: 'Check account status',
                 onPrimary: controller.refresh,
-                secondaryLabel: 'Log out',
-                onSecondary: controller.logout,
+                secondaryLabel: controller.returnRole == null ? 'Log out' : 'Back to ${controller.returnRole!.name} mode',
+                onSecondary: controller.returnRole == null ? controller.logout : () async => controller.returnToPreviousRole(),
               ),
             );
           case AccountAccessPhase.membershipRestricted:
@@ -282,6 +287,7 @@ class HocalistRealAccountGate extends StatelessWidget {
             return _wrap(
               _AccountGatePage(
                 key: const ValueKey('real-account-failed'),
+                seller: controller.selectedRole == HocalistRole.seller,
                 title: 'Account unavailable',
                 body:
                     controller.errorMessage ??
@@ -356,6 +362,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
           Expanded(
             child: ApprovedAccountCreationPage(
               key: const ValueKey('real-account-form'),
+              onAccessibility: () => Navigator.of(context).pushNamed('/accessibility'),
               draft: _signupDraft,
               role: role,
               initialLoginMode: controller.returnToLogin,
@@ -390,6 +397,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                       email: submission.email,
                       password: submission.password,
                     ),
+              onResendConfirmation: controller.resendSignupConfirmation,
               onRealGoogle: controller.signInWithGoogle,
               onRealEmailLink: hocalistLocalWebTest
                   ? (email, name) =>
@@ -569,6 +577,7 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                               ),
                               child: Image.asset(
                                 'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
                                 key: const ValueKey(
                                   'real-account-onboarding-logo',
                                 ),
@@ -683,12 +692,13 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                             onPressed: controller.formBusy ? null : _submit,
                           ),
                           const SizedBox(height: 8),
-                          TextButton(
+                          AccountSecondaryButton(
+                            seller: controller.selectedRole == HocalistRole.seller,
                             key: const ValueKey(
                               'real-account-onboarding-logout',
                             ),
-                            onPressed: controller.busy ? null : _logout,
-                            child: const Text('Log out'),
+                            onPressed: controller.busy ? null : controller.returnRole == null ? _logout : controller.returnToPreviousRole,
+                            label: controller.returnRole == null ? 'Log out' : 'Back to ${controller.returnRole!.name} mode',
                           ),
                           if (_logoutError != null) ...[
                             const SizedBox(height: 6),
@@ -740,6 +750,7 @@ class _AccountGateLoadingPage extends StatelessWidget {
 
 class _AccountGatePage extends StatefulWidget {
   const _AccountGatePage({
+    this.seller = false,
     required this.title,
     required this.body,
     this.primaryLabel,
@@ -749,6 +760,7 @@ class _AccountGatePage extends StatefulWidget {
     super.key,
   });
 
+  final bool seller;
   final String title;
   final String body;
   final String? primaryLabel;
@@ -783,6 +795,17 @@ class _AccountGatePageState extends State<_AccountGatePage> {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaMetrics.resolve(
+      brightness: Theme.of(context).brightness,
+      availableWidth: MediaQuery.sizeOf(context).width.clamp(0.0, 420.0).toDouble(),
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    final titleStyle = widget.seller
+        ? sellerText(metrics, 16, weight: FontWeight.w800)
+        : BuyerTypography.style(context, metrics, BuyerTextRole.pageTitle);
+    final bodyStyle = widget.seller
+        ? sellerText(metrics, 12, color: SellerUiColors.body, height: 1.45)
+        : BuyerTypography.style(context, metrics, BuyerTextRole.primaryBody);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -795,26 +818,19 @@ class _AccountGatePageState extends State<_AccountGatePage> {
                 Text(
                   widget.title,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: HocalistPalette.text(context, BuyerUiTokens.text),
-                  ),
+                  style: titleStyle,
                 ),
                 const SizedBox(height: 10),
                 Text(
                   widget.body,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: HocalistPalette.text(context, BuyerUiTokens.muted),
-                  ),
+                  style: bodyStyle,
                 ),
                 if (widget.primaryLabel != null &&
                     widget.onPrimary != null) ...[
                   const SizedBox(height: 22),
-                  BuyerPrimaryButton(
+                  AccountActionButton(
+                    seller: widget.seller,
                     label: widget.primaryLabel!,
                     onPressed: widget.onPrimary,
                   ),
@@ -822,9 +838,10 @@ class _AccountGatePageState extends State<_AccountGatePage> {
                 if (widget.secondaryLabel != null &&
                     widget.onSecondary != null) ...[
                   const SizedBox(height: 10),
-                  TextButton(
+                  AccountSecondaryButton(
+                    seller: widget.seller,
                     onPressed: _runSecondary,
-                    child: Text(widget.secondaryLabel!),
+                    label: widget.secondaryLabel!,
                   ),
                 ],
                 if (_actionError != null) ...[
@@ -833,10 +850,8 @@ class _AccountGatePageState extends State<_AccountGatePage> {
                     _actionError!,
                     key: const ValueKey('real-account-gate-error'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: HocalistPalette.text(context, Color(0xffb3261e)),
+                    style: bodyStyle.copyWith(
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
                 ],

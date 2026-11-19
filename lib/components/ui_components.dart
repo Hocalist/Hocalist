@@ -61,6 +61,7 @@ class _HocalistWordmarkImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BrandHomeLink(child: Image.asset(
       'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
       color: Theme.of(context).brightness == Brightness.dark
           ? const Color(0xfff3f3ff)
           : null,
@@ -94,126 +95,7 @@ class HocalistGlobalHeader extends StatelessWidget {
       return BuyerTopLevelHeader(onNotifications: onNotifications);
     }
 
-    final label = role == UserRole.buyer ? 'Buyer mode' : 'Seller mode';
-    final media = MediaQuery.of(context);
-    final compact = media.size.width < 430;
-    final logoWidth = logoSlotReferenceWidth == null
-        ? ApprovedReplicaMetrics.resolve(
-            brightness: Theme.of(context).brightness,
-            availableWidth: media.size.width,
-            textScaler: media.textScaler,
-          ).artSize(104)
-        : ApprovedReplicaMetrics.resolve(
-            brightness: Theme.of(context).brightness,
-            availableWidth: media.size.width,
-            textScaler: media.textScaler,
-          ).geometry(logoSlotReferenceWidth!);
-    final logoHeight = compact ? 62.0 : 60.0;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Semantics(
-          label: 'Hocalist Reverse Marketplace',
-          image: true,
-          child: SizedBox(
-            key: const ValueKey('hocalist-global-header-logo-slot'),
-            width: logoWidth,
-            height: logoHeight,
-            child: const _HocalistWordmarkImage(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Align(
-            alignment: Alignment.topRight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Container(
-                    height: 44,
-                    padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 12),
-                    decoration: BoxDecoration(
-                      color: HocalistPalette.surface(
-                        context,
-                        HocalistTheme.roleSurface,
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          role == UserRole.buyer
-                              ? Icons.check_circle_outline
-                              : Icons.storefront_outlined,
-                          color: HocalistPalette.text(context, accent),
-                          size: 21,
-                        ),
-                        const SizedBox(width: 7),
-                        Flexible(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: HocalistPalette.text(context, accent),
-                                  fontSize: compact ? 12 : 13,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      tooltip: 'Notifications',
-                      constraints: const BoxConstraints.tightFor(
-                        width: 44,
-                        height: 44,
-                      ),
-                      padding: EdgeInsets.zero,
-                      onPressed: onNotifications,
-                      icon: Icon(
-                        Icons.notifications_none_outlined,
-                        color: HocalistPalette.text(
-                          context,
-                          HocalistTheme.primary,
-                        ),
-                        size: 30,
-                      ),
-                    ),
-                    if (NotificationIndicatorScope.showDot(context))
-                      Positioned(
-                        top: 9,
-                        right: 10,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: HocalistPalette.surface(
-                              context,
-                              Color(0xffff1616),
-                            ),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+    return SellerAppHeader(onNotifications: onNotifications);
   }
 }
 
@@ -919,6 +801,7 @@ class HocalistBrandTitle extends StatelessWidget {
         ),
         child: Image.asset(
           'assets/brand/hocalist-wordmark.png',
+              cacheWidth: 528,
           color: Theme.of(context).brightness == Brightness.dark
               ? const Color(0xfff3f3ff)
               : null,
@@ -1307,19 +1190,18 @@ class RouteContextBanner extends StatelessWidget {
 }
 
 class _TitleBackScope extends InheritedWidget {
-  const _TitleBackScope({required this.onBack, required super.child});
+  const _TitleBackScope({required this.onBack, required this.seller, required super.child});
+
+  final bool seller;
 
   final VoidCallback? onBack;
 
-  static VoidCallback? maybeOf(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<_TitleBackScope>()
-        ?.onBack;
-  }
+  static _TitleBackScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_TitleBackScope>();
 
   @override
   bool updateShouldNotify(_TitleBackScope oldWidget) {
-    return oldWidget.onBack != onBack;
+    return oldWidget.onBack != onBack || oldWidget.seller != seller;
   }
 }
 
@@ -1337,45 +1219,14 @@ class ScreenBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onBack = _TitleBackScope.maybeOf(context);
-    final titleStyle = Theme.of(context).textTheme.headlineLarge?.copyWith(
-      color: HocalistPalette.text(context, HocalistTheme.primary),
-      fontWeight: FontWeight.w900,
-    );
-
+    final scope = _TitleBackScope.maybeOf(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (onBack != null) ...[
-              IconButton(
-                tooltip: 'Back',
-                onPressed: onBack,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 42,
-                  height: 42,
-                ),
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: HocalistPalette.text(context, HocalistTheme.primary),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            Expanded(child: Text(title, style: titleStyle)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: HocalistPalette.text(context, HocalistTheme.muted),
-          ),
-        ),
+        if (scope?.seller == true)
+          SellerNestedHeader(title: title, subtitle: subtitle, onBack: scope?.onBack)
+        else
+          BuyerNestedHeader(title: title, subtitle: subtitle, onBack: scope?.onBack),
         const SizedBox(height: 18),
         ...children.expand((child) => [child, const SizedBox(height: 12)]),
       ],
@@ -1391,13 +1242,7 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(padding: const EdgeInsets.all(16), child: child),
-      ),
-    );
+    return HocalistAccountFormCard(onTap: onTap, child: child);
   }
 }
 
@@ -1419,41 +1264,15 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accessibility = Theme.of(
-      context,
-    ).extension<HocalistAccessibilityVisuals>();
-    final highContrast = accessibility?.buttonBorderWidth == 2;
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        style: FilledButton.styleFrom(
-          backgroundColor: HocalistPalette.surface(
-            context,
-            highContrast ? accessibility!.buttonBackground : color,
-          ),
-          foregroundColor: HocalistPalette.text(
-            context,
-            highContrast ? accessibility!.buttonForeground : foreground,
-          ),
-          minimumSize: const Size.fromHeight(
-            HocalistButtonTokens.minimumHeight,
-          ),
-          padding: HocalistButtonTokens.contentPadding,
-          textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              accessibility?.buttonRadius ?? HocalistButtonTokens.radius,
-            ),
-          ),
-        ),
-        onPressed: onPressed,
-        icon: Icon(icon, size: HocalistButtonTokens.iconSize),
-        label: Text(label),
-      ),
-    );
+    final seller = _TitleBackScope.maybeOf(context)?.seller == true;
+    final iconColor = hocalistAccessibilityVisualsOf(context).foregroundOr(foreground);
+    final leading = Icon(icon, size: HocalistButtonTokens.iconSize, color: iconColor);
+    final colors = color == HocalistTheme.primary ? null : [color, color];
+    return SizedBox(width: double.infinity, child: seller
+        ? SellerPrimaryButton(label: label, onPressed: onPressed, leading: leading,
+            colors: colors, foreground: foreground)
+        : BuyerPrimaryButton(label: label, onPressed: onPressed, leading: leading,
+            colors: colors, foreground: foreground));
   }
 }
 
@@ -1475,35 +1294,10 @@ class SecondaryButton extends StatelessWidget {
       context,
     ).extension<HocalistAccessibilityVisuals>();
     final effectiveColor = accessibility?.buttonBorderWidth == 2
-        ? accessibility!.buttonBackground
-        : color;
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: HocalistPalette.text(context, effectiveColor),
-          side: BorderSide(
-            color: HocalistPalette.border(context, effectiveColor),
-            width: accessibility?.buttonBorderWidth ?? 1,
-          ),
-          minimumSize: const Size.fromHeight(
-            HocalistButtonTokens.minimumHeight,
-          ),
-          padding: HocalistButtonTokens.contentPadding,
-          textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              accessibility?.buttonRadius ?? HocalistButtonTokens.radius,
-            ),
-          ),
-        ),
-        onPressed: onPressed,
-        child: Text(label),
-      ),
-    );
+        ? accessibility!.buttonBackground : color;
+    return _TitleBackScope.maybeOf(context)?.seller == true
+        ? SellerSecondaryButton(label: label, color: effectiveColor, onPressed: onPressed)
+        : BuyerSecondaryButton(label: label, color: effectiveColor, onPressed: onPressed);
   }
 }
 
@@ -1798,67 +1592,28 @@ class MapOptionsButton extends StatelessWidget {
         showModalBottomSheet<void>(
           context: context,
           sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-          showDragHandle: true,
-          builder: (context) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 6),
-                    Text(
-                      address,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    MapPreviewSurface(accent: accent),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        SoftChip(
-                          label: distance,
-                          color: accent.withValues(alpha: 0.12),
-                          foreground: accent,
-                        ),
-                        const SoftChip(
-                          label: 'Future Google Maps',
-                          color: Color(0xffeff4ff),
-                          foreground: HocalistTheme.primary,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      note,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: HocalistPalette.text(
-                          context,
-                          HocalistTheme.muted,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SecondaryButton(
-                            label: 'Close',
-                            color: accent,
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          builder: (sheet) => AccountModalSheet(
+            seller: _TitleBackScope.maybeOf(context)?.seller == true,
+            title: title, subtitle: address, icon: Icons.map_outlined,
+            onClose: () => Navigator.of(sheet).pop(),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              MapPreviewSurface(accent: accent),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                SoftChip(label: distance, color: accent.withValues(alpha: .12), foreground: accent),
+                const SoftChip(label: 'Future Google Maps', color: Color(0xffeff4ff),
+                  foreground: HocalistTheme.primary),
+              ]),
+              const SizedBox(height: 12),
+              Text(note),
+              const SizedBox(height: 14),
+              AccountSecondaryButton(seller: _TitleBackScope.maybeOf(context)?.seller == true,
+                label: 'Close', onPressed: () => Navigator.of(sheet).pop()),
+            ]),
+          ),
         );
       },
     );
@@ -2400,43 +2155,13 @@ class AlertBanner extends StatelessWidget {
   final IconData icon;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: HocalistPalette.surface(context, accent.withValues(alpha: 0.11)),
-        border: Border.all(
-          color: HocalistPalette.border(
-            context,
-            accent.withValues(alpha: 0.24),
-          ),
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: HocalistPalette.text(context, accent)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HocalistPalette.text(context, accent),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(body, style: Theme.of(context).textTheme.bodyMedium),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AccountStateNotice(
+    seller: _TitleBackScope.maybeOf(context)?.seller == true,
+    icon: icon,
+    title: title,
+    body: body,
+    tone: accent == HocalistTheme.danger ? BuyerNoticeTone.error : BuyerNoticeTone.brand,
+  );
 }
 
 class NotificationTile extends StatelessWidget {

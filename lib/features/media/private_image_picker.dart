@@ -10,29 +10,51 @@ import '../../theme/seller_ui_foundation.dart';
 import '../../components/hocalist_motion.dart';
 import 'photo_bytes.dart';
 
+class StorePhotoRemoveButton extends StatelessWidget {
+  const StorePhotoRemoveButton({required this.onPressed, super.key});
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Remove photo',
+    onPressed: onPressed,
+    padding: const EdgeInsets.all(4),
+    alignment: Alignment.topRight,
+    icon: DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0xffbc2034), shape: BoxShape.circle),
+      child: const Padding(padding: EdgeInsets.all(3), child: Icon(Icons.close_rounded, size: 18, color: Colors.white)),
+    ),
+  );
+}
+
 /// Private-purpose image picker with role-aware approved controls.
-///
-/// The picker is embedded by both role surfaces; [role] selects the existing
-/// approved component variants without changing either role's design. Uploads
-/// keep their retry/discard identity and never fake a completed upload.
+/// Uploads keep their retry/discard identity across both roles.
 class PrivateImagePicker extends StatefulWidget {
   const PrivateImagePicker({
     required this.upload,
     required this.onChanged,
     this.enabled = true,
     this.maxImages = 10,
+    this.storePhotoControls = false,
     this.role = HocalistControlRole.seller,
     this.onPendingChanged,
     this.existingImageCount = 0,
+    this.showGuidance = true,
+    this.addLabel = 'Add photo',
+    this.secondaryAction = false,
     super.key,
   });
   final ImageUpload upload;
   final ValueChanged<List<String>> onChanged;
   final bool enabled;
   final int maxImages;
+  final bool storePhotoControls;
   final HocalistControlRole role;
   final ValueChanged<bool>? onPendingChanged;
   final int existingImageCount;
+  final bool showGuidance;
+  final String addLabel;
+  final bool secondaryAction;
   @override
   State<PrivateImagePicker> createState() => _PrivateImagePickerState();
 }
@@ -112,6 +134,12 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
     super.dispose();
   }
 
+  void removeImage(String id, Uint8List bytes) {
+    MemoryImage(bytes).evict();
+    setState(() => images.remove(id));
+    widget.onChanged(List.unmodifiable(images.keys));
+  }
+
   bool get _seller => widget.role == HocalistControlRole.seller;
 
   Widget _progress(String label) => _seller
@@ -152,7 +180,7 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (images.isEmpty && widget.existingImageCount == 0 && !busy)
+        if (widget.showGuidance && images.isEmpty && widget.existingImageCount == 0 && !busy)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _seller
@@ -199,9 +227,11 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                                 ),
                               ),
                               Positioned(
-                                right: -6,
-                                top: -6,
-                                child: Semantics(
+                                right: 0,
+                                top: 0,
+                                child: widget.storePhotoControls
+                                    ? StorePhotoRemoveButton(onPressed: !widget.enabled || busy ? null : () => removeImage(e.key, e.value))
+                                    : Semantics(
                                   button: true,
                                   label: 'Remove photo',
                                   child: SizedBox.square(
@@ -218,17 +248,7 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
                                         padding: EdgeInsets.zero,
                                         onPressed: !widget.enabled || busy
                                             ? null
-                                            : () {
-                                                MemoryImage(e.value).evict();
-                                                setState(
-                                                  () => images.remove(e.key),
-                                                );
-                                                widget.onChanged(
-                                                  List.unmodifiable(
-                                                    images.keys,
-                                                  ),
-                                                );
-                                              },
+                                            : () => removeImage(e.key, e.value),
                                         icon: Icon(
                                           Icons.close_rounded,
                                           size: 16,
@@ -281,8 +301,8 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
           _progress(pending == null ? 'Choosing photo…' : 'Uploading photo…'),
         ],
         const SizedBox(height: 10),
-        _primary(
-          pending == null ? 'Add photo' : 'Retry photo upload',
+        (widget.secondaryAction ? _secondary : _primary)(
+          pending == null ? widget.addLabel : 'Retry photo upload',
           busy ||
                   !widget.enabled ||
                   images.length + widget.existingImageCount >= widget.maxImages
