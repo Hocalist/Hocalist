@@ -361,6 +361,7 @@ class MarketplaceRequest {
     DateTime? acceptanceExpiresAt,
     String? purchaseOfferId,
     DateTime? purchaseSelectedAt,
+    this.homeActivityAt,
     this.discoveryOpen,
   }) : id = requireNonBlank(id, 'id'),
        buyerProfileId = requireNonBlank(buyerProfileId, 'buyerProfileId'),
@@ -392,6 +393,7 @@ class MarketplaceRequest {
   final String? purchaseOfferId;
 
   final DateTime? purchaseSelectedAt;
+  final DateTime? homeActivityAt;
 
   /// Server-computed discovery state; null when the backend has not supplied
   /// it (pre-upgrade server) so the UI can fall back to [status].
@@ -427,6 +429,7 @@ class MarketplaceRequest {
       acceptanceExpiresAt: acceptanceExpiresAt ?? this.acceptanceExpiresAt,
       purchaseOfferId: purchaseOfferId ?? this.purchaseOfferId,
       purchaseSelectedAt: purchaseSelectedAt ?? this.purchaseSelectedAt,
+      homeActivityAt: homeActivityAt,
       discoveryOpen: discoveryOpen ?? this.discoveryOpen,
     );
   }

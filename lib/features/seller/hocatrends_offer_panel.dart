@@ -6,7 +6,8 @@ typedef HocatrendsOfferPreference = ({bool enabled, bool eligible});
 
 /// Offer-specific opt-in; only an acknowledged server result changes the switch.
 class HocatrendsOfferPanel extends StatefulWidget {
-  const HocatrendsOfferPanel({super.key, required this.load, required this.save});
+  const HocatrendsOfferPanel({super.key, required this.load, required this.save, this.forListing = false});
+  final bool forListing;
   final Future<HocatrendsOfferPreference> Function() load;
   final Future<HocatrendsOfferPreference> Function(bool) save;
   @override
@@ -64,8 +65,10 @@ class _HocatrendsOfferPanelState extends State<HocatrendsOfferPanel> {
         key: const Key('hocatrends-offer-opt-in'),
         contentPadding: EdgeInsets.zero,
         activeTrackColor: SellerUiColors.primaryBright,
-        title: Text('Show this offer on Hocatrends', style: sellerText(metrics, 12, weight: FontWeight.w800)),
-        subtitle: Text(value?.eligible == true
+        title: Text(widget.forListing ? 'Publish on Hocatrends' : 'Show this offer on Hocatrends', style: sellerText(metrics, 12, weight: FontWeight.w800)),
+        subtitle: Text(widget.forListing
+            ? 'Pro and Elite sellers can share a listing with a photo. It appears when active and approved, using its current Store price.'
+            : value?.eligible == true
             ? 'Let buyers discover you for this category. You can turn this off anytime.'
             : 'Requires Pro or Elite and an eligible recent offer. Your preference is saved separately from eligibility.',
             style: sellerText(metrics, 11, color: SellerUiColors.muted)),

@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 
 import '../../data/phase2/commercial/commercial_wallet_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
+import '../../components/hocalist_choice_sheet.dart';
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_payment_panel.dart';
 import 'wallet_history_list.dart';
+import 'money_help.dart';
+import 'seller_offer_presentation.dart';
 
 /// Seller credit wallet over the authoritative ledger read.
 ///
@@ -171,6 +174,92 @@ class _CreditWalletPanelState extends State<CreditWalletPanel> {
 
 enum _WalletSection { all, credits, targeting }
 
+void _showReservedCredits(BuildContext context, CreditWalletView wallet) {
+  final offers = wallet.reservedOffers ?? [
+    for (final target in wallet.targets.where((t) => t.reservedMinor > 0))
+      ReservedOfferView(target.requestTitle, target.offerId ?? target.requestId,
+        target.reservedMinor, target.chargedMinor,
+        target.chargedMinor > 0 ? 'remaining_fee' : 'offer_outcome'),
+  ];
+  final other = wallet.reservedMinor - wallet.reversalHoldMinor -
+      offers.fold<int>(0, (sum, offer) => sum + offer.heldMinor);
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheet) => SellerModalSheet(
+      title: 'Reserved credits',
+      subtitle: '${_hc(wallet.reservedMinor)} held in your wallet',
+      icon: Icons.account_balance_wallet_outlined,
+      onClose: () => Navigator.pop(sheet),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (wallet.reservedMinor == 0)
+            const Text('You have no credits on hold.')
+          else ...[
+            for (final offer in offers)
+              _CreditHoldRow(title: offer.title ?? 'Offer', amount: offer.heldMinor,
+                reference: offer.reference, explanation: switch (offer.nextStep) {
+                  'buyer_response' => 'Waiting for the buyer to respond. Unused credits return to your balance when the offer closes.',
+                  'payment' => 'These credits are set aside for a targeting fee. Your balance updates when the payment is settled.',
+                  'meeting' => 'Your meeting is active. If the sale goes ahead, confirm it with the purchase PIN to settle the fee.',
+                  'elite_outcome' => 'Your initial fee is deferred. The purchase outcome or request deadline determines how much is charged or released.',
+                  'remaining_fee' => 'The initial fee has been charged. A PIN-confirmed purchase settles the remaining fee. Unused credits return to your balance when the offer closes.',
+                  _ => 'These credits cover potential fees for this offer. Any unused amount returns to your balance when the offer is settled.',
+                }),
+            if (wallet.reversalHoldMinor > 0)
+              _CreditHoldRow(title: 'Payment review', amount: wallet.reversalHoldMinor,
+                explanation: 'A credit payment is under review. Your balance updates when the review is resolved.'),
+            if (other > 0)
+              _CreditHoldRow(title: 'Other reserved credits', amount: other,
+                explanation: 'The offer details for this amount are currently unavailable.'),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+class _CreditHoldRow extends StatelessWidget {
+  const _CreditHoldRow({required this.title, required this.amount,
+    required this.explanation, this.reference});
+  final String title, explanation;
+  final int amount;
+  final String? reference;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.maybeOf(context) ?? _WalletBody._fallbackMetrics(context);
+    final ref = reference;
+    final amountText = Text(_hc(amount), style: sellerText(metrics, 15,
+      weight: FontWeight.w800, color: SellerUiColors.primary));
+    final name = Text(title, style: sellerText(metrics, 15, weight: FontWeight.w800));
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, SellerUiColors.white),
+        border: Border.all(color: HocalistPalette.border(context, SellerUiColors.lavenderBorder)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        LayoutBuilder(builder: (context, bounds) {
+          if (bounds.maxWidth < MediaQuery.textScalerOf(context).scale(200)) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [name, amountText]);
+          }
+          return Row(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [Expanded(child: name), const SizedBox(width: 10), amountText]);
+        }),
+        if (ref != null)
+          Text('Reference ${ref.split('-').first.toUpperCase()}', style: sellerText(metrics, 12, color: SellerUiColors.muted)),
+        const SizedBox(height: 8),
+        Text(explanation, style: sellerText(metrics, 13, height: 1.4, color: SellerUiColors.body)),
+      ]),
+    );
+  }
+}
+
 class _WalletBody extends StatelessWidget {
   const _WalletBody({
     required this.value,
@@ -227,10 +316,28 @@ class _WalletBody extends StatelessWidget {
                       label: 'Total',
                       value: _hc(value.balanceMinor),
                     ),
-                    SellerMetricTile(
+                    InkWell(
                       key: const Key('creditWalletReserved'),
-                      label: 'Reserved',
-                      value: _hc(value.reservedMinor),
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => _showReservedCredits(context, value),
+                      child: Semantics(
+                        button: true,
+                        label: 'Reserved credits, ${_hc(value.reservedMinor)}. Show details',
+                        excludeSemantics: true,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SellerMetricTile(label: 'Reserved', value: _hc(value.reservedMinor)),
+                              const SizedBox(width: 2),
+                              Icon(Icons.chevron_right_rounded, size: 17,
+                                color: HocalistPalette.text(context, SellerUiColors.primaryBright)),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                     SellerMetricTile(
                       key: const Key('creditWalletCharged'),
@@ -318,6 +425,8 @@ class _WalletBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
+          _CurrentSellerFees(wallet: value),
+          const SizedBox(height: 12),
           _DepositBatchDetails(value: value, compact: compact),
           const SizedBox(height: 14),
           _CreditPackDetails(value: value),
@@ -356,6 +465,43 @@ class _WalletBody extends StatelessWidget {
   }
 }
 
+class _CurrentSellerFees extends StatelessWidget {
+  const _CurrentSellerFees({required this.wallet});
+  final CreditWalletView wallet;
+
+  @override
+  Widget build(BuildContext context) {
+    final quote = SellerOfferPresentation.fromWallet(wallet, null);
+    final metrics = ApprovedReplicaScope.maybeOf(context) ?? _WalletBody._fallbackMetrics(context);
+    return SellerStateNotice(
+      title: 'Your current targeting fees',
+      icon: Icons.sell_outlined,
+      body: quote.rateHint ?? 'Add credits to see the rate for your next offer.',
+      detail: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (quote.remainingWinningBid != null)
+          Wrap(spacing: 24, runSpacing: 8, children: [
+            SellerMetricTile(label: 'Initial fee', value: quote.initialBid),
+            SellerMetricTile(label: 'Winning total', value: quote.winningBid),
+          ]),
+        TextButton.icon(
+          style: TextButton.styleFrom(
+            foregroundColor: HocalistPalette.text(context, SellerUiColors.primaryBright),
+            textStyle: sellerText(metrics, 12, weight: FontWeight.w800).copyWith(
+              fontFamily: DefaultTextStyle.of(context).style.fontFamily,
+            ),
+          ),
+          icon: const Icon(Icons.info_outline_rounded, size: 18),
+          label: const Text('How fees work'),
+          onPressed: () => showMoneyHelp(context, title: 'How fees work', seller: true, answers: const {
+          'What is reserved?': 'Sending an offer sets credits aside for its fees. Tap Reserved to see each offer and what happens next.',
+          'Do I pay both amounts?': 'The winning total includes the initial fee. A PIN-confirmed purchase settles the unpaid part.',
+          'Which rate applies?': 'The offer form shows the rate for that request, including any final-hours rate. Existing offers keep their original rate.',
+        })),
+      ]),
+    );
+  }
+}
+
 class _CreditPackDetails extends StatefulWidget {
   const _CreditPackDetails({required this.value});
   final CreditWalletView value;
@@ -370,7 +516,7 @@ class _CreditPackDetailsState extends State<_CreditPackDetails> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       SellerSectionHeading(
-        title: 'Prepaid wallet savings',
+        title: 'Compare credit packs',
         actionKey: const Key('creditPacksToggle'),
         actionLabel: expanded ? 'Hide details' : 'View details',
         onAction: () => setState(() => expanded = !expanded),
@@ -419,81 +565,20 @@ class _TargetActivityState extends State<_TargetActivity> {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: HocalistPalette.surface(context, Colors.white),
+      backgroundColor: Colors.transparent,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-      builder: (context) => SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Filter activity',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close filters',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Show activity',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              for (final choice in ['Recent', 'Reserved', 'Charged'])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Material(
-                    color: HocalistPalette.surface(
-                      context,
-                      filter == choice ? SellerUiColors.lavender : Colors.white,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: () => Navigator.pop(context, choice),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                choice,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              filter == choice
-                                  ? Icons.check_circle
-                                  : Icons.circle_outlined,
-                              color: SellerUiColors.primaryBright,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+      builder: (sheet) => SellerModalSheet(
+        icon: Icons.tune_rounded,
+        title: 'Filter activity',
+        subtitle: 'Show activity',
+        onClose: () => Navigator.pop(sheet),
+        child: Column(children: [
+          for (final choice in ['Recent', 'Reserved', 'Charged'])
+            HocalistSheetChoice(
+              seller: true, label: choice, selected: filter == choice,
+              onTap: () => Navigator.pop(sheet, choice),
+            ),
+        ]),
       ),
     );
     if (mounted && selected != null) setState(() => filter = selected);
@@ -505,12 +590,30 @@ class _TargetActivityState extends State<_TargetActivity> {
     children: [
       Row(
         children: [
-          Expanded(
+          Flexible(
             child: Text(
               filter,
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
           ),
+          IconButton(
+            tooltip: 'What do these statuses mean?',
+            icon: const Icon(Icons.info_outline_rounded, size: 20),
+            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
+            onPressed: () => showMoneyHelp(
+              context,
+              seller: true,
+              title: 'Activity statuses',
+              answers: const {
+                'Reserved': 'Credits are set aside for an offer. Tap Reserved on the Credits tab to see which offer is holding them.',
+                'Initial fee charged': 'The first targeting fee has been charged. Open the entry to see how much was charged and how much is still held.',
+                'Completed': 'The purchase was confirmed and the winning fee was settled. The winning total includes the initial fee.',
+                'Released': 'The hold ended. The unused credits are available again.',
+                'Refunded': 'A previously charged fee was returned. Open the entry to see the amounts.',
+              },
+            ),
+          ),
+          const Spacer(),
           IconButton(
             tooltip: 'Filter activity',
             onPressed: chooseFilter,

@@ -42,6 +42,27 @@ it does not transfer or rotate an app refresh token. Website admission still
 requires the matching verified identity and the active-seller/restriction gate.
 Native builds continue to use the existing website sign-in path.
 
+## Launch information and feedback
+
+The existing download form collects optional name/city and buyer/seller interest
+alongside its consented email signup. The launch section in the existing admin
+dashboard shows waitlist leads, download clicks, signed-in first mobile opens
+and registrations separately. A download click does not establish an install;
+first opens count once per account/platform from the tracking release onward.
+
+Apply `supabase/migrations/20261119092950_buyer_launch_feedback.sql` to the
+existing Hocalist database before deploying the new intake/admin code. It keeps
+the existing waitlist admission secret, consent checks and support cases.
+Feedback screenshots reuse private report evidence and require an admin plus
+an exact case/media reference to read them.
+
+For early access, `HOCALIST_ANDROID_TEST_DOWNLOAD_URL` may point to an approved
+HTTPS APK on `hocalist.com` or `www.hocalist.com`.
+`HOCALIST_IOS_TESTFLIGHT_URL` may point to an existing Apple TestFlight invite.
+Official store links take precedence. Missing or invalid links remain marked
+unavailable; neither a sample link nor an unapproved APK is published.
+Keep download access independent of waitlist signup.
+
 Keep `HOCALIST_WEBSITE_PREVIEW` unset on the public deployment. Store download
 links use `NEXT_PUBLIC_APP_STORE_URL` and `NEXT_PUBLIC_PLAY_STORE_URL` only after
 the respective store listing exists. No Stripe secret or service-role key belongs

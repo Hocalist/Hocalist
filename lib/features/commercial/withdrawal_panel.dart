@@ -13,8 +13,12 @@ import '../approved/approved_replica_metrics.dart';
 /// states. The net amount is shown before confirmation; success is only
 /// acknowledged after the server accepts the intent. No payout is simulated.
 class WithdrawalPanel extends StatefulWidget {
-  const WithdrawalPanel({required this.load, required this.submit, super.key});
+  const WithdrawalPanel({required this.load, required this.submit, this.verifyContact, this.verificationForm, this.destination, this.destinationReady = true, this.requestsEnabled = true, super.key});
 
+  final Future<void> Function(BuildContext, {required bool phone})? verifyContact;
+  final Widget Function(bool phone, VoidCallback verified)? verificationForm;
+  final Widget? destination;
+  final bool destinationReady, requestsEnabled;
   final Future<WithdrawalStatusView> Function() load;
   final Future<WithdrawalRequestView> Function(
     int amountMinor,
@@ -36,6 +40,27 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
   String? operationKey;
   int? operationAmount;
   int generation = 0;
+  bool prompted = false;
+  bool verifying = false;
+
+  Future<void> verify(bool phone) async {
+    final open = widget.verifyContact;
+    if (!mounted || verifying || open == null) return;
+    verifying = true;
+    try {
+      await open(context, phone: phone);
+      if (mounted) await refresh();
+    } finally {
+      verifying = false;
+    }
+  }
+
+  int? get enteredMinor {
+    final text = amount.text.trim();
+    if (!RegExp(r'^\d+(?:\.\d{0,2})?$').hasMatch(text)) return null;
+    final parts = text.split('.');
+    return int.tryParse(parts.first + (parts.length == 2 ? parts.last : '').padRight(2, '0'));
+  }
 
   static String usd(int cents) =>
       '\$${cents ~/ 100}.${(cents % 100).toString().padLeft(2, '0')}';
@@ -63,6 +88,10 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
       final value = await widget.load();
       if (!mounted || run != generation) return;
       setState(() => status = value);
+      if (!value.phoneVerified && !prompted && widget.verifyContact != null) {
+        prompted = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) unawaited(verify(true)); });
+      }
     } catch (_) {
       if (!mounted || run != generation) return;
       setState(() => error = 'Withdrawal status could not be loaded.');
@@ -74,8 +103,8 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
   Future<void> request() async {
     if (submitting) return;
     final current = status;
-    if (current == null) return;
-    final parsed = int.tryParse(amount.text.trim());
+    if (!widget.requestsEnabled || current == null || !current.contactVerified || !widget.destinationReady) return;
+    final parsed = enteredMinor;
     if (parsed == null || parsed < current.minimumMinor) {
       setState(
         () => submitError = 'Enter at least ${usd(current.minimumMinor)}.',
@@ -124,6 +153,7 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
           ),
         ),
       );
+      if (widget.verificationForm != null) Navigator.of(context).pop(true);
     } on WithdrawalUnavailableException catch (failure) {
       if (!mounted) return;
       setState(() {
@@ -168,7 +198,18 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
           textScaler: MediaQuery.textScalerOf(context),
         );
     final current = status;
-    return Column(
+    final inSheet = widget.verificationForm != null;
+    if (inSheet && current != null && !current.contactVerified && error == null) {
+      final phone = !current.phoneVerified;
+      return BuyerModalSheet(
+        title: phone ? 'Verify your phone' : 'Verify your email',
+        icon: phone ? Icons.phone_outlined : Icons.email_outlined,
+        onClose: () => Navigator.pop(context),
+        child: widget.verificationForm!(phone, () => unawaited(refresh())),
+      );
+    }
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (busy) const BuyerProgressStrip(label: 'Loading withdrawal status…'),
@@ -184,31 +225,37 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
           ),
         ],
         if (current != null) ...[
-          _WithdrawalSummaryCard(status: current),
+          if (inSheet)
+            Text('Available to withdraw: ${usd(current.availableMinor)}', style: BuyerTypography.style(context, metrics, BuyerTextRole.cardTitle))
+          else
+            _WithdrawalSummaryCard(status: current),
           SizedBox(height: metrics.spacing(12)),
+          if (widget.destination != null && (!inSheet || !widget.destinationReady)) ...[
+            widget.destination!,
+            SizedBox(height: metrics.spacing(12)),
+          ],
           if (!current.contactVerified)
             BuyerStateNotice(
               key: const Key('withdrawalVerificationGate'),
               icon: Icons.verified_user_outlined,
               tone: BuyerNoticeTone.warning,
-              title: 'Verify your contacts to withdraw',
-              body:
-                  'Verify your email and phone before withdrawing. '
-                  'Email verified: ${current.emailVerified ? 'yes' : 'no'}; '
-                  'phone verified: ${current.phoneVerified ? 'yes' : 'no'}.',
+              title: !current.phoneVerified ? 'Phone verification needed' : 'Email verification needed',
+              actionLabel: widget.verifyContact == null ? null : (!current.phoneVerified ? 'Verify phone' : 'Verify email'),
+              onAction: widget.verifyContact == null ? null : () => verify(!current.phoneVerified),
+              body: !current.phoneVerified ? 'Confirm your phone number to request a withdrawal.' : 'Confirm your email to request a withdrawal.',
             )
           else ...[
             TextField(
               key: const Key('withdrawalAmountField'),
               controller: amount,
               enabled: !submitting,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
               onChanged: (_) => setState(() => submitError = null),
               decoration:
                   buyerInputDecoration(
                     context,
-                    hintText: 'Amount in cents',
+                    hintText: '0.00',
                     prefixIcon: Icon(
                       Icons.payments_outlined,
                       color: HocalistPalette.text(
@@ -217,11 +264,12 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
                       ),
                     ),
                   ).copyWith(
-                    labelText: 'Withdrawal amount (cents)',
+                    labelText: 'Withdrawal amount',
+                    prefixText: r'$ ',
                     helperText: 'Minimum ${usd(current.minimumMinor)}',
                   ),
             ),
-            if (int.tryParse(amount.text.trim()) case final parsed?) ...[
+            if (enteredMinor case final parsed?) ...[
               SizedBox(height: metrics.spacing(8)),
               Container(
                 padding: metrics.geometryInsets(const EdgeInsets.all(12)),
@@ -278,21 +326,32 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
               ),
             ],
             SizedBox(height: metrics.spacing(10)),
+            if (!widget.requestsEnabled)
+              const Text('Withdrawal requests are currently unavailable.'),
             BuyerPrimaryButton(
               key: const Key('withdrawalSubmit'),
-              onPressed: submitting || busy ? null : request,
+              onPressed: submitting || busy || !widget.destinationReady || !widget.requestsEnabled || current.availableMinor < current.minimumMinor ? null : request,
               label: submitting ? 'Submitting…' : 'Request withdrawal',
             ),
           ],
           SizedBox(height: metrics.spacing(16)),
-          const BuyerSectionHeading(title: 'Withdrawal history'),
+          if (!inSheet) ...[
+          Row(children: [
+            const Expanded(child: BuyerSectionHeading(title: 'Withdrawal history')),
+            IconButton(
+              key: const Key('withdrawalRefresh'),
+              tooltip: 'Refresh withdrawal status',
+              onPressed: busy || submitting ? null : refresh,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ]),
           if (current.requests.isEmpty)
             const BuyerStateNotice(
               icon: Icons.receipt_long_outlined,
               tone: BuyerNoticeTone.neutral,
-              title: 'No withdrawal requests yet.',
+              title: 'No withdrawals yet',
               body:
-                  'Requested payouts and their provider status will appear here.',
+                  'Your requests will appear here.',
             )
           else
             for (final row in current.requests)
@@ -358,25 +417,20 @@ class _WithdrawalPanelState extends State<WithdrawalPanel> {
                   ),
                 ),
               ),
-          SizedBox(height: metrics.spacing(6)),
-          BuyerSecondaryButton(
-            key: const Key('withdrawalRefresh'),
-            label: 'Refresh withdrawal status',
-            onPressed: busy || submitting ? null : refresh,
-          ),
           SizedBox(height: metrics.spacing(8)),
-          Text(
-            'Withdrawals are provider-neutral and reviewed before payout. '
-            'A processing request reserves the amount; a confirmed failure '
-            'restores it.',
-            style: BuyerTypography.style(
-              context,
-              metrics,
-              BuyerTextRole.secondaryBody,
-            ),
-          ),
+          ],
         ],
       ],
+    );
+    if (!inSheet) return content;
+    return PopScope(
+      canPop: !submitting,
+      child: BuyerModalSheet(
+      title: 'Withdraw rewards',
+      icon: Icons.account_balance_wallet_outlined,
+      onClose: () { if (!submitting) Navigator.pop(context); },
+      child: content,
+      ),
     );
   }
 }
@@ -395,95 +449,32 @@ class _WithdrawalSummaryCard extends StatelessWidget {
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
-    return HocalistEntrance(
-      child: Container(
-        padding: metrics.geometryInsets(const EdgeInsets.all(16)),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xfff4f2ff), Color(0xffeeedff)],
-          ),
-          borderRadius: BorderRadius.circular(metrics.geometry(18)),
-          border: Border.all(
-            color: HocalistPalette.border(context, const Color(0xffd9d5ff)),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: metrics.artSize(34),
-                  height: metrics.artSize(34),
-                  decoration: BoxDecoration(
-                    color: HocalistPalette.surface(context, Colors.white),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: BuyerGlyphIcon(
-                      icon: Icons.account_balance_rounded,
-                      slotSize: metrics.artSize(19),
-                      glyphSize: metrics.artSize(19),
-                      color: HocalistPalette.text(
-                        context,
-                        BuyerUiTokens.action,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: metrics.spacing(10)),
-                Expanded(
-                  child: Text(
-                    'Available to withdraw',
-                    style: BuyerTypography.style(
-                      context,
-                      metrics,
-                      BuyerTextRole.cardTitle,
-                    ).copyWith(fontSize: metrics.fontSize(12.5)),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: metrics.spacing(10)),
-            Text(
-              _WithdrawalPanelState.usd(status.availableMinor),
-              key: const Key('withdrawalAvailable'),
-              style: BuyerTypography.style(
-                context,
-                metrics,
-                BuyerTextRole.displayTitle,
-                weight: FontWeight.w900,
-              ).copyWith(fontSize: metrics.fontSize(26)),
-            ),
-            SizedBox(height: metrics.spacing(12)),
-            Wrap(
-              spacing: metrics.spacing(18),
-              runSpacing: metrics.spacing(10),
-              children: [
-                BuyerMetricTile(
-                  label: 'Earned',
-                  value: _WithdrawalPanelState.usd(status.earnedMinor),
-                ),
-                BuyerMetricTile(
-                  label: 'Reserved',
-                  value: _WithdrawalPanelState.usd(status.processingMinor),
-                  valueKey: const Key('withdrawalProcessing'),
-                ),
-                BuyerMetricTile(
-                  label: 'Minimum',
-                  value: _WithdrawalPanelState.usd(status.minimumMinor),
-                ),
-                BuyerMetricTile(
-                  label: 'Fee',
-                  value: _WithdrawalPanelState.usd(status.feeMinor),
-                ),
-              ],
-            ),
-          ],
-        ),
+    return HocalistEntrance(child: Container(
+      padding: metrics.geometryInsets(const EdgeInsets.all(18)),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
+        borderRadius: BorderRadius.circular(metrics.geometry(18)),
       ),
-    );
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Available to withdraw', style: Theme.of(context).textTheme.titleSmall),
+            Text(_WithdrawalPanelState.usd(status.availableMinor),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800, color: HocalistPalette.text(context, BuyerUiTokens.action))),
+          ])),
+          BuyerAssetIconSurface(asset: 'assets/approved_onboarding_home/dashboard-trophy-glyph.png',
+            surfaceSize: metrics.artSize(58), iconSize: metrics.artSize(36),
+            backgroundColor: HocalistPalette.surface(context, const Color(0xffe9e4ff)),
+            shape: BuyerIconSurfaceShape.circle),
+        ]),
+        const Divider(height: 26),
+        Wrap(spacing: 20, runSpacing: 6, children: [
+          Text('Minimum ${_WithdrawalPanelState.usd(status.minimumMinor)}'),
+          Text('Fee ${_WithdrawalPanelState.usd(status.feeMinor)}'),
+          if (status.processingMinor > 0) Text('Processing ${_WithdrawalPanelState.usd(status.processingMinor)}'),
+        ]),
+      ]),
+    ));
   }
 }

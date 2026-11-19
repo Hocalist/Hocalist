@@ -1,3 +1,5 @@
+import '../components/account_role_switch.dart';
+import '../domain/phase2/profiles.dart';
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../components/hocalist_reload_link.dart';
@@ -9,6 +11,7 @@ import '../components/hocalist_motion.dart';
 import '../features/approved/approved_replica_metrics.dart';
 import 'accessibility_visuals.dart';
 import 'input_foundation.dart';
+import 'sheet_content_theme.dart';
 import 'approved_interface_icons.dart';
 import 'preserved_raster_glyph.dart';
 
@@ -271,13 +274,9 @@ class BuyerAssetIconSurface extends StatelessWidget {
   }
 }
 
-/// Canonical chrome for the signed-in top-level Buyer destinations.
-///
-/// The artwork intentionally uses the current client-requested Hocalist logo.
-/// Top-level pages may share this contract without forcing it onto nested
-/// pages that correctly use back navigation and a page title.
+/// Branded Buyer header shared by Home and subpages that display the wordmark.
 class BuyerTopLevelHeader extends StatelessWidget {
-  const BuyerTopLevelHeader({required this.onNotifications, super.key});
+  const BuyerTopLevelHeader({required this.onNotifications, this.backButton, super.key});
 
   static const headerKey = ValueKey('buyer-top-level-header');
   static const logoKey = ValueKey('buyer-top-level-header-logo');
@@ -287,6 +286,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
   );
 
   final VoidCallback onNotifications;
+  final Widget? backButton;
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +322,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
             ),
           ),
         ));
-        final mode = Container(
+        final mode = AccountRoleSwitch(role: HocalistRole.buyer, child: Container(
           key: modeKey,
           constraints: BoxConstraints(minHeight: metrics.geometry(38)),
           padding: EdgeInsets.symmetric(
@@ -356,7 +356,7 @@ class BuyerTopLevelHeader extends StatelessWidget {
               ),
             ],
           ),
-        );
+        ));
         final notification = Semantics(
           button: true,
           label: 'Notifications',
@@ -387,7 +387,12 @@ class BuyerTopLevelHeader extends StatelessWidget {
             key: headerKey,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(children: [logo, const Spacer(), notification]),
+              Row(children: [
+                ?backButton,
+                Flexible(child: logo),
+                const Spacer(),
+                notification,
+              ]),
               SizedBox(height: metrics.spacing(4)),
               Align(alignment: Alignment.centerRight, child: mode),
             ],
@@ -399,8 +404,8 @@ class BuyerTopLevelHeader extends StatelessWidget {
           height: metrics.artSize(54),
           child: Row(
             children: [
-              logo,
-              const Spacer(),
+              ?backButton,
+              Expanded(child: Align(alignment: Alignment.centerLeft, child: logo)),
               mode,
               SizedBox(width: metrics.geometry(8)),
               notification,
@@ -428,6 +433,7 @@ class BuyerPrimaryButton extends StatelessWidget {
     this.fontSize = 14,
     this.minimumHeight,
     this.colors,
+    this.foreground = Colors.white,
     super.key,
   });
 
@@ -439,6 +445,7 @@ class BuyerPrimaryButton extends StatelessWidget {
   final double fontSize;
   final double? minimumHeight;
   final List<Color>? colors;
+  final Color foreground;
 
   @override
   Widget build(BuildContext context) {
@@ -518,7 +525,7 @@ class BuyerPrimaryButton extends StatelessWidget {
                             context,
                             metrics,
                             BuyerTextRole.buttonLabel,
-                            color: accessibility.foregroundOr(Colors.white),
+                            color: accessibility.foregroundOr(foreground),
                             weight: FontWeight.w600,
                           ).copyWith(fontSize: metrics.fontSize(fontSize)),
                         ),
@@ -535,6 +542,31 @@ class BuyerPrimaryButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class BuyerTextAction extends StatelessWidget {
+  const BuyerTextAction({required this.label, required this.onPressed, super.key});
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+          brightness: Theme.of(context).brightness,
+        );
+    return TextButton(
+      style: TextButton.styleFrom(
+        foregroundColor: HocalistPalette.text(context, BuyerUiTokens.action),
+        textStyle: BuyerTypography.style(context, metrics, BuyerTextRole.buttonLabel),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
     );
   }
 }
@@ -640,7 +672,7 @@ class BuyerNestedHeader extends StatelessWidget {
 
   final String title;
   final String subtitle;
-  final VoidCallback onBack;
+  final VoidCallback? onBack;
   final Key? backKey;
 
   @override
@@ -656,6 +688,7 @@ class BuyerNestedHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (onBack != null) ...[
         SizedBox.square(
           dimension: metrics.artSize(44),
           child: IconButton(
@@ -672,6 +705,7 @@ class BuyerNestedHeader extends StatelessWidget {
           ),
         ),
         SizedBox(width: metrics.spacing(6)),
+        ],
         Expanded(
           child: Padding(
             padding: EdgeInsets.only(top: metrics.spacing(3)),
@@ -701,8 +735,10 @@ class BuyerNestedHeader extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(width: metrics.spacing(6)),
-        SizedBox(width: metrics.artSize(44)),
+        if (onBack != null) ...[
+          SizedBox(width: metrics.spacing(6)),
+          SizedBox(width: metrics.artSize(44)),
+        ],
       ],
     );
   }
@@ -865,7 +901,13 @@ class BuyerModalSheet extends StatelessWidget {
                     ],
                   ),
                   SizedBox(height: metrics.spacing(title == null ? 4 : 14)),
-                  child,
+                  SheetContentTheme(
+                    body: BuyerTypography.style(context, metrics, BuyerTextRole.primaryBody),
+                    heading: BuyerTypography.style(context, metrics, BuyerTextRole.cardTitle),
+                    caption: BuyerTypography.style(context, metrics, BuyerTextRole.secondaryBody),
+                    action: BuyerTypography.style(context, metrics, BuyerTextRole.buttonLabel),
+                    child: child,
+                  ),
                 ],
               ),
             ),
@@ -1540,4 +1582,3 @@ class BuyerProgressStrip extends StatelessWidget {
     );
   }
 }
-

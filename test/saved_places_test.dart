@@ -308,4 +308,3 @@ void main() {
     expect(repo.rows.single.id, '2');
   });
 }
-

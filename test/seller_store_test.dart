@@ -187,6 +187,10 @@ void main() {
         find.byKey(const Key('sellerAppBottomNavigation')),
         findsOneWidget,
       );
+      final search = tester.getRect(find.byKey(const Key('sellerStoreSearch')));
+      final filter = tester.getRect(find.byKey(const Key('sellerStoreFilter')));
+      expect(search.center.dy, closeTo(filter.center.dy, 0.1));
+      expect(search.height, closeTo(filter.height, 0.1));
       final exception = tester.takeException();
       if (exception is FlutterError) {
         fail(exception.toStringDeep());

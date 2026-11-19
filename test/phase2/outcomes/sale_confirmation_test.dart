@@ -294,6 +294,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('•••••'), findsOneWidget);
+    expect(find.text('43891'), findsNothing);
+    await tester.ensureVisible(find.text('Show my purchase PIN'));
     await tester.tap(find.text('Show my purchase PIN'));
     await tester.pumpAndSettle();
     expect(find.text('43891'), findsOneWidget);

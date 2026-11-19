@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import WaitlistForm from '../WaitlistForm';
 import { PageShell } from '../site-content';
+import { downloadOptions } from '../lib/download-options';
+import { DownloadLink } from './DownloadLink';
 
 export const metadata = {
   title: 'Hocalist Mobile App | Early access updates',
   description: 'Hocalist Android and iOS early access updates for buyer requests, seller offers, chat coordination, and local marketplace access.'
 };
 
-const playStoreUrl = process.env.NEXT_PUBLIC_PLAY_STORE_URL || '';
-const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL || '';
+const { android: playStoreUrl, ios: appStoreUrl } = downloadOptions(process.env);
 
 export default function DownloadPage() {
   return (
@@ -17,21 +18,21 @@ export default function DownloadPage() {
         <section className="download-hero reveal">
           <div className="download-hero-copy">
             <p className="eyebrow">Early access updates</p>
-            <h1>Your next good find.<br /><em>Coming to your phone.</em></h1>
+            <h1>Your next good find.<br /><em>{playStoreUrl || appStoreUrl ? 'On your phone.' : 'Coming to your phone.'}</em></h1>
             <p>
               Describe what you want, compare seller offers, choose who to continue with, and use
               chat to coordinate the details before arranging item payment directly with the seller.
             </p>
             <div className="download-hero-actions">
-              <Link className="button primary" href="#launch-updates">
-                Get app updates
+              <Link className="button primary" href={playStoreUrl || appStoreUrl ? '#get-app' : '#launch-updates'}>
+                {playStoreUrl || appStoreUrl ? 'Get the app' : 'Get app updates'}
               </Link>
               <Link className="button secondary" href="/how-it-works">
                 Explore the process
               </Link>
             </div>
             <div className="download-status-row" aria-label="App availability">
-              <span>Android and iOS planned</span>
+              <span>{playStoreUrl && appStoreUrl ? 'Android and iOS available' : playStoreUrl ? 'Android available · iOS coming soon' : appStoreUrl ? 'iOS available · Android coming soon' : 'Android and iOS planned'}</span>
               <span>Buyer requests</span>
               <span>Seller offers</span>
             </div>
@@ -97,7 +98,7 @@ export default function DownloadPage() {
             </Link>
           </div>
         </section>
-        <section className="download-panel">
+        <section id="get-app" className="download-panel">
           <article className="reveal">
             <span className="status-chip">Android</span>
             <h2>Android app</h2>
@@ -106,7 +107,7 @@ export default function DownloadPage() {
               review offers, and coordinate locally.
             </p>
             {playStoreUrl ? (
-              <a className="button primary small" href={playStoreUrl}>Get it on Google Play</a>
+              <DownloadLink href={playStoreUrl} platform="android">{playStoreUrl.includes('play.google.com') ? 'Get it on Google Play' : 'Download Android test app'}</DownloadLink>
             ) : (
               <p className="store-availability">Not available to download yet. Store links appear here once the listing is live.</p>
             )}
@@ -119,7 +120,7 @@ export default function DownloadPage() {
               Apple device users.
             </p>
             {appStoreUrl ? (
-              <a className="button primary small" href={appStoreUrl}>Download on the App Store</a>
+              <DownloadLink href={appStoreUrl} platform="ios">{appStoreUrl.includes('testflight.apple.com') ? 'Join iOS testing' : 'Download on the App Store'}</DownloadLink>
             ) : (
               <p className="store-availability">Not available to download yet. Store links appear here once the listing is live.</p>
             )}

@@ -6,6 +6,7 @@ import '../profiles/profile_request_card.dart';
 import '../profiles/profile_ui.dart';
 import '../profiles/public_profile_header.dart';
 import 'package:flutter/material.dart';
+import '../../components/hocalist_loading_indicator.dart';
 import '../../components/pull_refresh.dart';
 import '../../domain/phase2/discovery.dart';
 
@@ -81,7 +82,7 @@ class _BuyerPublicProfilePageState extends State<BuyerPublicProfilePage> {
         if (!widget.embedded)
           ProfileHeading('Buyer profile', onBack: widget.onBack),
         if (loading)
-          const LinearProgressIndicator()
+          const Center(child: HocalistLoadingIndicator())
         else if (error != null)
           ProfileCard(
             child: Column(

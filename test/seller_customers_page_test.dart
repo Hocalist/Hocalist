@@ -139,6 +139,3 @@ void main() {
     expect(find.text('Purchase history insights require Elite.'), findsOneWidget);
   });
 }
-
-
-

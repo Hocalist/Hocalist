@@ -42,10 +42,10 @@ class SavedPlaceRow extends StatelessWidget {
             color: HocalistPalette.text(context, BuyerUiTokens.action))),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700,
+          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
             color: HocalistPalette.text(context, BuyerUiTokens.text))),
           const SizedBox(height: 3),
-          Text(address, style: TextStyle(fontFamily: 'Nunito', fontSize: 12, height: 1.4,
+          Text(address, style: TextStyle(fontSize: 12, height: 1.4,
             color: HocalistPalette.text(context, BuyerUiTokens.muted))),
         ])),
         const SizedBox(width: 8),

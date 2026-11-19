@@ -3,6 +3,7 @@ import '../../domain/phase2/account_contacts.dart';
 import '../../data/phase2/maps/places_repository.dart';
 import '../../data/phase2/maps/places_contract.dart';
 import '../../components/hocalist_loading_indicator.dart';
+import '../../theme/seller_ui_foundation.dart';
 import 'private_contact_editor.dart';
 import '../../domain/phase2/accounts.dart';
 import '../../domain/phase2/patch.dart';
@@ -39,8 +40,15 @@ class _BusinessAddressEditorState extends State<BusinessAddressEditor> {
   }
   @override
   Widget build(BuildContext context){
-    if(loading)return const Center(child:HocalistLoadingIndicator());
-    if(failed)return Column(children:[const Text('Your business address could not be loaded.'),TextButton(onPressed:load,child:const Text('Try again'))]);
+    if (loading || failed) {
+      final state = loading ? const Center(child: HocalistLoadingIndicator())
+          : SellerStateNotice(icon: Icons.storefront_outlined,
+              title: 'Your business address could not be loaded.',
+              actionLabel: 'Try again', onAction: load);
+      final close = widget.onDiscard;
+      return close == null ? state : SellerModalSheet(title: 'Business / Store address',
+          icon: Icons.storefront_outlined, onClose: close, child: state);
+    }
     return PrivateContactEditor(
       seller:true,showPhone:false,addressTitle:'Business / Store address',places:widget.places,
       readCurrent:()=>record,onResolvedAddress:widget.onResolvedAddress,

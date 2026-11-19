@@ -61,6 +61,7 @@ class _PagedMeetings implements MarketplaceMeetingsBackend {
 
   @override
   Future<MeetingView> cancelMeeting({
+    String? reason,
     required String meetingId,
     required int expectedRevision,
     required String operationKey,
@@ -103,6 +104,12 @@ MeetingView _meeting(
 );
 
 void main() {
+  test('closed requests stay in previous deals with their meeting identity', () {
+    final row = _meeting('closed', 'pair');
+    final groups = ConversationDealGroups([row], null, closedRequests: {row.requestId});
+    expect(groups.active, isEmpty);
+    expect(groups.previous!.single.meetingId, row.meetingId);
+  });
   test('confirmed and cancelled meetings belong to Previous, never Active', () {
     final groups = ConversationDealGroups(
       [

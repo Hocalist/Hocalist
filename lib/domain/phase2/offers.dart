@@ -10,6 +10,8 @@
 /// every other negotiation for the request.
 library;
 
+import 'dart:convert';
+import 'category_answers.dart';
 import 'common.dart';
 import 'failures.dart';
 import 'money.dart';
@@ -32,11 +34,33 @@ enum OfferStatus {
 /// Server-owned status of one offer revision.
 enum OfferRevisionStatus { proposed, accepted, superseded, rejected, withdrawn }
 
+/// Public fields supplied only when sending a photo-backed offer to Store.
+class StoreOfferPublication {
+  StoreOfferPublication({required this.title, required List<String> images,
+    required List<CategoryAnswer> answers})
+    : images = List.unmodifiable(images), answers = List.unmodifiable(answers);
+
+  final String title;
+  final List<String> images;
+  final List<CategoryAnswer> answers;
+
+  Map<String, Object?> toInput() => {
+    'title': title, 'image_media_ids': images, 'category_answers': categoryAnswerInput(answers),
+  };
+
+  @override
+  bool operator ==(Object other) => other is StoreOfferPublication &&
+      jsonEncode(toInput()) == jsonEncode(other.toInput());
+  @override
+  int get hashCode => jsonEncode(toInput()).hashCode;
+}
+
 /// Complete editable offer terms captured by the offer form and editor.
 class OfferTerms {
   OfferTerms({
     required this.price,
     this.message = '',
+    this.storePublication,
     List<String> imageMediaIds = const [],
     required this.schedule,
     required this.place,
@@ -45,6 +69,7 @@ class OfferTerms {
   /// Total offered price. Item payment stays offline; this is the agreed
   /// amount shown to both sides.
   final Money price;
+  final StoreOfferPublication? storePublication;
 
   /// Optional seller message.
   final String message;
@@ -67,6 +92,7 @@ class OfferTerms {
   }) {
     return OfferTerms(
       price: price ?? this.price,
+      storePublication: storePublication,
       message: message ?? this.message,
       imageMediaIds: imageMediaIds ?? this.imageMediaIds,
       schedule: schedule ?? this.schedule,
@@ -102,6 +128,7 @@ class OfferTerms {
   bool operator ==(Object other) =>
       other is OfferTerms &&
       other.price == price &&
+      other.storePublication == storePublication &&
       other.message == message &&
       _sameIds(other.imageMediaIds, imageMediaIds) &&
       other.schedule == schedule &&
@@ -112,6 +139,7 @@ class OfferTerms {
     price,
     message,
     Object.hashAll(imageMediaIds),
+    storePublication,
     schedule,
     place,
   );
@@ -187,6 +215,8 @@ class Offer {
     required this.stamp,
     String? sellerDisplayName,
     this.requestTitle,
+    this.requestClosed = false,
+    this.requestMinimumMinor,
     this.acceptedRevisionId,
     this.conversationId,
     this.purchaseSelected = false,
@@ -219,6 +249,8 @@ class Offer {
   /// backend exposes it. Never a client-derived identity.
   final String? sellerDisplayName;
   final String? requestTitle;
+  final bool requestClosed;
+  final int? requestMinimumMinor;
 
   /// Ordered by ascending [OfferRevision.sequence].
   final List<OfferRevision> revisions;

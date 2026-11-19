@@ -9,13 +9,15 @@ import '../../theme/seller_ui_foundation.dart';
 Future<void> showProfileEditor(
   BuildContext context,
   String title,
-  Widget child,
-) => showModalBottomSheet<void>(
+  Widget child, {
+  bool seller = false,
+}) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
   backgroundColor: Colors.transparent,
-  builder: (sheet) => BuyerModalSheet(
+  builder: (sheet) => AccountModalSheet(
+    seller: seller,
     title: title == 'Public profile preview' ? 'View public profile' : title,
     icon: title == 'Public profile preview' ? Icons.visibility_outlined : Icons.edit_outlined,
     onClose: () => Navigator.pop(sheet),
@@ -70,7 +72,6 @@ class ProfileHeading extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
-              fontFamily: 'Nunito',
               fontSize: 22,
               fontWeight: FontWeight.w800,
             ),
@@ -141,7 +142,6 @@ class ProfileIdentity extends StatelessWidget {
             Text(
               name,
               style: const TextStyle(
-                fontFamily: 'Nunito',
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
               ),
@@ -291,7 +291,7 @@ class ProfileStats extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(entry.key, style: TextStyle(fontSize: 12, color: HocalistPalette.text(context, BuyerUiTokens.muted))),
             const SizedBox(height: 3),
-            Text(entry.value, style: const TextStyle(fontFamily: 'Nunito', fontSize: 15, fontWeight: FontWeight.w800)),
+            Text(entry.value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
           ])),
         ])),
       ],
@@ -446,7 +446,6 @@ class ProfileSharingChoice extends StatelessWidget {
                     Text(
                       label,
                       style: const TextStyle(
-                        fontFamily: 'Nunito',
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
@@ -456,7 +455,6 @@ class ProfileSharingChoice extends StatelessWidget {
                       Text(
                         description!,
                         style: const TextStyle(
-                          fontFamily: 'Nunito',
                           fontSize: 12,
                         ),
                       ),

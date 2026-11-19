@@ -15,6 +15,8 @@ import 'package:hocalist/data/phase2/maps/places_repository.dart';
 import 'package:hocalist/data/phase2/maps/places_transport.dart';
 
 class _BuyerAddressPlaces implements PlacesTransport, AddressPlacesTransport {
+  _BuyerAddressPlaces({this.selectionGate});
+  final Completer<void>? selectionGate;
   @override
   Future<PlacesTransportResult> address({required String address, required String sessionToken}) async {
     if (address.contains('Unresolvable')) throw StateError('Provider unavailable');
@@ -24,10 +26,12 @@ class _BuyerAddressPlaces implements PlacesTransport, AddressPlacesTransport {
   Future<PlacesTransportResult> autocomplete({required String input,required String sessionToken})async=>
     const PlacesTransportResult({'suggestions':[{'placeId':'buyer-place','label':'Selected meeting area, Chicago'}]});
   @override
-  Future<PlacesTransportResult> details({required String placeId,required String sessionToken})async=>
-    const PlacesTransportResult({'placeId':'buyer-place','address':'Selected meeting area, Chicago, IL',
+  Future<PlacesTransportResult> details({required String placeId,required String sessionToken})async {
+    await selectionGate?.future;
+    return const PlacesTransportResult({'placeId':'buyer-place','address':'Selected meeting area, Chicago, IL',
       'latitude':40.9,'longitude':-73.8,'timezoneId':'America/Chicago',
       'postalAddress':{'line1':'Selected meeting area','city':'Chicago','state':'IL','postalCode':'60605','country':'US'},'attributions':<Object?>[]});
+  }
 }
 
 MarketplaceRequest _request({
@@ -246,6 +250,7 @@ void main() {
   testWidgets(
     'street search submits private coordinates and address edit clears them',
     (tester) async {
+        final selectionGate = Completer<void>();
       final drafts = <RequestDraft>[];
       await _pump(
         tester,
@@ -257,7 +262,7 @@ void main() {
           ),
           accent: const Color(0xff1917ff),
           requestTitle: 'Mapped request',
-          places:PlacesRepository(transport:_BuyerAddressPlaces()),
+            places:PlacesRepository(transport:_BuyerAddressPlaces(selectionGate: selectionGate)),
           categories: const [CatalogueCategoryOption(id: '20000000-0000-4000-8000-000000000001',label: 'Electronics',scope: 'product',status: 'active')],
           includeAppChrome: true,
           budget: '',
@@ -312,6 +317,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const ValueKey('buyerAddress-buyer-place')));
       await tester.tap(find.byKey(const ValueKey('buyerAddress-buyer-place')));
+      await tester.pump();
+      final post = find.byKey(const Key('approvedRequestPostButton'));
+      await tester.ensureVisible(post);
+      await tester.tap(post);
+      await tester.pump();
+      expect(drafts, isEmpty);
+      selectionGate.complete();
       await tester.pumpAndSettle();
       for (final entry in {
         'street-address': 'Selected meeting area',
@@ -324,7 +336,6 @@ void main() {
         );
         expect(field.controller!.text, entry.value);
       }
-      await _tapPost(tester);
       expect(drafts.single.location.coordinates?.latitude, 40.9);
       expect(drafts.single.location.timezoneId,'America/Chicago');
       final address = find.byKey(

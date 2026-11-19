@@ -3,6 +3,7 @@ import '../marketplace/marketplace_transport.dart';
 import '../marketplace/marketplace_session.dart';
 import '../marketplace/marketplace_error_mapper.dart';
 import '../accounts/timestamptz.dart';
+import '../meetings/meeting_codecs.dart';
 
 class SupportCase {
   const SupportCase({
@@ -156,6 +157,20 @@ class SupportAdapter {
       return SupportPageResult(List.unmodifiable(items), next);
     },
   );
+  Future<bool> reportUnconfirmedPurchase(MeetingView meeting) async {
+    if (session.currentUserId != meeting.buyerUserId ||
+        !meeting.isPastAcceptedAt(DateTime.now())) return false;
+    // Keep the payload stable so a retry or another device gets the same case.
+    final result = await submit(
+      reason: 'deal',
+      operationKey: 'unconfirmed-purchase-${meeting.meetingId}',
+      body: 'The buyer reports completing a purchase without PIN confirmation.\n'
+          'Meeting: ${meeting.meetingId}\nRequest: ${meeting.requestId}\n'
+          'Offer: ${meeting.offerId}\nSeller: ${meeting.sellerUserId}',
+    );
+    return result.isSuccess;
+  }
+
   Future<RepositoryResult<String>> submit({
     required String reason,
     required String body,
@@ -174,4 +189,10 @@ class SupportAdapter {
       return _id(m, 'id');
     },
   );
+
+  Future<RepositoryResult<String>> attachScreenshots({required String caseId,
+    required List<String> mediaIds, required String operationKey}) => _call(
+      'report_evidence_attach', {'p_key': operationKey,
+        'p_input': {'case_id': caseId, 'media_ids': mediaIds}},
+      (m) => _id(m, 'case_id'));
 }

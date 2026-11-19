@@ -172,6 +172,9 @@ class RecommendedLeadsView {
 class HocatrendsTopic {
   const HocatrendsTopic({
     this.requestId,
+    this.listingId,
+    this.coverPhotoId,
+    this.storePriceLabel,
     this.categoryLabel,
     this.availableSellers,
     required this.rank,
@@ -188,7 +191,10 @@ class HocatrendsTopic {
 
   final String? requestId;
   final String? categoryLabel;
-  String get subjectId => requestId ?? categoryId;
+  final String? listingId;
+  final String? coverPhotoId;
+  final String? storePriceLabel;
+  String get subjectId => listingId ?? requestId ?? categoryId;
 
   final int? availableSellers;
   final int rank;

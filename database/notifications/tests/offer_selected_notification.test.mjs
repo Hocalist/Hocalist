@@ -179,4 +179,3 @@ test('selected offers notify only the seller and use the important push queue', 
   assert.equal((await db.query("SELECT has_function_privilege('authenticated','hocalist.notification_on_offer_selected()','EXECUTE') allowed")).rows[0].allowed,false);
  } finally { await db.close(); }
 });
-

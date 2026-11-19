@@ -76,6 +76,7 @@ class SupabaseAccountAuthGateway implements AccountAuthGateway {
     final name = metadata?['full_name'] ?? metadata?['name'];
     return AuthIdentitySnapshot(
       userId: user.id,
+      lastSignInAt: user.lastSignInAt,
       email: email == null || email.isEmpty ? null : email,
       displayName: name is String && name.trim().isNotEmpty ? name : null,
       recovery:
@@ -142,6 +143,10 @@ class SupabaseAccountAuthGateway implements AccountAuthGateway {
     required String email,
     required String password,
   }) => _translate(() => _auth.emailLogin(email, password));
+
+  @override
+  Future<void> resendSignupConfirmation(String email) =>
+      _translate(() => _auth.resendSignupConfirmation(email));
 
   @override
   Future<void> requestEmailLink({

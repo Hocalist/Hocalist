@@ -43,4 +43,3 @@ BEGIN
 END $patch$;
 NOTIFY pgrst,'reload schema';
 COMMIT;
-

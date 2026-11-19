@@ -113,6 +113,11 @@ class MeetingView {
 
   bool get isCancelled => status == 'cancelled';
 
+  bool isPastAcceptedAt(DateTime now) =>
+      hasAcceptedSchedule &&
+      (status == 'accepted' || status == 'reschedule_proposed') &&
+      !isUpcomingAt(now);
+
   /// Display eligibility only; accepted meetings retain the server's cutoff.
   bool isUpcomingAt(DateTime now) {
     if (isCancelled || status == 'rejected') return false;

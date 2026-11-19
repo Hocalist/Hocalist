@@ -285,6 +285,57 @@ void main() {
   });
 
   testWidgets(
+    'seller lead entry brings its deal forward and opens details only on tap',
+    (tester) async {
+      String? opened;
+      await _pump(tester, ApprovedConversationBody(
+        viewerIsSeller: true, onBack: () {}, onPrimary: () {}, onCall: () {},
+        onMore: () {}, onRequestChange: () {}, onChangeLocation: () {},
+        onAttach: () {}, onSend: (_) {}, onLearnMore: () {},
+        realEntries: const [], entryOfferId: 'offer-b', selectedDealId: 'offer-b',
+        realDeals: const [ApprovedDealView(meetingId: 'a', offerId: 'offer-a',
+          title: 'Other deal', priceLabel: '20', statusLabel: 'Accepted')],
+        previousDeals: const [ApprovedDealView(meetingId: 'b', offerId: 'offer-b',
+          title: 'Chosen deal', priceLabel: '30', statusLabel: 'Completed')],
+        onOpenRealDeal: (id) => opened = id,
+      ));
+      final chosen = find.byKey(const ValueKey('deal-details-b'));
+      expect(tester.getTopLeft(chosen).dx,
+        lessThan(tester.getTopLeft(find.byKey(const ValueKey('deal-details-a'))).dx));
+      expect(opened, isNull);
+      await tester.tap(chosen.hitTestable());
+      expect(opened, 'b');
+    },
+  );
+
+  testWidgets(
+    'returning from meeting details keeps the chosen Past filter and card',
+    (tester) async {
+      final visit = PageStorageBucket();
+      Widget chat() => PageStorage(bucket: visit, child: ApprovedConversationBody(
+        onBack: () {}, onPrimary: () {}, onCall: () {}, onMore: () {},
+        onRequestChange: () {}, onChangeLocation: () {}, onAttach: () {},
+        onSend: (_) {}, onLearnMore: () {}, realEntries: const [],
+        entryOfferId: 'offer-b', selectedDealId: 'offer-b',
+        realDeals: const [], previousDeals: const [
+          ApprovedDealView(meetingId: 'b', offerId: 'offer-b',
+            title: 'Nov14 meeting checks', priceLabel: '475', statusLabel: 'Request closed'),
+        ],
+      ));
+      await _pump(tester, chat());
+      expect(find.text('All deals'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('approved-manage-conversation-deals')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-past-deals')));
+      await tester.pumpAndSettle();
+      await _pump(tester, const SizedBox());
+      await _pump(tester, chat());
+      expect(find.text('Past deals'), findsOneWidget);
+      expect(find.byKey(const ValueKey('deal-details-b')).hitTestable(), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'deal cards select their own notice and the chat header stays pinned',
     (tester) async {
       var selected = 'offer-a';
@@ -335,12 +386,12 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Selected deal: Deal A'), findsOneWidget);
+      expect(find.bySemanticsLabel('Selected deal: Deal A'), findsOneWidget);
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('Meeting not scheduled'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('active-deal-meeting-b')));
       await tester.pumpAndSettle();
-      expect(find.text('Selected deal: Deal B'), findsOneWidget);
+      expect(find.bySemanticsLabel('Selected deal: Deal B'), findsOneWidget);
       expect(find.textContaining('Notice for'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('deal-details-meeting-b')));
       expect(openedDeal, 'meeting-b');
@@ -577,7 +628,7 @@ void main() {
       expect(find.text('John D.'), findsNothing);
       expect(find.text('Verified Seller'), findsNothing);
       expect(find.text('Active now'), findsNothing);
-      expect(find.text('Current Deals'), findsOneWidget);
+      expect(find.text('Current deals'), findsOneWidget);
       expect(find.text('Meeting details'), findsNothing);
       expect(find.byKey(const Key('active-deal-ipad')), findsNothing);
       expect(find.byKey(const Key('active-deals-unavailable')), findsOneWidget);
@@ -632,9 +683,12 @@ void main() {
         onOpenRealDeal: (meetingId) => openedMeeting = meetingId,
       ),
     );
-    expect(find.text('Current Deals'), findsOneWidget);
+    expect(find.text('Current deals'), findsOneWidget);
     expect(find.byKey(const ValueKey('active-deal-meeting-1')), findsOneWidget);
-    expect(find.text('Sold camera'), findsOneWidget);
+    expect(find.descendant(
+      of: find.byKey(const ValueKey('active-deal-meeting-1')),
+      matching: find.text('Sold camera'),
+    ), findsOneWidget);
     expect(find.text('Meeting set'), findsOneWidget);
     expect(find.text('2026-11-05 18:30'), findsOneWidget);
     // Prototype deals never stand in for real ones.
@@ -791,7 +845,7 @@ void main() {
         realDeals: const [],
       ),
     );
-    expect(find.text('Current Deals'), findsOneWidget);
+    expect(find.text('Current deals'), findsOneWidget);
     expect(find.byKey(const Key('active-deal-new')), findsOneWidget);
     await tester.tap(
       find.byKey(const Key('approved-manage-conversation-deals')),

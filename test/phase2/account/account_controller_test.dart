@@ -46,6 +46,22 @@ void main() {
 
   Future<void> flush() => pumpEventQueue();
 
+  test('login chooses the original registered role and allows an explicit switch', () async {
+    auth.signIn(signedInA);
+    accounts.memberships = [membership(role: HocalistRole.seller)];
+    final controller = buildController();
+    addTearDown(controller.dispose);
+    await controller.start();
+    expect(controller.selectedRole, HocalistRole.seller);
+    expect(accounts.requestedRoles, [HocalistRole.seller]);
+    controller.selectRole(HocalistRole.buyer);
+    await flush();
+    expect(controller.selectedRole, HocalistRole.buyer);
+    expect(controller.phase, AccountAccessPhase.onboarding);
+    await controller.refresh();
+    expect(controller.selectedRole, HocalistRole.buyer);
+  });
+
   test(
     'a restored explicit seller choice never loads the buyer membership',
     () async {

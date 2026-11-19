@@ -19,7 +19,7 @@ class PublicProfileStats extends StatelessWidget {
           if (entry.key == 'Rating' && rating != null) ProfileRatingStars(rating: rating!, size: 15),
         ]),
         const SizedBox(height: 4),
-        Text(entry.value, style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800,
+        Text(entry.value, style: TextStyle(fontWeight: FontWeight.w800,
           fontSize: 15, color: HocalistPalette.text(context, BuyerUiTokens.text))),
       ]),
     )).toList());
@@ -64,7 +64,7 @@ class PublicProfileHeader extends StatelessWidget {
         ])),
         Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 20), child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(name, style: TextStyle(fontFamily: 'Nunito', fontSize: 24,
+            Text(name, style: TextStyle(fontSize: 24,
               fontWeight: FontWeight.w900, color: HocalistPalette.text(context, BuyerUiTokens.text))),
             const SizedBox(height: 4),
             Text([role, if (subtitle?.trim().isNotEmpty == true) subtitle!].join(' · ')),

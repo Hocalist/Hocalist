@@ -2,8 +2,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/components/hocalist_account_field.dart';
 import 'package:hocalist/components/hocalist_section_tabs.dart';
+import 'package:hocalist/main.dart'
+    show AccessibilityFontStyle, AccessibilityPreferences, HocalistTheme;
 
 void main() {
+  for (final font in AccessibilityFontStyle.values) {
+    testWidgets(
+      'Account fields and tabs follow the ${font.name} font preference',
+      (tester) async {
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        final preferences = AccessibilityPreferences.defaults.copyWith(
+          fontStyle: font,
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: HocalistTheme.lightFor(preferences),
+            home: Scaffold(
+              body: Column(
+                children: [
+                  HocalistAccountField(
+                    label: 'Address',
+                    controller: controller,
+                  ),
+                  HocalistSectionTabs(
+                    accent: Colors.indigo,
+                    sections: const {
+                      'Profile': [Text('Profile details')],
+                      'Settings': [Text('Preferences')],
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).style?.fontFamily,
+          preferences.fontFamily,
+        );
+        expect(
+          tester.widget<Text>(find.text('Settings')).style?.fontFamily,
+          preferences.fontFamily,
+        );
+      },
+    );
+  }
   testWidgets('account fields and tabs use explicit approved typography', (
     tester,
   ) async {

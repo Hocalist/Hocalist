@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/hocalist_loading_indicator.dart';
 import '../../data/phase2/reviews/buyer_reviews_backend.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../components/account_role_components.dart';
@@ -69,6 +70,7 @@ class _BuyerReviewsSectionState extends State<BuyerReviewsSection> {
       context,
       'Review buyer',
       BuyerReviewEditor(repository: widget.repository, purchases: purchases),
+      seller: true,
     );
     if (mounted) await load();
   }
@@ -93,7 +95,7 @@ class _BuyerReviewsSectionState extends State<BuyerReviewsSection> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (busy) const LinearProgressIndicator(),
+        if (busy) const Center(child: HocalistLoadingIndicator()),
         if (error != null) ...[
           AccountStateNotice(
             seller: false,
@@ -143,7 +145,6 @@ class _BuyerReviewsSectionState extends State<BuyerReviewsSection> {
                     Text(
                       review.seller,
                       style: const TextStyle(
-                        fontFamily: 'Nunito',
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
                       ),

@@ -83,8 +83,10 @@ class Phase2MarketplaceSellerOffersBackend
     );
     if (result.isFailure) {
       final error = result.errorOrNull!;
+      final issue = error is ValidationError && error.issues.isNotEmpty ? error.issues.first : null;
       throw StoreBackendException(
-        _message(error),
+        issue?.message ?? _message(error),
+        code: issue?.code,
         ambiguous: _isAmbiguous(error),
       );
     }

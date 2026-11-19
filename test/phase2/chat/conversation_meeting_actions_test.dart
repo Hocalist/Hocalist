@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:hocalist/main.dart' show findDealMeeting;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/phase2/meetings/meeting_codecs.dart';
@@ -87,6 +88,12 @@ Future<void> pump(
 }
 
 void main() {
+  test('seller opens the selected offer meeting in a shared buyer conversation', () {
+    final meetings = [meeting(id: 'first'), meeting(id: 'second')];
+    expect(findDealMeeting(meetings, 'chat', 'offer-second')?.meetingId, 'second');
+    expect(findDealMeeting(meetings, 'chat', 'offer-without-meeting'), isNull);
+    expect(findDealMeeting(meetings, 'another-chat', 'offer-second'), isNull);
+  });
   for (final compact in [false, true]) {
     testWidgets('declined change retains original schedule (compact=$compact)', (tester) async {
       await pump(tester, deal: meeting(accepted: true, declined: true, proposer: null), compact: compact);

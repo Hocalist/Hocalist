@@ -165,7 +165,7 @@ const offerInput = (requestId, overrides = {}) => ({
   currency_code: 'USD',
   message: 'Can meet tomorrow.',
   image_media_ids: [],
-  schedule_date: '2026-11-05',
+  schedule_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
   schedule_time: '18:30',
   schedule_timezone: 'America/New_York',
   place_choice: 'specific_place',
@@ -175,7 +175,7 @@ const offerInput = (requestId, overrides = {}) => ({
 });
 
 const schedule = (overrides = {}) => ({
-  schedule_date: '2026-11-05',
+  schedule_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
   schedule_time: '18:30',
   schedule_timezone: 'America/New_York',
   place_choice: 'specific_place',
@@ -480,6 +480,23 @@ test('reviews: eligibility, idempotent submission, moderation and aggregate', as
       assert.equal(otherBuyer.eligible, false);
       assert.equal(otherBuyer.reason, 'not_participant');
       assert.equal(otherBuyer.review, null);
+    });
+
+    await t.test('the winning seller cannot review themselves after switching to an active buyer role', async () => {
+      const buyerMembership = (await db.query(
+        "INSERT INTO hocalist.memberships(user_id,role,status) VALUES ($1,'buyer','active') RETURNING id", [B],
+      )).rows[0].id;
+      try {
+        const status = (await reviewStatus(db, B, request.id))[0].data;
+        assert.equal(status.eligible, false);
+        assert.equal(status.reason, 'not_participant');
+        await expectRejected(reviewSubmit(db, B, 'confirmed-self-review', {
+          request_id: request.id, rating: 5, body: 'Self review',
+        }), 'review_not_eligible', '42501');
+        assert.equal((await db.query('SELECT count(*)::int AS n FROM hocalist.outcome_reviews WHERE request_id=$1', [request.id])).rows[0].n, 0);
+      } finally {
+        await db.query('DELETE FROM hocalist.memberships WHERE id=$1', [buyerMembership]);
+      }
     });
 
     await t.test('restricted, disabled and pending memberships are refused', async () => {
@@ -987,4 +1004,56 @@ test('cleared search still displays business distance without applying its defau
   assert.ok(noBusiness.items.every(r=>r.distance_miles==null));
   for(const row of data.items){assert.equal('latitude' in row,false);assert.equal('longitude' in row,false);}
  } finally { await db.close(); }
+});
+
+test('buyer and seller home actions preserve deal history and enforce recommendation access', async () => {
+  const db = await createDb();
+  try {
+    // Install the same RPC definitions this patch extends.
+    const chat = await read('../../runtime_repairs/209_pair_conversations.sql');
+    await db.exec(chat.slice(chat.indexOf('CREATE OR REPLACE FUNCTION hocalist.chat_deals'), chat.indexOf('DO $guard$', chat.indexOf('CREATE OR REPLACE FUNCTION hocalist.chat_deals'))));
+    const audit = await read('../../admin_completion/163_admin_audit_feed.sql');
+    await db.exec(audit.slice(audit.indexOf('CREATE FUNCTION hocalist.admin_audit_feed'), audit.indexOf('END; $$;', audit.indexOf('CREATE FUNCTION hocalist.admin_audit_feed')) + 8));
+    const patch = await read('../../runtime_repairs/281_home_and_meeting_actions.sql');
+    await db.exec(patch);
+    await db.exec(patch);
+    await assert.rejects(recommended(db, B), /recommendations_require_paid_plan/);
+    await db.query("INSERT INTO hocalist.seller_entitlements(user_id,plan_code,source) VALUES ($1,'pro','admin')", [B]);
+    await db.query("INSERT INTO hocalist.memberships(user_id,role,status) VALUES ($1,'seller','active'),($2,'buyer','active')", [A,B]);
+    const ownerSeller = (await db.query("SELECT id FROM hocalist.memberships WHERE user_id=$1 AND role='seller'", [A])).rows[0].id;
+    await db.query("INSERT INTO hocalist.role_profiles(membership_id,display_name) VALUES ($1,'Dual role')", [ownerSeller]);
+    const request = (await command(db,A,'request.create','home-req',requestInput()))[0].result;
+    await assert.rejects(command(db,A,'offer.submit','self-offer',offerInput(request.id)), /offer_access_denied/);
+    const newer = (await command(db,A,'request.create','newer-request',requestInput({title:'Newer request'})))[0].result;
+    const home = async (cursor=null) => (await callAs(db,'authenticated',A,'SELECT hocalist.marketplace_my_requests(NULL,1,$1) AS data',[cursor]))[0].data;
+    assert.equal((await home()).items[0].id,newer.id);
+    const offer = (await command(db,B,'offer.submit','lower-offer',offerInput(request.id,{price_minor:100})))[0].result;
+    const updated = await home();
+    assert.equal(updated.items[0].id,request.id);
+    assert.equal((await home(updated.next_cursor)).items[0].id,newer.id);
+    await command(db,A,'offer.select','select-home',{offer_id:offer.id,revision_id:offer.revisions[0].id,expected_offer_revision:offer.revision});
+    const conversation = (await command(db,A,'conversation.open_offer','chat-home',{offer_id:offer.id}))[0].result.conversation_id;
+    const proposed = (await propose(db,A,conversation,'proposal-home'))[0].data;
+    const args = [proposed.id, JSON.stringify(schedule({schedule_time:'19:30'})), proposed.revision, 'modify-home'];
+    const counter = (await callAs(db,'authenticated',B,'SELECT hocalist.meeting_reschedule_propose($1,$2,$3,$4) AS data',args))[0].data;
+    assert.equal(counter.pending_schedule.proposed_by_user_id,B);
+    const accepted = (await respond(db,A,counter.id,counter.revision,true,'accept-home'))[0].data;
+    await callAs(db,'authenticated',B,'SELECT hocalist.meeting_cancel($1,$2,$3,$4)',[accepted.id,accepted.revision,'cancel-home','Unforeseen circumstances']);
+    assert.equal((await db.query('SELECT reason FROM hocalist.meeting_cancellation_reasons WHERE meeting_id=$1',[accepted.id])).rows[0].reason,'Unforeseen circumstances');
+    const revision = (await db.query('SELECT revision FROM hocalist.requests WHERE id=$1',[request.id])).rows[0].revision;
+    await command(db,A,'request.close','close-home',{request_id:request.id,expected_revision:revision});
+    for (const viewer of [A,B]) {
+      const deals = (await callAs(db,'authenticated',viewer,'SELECT hocalist.chat_deals($1) AS data',[conversation]))[0].data.items;
+      assert.equal(deals.find(row=>row.id===offer.id)?.request_status,'closed');
+    }
+    await assert.rejects(reviewSubmit(db,B,'dual-self-review',{request_id:request.id,rating:5,body:'Self review'}));
+    const profileSchema = await read('../../account_completion/131_profile_categories.sql');
+    await db.exec(profileSchema.slice(profileSchema.indexOf('CREATE TABLE hocalist.role_profile_categories'),profileSchema.indexOf('CREATE INDEX role_profile_categories_category')));
+    await db.query('INSERT INTO hocalist.role_profile_categories(membership_id,category_id) VALUES ($1,$2)',[MB,CATEGORY]);
+    const matching = (await command(db,A,'request.create','category-match',requestInput({title:'Matching lead'})))[0].result;
+    const other = (await command(db,A,'request.create','other-category',requestInput({kind:'service',condition:null,service_type:'one_time',category_id:TOPIC,title:'Other category'})))[0].result;
+    const recommendedIds = (await recommended(db,B))[0].data.items.map(row=>row.request_id ?? row.id);
+    assert.ok(recommendedIds.includes(matching.id));
+    assert.ok(!recommendedIds.includes(other.id));
+  } finally { await db.close(); }
 });

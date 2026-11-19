@@ -143,12 +143,12 @@ void main() {
       await tester.pumpWidget(page([]));
       await tester.pumpAndSettle();
       expect(find.text('Home services'), findsOneWidget);
-      expect(find.text('0 sellers are offering deals'), findsOneWidget);
+      expect(find.text('0 Store listings'), findsOneWidget);
       expect(find.textContaining('iPad Air'), findsNothing);
       expect(find.textContaining('23 sellers'), findsNothing);
       await tester.pumpWidget(page([seller]));
       await tester.pumpAndSettle();
-      expect(find.text('1 seller is offering deals'), findsOneWidget);
+      expect(find.text('1 Store listing'), findsOneWidget);
       expect(find.text('Ask for price'), findsOneWidget);
       expect(find.text('—'), findsNothing);
     expect(find.text('Ask seller for details'), findsNothing);

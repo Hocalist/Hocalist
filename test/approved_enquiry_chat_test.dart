@@ -58,7 +58,7 @@ void main(){
       await tester.tap(toggle);
       await tester.pumpAndSettle();
       expect(card, findsNothing);
-      expect(find.text('Selected deal: Previous tablet request'), findsOneWidget);
+      expect(find.bySemanticsLabel('Selected deal: Previous tablet request'), findsOneWidget);
       expect(find.byKey(const Key('approved-manage-conversation-deals')), findsOneWidget);
       expect(tester.widget<TextField>(input).controller!.text, 'Keep this draft');
       await tester.tap(toggle);
@@ -77,7 +77,7 @@ void main(){
         await tester.pumpWidget(MaterialApp(theme:ThemeData(fontFamily:'Nunito'),builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),child:child!),home:enquiryChat(onSelect:(id)=>selected=id)));
         await tester.pumpAndSettle();
         expect(tester.takeException(),isNull);
-        expect(find.text('Selected deal: Previous tablet request'),findsNothing);
+        expect(find.bySemanticsLabel('Selected deal: Previous tablet request'),findsNothing);
         final choice=find.byKey(const ValueKey('enquiry-trend'));
         await tester.ensureVisible(choice);await tester.tap(choice);expect(selected,'trend');
         expect(tester.takeException(),isNull);
@@ -99,7 +99,7 @@ void main(){
       ),
     ))));
     await tester.pumpAndSettle();
-    expect(find.text('Current Deals'), findsOneWidget);
+    expect(find.text('Current deals'), findsOneWidget);
     expect(find.byKey(const ValueKey('active-deal-current')), findsOneWidget);
     expect(find.byKey(const ValueKey('active-deal-past')), findsNothing);
     expect(find.byKey(const Key('chat-past-deals')), findsNothing);
@@ -113,7 +113,7 @@ void main(){
     await tester.tap(find.byKey(const Key('chat-past-deals')));
     await tester.pumpAndSettle();
     expect(selected, 'past');
-    expect(find.text('Selected deal: Completed request'), findsOneWidget);
+    expect(find.bySemanticsLabel('Selected deal: Completed request'), findsOneWidget);
     await tester.tap(find.text('Enquiries').first);
     await tester.pumpAndSettle();
     expect(enquiry, 'store');

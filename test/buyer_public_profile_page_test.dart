@@ -1,9 +1,28 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/domain/phase2/discovery.dart';
 import 'package:hocalist/features/discovery/buyer_public_profile_page.dart';
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
+import 'package:hocalist/features/profiles/profile_pages.dart';
 
 void main() {
+  for (final seller in [false, true]) {
+    testWidgets('${seller ? 'Seller' : 'Buyer'} preview shows the branded loader until the profile arrives', (tester) async {
+      final buyerResult = Completer<PublicBuyerProfile>();
+      final sellerResult = Completer<Map<String, dynamic>>();
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+        child: seller
+            ? SellerPublicProfileView(embedded: true, name: 'Test seller', onBack: () {}, load: () => sellerResult.future)
+            : BuyerPublicProfilePage(embedded: true, onBack: () {}, load: () => buyerResult.future),
+      ))));
+      expect(find.byType(HocalistLoadingIndicator), findsOneWidget);
+      buyerResult.complete(const PublicBuyerProfile(available: false));
+      sellerResult.complete({'available': false});
+      await tester.pumpAndSettle();
+      expect(find.byType(HocalistLoadingIndicator), findsNothing);
+    });
+  }
   testWidgets('buyer consent withheld renders privacy without invented facts', (
     tester,
   ) async {

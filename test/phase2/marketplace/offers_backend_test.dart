@@ -238,6 +238,16 @@ void main() {
       expect(input['price_minor'], 42000);
     });
 
+    test('preserves payment setup failures as typed codes', () async {
+      transport.handler = (call) => const MarketplaceTransportError(
+        kind: MarketplaceTransportErrorKind.server,
+        message: 'payment_permission_required',
+        code: 'P0001',
+      );
+      await expectLater(backend.submitOffer(requestId: requestId, terms: terms(), operationKey: 'payment-key'),
+        throwsA(isA<StoreBackendException>().having((error) => error.code, 'code', 'payment_permission_required')));
+    });
+
     test('maps ambiguous and nonexistent local times to typed codes', () async {
       transport.handler = (call) => const MarketplaceTransportError(
         kind: MarketplaceTransportErrorKind.server,

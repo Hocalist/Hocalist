@@ -4,6 +4,7 @@ import '../../data/phase2/maps/places_contract.dart';
 import '../../domain/phase2/common.dart';
 import '../../domain/phase2/accounts.dart';
 import '../../components/hocalist_account_field.dart';
+import '../../components/account_role_components.dart';
 import 'package:flutter/material.dart';
 import '../../domain/phase2/account_contacts.dart';
 import '../../domain/phase2/patch.dart';
@@ -260,23 +261,16 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
       'Country code',
     ];
     const limits = [40, 300, 300, 150, 150, 40, 2];
-    return HocalistAccountFormCard(
-      child: Column(
+    final title = widget.addressTitle ?? 'Private contact details';
+    final subtitle = widget.showPhone
+        ? 'Your saved home address. Saving a phone number here does not verify it for login.'
+        : 'Your saved business address. Search for the street or complete the fields below.';
+    final fieldsColumn = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [
-            Expanded(child: BuyerSectionHeading(title: widget.addressTitle ?? 'Private contact details')),
-            if (widget.isPopup && widget.onDiscard != null)
-              IconButton(
-                tooltip: 'Close',
-                onPressed: busy ? null : widget.onDiscard,
-                icon: const Icon(Icons.close),
-              ),
-          ]),
-          Text(
-            widget.showPhone
-              ? 'Your saved home address. Saving a phone number here does not verify it for login.'
-              : 'Your saved business address. Search for the street or complete the fields below.',
+          if (!widget.isPopup) ...[
+          BuyerSectionHeading(title: title),
+          Text(subtitle,
             style: BuyerTypography.style(
               context,
               ApprovedReplicaScope.maybeOf(context) ??
@@ -288,6 +282,7 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
               BuyerTextRole.secondaryBody,
             ),
           ),
+          ],
           if (base == null)
             const Padding(
               padding: EdgeInsets.only(top: 10),
@@ -359,7 +354,8 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
             ),
           ],
           const SizedBox(height: 12),
-          BuyerPrimaryButton(
+          AccountActionButton(
+            seller: widget.seller,
             onPressed: busy || _resolvingAddress || base == null ? null : save,
             label: busy
                 ? 'Saving…'
@@ -369,7 +365,8 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
           ),
           if (widget.showPhone) ...[
           const SizedBox(height: 8),
-          BuyerSecondaryButton(
+          AccountSecondaryButton(
+            seller: widget.seller,
             label: widget.isPopup && widget.onDiscard != null && !hasChanges
                 ? 'Close'
                 : pending != null
@@ -394,7 +391,10 @@ class _PrivateContactEditorState extends State<PrivateContactEditor> {
           ),
           ],
         ],
-      ),
     );
+    if (!widget.isPopup) return HocalistAccountFormCard(child: fieldsColumn);
+    return AccountModalSheet(seller: widget.seller, title: title, subtitle: subtitle,
+      icon: widget.seller ? Icons.storefront_outlined : Icons.home_outlined,
+      onClose: () { if (!busy) widget.onDiscard?.call(); }, child: fieldsColumn);
   }
 }

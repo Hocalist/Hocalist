@@ -477,6 +477,26 @@ test("a registered evidence resolver is bounded by the URL gate", async () => {
   assert.equal(blocked.body.state, "error");
 });
 
+test('support screenshots require the exact case and media reference before resolving bytes', async () => {
+  let reads = 0;
+  const resolver: AdminEvidenceResolver = { async resolveEvidence() {
+    reads++;
+    return { state: 'ready', url: 'https://media.hocalist.com/evidence/report.png', expires_at: null };
+  }};
+  const denied = fakeFetch([rpcRoute('admin_report_evidence_reference', 200, {reference_ok:false})]);
+  const rejected = await handleEvidenceCore(
+    request({sessionToken:'t',body:{submission_id:SUBMISSION,media_id:MEDIA,scope:'report'}}),
+    deps({fetchImpl:denied.fetchImpl,evidenceHost:'media.hocalist.com'}),resolver,'report');
+  assert.equal(rejected.status,404);
+  assert.equal(reads,0);
+  const allowed = fakeFetch([rpcRoute('admin_report_evidence_reference', 200, {reference_ok:true})]);
+  const result = await handleEvidenceCore(
+    request({sessionToken:'t',body:{submission_id:SUBMISSION,media_id:MEDIA,scope:'report'}}),
+    deps({fetchImpl:allowed.fetchImpl,evidenceHost:'media.hocalist.com'}),resolver,'report');
+  assert.equal(result.status,200);
+  assert.equal(reads,1);
+});
+
 test('logout revokes the provider session and preserves recovery on transport failure', async () => {
   const calls: string[] = [];
   const transport = (async (input: unknown) => { calls.push(String(input)); return new Response(null, { status: 204 }); }) as typeof fetch;

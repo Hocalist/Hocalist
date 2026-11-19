@@ -5,6 +5,7 @@ import '../../domain/phase2/schedule.dart';
 
 import '../../theme/seller_ui_foundation.dart';
 import 'seller_schedule_controls.dart';
+import '../../theme/control_foundation.dart';
 
 class ApprovedSellerRescheduleDialog extends StatefulWidget {
   const ApprovedSellerRescheduleDialog({
@@ -281,29 +282,27 @@ class _ApprovedSellerRescheduleDialogState
                   SellerStateNotice(icon: Icons.schedule_outlined,
                     title: 'Meeting timezone: ${widget.timezoneId}',
                     body: 'Times use the local timezone at the meeting location.'),
-                  if (_requiresOccurrence)
-                    DropdownButtonFormField<RepeatedTimeOccurrence>(
-                      isExpanded: true,
+                  if (_requiresOccurrence) ...[
+                    SizedBox(height: metrics.spacing(8)),
+                    Text('Choose which time', style: sellerText(metrics, 12, weight: FontWeight.w700)),
+                    SizedBox(height: metrics.spacing(6)),
+                    HocalistSelectMenu<RepeatedTimeOccurrence?>(
                       key: ValueKey(_occurrence),
-                      initialValue: _occurrence,
-                      decoration: sellerInputDecoration(
-                        context,
-                        labelText: 'Choose which time',
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: RepeatedTimeOccurrence.earlier,
-                          child: Text('Earlier occurrence'),
-                        ),
-                        DropdownMenuItem(
-                          value: RepeatedTimeOccurrence.later,
-                          child: Text('Later occurrence'),
-                        ),
-                      ],
-                      onChanged: _busy || _uncertain
+                      role: HocalistControlRole.seller,
+                      expanded: true,
+                      semanticLabel: 'Choose which time',
+                      value: _occurrence,
+                      options: const [RepeatedTimeOccurrence.earlier, RepeatedTimeOccurrence.later],
+                      labelBuilder: (value) => switch (value) {
+                        RepeatedTimeOccurrence.earlier => 'Earlier occurrence',
+                        RepeatedTimeOccurrence.later => 'Later occurrence',
+                        null => 'Select a time',
+                      },
+                      onSelected: _busy || _uncertain
                           ? null
                           : (value) => setState(() => _occurrence = value),
                     ),
+                  ],
                 ],
                 if (widget.onSubmit == null) ...[
                   SizedBox(height: metrics.spacing(12)),
@@ -367,10 +366,12 @@ class _ApprovedSellerRescheduleDialogState
                 ),
                 SizedBox(height: metrics.spacing(12)),
                 if (_error != null)
-                  Text(_error!, key: const Key('rescheduleError')),
+                  Text(_error!, key: const Key('rescheduleError'),
+                    style: sellerText(metrics, 12, color: SellerUiColors.red, height: 1.45)),
                 if (_uncertain)
-                  const Text(
+                  Text(
                     'The outcome is unconfirmed. Retry keeps the exact date, time and request.',
+                    style: sellerText(metrics, 12, color: SellerUiColors.body, height: 1.45),
                   ),
                 SellerPrimaryButton(
                   key: const Key('sellerSendReschedule'),
@@ -402,7 +403,7 @@ class _ApprovedSellerRescheduleDialogState
                       horizontal: metrics.spacing(16),
                       vertical: metrics.spacing(9),
                     ),
-                    textStyle: sellerText(metrics, 14, weight: FontWeight.w700).copyWith(fontFamily: 'Nunito'),
+                    textStyle: sellerText(metrics, 14, weight: FontWeight.w700),
                     side: BorderSide(
                       color: HocalistPalette.border(
                         context,

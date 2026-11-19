@@ -1,6 +1,6 @@
 // Server only. Deliberately independent of Flutter and the shared project's other apps.
-export const PROJECT = "https://icqwbzswokoulatomgql.supabase.co";
-export const ACCOUNT = "acct_1Le6hqDmHEV44E5Y";
+import { billingEnvironment, sharedBillingAccount } from "./stripe-test-project.ts";
+export { sharedProject as PROJECT, sharedBillingAccount as ACCOUNT } from "./stripe-test-project.ts";
 export type ObjectMap = Record<string, unknown>;
 export function object(value: unknown): ObjectMap {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -33,21 +33,23 @@ export class BillingError extends Error {
     super(code);
   }
 }
-export function backend() {
+export function backend(account = Deno.env.get("HOCALIST_SELLER_TEST_ACCOUNT_ID")) {
   const verifiedEmails = new WeakMap<Request, string>();
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const key = Deno.env.get("HOCALIST_STRIPE_TEST_API_KEY") ?? "";
+  const configuration = billingEnvironment(Deno.env.get("SUPABASE_URL"), account);
+  const key = Deno.env.get(configuration.keyName) ?? "";
   if (
-    Deno.env.get("SUPABASE_URL") !== PROJECT || !service ||
+    !service ||
     !/^(sk|rk)_test_/.test(key)
   ) throw new Error("configuration_unavailable");
   return {
+    account: configuration.account,
     async user(request: Request): Promise<string> {
       const authorization = request.headers.get("Authorization") ?? "";
       if (!/^Bearer \S+$/.test(authorization)) {
         throw new BillingError("authentication_required", 401);
       }
-      const result = await fetch(`${PROJECT}/auth/v1/user`, {
+      const result = await fetch(`${configuration.project}/auth/v1/user`, {
         headers: { apikey: service, Authorization: authorization },
         signal: AbortSignal.timeout(10000),
       });
@@ -65,7 +67,7 @@ export function backend() {
       return verifiedEmails.get(request);
     },
     async rpc(name: string, body: ObjectMap = {}): Promise<unknown> {
-      const response = await fetch(`${PROJECT}/rest/v1/rpc/${name}`, {
+      const response = await fetch(`${configuration.project}/rest/v1/rpc/${name}`, {
         method: "POST",
         headers: {
           apikey: service,
@@ -135,9 +137,9 @@ export function backend() {
     },
   };
 }
-export type Backend = ReturnType<typeof backend>;
+export type Backend = Omit<ReturnType<typeof backend>, "account"> & { account?: string };
 export async function assertAccount(api: Backend): Promise<void> {
-  if ((await api.stripe("account")).id !== ACCOUNT) {
+  if ((await api.stripe("account")).id !== (api.account ?? sharedBillingAccount)) {
     throw new Error("configuration_unavailable");
   }
 }

@@ -28,14 +28,19 @@ void main() {
     AccessibilityPreferences preferences = AccessibilityPreferences.defaults,
     ValueChanged<AccessibilityPreferences>? onApply,
     VoidCallback? onBack,
+    bool seller = false,
+    Brightness brightness = Brightness.light,
     Key? pageKey,
   }) {
     return MaterialApp(
-      theme: HocalistTheme.lightFor(preferences),
+      theme: brightness == Brightness.dark
+          ? HocalistTheme.darkFor(preferences)
+          : HocalistTheme.lightFor(preferences),
       home: Scaffold(
         body: SafeArea(
           child: AccessibilityPage(
             key: pageKey,
+            seller: seller,
             appliedPreferences: preferences,
             onApply: onApply ?? (_) {},
             onBack: onBack ?? () {},
@@ -56,29 +61,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> precacheAccessibilityImages(WidgetTester tester) async {
-    final context = tester.element(find.byType(AccessibilityPage));
-    await tester.runAsync(() async {
-      for (final asset in const [
-        'assets/accessibility/icons/back-chevron.png',
-        'assets/accessibility/icons/accessibility-person.png',
-        'assets/accessibility/icons/selection-check.png',
-        'assets/accessibility/icons/preview-eye-primary.png',
-        'assets/accessibility/icons/preview-check-success.png',
-        'assets/accessibility/icons/preview-eye-success.png',
-      ]) {
-        await precacheImage(AssetImage(asset), context);
-      }
-    });
-    await tester.pumpAndSettle();
-  }
-
   testWidgets('390 default replica fits every approved section before nav', (
     tester,
   ) async {
     useViewport(tester, const Size(390, 844));
     await tester.pumpWidget(accessibilityHarness());
-    await precacheAccessibilityImages(tester);
+    await tester.pumpAndSettle();
 
     expect(
       tester.getSize(find.byKey(const Key('accessibility-intro-panel'))),
@@ -142,7 +130,7 @@ void main() {
   ) async {
     useViewport(tester, const Size(320, 844));
     await tester.pumpWidget(accessibilityHarness());
-    await precacheAccessibilityImages(tester);
+    await tester.pumpAndSettle();
 
     const scale = 320 / 390;
     final small = find.byKey(const Key('text-size-small'));
@@ -193,7 +181,7 @@ void main() {
     await tester.pumpWidget(
       accessibilityHarness(preferences: comparisonPreferences),
     );
-    await precacheAccessibilityImages(tester);
+    await tester.pumpAndSettle();
 
     final textCards = AppTextSize.values
         .map((size) => find.byKey(Key('text-size-${size.name}')))
@@ -331,55 +319,76 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'Extra Large final panel');
   });
 
-  testWidgets('draft choices apply together from the full preview', (
-    tester,
-  ) async {
-    useViewport(tester, const Size(390, 1000));
-    AccessibilityPreferences? applied;
-    await tester.pumpWidget(
-      accessibilityHarness(onApply: (value) => applied = value),
-    );
-    await tester.pumpAndSettle();
+  for (final seller in [false, true]) {
+    for (final brightness in Brightness.values) {
+      testWidgets(
+        'draft choices apply from preview seller=$seller theme=$brightness',
+        (tester) async {
+          useViewport(tester, const Size(390, 1000));
+          AccessibilityPreferences? applied;
+          await tester.pumpWidget(
+            accessibilityHarness(
+              seller: seller,
+              brightness: brightness,
+              onApply: (value) => applied = value,
+            ),
+          );
+          await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('text-size-extraLarge')));
-    await tester.tap(find.byKey(const Key('font-style-friendly')));
-    await scrollPageTo(
-      tester,
-      find.byKey(const Key('button-style-highContrast')),
-    );
-    await tester.tap(find.byKey(const Key('button-style-highContrast')));
-    await tester.pumpAndSettle();
-    expect(applied, isNull);
+          await tester.tap(find.byKey(const Key('text-size-extraLarge')));
+          await tester.tap(find.byKey(const Key('font-style-friendly')));
+          await scrollPageTo(
+            tester,
+            find.byKey(const Key('button-style-highContrast')),
+          );
+          await tester.tap(find.byKey(const Key('button-style-highContrast')));
+          await tester.pumpAndSettle();
+          expect(applied, isNull);
 
-    await scrollPageTo(
-      tester,
-      find.byKey(const Key('show-accessibility-preview')),
-    );
-    await tester.tap(find.byKey(const Key('show-accessibility-preview')));
-    await tester.pumpAndSettle();
+          await scrollPageTo(
+            tester,
+            find.byKey(const Key('show-accessibility-preview')),
+          );
+          await tester.tap(find.byKey(const Key('show-accessibility-preview')));
+          await tester.pumpAndSettle();
 
-    final previewContext = tester.element(find.text('Example request card'));
-    expect(Theme.of(previewContext).textTheme.titleLarge?.fontFamily, 'Lexend');
-    expect(
-      Theme.of(
-        previewContext,
-      ).extension<HocalistAccessibilityVisuals>()?.buttonRadius,
-      3,
-    );
+          final previewContext = tester.element(
+            find.text('Example request card'),
+          );
+          expect(Theme.of(previewContext).brightness, brightness);
+          final sample = tester.widget<Text>(find.text('Example request card'));
+          expect(sample.style?.fontFamily, 'Lexend');
+          expect(
+            sample.style?.color,
+            Theme.of(previewContext).textTheme.titleLarge?.color,
+          );
+          expect(
+            Theme.of(
+              previewContext,
+            ).extension<HocalistAccessibilityVisuals>()?.buttonRadius,
+            3,
+          );
 
-    await tester.ensureVisible(find.text('Apply changes'));
-    await tester.tap(find.text('Apply changes'));
-    await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('Apply changes'));
+          await tester.tap(find.text('Apply changes'));
+          await tester.pumpAndSettle();
 
-    expect(
-      applied,
-      const AccessibilityPreferences(
-        textSize: AppTextSize.extraLarge,
-        fontStyle: AccessibilityFontStyle.friendly,
-        buttonStyle: AccessibilityButtonStyle.highContrast,
-      ),
-    );
-  });
+          expect(
+            applied,
+            const AccessibilityPreferences(
+              textSize: AppTextSize.extraLarge,
+              fontStyle: AccessibilityFontStyle.friendly,
+              buttonStyle: AccessibilityButtonStyle.highContrast,
+            ),
+          );
+        },
+        variant: TargetPlatformVariant({
+          TargetPlatform.android,
+          TargetPlatform.iOS,
+        }),
+      );
+    }
+  }
 
   testWidgets('back confirms and discards an unapplied draft', (tester) async {
     useViewport(tester, const Size(390, 1000));

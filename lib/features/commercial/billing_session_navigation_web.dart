@@ -6,7 +6,7 @@ external JSObject _createElement(JSString name);
 @JS('document.body.appendChild')
 external void _appendToBody(JSObject element);
 
-bool submitBillingSession(Uri destination, String accessToken, String userId) {
+bool submitBillingSession(Uri destination, String accessToken, String userId, {bool newWindow = false}) {
   // Fixed first-party destination. Never place authentication in a URL.
   if (destination.scheme != 'https' ||
       !{'hocalist.com', 'www.hocalist.com'}.contains(destination.host) ||
@@ -21,7 +21,7 @@ bool submitBillingSession(Uri destination, String accessToken, String userId) {
     'action'.toJS,
     'https://www.hocalist.com/api/session/app'.toJS,
   );
-  form.setProperty('target'.toJS, '_self'.toJS);
+  form.setProperty('target'.toJS, (newWindow ? '_blank' : '_self').toJS);
   for (final entry in {
     'access_token': accessToken,
     'user_id': userId,

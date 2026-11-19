@@ -21,6 +21,7 @@ class ApprovedSellerMeetsPage extends StatefulWidget {
     this.error,
     this.onRefresh,
     this.onOpenMeeting,
+    this.onMeetingAction,
     this.onMessageMeeting,
     this.onDirectionsMeeting,
     this.hasMore = false,
@@ -37,6 +38,7 @@ class ApprovedSellerMeetsPage extends StatefulWidget {
   final String? error;
   final Future<void> Function()? onRefresh;
   final ValueChanged<MeetingView>? onOpenMeeting;
+  final void Function(MeetingView, String)? onMeetingAction;
   final ValueChanged<MeetingView>? onMessageMeeting;
   final ValueChanged<MeetingView>? onDirectionsMeeting;
   final bool hasMore;
@@ -116,6 +118,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
                       label: switch (option) {
                         _MeetFilter.upcoming => 'Upcoming',
                         _MeetFilter.today => 'Today',
+                        _MeetFilter.past => 'Past meetings',
                         _MeetFilter.completed => 'Completed',
                         _MeetFilter.canceled => 'Canceled',
                       },
@@ -146,6 +149,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
     final completed = _isCompleted(appointment);
     return switch (_selectedFilter) {
       _MeetFilter.upcoming => !completed && !appointment.canceled,
+      _MeetFilter.past => false,
       _MeetFilter.today => appointment.isToday && !appointment.canceled,
       _MeetFilter.completed => completed,
       _MeetFilter.canceled => appointment.canceled,
@@ -366,18 +370,16 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
     // outcome projection keeps the tab honestly at zero.
     bool completed(MeetingView meeting) =>
         completedIds.contains(meeting.meetingId);
-    final pastUnresolved = rows
-        .where(
-          (meeting) =>
-              active(meeting) && !completed(meeting) && !upcoming(meeting),
-        )
-        .toList(growable: false);
+    bool past(MeetingView meeting) =>
+        active(meeting) && !canceled(meeting) && !completed(meeting) && !upcoming(meeting);
+    final pastCount = rows.where(past).length;
     final completedCount = rows.where(completed).length;
     final canceledCount = rows.where(canceled).length;
     final visible = rows
         .where(
           (meeting) => switch (_selectedFilter) {
             _MeetFilter.upcoming => upcoming(meeting),
+            _MeetFilter.past => past(meeting),
             _MeetFilter.today => today(meeting),
             _MeetFilter.completed => completed(meeting),
             _MeetFilter.canceled => canceled(meeting),
@@ -399,6 +401,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
               selected: _selectedFilter,
               upcomingCount: upcomingCount,
               todayCount: todayCount,
+              pastCount: pastCount,
               completedCount: completedCount,
               canceledCount: canceledCount,
               onSelected: _selectFilter,
@@ -442,6 +445,8 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
                 _RealMeetingCard(
                   meeting: meeting,
                   completed: completed(meeting),
+                  past: _selectedFilter == _MeetFilter.past,
+                  onAction: _selectedFilter == _MeetFilter.past ? null : widget.onMeetingAction,
                   onOpen: widget.onOpenMeeting == null
                       ? null
                       : () => widget.onOpenMeeting!(meeting),
@@ -454,35 +459,6 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
                 ),
                 SizedBox(height: metrics.spacing(12)),
               ],
-            if (_selectedFilter == _MeetFilter.upcoming &&
-                pastUnresolved.isNotEmpty) ...[
-              const SellerSectionHeading(
-                title: 'Past meetings · needs attention',
-              ),
-              const SellerStateNotice(
-                icon: Icons.event_busy_outlined,
-                title: 'These meetings are still unresolved',
-                body:
-                    'Their meeting day has ended. Open the details or message the buyer to agree on the next step. They are not confirmed purchases.',
-              ),
-              SizedBox(height: metrics.spacing(12)),
-              for (final meeting in pastUnresolved) ...[
-                _RealMeetingCard(
-                  meeting: meeting,
-                  completed: false,
-                  onOpen: widget.onOpenMeeting == null
-                      ? null
-                      : () => widget.onOpenMeeting!(meeting),
-                  onMessage: widget.onMessageMeeting == null
-                      ? null
-                      : () => widget.onMessageMeeting!(meeting),
-                  onDirections: widget.onDirectionsMeeting == null
-                      ? null
-                      : () => widget.onDirectionsMeeting!(meeting),
-                ),
-                SizedBox(height: metrics.spacing(12)),
-              ],
-            ],
             if (widget.hasMore)
               TextButton(
                 onPressed: widget.loading ? null : widget.onLoadMore,
@@ -537,6 +513,7 @@ class _MeetStatusTabs extends StatelessWidget {
   const _MeetStatusTabs({
     required this.selected,
     required this.upcomingCount,
+    this.pastCount = 0,
     required this.todayCount,
     required this.completedCount,
     required this.canceledCount,
@@ -545,6 +522,7 @@ class _MeetStatusTabs extends StatelessWidget {
 
   final _MeetFilter selected;
   final int upcomingCount;
+  final int pastCount;
   final int todayCount;
   final int completedCount;
   final int canceledCount;
@@ -555,7 +533,7 @@ class _MeetStatusTabs extends StatelessWidget {
     final metrics = ApprovedReplicaScope.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 340;
+        final compact = constraints.maxWidth < 440;
         return Container(
           padding: EdgeInsets.all(metrics.geometry(2)),
           decoration: BoxDecoration(
@@ -581,6 +559,14 @@ class _MeetStatusTabs extends StatelessWidget {
                 selected: selected == _MeetFilter.today,
                 compact: compact,
                 onTap: () => onSelected(_MeetFilter.today),
+              ),
+              _StatusTab(
+                key: const Key('sellerMeetFilterPast'),
+                label: 'Past',
+                count: '$pastCount',
+                selected: selected == _MeetFilter.past,
+                compact: compact,
+                onTap: () => onSelected(_MeetFilter.past),
               ),
               _StatusTab(
                 key: const Key('sellerMeetFilterCompleted'),
@@ -626,16 +612,13 @@ class _StatusTab extends StatelessWidget {
     final metrics = ApprovedReplicaScope.of(context);
     final accessibilityFlex = switch (label) {
       'Upcoming' => 12,
-      'Today' => 8,
+      'Today' || 'Past' => 8,
       'Completed' => 11,
       'Canceled' => 10,
       _ => 10,
     };
     return Expanded(
-      // The default approved row stays evenly divided. Only the narrow
-      // accessibility layout assigns space by label length, keeping all four
-      // actions on the original single row without truncating their names.
-      flex: compact && metrics.accessibilityReflow ? accessibilityFlex : 1,
+      flex: compact ? accessibilityFlex : 1,
       child: Semantics(
         button: true,
         selected: selected,
@@ -669,21 +652,12 @@ class _StatusTab extends StatelessWidget {
                   child: _StatusTabLabel(
                     label: label,
                     selected: selected,
-                    // Keep the approved calendar treatment at normal text
-                    // sizes. On a narrow phone with accessibility reflow the
-                    // label and count need the full tab width so the action
-                    // name is never clipped.
-                    showIcon:
-                        selected && !(compact && metrics.accessibilityReflow),
+                    showIcon: selected && !compact,
                     compact: compact,
                   ),
                 ),
-                SizedBox(width: compact ? 1.5 : metrics.geometry(4)),
-                _StatusCount(
-                  count: count,
-                  selected: selected,
-                  compact: compact,
-                ),
+                SizedBox(width: metrics.geometry(compact ? 5 : 6)),
+                _StatusCount(count: count, selected: selected, compact: compact),
               ],
             ),
           ),
@@ -730,6 +704,7 @@ class _StatusTabLabel extends StatelessWidget {
             style: sellerText(
               metrics,
               compact ? 9.5 : 9,
+              height: 1,
               weight: FontWeight.w700,
               color: selected ? Colors.white : SellerUiColors.body,
             ),
@@ -755,16 +730,18 @@ class _StatusCount extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     return CircleAvatar(
-      radius: metrics.geometry(compact ? 8 : 9),
+      radius: metrics.geometry(compact ? 7 : 9),
       backgroundColor: HocalistPalette.surface(
         context,
         selected ? Colors.white : SellerUiColors.lavender,
       ),
       child: Text(
         count,
+        textAlign: TextAlign.center,
         style: sellerText(
           metrics,
           compact ? 8.5 : 8,
+          height: 1,
           weight: FontWeight.w800,
           color: SellerUiColors.primaryBright,
         ),
@@ -798,6 +775,10 @@ class _EmptyAppointments extends StatelessWidget {
         realMode
             ? 'A meeting is completed after a verified purchase PIN outcome.'
             : 'PIN-verified meetings will appear here.',
+      ),
+      _MeetFilter.past => (
+        'No past meetings awaiting an outcome',
+        'Past meetings without a recorded purchase appear here.',
       ),
       _MeetFilter.canceled => (
         'No canceled appointments',
@@ -1291,13 +1272,17 @@ class _AppointmentCard extends StatelessWidget {
 class _RealMeetingCard extends StatelessWidget {
   const _RealMeetingCard({
     required this.meeting,
+    this.onAction,
     required this.onOpen,
     required this.onMessage,
     this.onDirections,
     this.completed = false,
+    this.past = false,
   });
 
+  final bool past;
   final MeetingView meeting;
+  final void Function(MeetingView, String)? onAction;
   final VoidCallback? onOpen;
   final VoidCallback? onMessage;
   final VoidCallback? onDirections;
@@ -1312,7 +1297,7 @@ class _RealMeetingCard extends StatelessWidget {
         : meeting.latestProposalDeclined
         ? (meeting.hasAcceptedSchedule ? 'Change declined' : 'Declined')
         : switch (meeting.status) {
-            'accepted' => 'Confirmed',
+            'accepted' => past ? 'Meeting was confirmed' : 'Confirmed',
             'proposed' => 'Proposed',
             'reschedule_proposed' => 'Reschedule requested',
             'cancelled' => 'Cancelled',
@@ -1322,7 +1307,7 @@ class _RealMeetingCard extends StatelessWidget {
     final statusColor = completed
         ? SellerUiColors.green
         : switch (meeting.status) {
-            'accepted' => SellerUiColors.green,
+            'accepted' => past ? SellerUiColors.muted : SellerUiColors.green,
             'cancelled' || 'rejected' => SellerUiColors.red,
             'reschedule_proposed' => SellerUiColors.amber,
             _ => SellerUiColors.primaryBright,
@@ -1330,11 +1315,12 @@ class _RealMeetingCard extends StatelessWidget {
     final title = meeting.offerSummary?.title ?? 'Meeting';
     final price = meeting.offerSummary?.priceLabel;
     final place = schedule?.placeLabel ?? schedule?.placeAddress;
-    final accepted = meeting.acceptedSchedule;
+    final accepted = onAction != null ? meeting.pendingSchedule ?? meeting.acceptedSchedule : meeting.acceptedSchedule;
+    final awaitingSeller = meeting.pendingSchedule?.proposedByUserId == meeting.buyerUserId;
+    final actionable = !completed && ['accepted','proposed','reschedule_proposed'].contains(meeting.status);
     final directionsAvailable =
         !completed &&
-        (meeting.status == 'accepted' ||
-            meeting.status == 'reschedule_proposed') &&
+        (meeting.status == 'accepted' || meeting.status == 'reschedule_proposed' || (onAction != null && meeting.status == 'proposed')) &&
         onDirections != null &&
         hasConfirmedMeetingDestination(
           address: accepted?.placeAddress,
@@ -1423,6 +1409,10 @@ class _RealMeetingCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (past) ...[
+                  SizedBox(height: metrics.spacing(8)),
+                  Text('No purchase recorded.', style: sellerText(metrics, 12)),
+                ],
                 if (!completed && meeting.latestProposalDeclined) ...[
                   SizedBox(height: metrics.spacing(8)),
                   Text(meeting.declinedProposalMessage, style: sellerText(metrics, 12)),
@@ -1501,7 +1491,14 @@ class _RealMeetingCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: metrics.spacing(8)),
-                SellerPrimaryButton(label: 'View meeting', onPressed: onOpen),
+                if (onAction != null && actionable)
+                  Wrap(spacing: 8, runSpacing: 4, children: [
+                    if (awaitingSeller) TextButton(onPressed: () => onAction!(meeting, 'accept'), child: const Text('Accept')),
+                    if (meeting.pendingSchedule == null || awaitingSeller) TextButton(onPressed: () => onAction!(meeting, 'modify'), child: Text(meeting.pendingSchedule == null ? 'Reschedule' : 'Modify')),
+                    TextButton(onPressed: () => onAction!(meeting, 'cancel'), child: const Text('Cancel')),
+                    IconButton(tooltip: 'Meeting details', onPressed: onOpen, icon: const Icon(Icons.chevron_right)),
+                  ])
+                else SellerPrimaryButton(label: 'View meeting', onPressed: onOpen),
               ],
             ),
           ),
@@ -2187,7 +2184,7 @@ class _SellerSheetHandle extends StatelessWidget {
   }
 }
 
-enum _MeetFilter { upcoming, today, completed, canceled }
+enum _MeetFilter { upcoming, today, completed, canceled, past }
 
 class _Appointment {
   const _Appointment({

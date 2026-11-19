@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../features/approved/approved_replica_metrics.dart';
 import 'package:flutter/material.dart';
+import '../theme/accessibility_visuals.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -151,7 +152,7 @@ class _HocalistSectionTabsState extends State<HocalistSectionTabs> {
           textScaler: MediaQuery.textScalerOf(context),
         );
     final tabStyle = TextStyle(
-      fontFamily: 'Nunito',
+      fontFamily: hocalistAccessibilityVisualsOf(context).fontFamily,
       fontSize: metrics.fontSize(13),
       fontWeight: FontWeight.w800,
     );

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hocalist/features/account/contact_verification_panel.dart';
 import 'package:hocalist/data/phase2/providers/contact_verification_service.dart';
 import 'test_fonts.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 class FakeContacts implements ContactVerificationGateway {
   @override Future<void> resendEmail() async {}
@@ -37,6 +38,16 @@ class FakeContacts implements ContactVerificationGateway {
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  testWidgets('buyer contact settings show both verification statuses in buyer style', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: ContactVerificationPanel(service: FakeContacts(), onChanged: () {}, buyer: true),
+    ))));
+    await tester.pumpAndSettle();
+    final notices = tester.widgetList<BuyerStateNotice>(find.byType(BuyerStateNotice));
+    expect(notices.map((notice) => notice.title), ['Email', 'Phone']);
+    expect(find.text('Verified'), findsOneWidget);
+    expect(find.text('Not verified'), findsOneWidget);
+  });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.6]) {
       testWidgets('existing seller phone verification fits $width at $scale', (

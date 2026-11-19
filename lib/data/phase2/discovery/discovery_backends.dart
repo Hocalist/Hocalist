@@ -134,6 +134,18 @@ class Phase2DiscoveryBackend
     return (enabled: row['enabled'] as bool, eligible: row['eligible'] as bool);
   }
 
+  Future<({bool enabled, bool eligible})> hocatrendsListingPreference(
+    String listingId, {bool? enabled}
+  ) async {
+    final result = await adapter.hocatrendsListingPreference(listingId, enabled: enabled);
+    if (result.isFailure) throw _exception(result.errorOrNull!, 'hocatrends_preference');
+    final row = result.valueOrNull!;
+    if (row['listing_id'] != listingId || row['enabled'] is! bool || row['eligible'] is! bool) {
+      throw const StoreBackendException('Could not verify this Hocatrends preference.');
+    }
+    return (enabled: row['enabled'] as bool, eligible: row['eligible'] as bool);
+  }
+
   @override
   Future<RecommendedLeadsView> loadRecommendedLeads() async {
     final result = await adapter.fetchRecommendedLeads();

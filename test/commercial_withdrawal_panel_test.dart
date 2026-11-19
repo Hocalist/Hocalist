@@ -47,6 +47,58 @@ Future<void> _pump(
 void main() {
   setUpAll(loadHocalistTestFonts);
 
+  testWidgets('verification advances to the amount in the same rewards popup', (tester) async {
+    bool phone = false;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(child: const Text('Rewards'), onPressed: () => showModalBottomSheet<bool>(
+        context: context, isScrollControlled: true,
+        builder: (_) => WithdrawalPanel(
+          load: () async => _status(phone: phone),
+          submit: (_, _) async => throw StateError('unexpected submission'),
+          verificationForm: (_, verified) => TextButton(
+            onPressed: () { phone = true; verified(); },
+            child: const Text('Complete test verification'),
+          ),
+        ),
+      )),
+    ))));
+    await tester.tap(find.text('Rewards'));
+    await tester.pumpAndSettle();
+    expect(find.text('Verify your phone'), findsOneWidget);
+    await tester.tap(find.text('Complete test verification'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('withdrawalAmountField')), findsOneWidget);
+    expect(find.text('Withdrawal history'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('buyer-modal-sheet-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('Rewards'), findsOneWidget);
+    expect(find.byKey(const Key('withdrawalAmountField')), findsNothing);
+  });
+
+  testWidgets('phone prompt opens once and can be resumed after dismissal', (tester) async {
+    var verified = false;
+    var prompts = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: WithdrawalPanel(
+        load: () async => _status(phone: verified),
+        submit: (_, _) async => throw StateError('unexpected withdrawal'),
+        verifyContact: (context, {required phone}) async {
+          expect(phone, isTrue);
+          prompts++;
+          verified = prompts == 2;
+        },
+      ),
+    ))));
+    await tester.pumpAndSettle();
+    expect(prompts, 1);
+    expect(find.byKey(const Key('withdrawalSubmit')), findsNothing);
+    await tester.ensureVisible(find.text('Verify phone'));
+    await tester.tap(find.text('Verify phone'));
+    await tester.pumpAndSettle();
+    expect(prompts, 2);
+    expect(find.byKey(const Key('withdrawalAmountField')), findsOneWidget);
+  });
+
   testWidgets('unverified contacts keep the gate and hide submission', (
     tester,
   ) async {
@@ -80,7 +132,7 @@ void main() {
     );
     await tester.enterText(
       find.byKey(const Key('withdrawalAmountField')),
-      '3000',
+      '30.00',
     );
     await tester.pumpAndSettle();
     expect(find.text(r'Net payout after the $2.50 deduction: $27.50'), findsOneWidget);
@@ -103,7 +155,7 @@ void main() {
         throw StateError('unused');
       },
     );
-    await tester.enterText(find.byKey(const Key('withdrawalAmountField')), '500');
+    await tester.enterText(find.byKey(const Key('withdrawalAmountField')), '5.00');
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('withdrawalSubmit')));
     await tester.pumpAndSettle();

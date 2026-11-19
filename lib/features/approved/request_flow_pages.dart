@@ -12,7 +12,6 @@ import '../../domain/phase2/us_states.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_motion.dart';
-import '../../components/notification_indicator.dart';
 import '../media/request_photo_gallery.dart';
 
 import '../../data/local_marketplace_repository.dart';
@@ -86,8 +85,6 @@ const _maximumIcon = '$_assetRoot/price-max.png';
 const _categoryGridIcon = '$_assetRoot/category-grid.png';
 const _categoryDownIcon = '$_assetRoot/category-down.png';
 const _selectedRadioIcon = '$_assetRoot/location-radio-selected.png';
-const _buyerModeIcon = '$_assetRoot/header-buyer-down.png';
-const _notificationIcon = '$_assetRoot/header-notification.png';
 
 ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
   return ApprovedReplicaScope.maybeOf(context) ??
@@ -290,6 +287,22 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
 
   void _selectHomeAddress(bool value) {
     FocusScope.of(context).unfocus();
+    if (value && (widget.homeAddress?.line1?.trim().isEmpty ?? true)) {
+      setState(() {
+        _useHomeAddress = !widget.usesRealSubmission;
+        if (_useHomeAddress) {
+          _mapLocation = null;
+          _addressLine1 = _addressLine2 = _city = _state = _postalCode = _country = null;
+        }
+      });
+      final openAddress = widget.onManageHomeAddress;
+      if (openAddress != null) {
+        openAddress();
+      } else {
+        setState(() => _submitError = 'Add your home address in settings, or enter a different address below.');
+      }
+      return;
+    }
     setState(() {
       _useHomeAddress = value;
       _submitError = null;
@@ -299,14 +312,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
         _country = null;
       }
     });
-    if (value && (widget.homeAddress?.line1?.trim().isEmpty ?? true)) {
-      final openAddress = widget.onManageHomeAddress;
-      if (openAddress != null) {
-        openAddress();
-      } else {
-        setState(() => _submitError = 'Add your home address in settings, or enter a different address below.');
-      }
-    }
+
   }
   String _condition = 'New';
   String _serviceType = 'Single';
@@ -376,6 +382,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
 
 
   bool _submitting = false;
+  Future<void>? _streetSelection;
   bool _submissionCompleted = false;
   String? _submitError;
   bool _outcomeUncertain = false;
@@ -609,6 +616,16 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   Future<void> _submitRealRequest() async {
     // Pointer events can reuse the previous frame's enabled callback.
     if (_submitting || _submissionCompleted) return;
+    final selection = _streetSelection;
+    if (!_useHomeAddress && selection != null) {
+      setState(() => _submitting = true);
+      try {
+        await selection;
+      } finally {
+        if (mounted) setState(() => _submitting = false);
+      }
+      if (!mounted || _submissionCompleted) return;
+    }
     final submitter = widget.onSubmitDraft;
     if (submitter == null) return;
     final localError = _localValidationMessage();
@@ -887,6 +904,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       key: const ValueKey('approved-location-step'),
                       isProduct: _kind == ApprovedRequestKind.product,
                       savedAddressMode: widget.savedAddresses != null,
+                      onStreetSelection: (selection) => _streetSelection = selection,
                       onAddressCompleted: () => unawaited(_rememberAddress()),
                       useHomeAddress: _useHomeAddress,
                       onUseHomeAddressChanged: _selectHomeAddress,
@@ -1448,6 +1466,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     required this.onSubmit,
     this.savedAddressMode = false,
     this.onAddressCompleted,
+    this.onStreetSelection,
     this.isProduct = false,
     this.onManageHomeAddress,
     this.homeAddressLine1 = '123 Main Street',
@@ -1474,6 +1493,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
 
   final bool savedAddressMode;
   final VoidCallback? onAddressCompleted;
+  final ValueChanged<Future<void>>? onStreetSelection;
   final bool useHomeAddress;
   final ValueChanged<bool> onUseHomeAddressChanged;
   final VoidCallback onBack;
@@ -1727,6 +1747,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
                 value: customAddress?.line1,
                 onChanged: onAddressLine1Changed,
                 onResolved:onResolvedLocation,
+                onSelection:onStreetSelection,
               ),
               SizedBox(height: metrics.geometry(5)),
               _ApprovedAddressField(
@@ -2537,10 +2558,10 @@ class _ApprovedBuyerRequestDetailsPageState
               _ApprovedRealOffersPanel(onOffers: widget.onOffers),
             if (widget.onRecovery != null && widget.request != null &&
                 widget.request!.status != RequestStatus.active)
-              TextButton(
+              BuyerTextAction(
                 key: const Key('request-recovery-options'),
                 onPressed: widget.onRecovery,
-                child: const Text('Request recovery options'),
+                label: 'Request recovery options',
               ),
             if (!_canEdit) ...[
               Text(
@@ -2550,7 +2571,7 @@ class _ApprovedBuyerRequestDetailsPageState
                 key: const Key('request-edit-locked'),
                 style: _bodyStyle(context),
               ),
-              TextButton(onPressed: widget.onOffers, child: const Text('View offers and deals')),
+              BuyerTextAction(onPressed: widget.onOffers, label: 'View offers and deals'),
             ],
             if (_saveError != null) ...[
               SizedBox(height: metrics.geometry(5)),
@@ -2564,10 +2585,10 @@ class _ApprovedBuyerRequestDetailsPageState
               ),
               if (_outcomeUncertain) ...[
                 SizedBox(height: metrics.geometry(4)),
-                TextButton(
+                BuyerTextAction(
                   key: const Key('requestDiscardAttempt'),
                   onPressed: _saving ? null : _discardUncertain,
-                  child: const Text('Discard this attempt'),
+                  label: 'Discard this attempt',
                 ),
               ],
             ],
@@ -2622,8 +2643,13 @@ class ApprovedBuyerRequestShell extends StatelessWidget {
                   padding: metrics.geometryInsets(
                     const EdgeInsets.fromLTRB(14, 2, 12, 0),
                   ),
-                  child: _ApprovedGlobalHeader(
-                    onBack: onBack,
+                  child: BuyerTopLevelHeader(
+                    backButton: IconButton(
+                      tooltip: 'Back',
+                      onPressed: onBack,
+                      icon: BuyerGlyphIcon(icon: Icons.arrow_back, slotSize: metrics.geometry(25.6),
+                        color: HocalistPalette.text(context, _approvedNavy)),
+                    ),
                     onNotifications: onNotifications,
                   ),
                 ),
@@ -2672,136 +2698,6 @@ class ApprovedBuyerRequestShell extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ApprovedGlobalHeader extends StatelessWidget {
-  const _ApprovedGlobalHeader({
-    required this.onBack,
-    required this.onNotifications,
-  });
-
-  final VoidCallback onBack;
-  final VoidCallback onNotifications;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = _replicaMetrics(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SizedBox(
-          height: metrics.geometry(58.5),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  tooltip: 'Back',
-                  onPressed: onBack,
-                  constraints: BoxConstraints.tightFor(
-                    width: metrics.geometry(41.5),
-                    height: metrics.geometry(41.5),
-                  ),
-                  padding: EdgeInsets.zero,
-                  icon: BuyerGlyphIcon(
-                    icon: Icons.arrow_back,
-                    slotSize: metrics.geometry(25.6),
-                    color: HocalistPalette.text(context, _approvedNavy),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: metrics.geometry(43),
-                right: constraints.maxWidth * .48,
-                top: 0,
-                bottom: 0,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Image.asset(
-                    'assets/brand/hocalist-wordmark.png',
-              cacheWidth: 528,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xfff3f3ff)
-                        : null,
-                    width: metrics.artSize(88),
-                    height: metrics.artSize(54),
-                    fit: BoxFit.contain,
-                    semanticLabel: 'Hocalist Reverse Marketplace',
-                  ),
-                ),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      height: metrics.geometry(36.56),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: metrics.geometry(7.31),
-                      ),
-                      decoration: BoxDecoration(
-                        color: HocalistPalette.surface(
-                          context,
-                          _approvedLavender,
-                        ),
-                        borderRadius: BorderRadius.circular(
-                          metrics.geometry(999),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _ApprovedAssetIcon(
-                            asset: _buyerModeIcon,
-                            size: metrics.geometry(18.28),
-                          ),
-                          SizedBox(width: metrics.geometry(3.66)),
-                          Text(
-                            metrics.accessibilityReflow ||
-                                    metrics.availableWidth < 390 ||
-                                    MediaQuery.textScalerOf(context).scale(12) >
-                                        13.2
-                                ? 'Buyer'
-                                : 'Buyer mode',
-                            maxLines: 1,
-                            softWrap: false,
-                            style: _smallStyle(context).copyWith(
-                              color: HocalistPalette.text(
-                                context,
-                                _approvedBlue,
-                              ),
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: metrics.geometry(2.44)),
-                    IconButton(
-                      tooltip: 'Notifications',
-                      onPressed: onNotifications,
-                      constraints: BoxConstraints.tightFor(
-                        width: metrics.geometry(39),
-                        height: metrics.geometry(39),
-                      ),
-                      padding: EdgeInsets.zero,
-                      icon: NotificationArtwork(
-                        child: _ApprovedAssetIcon(
-                          asset: _notificationIcon,
-                          size: metrics.geometry(28),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -4128,7 +4024,7 @@ class _ApprovedActionRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stacked = metrics.accessibilityReflow;
-        final actionHeight = _requestDimension(metrics, 34, floor: 40);
+        final actionHeight = _requestDimension(metrics, 42, floor: 40);
         final back = SizedBox(
           height: metrics.screenshotLocked ? actionHeight : null,
           child: OutlinedButton(
@@ -4163,6 +4059,7 @@ class _ApprovedActionRow extends StatelessWidget {
         );
         if (stacked) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               forward,
               SizedBox(height: metrics.geometry(8)),
@@ -4331,7 +4228,8 @@ class _ApprovedLocationActions extends StatelessWidget {
 }
 
 class _RequestStreetSearch extends StatefulWidget {
-  const _RequestStreetSearch({this.places,this.value,this.onChanged,this.onResolved});
+  const _RequestStreetSearch({this.places,this.value,this.onChanged,this.onResolved,this.onSelection});
+  final ValueChanged<Future<void>>? onSelection;
   final PlacesRepository? places;
   final String? value;
   final ValueChanged<String>? onChanged;
@@ -4381,7 +4279,10 @@ class _RequestStreetSearchState extends State<_RequestStreetSearch> {
     if(busy)const BuyerProgressStrip(label:'Finding address details…'),
     if(error!=null)Text(error!,style:_smallStyle(context)),
     for(final suggestion in suggestions)Material(color:Colors.transparent,child:InkWell(
-      key:ValueKey('buyerAddress-${suggestion.placeId}'),onTap:busy?null:()=>select(suggestion),
+      key:ValueKey('buyerAddress-${suggestion.placeId}'),onTap:busy?null:(){
+        final selection = select(suggestion);
+        widget.onSelection?.call(selection);
+      },
       borderRadius:BorderRadius.circular(10),child:Padding(padding:const EdgeInsets.all(10),
         child:Row(children:[const Icon(Icons.place_outlined,color:_approvedBlue),const SizedBox(width:8),Expanded(child:Text(suggestion.label,style:_bodyStyle(context)))])),
     )),

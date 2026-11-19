@@ -198,6 +198,7 @@ abstract interface class MarketplaceMeetingsBackend {
   });
 
   Future<MeetingView> cancelMeeting({
+    String? reason,
     required String meetingId,
     required int expectedRevision,
     required String operationKey,
@@ -360,15 +361,16 @@ abstract interface class MarketplaceSellerOffersRevisionBackend {
 /// Outcome of one real seller offer action, safe to show on the seller pages.
 class SellerOfferActionResult {
   const SellerOfferActionResult.success(this.offer)
-    : error = null,
+    : ambiguousTime = false, error = null,
       outcomeUncertain = false;
 
   const SellerOfferActionResult.failure(
     this.error, {
-    this.outcomeUncertain = false,
+    this.outcomeUncertain = false, this.ambiguousTime = false,
   }) : offer = null;
 
   final Offer? offer;
+  final bool ambiguousTime;
   final String? error;
   final bool outcomeUncertain;
 
@@ -400,16 +402,19 @@ class ChatSendResult {
 class OfferSubmissionResult {
   const OfferSubmissionResult.success(this.offer)
     : error = null,
+      paymentSetupRequired = false,
       ambiguousTime = false,
       outcomeUncertain = false;
 
   const OfferSubmissionResult.failure(
     this.error, {
+    this.paymentSetupRequired = false,
     this.ambiguousTime = false,
     this.outcomeUncertain = false,
   }) : offer = null;
 
   final Offer? offer;
+  final bool paymentSetupRequired;
   final String? error;
 
   /// True when the chosen local time repeats and an occurrence must be picked.
@@ -1093,12 +1098,14 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   Future<MeetingActionResult> cancelMeeting({
+    String? reason,
     required String meetingId,
     required int expectedRevision,
     required String operationKey,
   }) {
     return _runMeetingAction(
       () => meetingsBackend!.cancelMeeting(
+        reason: reason,
         meetingId: meetingId,
         expectedRevision: expectedRevision,
         operationKey: operationKey,
@@ -1463,6 +1470,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       return SellerOfferActionResult.failure(
         error.message,
         outcomeUncertain: error.ambiguous,
+        ambiguousTime: error.code == 'ambiguous_local_time',
       );
     }
   }
@@ -2550,6 +2558,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       return OfferSubmissionResult.failure(
         error.message,
         ambiguousTime: error.code == 'ambiguous_local_time',
+        paymentSetupRequired: error.code == 'payment_permission_required' || error.code == 'insufficient_single_batch',
         outcomeUncertain: error.ambiguous,
       );
     }

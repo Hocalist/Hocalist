@@ -18,6 +18,47 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('Accessibility is reachable before signup on a narrow phone', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 700);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var opened = false;
+    await tester.pumpWidget(host(ApprovedAccountCreationPage(
+      role: ApprovedAccountRole.buyer, name: '', onNameChanged: (_) {},
+      onRoleChanged: (_) {}, onSignup: () {}, onLogin: () {},
+      onAccessibility: () => opened = true,
+    )));
+    await tapVisible(tester, find.text('Accessibility'));
+    expect(opened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('unconfirmed login can request a fresh signup confirmation', (tester) async {
+    String? recipient;
+    await tester.pumpWidget(host(ApprovedAccountCreationPage(
+      role: ApprovedAccountRole.buyer,
+      initialLoginMode: true,
+      name: '',
+      onNameChanged: (_) {},
+      onRoleChanged: (_) {},
+      onSignup: () {},
+      onLogin: () {},
+      onRealSubmit: (_) async => throw const AccountActionException(
+        'email_not_confirmed', 'Confirm your email address before signing in.',
+      ),
+      onResendConfirmation: (email) async { recipient = email; },
+    )));
+    final resend = find.text('Resend confirmation email');
+    expect(resend, findsNothing);
+    await tester.enterText(find.byKey(const ValueKey('approved-account-email-field')), 'buyer@example.invalid');
+    await tester.enterText(find.byKey(const ValueKey('approved-account-password-field')), 'example123');
+    await tapVisible(tester, find.byKey(const ValueKey('approved-account-primary-action')));
+    await tapVisible(tester, resend);
+    expect(recipient, 'buyer@example.invalid');
+    expect(find.text('Check buyer@example.invalid for a new confirmation link.'), findsOneWidget);
+    expect(find.text('Resend in 30s'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('local email link uses typed identity without a password', (
     tester,
   ) async {

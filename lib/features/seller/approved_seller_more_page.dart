@@ -137,7 +137,7 @@ class ApprovedSellerMorePage extends StatelessWidget {
                 _MoreItem(
                   keyName: 'sellerMoreHelp',
                   icon: Icons.help_outline,
-                  label: 'Help & support',
+                  label: 'Help & feedback',
                   onTap: onHelp,
                 ),
               ],

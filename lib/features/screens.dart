@@ -3876,28 +3876,18 @@ class _HocatrendsSellerControls extends StatelessWidget {
           selected: filtersOn,
           onTap: onFilters,
         );
-        final sort = PopupMenuButton<String>(
-          tooltip: 'Sort sellers',
-          initialValue: sortLabel,
+        Widget sortMenu({required bool compact}) => HocalistSelectMenu<String>(
+          role: HocalistControlRole.buyer,
+          value: sortLabel,
+          options: const ['Best deal', 'Lowest price', 'Nearest'],
+          labelBuilder: (label) => label,
           onSelected: onSortChanged,
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'Best deal', child: Text('Best deal')),
-            PopupMenuItem(value: 'Lowest price', child: Text('Lowest price')),
-            PopupMenuItem(value: 'Nearest', child: Text('Nearest')),
-          ],
-          child: _HocatrendsSortButton(label: 'Sort by: $sortLabel'),
+          semanticLabel: compact ? 'Sort by $sortLabel' : 'Sort sellers',
+          trigger: compact ? _HocatrendsSortIconButton(label: sortLabel)
+              : _HocatrendsSortButton(label: 'Sort by: $sortLabel'),
         );
-        final compactSort = PopupMenuButton<String>(
-          tooltip: 'Sort by $sortLabel',
-          initialValue: sortLabel,
-          onSelected: onSortChanged,
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'Best deal', child: Text('Best deal')),
-            PopupMenuItem(value: 'Lowest price', child: Text('Lowest price')),
-            PopupMenuItem(value: 'Nearest', child: Text('Nearest')),
-          ],
-          child: _HocatrendsSortIconButton(label: sortLabel),
-        );
+        final sort = sortMenu(compact: false);
+        final compactSort = sortMenu(compact: true);
         final toggle = _HocatrendsViewToggle(
           gridView: gridView,
           onChanged: onViewChanged,
@@ -7887,37 +7877,14 @@ class _OfferToolbar extends StatelessWidget {
         context,
       ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
     );
-    final menu = DecoratedBox(
-      decoration: BoxDecoration(
-        color: HocalistPalette.surface(context, Colors.white),
-        border: Border.all(
-          color: HocalistPalette.border(context, const Color(0xffdfe1ef)),
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            key: const Key('offers-sort'),
-            value: value,
-            isExpanded: true,
-            dropdownColor: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            items: const ['Best match', 'Lowest price', 'Nearest']
-                .map(
-                  (item) => DropdownMenuItem(
-                    value: item,
-                    child: Text(item, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
-            onChanged: (item) {
-              if (item != null) onChanged(item);
-            },
-          ),
-        ),
-      ),
+    final menu = HocalistSelectMenu<String>(
+      key: const Key('offers-sort'),
+      role: HocalistControlRole.buyer,
+      value: value,
+      options: const ['Best match', 'Lowest price', 'Nearest'],
+      labelBuilder: (label) => label,
+      expanded: true,
+      onSelected: onChanged,
     );
     final filter = OutlinedButton.icon(
       key: const Key('offers-filter'),
@@ -10807,7 +10774,7 @@ class SupportPage extends StatelessWidget {
             ),
             _BuyerMoreItem(
               icon: Icons.support_agent_outlined,
-              title: 'Help & Support',
+              title: 'Help & feedback',
               onTap: onHelp,
             ),
           ],
@@ -11587,7 +11554,7 @@ class _BuyerSubpageBlock extends StatelessWidget {
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
-    final onBack = this.onBack ?? _TitleBackScope.maybeOf(context);
+    final onBack = this.onBack ?? _TitleBackScope.maybeOf(context)?.onBack;
     return ApprovedReplicaScope(
       metrics: metrics,
       child: Column(
@@ -13115,8 +13082,8 @@ class HelpSupportPage extends StatelessWidget {
           children: [
             _BuyerSubpageRow(
               icon: Icons.support_agent_outlined,
-              title: 'Contact support',
-              body: 'Open the existing support request and status area.',
+              title: 'Get help or send feedback',
+              body: 'Ask a question, report an issue, or suggest an improvement.',
               onTap: onContactSupport,
             ),
             _BuyerSubpageRow(

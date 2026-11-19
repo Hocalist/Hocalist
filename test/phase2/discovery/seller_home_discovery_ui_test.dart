@@ -166,7 +166,7 @@ void main() {
       tester,
       recommended: RecommendedLeadsView(
         items: const [],
-        basis: const RecommendedLeadsBasis(areaLabel: 'Yonkers, NY'),
+        basis: const RecommendedLeadsBasis(declaredCategoryLabels: ['Electronics'], areaLabel: 'Yonkers, NY'),
         unavailableReason: 'no_eligible_matches',
       ),
     );

@@ -349,8 +349,8 @@ void main() {
         expect(opportunities.style?.color, BuyerUiTokens.trendsAction);
         expect(
           find.text(
-            'Explore verified sellers offering\n'
-            'discounts on products & services.',
+            'Discover products and services\n'
+            'from Pro and Elite sellers.',
           ),
           findsOneWidget,
         );
@@ -790,7 +790,7 @@ void main() {
     await tapVisible(tester, 'Hocatrends');
 
     expect(
-      find.text('Skip the Rewards & save on current offers'),
+      find.text('Shop from seller Stores'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

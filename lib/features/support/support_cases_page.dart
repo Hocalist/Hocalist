@@ -1,8 +1,15 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import '../../data/phase2/media/image_gateway.dart';
+import '../media/private_image_picker.dart';
+import '../../theme/control_foundation.dart';
 import '../../components/pull_refresh.dart';
 import '../../components/hocalist_section_intro.dart';
+import '../../components/hocalist_choice_sheet.dart';
+import '../../components/account_role_components.dart';
+import '../../components/hocalist_account_field.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../data/phase2/support/support_adapter.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -15,11 +22,12 @@ class SupportCasesPage extends StatefulWidget {
     this.conversationId,
     this.initialReasonCode,
     this.generalHelp = false,
+    this.seller = false,
     super.key,
   });
   final SupportAdapter adapter;
   final String? initialReasonCode;
-  final bool generalHelp;
+  final bool generalHelp, seller;
   final VoidCallback onBack;
 
   /// A user-visible reference, not a grant to read the conversation or its messages.
@@ -36,6 +44,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
   String? _formError;
   bool _retryDiscarded = false;
   bool _loading = true, _sending = false;
+  bool _feedback = false, _includeDevice = true, _uploadPending = false;
+  String _feedbackType = 'Problem';
+  List<String> _screenshots = [];
+  int _pickerVersion = 0;
   int _generation = 0;
   ({String reason, String body, String key})? _intent;
   String get _reference => widget.conversationId == null
@@ -96,7 +108,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
   Future<void> _submit() async {
     if (_sending) return;
     if (_intent == null) {
-      if (_reason == null || _body.text.trim().length < 10) {
+      if ((_reason == null && !_feedback) || _body.text.trim().length < 10) {
         setState(() {
           _formError = 'Choose a reason and add at least 10 characters.';
           _retryDiscarded = false;
@@ -104,8 +116,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         return;
       }
       _intent = (
-        reason: _reason!,
-        body: '${_body.text.trim()}$_reference',
+        reason: _feedback ? 'general' : _reason!,
+        body: '${_feedback ? 'Feedback: $_feedbackType\n' : ''}${_body.text.trim()}$_reference'
+          '${_feedback && _includeDevice ? '\n\nApp context: ${kIsWeb ? 'Web' : defaultTargetPlatform.name}; ${widget.seller ? 'seller' : 'buyer'} mode.' : ''}',
         key: LocalMarketplaceRepository.newStoreOperationKey('support'),
       );
     }
@@ -122,6 +135,18 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
       operationKey: intent.key,
     );
     if (!mounted) return;
+    if (result.isSuccess && _screenshots.isNotEmpty) {
+      final attached = await widget.adapter.attachScreenshots(caseId: result.valueOrNull!,
+        mediaIds: _screenshots, operationKey: '${intent.key}-screenshots');
+      if (!mounted) return;
+      if (attached.isFailure) {
+        setState(() {
+          _sending = false;
+          _formError = 'Your feedback was saved, but screenshots were not confirmed. Retry to attach them to the same case.';
+        });
+        return;
+      }
+    }
     setState(() {
       _sending = false;
       if (result.isFailure) {
@@ -132,6 +157,8 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         _ack = result.valueOrNull;
         _intent = null;
         _body.clear();
+        _screenshots = [];
+        _pickerVersion++;
       }
     });
     if (result.isSuccess) await _load();
@@ -152,14 +179,14 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           BuyerNestedHeader(
-            title: widget.generalHelp ? 'Help & support' : 'Safety report',
+            title: widget.generalHelp ? 'Help & feedback' : 'Safety report',
             subtitle: widget.generalHelp
-                ? 'Ask a question and track the response.'
+                ? 'Ask for help or share an idea.'
                 : 'Report an unsafe interaction and track the response.',
             onBack: widget.onBack,
           ),
           SizedBox(height: metrics.spacing(12)),
-          const BuyerStateNotice(
+          if (!_feedback) const BuyerStateNotice(
             icon: Icons.support_agent_outlined,
             tone: BuyerNoticeTone.brand,
             title: 'Support is here to help',
@@ -168,6 +195,22 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                 'here. For immediate danger, contact local emergency services.',
           ),
           SizedBox(height: metrics.spacing(14)),
+          if (widget.generalHelp) ...[
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final feedback in [false, true]) HocalistFilterChip(
+                role: widget.seller ? HocalistControlRole.seller : HocalistControlRole.buyer,
+                label: feedback ? 'Send feedback' : 'Get help', selected: _feedback == feedback,
+                onSelected: (_) { if (!_sending && _intent == null) setState(() => _feedback = feedback); },
+              ),
+            ]),
+            const SizedBox(height: 12),
+            if (_feedback) Wrap(spacing: 8, children: [
+              for (final type in ['Problem', 'Suggestion']) HocalistFilterChip(
+                role: widget.seller ? HocalistControlRole.seller : HocalistControlRole.buyer, label: type,
+                selected: _feedbackType == type,
+                onSelected: (_) { if (!_sending && _intent == null) setState(() => _feedbackType = type); }),
+            ]),
+          ],
           if (widget.conversationId != null) ...[
             Container(
               padding: metrics.geometryInsets(const EdgeInsets.all(12)),
@@ -239,7 +282,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
               icon: Icons.task_alt_rounded,
               tone: BuyerNoticeTone.success,
               title: widget.generalHelp
-                  ? 'Question received'
+                  ? (_feedback ? 'Feedback received' : 'Question received')
                   : 'Report received',
               body: 'Case ID: $_ack',
             ),
@@ -267,7 +310,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
             ),
             SizedBox(height: metrics.spacing(12)),
           ],
-          BuyerSecondaryButton(
+          if (!_feedback) BuyerSecondaryButton(
             label:
                 _reasons.where((r) => r.code == _reason).firstOrNull?.label ??
                 (widget.generalHelp
@@ -280,78 +323,25 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                       context: context,
                       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
                       isScrollControlled: true,
-                      backgroundColor: HocalistPalette.surface(
-                        context,
-                        BuyerUiTokens.surface,
-                      ),
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(24),
-                        ),
-                      ),
-                      builder: (sheetContext) => SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              BuyerNestedHeader(
-                                title: widget.generalHelp
-                                    ? 'Help topic'
-                                    : 'Report reason',
-                                subtitle: 'Choose the reason that best fits',
-                                onBack: () => Navigator.pop(sheetContext),
-                              ),
-                              const SizedBox(height: 12),
-                              Flexible(
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    children: [
-                                      for (final reason in _reasons)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 8,
-                                          ),
-                                          child: ListTile(
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              side: BorderSide(
-                                                color: HocalistPalette.border(
-                                                  context,
-                                                  BuyerUiTokens.border,
-                                                ),
-                                              ),
-                                            ),
-                                            selected: _reason == reason.code,
-                                            selectedTileColor:
-                                                BuyerUiTokens.activeSurface,
-                                            title: Text(reason.label),
-                                            trailing: Icon(
-                                              _reason == reason.code
-                                                  ? Icons.radio_button_checked
-                                                  : Icons
-                                                        .radio_button_unchecked,
-                                              color: HocalistPalette.text(
-                                                context,
-                                                BuyerUiTokens.action,
-                                              ),
-                                            ),
-                                            onTap: () => Navigator.pop(
-                                              sheetContext,
-                                              reason.code,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      useSafeArea: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (sheet) {
+                        final title = widget.generalHelp ? 'Help topic' : 'Report reason';
+                        const subtitle = 'Choose the reason that best fits';
+                        final options = Column(children: [
+                          for (final reason in _reasons)
+                            HocalistSheetChoice(
+                              seller: widget.seller,
+                              label: reason.label,
+                              selected: _reason == reason.code,
+                              onTap: () => Navigator.pop(sheet, reason.code),
+                            ),
+                        ]);
+                        void close() => Navigator.pop(sheet);
+                        return AccountModalSheet(seller: widget.seller, title: title,
+                          subtitle: subtitle, icon: Icons.support_agent_rounded,
+                          onClose: close, child: options);
+                      },
                     );
                     if (mounted && selected != null) {
                       setState(() => _reason = selected);
@@ -359,28 +349,51 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                   },
           ),
           SizedBox(height: metrics.spacing(12)),
-          TextField(
-            key: const Key('supportBody'),
+          HocalistAccountField(
+            fieldKey: const Key('supportBody'),
+            seller: widget.seller,
+            label: _feedback ? 'Your feedback' : 'Your message',
             controller: _body,
             readOnly: _sending || _intent != null,
-            maxLength: 4000 - _reference.length,
-            minLines: 3,
-            maxLines: 6,
-            decoration: buyerInputDecoration(
-              context,
-              hintText: widget.generalHelp
+            maxLength: 3700 - _reference.length,
+            maxLines: 4,
+            textInputAction: TextInputAction.newline,
+            hintText: _feedback ? 'What happened, or what could be better?'
+                  : widget.generalHelp
                   ? 'How can we help? Include any useful request or account details.'
                   : 'What happened? Include the relevant request or meeting reference.',
-            ).copyWith(counterText: ''),
           ),
           SizedBox(height: metrics.spacing(10)),
-          BuyerPrimaryButton(
-            onPressed: _loading || _sending ? null : _submit,
+          if (_feedback) ...[
+            if (configuredImageUpload('report') case final upload?)
+              PrivateImagePicker(key: ValueKey('feedback-photos-$_pickerVersion'),
+                upload: upload, maxImages: 3, storePhotoControls: true,
+                showGuidance: false, secondaryAction: true,
+                addLabel: 'Attach screenshot (optional)',
+                role: widget.seller ? HocalistControlRole.seller : HocalistControlRole.buyer,
+                enabled: !_sending && _intent == null,
+                onPendingChanged: (v) { if (mounted) setState(() => _uploadPending = v); },
+                onChanged: (ids) => setState(() => _screenshots = ids)),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text('Include app context', style: BuyerTypography.style(
+                context, metrics, BuyerTextRole.primaryBody)),
+              subtitle: Text('Platform and buyer or seller mode only.',
+                style: BuyerTypography.style(context, metrics, BuyerTextRole.secondaryBody)),
+              value: _includeDevice,
+              onChanged: _sending || _intent != null ? null : (v) => setState(() => _includeDevice = v ?? false)),
+            const SizedBox(height: 12),
+          ],
+          AccountActionButton(
+            seller: widget.seller,
+            onPressed: _loading || _sending || _uploadPending ? null : _submit,
             label: _sending
                 ? 'Submitting…'
                 : _intent != null
-                ? (widget.generalHelp ? 'Retry question' : 'Retry report')
-                : widget.generalHelp
+                ? (_feedback ? 'Retry feedback' : widget.generalHelp ? 'Retry question' : 'Retry report')
+                : _feedback ? 'Send feedback' : widget.generalHelp
                 ? 'Send question'
                 : 'Send report',
           ),

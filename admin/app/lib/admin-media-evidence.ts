@@ -5,7 +5,8 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 /** Reads authorized bytes with the admitted admin session; never uses a service key. */
 export const mediaEvidenceResolver = createMediaEvidenceResolver("evidence");
 export const storeImageResolver = createMediaEvidenceResolver("store-evidence");
-function createMediaEvidenceResolver(action: "evidence" | "store-evidence"): AdminEvidenceResolver { return {
+export const reportImageResolver = createMediaEvidenceResolver("read");
+function createMediaEvidenceResolver(action: "evidence" | "store-evidence" | "read"): AdminEvidenceResolver { return {
   async resolveEvidence({ submissionId, mediaId, accessToken, config, fetchImpl }) {
     const unavailable = {
       state: "unavailable" as const,

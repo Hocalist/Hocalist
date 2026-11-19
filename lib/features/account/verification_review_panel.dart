@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../../data/phase2/media/image_gateway.dart';
 import '../../data/phase2/trust/trust_backend.dart';
 import '../../theme/seller_ui_foundation.dart';
+import '../../theme/control_foundation.dart';
 import '../media/private_image_picker.dart';
 import '../media/private_remote_image.dart';
 
@@ -435,7 +436,7 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
                                 foregroundColor: HocalistPalette.text(context, SellerUiColors.primary),
                                 minimumSize: const Size(0, 44),
                                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                                textStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                               ),
                               icon: const Icon(Icons.delete_outline_rounded, size: 16),
                               label: Text(submitting
@@ -653,40 +654,19 @@ class _VerificationReviewPanelState extends State<VerificationReviewPanel> {
               children: [
                 const SellerSectionHeading(title: 'Review details'),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
+                const Text('What are you verifying?'),
+                const SizedBox(height: 6),
+                HocalistSelectMenu<String>(
                   key: const Key('verificationKind'),
-                  initialValue: kind,
-                  isExpanded: true,
-                  dropdownColor: HocalistPalette.surface(
-                    context,
-                    SellerUiColors.white,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  style: sellerInputText(
-                    ApprovedReplicaScope.maybeOf(context) ??
-                        ApprovedReplicaMetrics.resolve(
-                          brightness: Theme.of(context).brightness,
-                          availableWidth: MediaQuery.sizeOf(context).width,
-                          textScaler: MediaQuery.textScalerOf(context),
-                        ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'business',
-                      child: Text('Business'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'identity',
-                      child: Text('Identity'),
-                    ),
-                  ],
-                  onChanged: submitting || submissionIntent != null
+                  role: HocalistControlRole.seller,
+                  expanded: true,
+                  semanticLabel: 'What are you verifying?',
+                  value: kind,
+                  options: const ['business', 'identity'],
+                  labelBuilder: (value) => value == 'business' ? 'Business' : 'Identity',
+                  onSelected: submitting || submissionIntent != null
                       ? null
-                      : (value) => setState(() => kind = value ?? 'business'),
-                  decoration: sellerInputDecoration(
-                    context,
-                    labelText: 'What are you verifying?',
-                  ),
+                      : (value) => setState(() => kind = value),
                 ),
                 const SizedBox(height: 10),
                 TextField(

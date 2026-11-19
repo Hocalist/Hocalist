@@ -111,6 +111,14 @@ class HocalistAuthService {
     ),
   );
 
+  Future<void> resendSignupConfirmation(String email) => _run(() async {
+    await client.auth.resend(
+      type: OtpType.signup,
+      email: email.trim(),
+      emailRedirectTo: hocalistAuthRedirect,
+    );
+  });
+
   Future<void> requestEmailLink({
     required String email,
     required String name,

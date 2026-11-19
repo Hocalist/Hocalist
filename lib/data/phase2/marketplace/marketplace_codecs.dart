@@ -645,6 +645,7 @@ MarketplaceRequest decodeRequestJson(Map<String, Object?> row, String context) {
       '$context.acceptance_expires_at',
     ),
     purchaseOfferId: _optionalString(row, 'purchase_offer_id'),
+    homeActivityAt: _optionalTimestamp(row, 'home_activity_at', '$context.home_activity_at'),
     purchaseSelectedAt: _optionalTimestamp(
       row,
       'purchase_selected_at',
@@ -889,6 +890,8 @@ Offer decodeOfferJson(Map<String, Object?> row, String context) {
     ),
     sellerDisplayName: _optionalString(row, 'seller_display_name'),
     requestTitle: _optionalString(row, 'request_title'),
+    requestClosed: row['request_status'] == 'closed',
+    requestMinimumMinor: row['request_minimum_minor'] as int?,
     revisions: revisions,
     status: offerStatusFromWire(
       _requireString(row, 'status', '$context.status'),

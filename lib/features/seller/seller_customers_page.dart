@@ -48,18 +48,7 @@ class _SellerCustomersPageState extends State<SellerCustomersPage> {
     builder: (context, metrics) => ListView(
       padding: EdgeInsets.all(metrics.pageHorizontalPadding(16)),
       children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: metrics.artSize(44), height: metrics.artSize(44),
-            child: IconButton(tooltip: 'Back', onPressed: widget.onBack,
-              icon: Icon(Icons.arrow_back, size: metrics.artSize(23)))),
-          Expanded(child: Column(children: [
-            Text('Customers', style: sellerText(metrics, 16, weight: FontWeight.w800)),
-            SizedBox(height: metrics.spacing(3)),
-            Text('Keep your confirmed buyers close.', textAlign: TextAlign.center,
-              style: sellerText(metrics, 12, color: SellerUiColors.muted)),
-          ])),
-          SizedBox(width: metrics.artSize(44)),
-        ]),
+        SellerNestedHeader(title: 'Customers', subtitle: 'Keep your confirmed buyers close.', onBack: widget.onBack),
         SizedBox(height: metrics.spacing(18)),
         Padding(padding: EdgeInsets.only(left: metrics.spacing(2), bottom: metrics.spacing(7)),
           child: Text('CONFIRMED CUSTOMERS', style: sellerText(metrics, 11,

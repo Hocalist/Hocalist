@@ -331,6 +331,19 @@ class PaygoTermsView {
   }
 }
 
+class ReservedOfferView {
+  const ReservedOfferView(this.title, this.reference, this.heldMinor, this.chargedMinor, this.nextStep);
+
+  final String? title;
+  final String reference, nextStep;
+  final int heldMinor, chargedMinor;
+
+  factory ReservedOfferView.fromJson(Map<String, Object?> json) => ReservedOfferView(
+    _optString(json, 'request_title'), _optString(json, 'offer_id') ?? _string(json, 'request_id'),
+    _int(json, 'held_minor', minimum: 1), _int(json, 'charged_minor', minimum: 0), _string(json, 'next_step'),
+  );
+}
+
 class CreditWalletView {
   const CreditWalletView({
     required this.currency,
@@ -344,6 +357,7 @@ class CreditWalletView {
     required this.depositOptions,
     required this.batches,
     required this.targets,
+    this.reservedOffers,
     required this.depositOptionsConfigured,
     this.paygo,
   });
@@ -359,6 +373,7 @@ class CreditWalletView {
   final List<DepositOptionView> depositOptions;
   final List<CreditBatchView> batches;
   final List<CreditTargetView> targets;
+  final List<ReservedOfferView>? reservedOffers;
   final bool depositOptionsConfigured;
   final PaygoTermsView? paygo;
 
@@ -397,6 +412,9 @@ class CreditWalletView {
         json,
         'targets',
       ).map(CreditTargetView.fromJson).toList(growable: false),
+      reservedOffers: json.containsKey('reserved_offers')
+          ? _rows(json, 'reserved_offers').map(ReservedOfferView.fromJson).toList(growable: false)
+          : null,
       depositOptionsConfigured: _bool(
         Map<String, Object?>.from(policy),
         'deposit_options_configured',
@@ -543,6 +561,7 @@ class ReversalPolicyView {
 
 class RewardWalletView {
   const RewardWalletView({
+    this.testCreditMinor = 0,
     this.estimatedMinor,
     required this.currency,
     required this.earnedMinor,
@@ -571,6 +590,7 @@ class RewardWalletView {
   /// Separate from earned funds and never included in withdrawal admission.
   /// Null means the connected backend does not provide this projection yet.
   final int? estimatedMinor;
+  final int testCreditMinor;
   final int earnedMinor;
   final int heldMinor;
   final int pendingMinor;
@@ -631,6 +651,7 @@ class RewardWalletView {
       throw const CommercialContractError('reward_wallet_shape');
     }
     return RewardWalletView(
+      testCreditMinor: _optInt(json, 'test_credit_minor', minimum: 0) ?? 0,
       currency: currency,
       estimatedMinor: _optInt(json, 'estimated_minor', minimum: 0),
       earnedMinor: earned,

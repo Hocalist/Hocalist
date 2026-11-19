@@ -119,11 +119,13 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
 
   @override
   Future<MeetingView> cancelMeeting({
+    String? reason,
     required String meetingId,
     required int expectedRevision,
     required String operationKey,
   }) async {
     final result = await adapter.cancelMeeting(
+        reason: reason,
       meetingId: meetingId,
       expectedRevision: expectedRevision,
       operationKey: operationKey,

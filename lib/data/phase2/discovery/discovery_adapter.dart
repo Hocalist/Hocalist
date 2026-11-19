@@ -53,6 +53,10 @@ class DiscoveryDataAdapter {
     'p_enabled': enabled,
   });
 
+  Future<RepositoryResult<Map<String, Object?>>> hocatrendsListingPreference(
+    String listingId, {bool? enabled}
+  ) => _rpc('hocatrends_listing_preference', {'p_listing': listingId, 'p_enabled': enabled});
+
   bool _isStillCurrent(String userId) => session.currentUserId == userId;
 
   static const RepositoryError _unauthenticated = PermissionDeniedError(
@@ -432,6 +436,9 @@ class DiscoveryDataAdapter {
       items.add(
         HocatrendsTopic(
           requestId: entry['request_id'] as String?,
+          listingId: entry['listing_id'] as String?,
+          coverPhotoId: entry['cover_photo_id'] as String?,
+          storePriceLabel: entry['price_label'] as String?,
           categoryLabel: entry['category_label'] as String?,
           availableSellers: available as int?,
           rank: rank,

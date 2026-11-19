@@ -1,5 +1,9 @@
+import 'features/commercial/buyer_payout_setup.dart';
+import 'data/phase2/providers/launch_usage.dart';
+import 'components/account_role_switch.dart';
 import 'data/phase2/reviews/buyer_reviews_backend.dart';
 import 'components/account_role_components.dart';
+import 'components/hocalist_account_field.dart' show HocalistAccountField, HocalistAccountFormCard;
 import 'features/profiles/profile_pages.dart';
 import 'features/profiles/buyer_reviews_section.dart';
 import 'features/profiles/profile_ui.dart';
@@ -56,6 +60,8 @@ import 'features/calls/hocalist_call_page.dart';
 import 'features/calls/call_invitation_listener.dart';
 import 'features/commercial/credit_wallet_panel.dart';
 import 'domain/phase2/commercial/commercial.dart';
+import 'data/phase2/commercial/entitlement_backend.dart';
+import 'package:url_launcher/url_launcher.dart' as launcher;
 import 'features/commercial/buyer_rewards_panel.dart';
 import 'features/commercial/withdrawal_panel.dart';
 import 'data/phase2/commercial/commercial_wallet_backend.dart';
@@ -148,8 +154,9 @@ import 'features/seller/seller_app_shell.dart';
 import 'features/seller/seller_bottom_navigation.dart';
 import 'theme/accessibility_visuals.dart';
 import 'theme/buyer_ui_foundation.dart';
-import 'theme/seller_ui_foundation.dart' show SellerUiColors;
+import 'theme/seller_ui_foundation.dart' show SellerUiColors, SellerModalSheet, SellerResponsivePage, SellerStateNotice, SellerNestedHeader, SellerPrimaryButton, SellerSecondaryButton;
 import 'theme/input_foundation.dart';
+import 'theme/control_foundation.dart';
 import 'theme/role_asset_bundle.dart';
 
 export 'theme/accessibility_visuals.dart';
@@ -206,17 +213,48 @@ class HocalistApp extends StatelessWidget {
 /// pending, restricted, failure). The active subtree brings the same theme
 /// and accessibility scaling from the prototype shell, so MaterialApps are
 /// never nested.
-Widget _hocalistRealModeShell(Widget child) {
-  const preferences = AccessibilityPreferences.defaults;
-  return MaterialApp(
+Widget _hocalistRealModeShell(Widget child) => _GuestShell(child: child);
+
+class _GuestShell extends StatefulWidget {
+  const _GuestShell({required this.child});
+  final Widget child;
+  @override
+  State<_GuestShell> createState() => _GuestShellState();
+}
+
+class _GuestShellState extends State<_GuestShell> {
+  final store = const _LocalSessionStore();
+  AccessibilityPreferences preferences = AccessibilityPreferences.defaults;
+
+  @override
+  void initState() {
+    super.initState();
+    store.loadAccessibility().then((value) {
+      if (mounted) setState(() => preferences = value);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
     title: 'Hocalist',
     debugShowCheckedModeBanner: false,
     theme: HocalistTheme.lightFor(preferences),
     darkTheme: HocalistTheme.darkFor(preferences),
     themeMode: ThemeMode.light,
-    builder: (context, appChild) =>
-        _hocalistTextScale(context, appChild, preferences),
-    home: child,
+    builder: (context, child) => _hocalistTextScale(context, child, preferences),
+    home: widget.child,
+    routes: {
+      '/accessibility': (screen) => Scaffold(body: SafeArea(child: AccessibilityPage(
+        appliedPreferences: preferences,
+        onBack: () => Navigator.pop(screen),
+        onApply: (value) async {
+          await store.saveAccessibility(value);
+          if (!mounted || !screen.mounted) return;
+          setState(() => preferences = value);
+          Navigator.pop(screen);
+        },
+      ))),
+    },
   );
 }
 
@@ -327,10 +365,13 @@ AppPage upgradedDestinationFor(AppPage requested, UserRole role) {
     AppPage.finalizeDeal =>
       role == UserRole.seller ? AppPage.sellerConversation : AppPage.buyerChat,
     AppPage.sellerRequestDetail || AppPage.sendOffer => AppPage.marketplace,
-    AppPage.offerSuccess => AppPage.sellerOfferHistory,
+    AppPage.offerSuccess || AppPage.sellerOfferDetail => AppPage.sellerOfferHistory,
     _ => requested,
   };
 }
+
+MeetingView? findDealMeeting(Iterable<MeetingView> meetings, String conversationId, String? offerId) =>
+    meetings.where((m) => m.conversationId == conversationId && (offerId == null || m.offerId == offerId)).firstOrNull;
 
 /// Participant-meeting page size used by [LocalMarketplaceRepository] for the
 /// chat's conversation-deal scan (it calls `loadMeetings(limit: 50)`).
@@ -528,11 +569,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         }
       } else if (page == AppPage.buyerChats || page == AppPage.sellerChat) {
         await repository.refreshChatInbox(background: true);
+      } else if (page == AppPage.buyerDashboard) {
+        await repository.refreshMeetings();
+        if (current()) await _refreshBuyerHomeOffers(background: true);
       } else if (page == AppPage.meetingDetails && !_meetingBusy) {
         final id = repository.meetingDetail?.meetingId;
         if (id != null) await repository.loadMeeting(id);
         if (current()) {
-          if (role == UserRole.buyer) { await _refreshConfirmedBuyerMeetings(); }
+          if (role == UserRole.buyer) { await _refreshConfirmedBuyerMeetings(background: true); }
           else { await _refreshConfirmedMeetings(); }
         }
       } else if (page == AppPage.sellerStore && repository.isStoreBacked) {
@@ -541,24 +585,56 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         await repository.refreshMeetings();
         if (current()) await _refreshConfirmedMeetings();
       } else if (role == UserRole.seller && {
-        AppPage.sellerDashboard, AppPage.sellerOfferHistory, AppPage.sellerOfferDetail,
+        AppPage.sellerDashboard, AppPage.sellerOfferHistory,
       }.contains(page)) {
         await repository.refreshSellerOffers(background: true);
-        if (current() && page == AppPage.sellerOfferDetail) {
-          final latest = repository.sellerOffers.where(
-            (offer) => offer.id == _selectedSellerOffer?.offerId,
-          ).firstOrNull;
-          if (latest != null) setState(() => _selectedSellerOffer = _sellerOfferView(latest));
-        }
+
       }
     } finally { _liveConversationRefreshRunning = false; }
+  }
+
+  bool _checkingSellerReminder = false;
+  Future<void> _showSellerMeetingReminder() async {
+    final user = widget.accountSession?.userId;
+    if (!mounted || role != UserRole.seller || _restoringInitialPage || _callOpen ||
+        user == null || !_marketplace.isMeetingsBacked || _checkingSellerReminder) return;
+    _checkingSellerReminder = true;
+    try {
+      await _marketplace.refreshMeetings();
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'seller.meetingReminders.$user';
+      final seen = prefs.getStringList(key) ?? [];
+      if (!mounted || role != UserRole.seller || _callOpen || user != widget.accountSession?.userId ||
+          _marketplace.meetingsError != null) return;
+      final pending = _marketplace.meetings.where((m) => m.sellerUserId == user &&
+          m.pendingSchedule?.proposedByUserId == m.buyerUserId &&
+          !seen.contains('${m.meetingId}-${m.revision}')).toList();
+      final host = appNavigatorKey.currentContext;
+      if (pending.isEmpty || host == null) return;
+      final open = await showModalBottomSheet<String>(context: host, backgroundColor: Colors.transparent,
+        useSafeArea: true, isScrollControlled: true,
+        builder: (sheet) => SellerModalSheet(title: pending.length == 1 ? 'A meeting needs your response' : '${pending.length} meetings need your response',
+          icon: Icons.event_available, onClose: () => Navigator.pop(sheet),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (final meeting in pending)
+              ListTile(title: Text(meeting.offerSummary?.title ?? 'Meeting proposal'),
+                subtitle: Text('${meeting.pendingSchedule!.date} · ${meeting.pendingSchedule!.startTime} · ${meeting.pendingSchedule!.timezoneId}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pop(sheet, meeting.meetingId)),
+          ])));
+      await prefs.setStringList(key, [...pending.map((m) => '${m.meetingId}-${m.revision}'), ...seen].take(100).toList());
+      if (mounted && open != null && user == widget.accountSession?.userId && role == UserRole.seller) await _openMeetingById(open);
+    } finally { _checkingSellerReminder = false; }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _configureChatRefresh();
+    _configureAccountHealthRefresh();
     if (state == AppLifecycleState.resumed) {
+      unawaited(_showSellerMeetingReminder());
       unawaited(_refreshVisibleConversation());
+      unawaited(_refreshAccountHealth(silent: true));
     }
   }
 
@@ -570,6 +646,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     ),
     initialReasonCode: page == AppPage.reportIssue ? 'safety' : 'general',
     generalHelp: page != AppPage.reportIssue,
+    seller: role == UserRole.seller,
     adapter: _supportAdapter ??= createSupportAdapter(),
     onBack: back,
     conversationId: page == AppPage.reportIssue ? _supportConversationId : null,
@@ -586,6 +663,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   final Map<String, SaleDetailView> _confirmedPurchaseDetails = {};
   final Map<String, bool> _meetingReviewDue = {};
   RecommendedLeadsView? _recommendedLeads;
+  bool _recommendationsLocked = false;
   bool _recommendedLeadsLoading = false;
   String? _recommendedLeadsError;
   SellerAccountHealthView? _accountHealth;
@@ -594,6 +672,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   Set<String>? _confirmedMeetingIds;
   HocatrendsProjection? _hocatrends;
   bool _hocatrendsLoading = false;
+  bool _hocatrendsRefreshing = false;
   String? _hocatrendsError;
   HocatrendsSellerResults? _topicSellerResults;
   bool _topicSellersLoading = false;
@@ -709,6 +788,39 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   List<MeetingView> _conversationMeetingRecords = [];
   List<Offer> _conversationOfferRecords = [];
   SellerLeadView? _focusedSellerLead;
+  List<String> _recentLeadIds = [];
+  final _visitedLeads = <String, SellerLeadView>{};
+  Future<void> _loadLeadHistory() async {
+    final user = widget.accountSession?.userId;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted && user == widget.accountSession?.userId && _recentLeadIds.isEmpty) {
+      setState(() => _recentLeadIds = prefs.getStringList('seller.recentLeads.$user') ?? []);
+    }
+  }
+
+  void _rememberLead(SellerLeadView lead) {
+    final id = lead.requestId;
+    final user = widget.accountSession?.userId;
+    if (id == null || user == null) return;
+    setState(() {
+      _visitedLeads[id] = lead;
+      _recentLeadIds = [id, ..._recentLeadIds.where((value) => value != id)].take(30).toList();
+    });
+    final ids = List<String>.of(_recentLeadIds);
+    unawaited(SharedPreferences.getInstance().then((prefs) => prefs.setStringList('seller.recentLeads.$user', ids)));
+  }
+
+  List<SellerLeadView> get _recentSellerLeads {
+    final available = {
+      for (final offer in _marketplace.sellerOffers)
+        offer.requestId: SellerLeadView.fromOffer(offer),
+      ..._visitedLeads,
+      for (final lead in _marketplace.sellerLeads) lead.requestId: SellerLeadView.fromProjection(lead),
+    };
+    return [for (final id in {..._recentLeadIds, ..._marketplace.sellerOffers.map((offer) => offer.requestId)})
+      if (available[id] case final lead?) lead];
+  }
   List<ApprovedDealView>? _previousConversationDeals;
   int _conversationDealsGeneration = 0;
   bool _conversationDealsLoading = false;
@@ -781,8 +893,6 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   /// Real-mode seller offer state.
   SellerOfferView? _selectedSellerOffer;
-  bool _withdrawBusy = false;
-  String? _withdrawError;
   String? _withdrawKey;
   String? _withdrawOfferId;
 
@@ -932,6 +1042,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       meetingsBackend: _createMeetingsBackend(session),
     );
     _configureChatRefresh();
+    unawaited(_loadLeadHistory());
+    if (_marketplace.isSellerOffersBacked) unawaited(_marketplace.refreshSellerOffers());
     _reopenFlow = ReopenFlowCoordinator(
       reopen: ({required requestId, required expectedRevision}) =>
           _marketplace.reopenBuyerRequest(
@@ -951,6 +1063,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       unawaited(_refreshDiscoveryOrigin());
     }
     _refreshAccountHealth();
+    _configureAccountHealthRefresh();
     _chatSafety = createConfiguredChatSafetyCoordinator();
     _marketplace.addListener(_onMarketplaceChanged);
     if (_marketplace.isStoreBacked) {
@@ -996,23 +1109,48 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       _recommendedLeadsError = null;
     });
     try {
+      final entitlement = await createConfiguredEntitlementBackend()?.loadEntitlement();
+      if (!mounted) return;
+      if (entitlement?.effectivePlan == PlanCode.free) {
+        setState(() { _recommendationsLocked = true; _recommendedLeads = null; });
+        return;
+      }
+      setState(() => _recommendationsLocked = false);
       final view = await backend.loadRecommendedLeads();
       if (mounted) setState(() => _recommendedLeads = view);
     } on StoreBackendException catch (error) {
       if (mounted) setState(() => _recommendedLeadsError = error.message);
+    } catch (_) {
+      if (mounted) setState(() => _recommendedLeadsError = 'Could not load recommendations.');
     } finally {
       if (mounted) setState(() => _recommendedLeadsLoading = false);
     }
   }
 
-  Future<void> _refreshAccountHealth() async {
+  Timer? _accountHealthTimer;
+  bool _accountHealthRefreshing = false;
+
+  void _configureAccountHealthRefresh() {
+    _accountHealthTimer?.cancel();
+    if (widget.accountSession == null || role != UserRole.seller ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.inactive ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.detached) return;
+    _accountHealthTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) unawaited(_refreshAccountHealth(silent: true));
+    });
+  }
+
+  Future<void> _refreshAccountHealth({bool silent = false}) async {
+    if (_accountHealthRefreshing) return;
     final trust = createConfiguredTrustBackend(
       enabled: kTrustReviewEnabled || hocalistLocalWebTest,
     );
     if (trust == null) return;
     final userId = widget.accountSession?.userId;
+    _accountHealthRefreshing = true;
     setState(() {
-      _accountHealthLoading = true;
+      if (!silent) _accountHealthLoading = true;
       _accountHealthError = null;
     });
     try {
@@ -1041,26 +1179,38 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         setState(() => _accountHealthError = error.message);
       }
     } finally {
+      _accountHealthRefreshing = false;
       if (mounted && widget.accountSession?.userId == userId) {
         setState(() => _accountHealthLoading = false);
       }
     }
   }
 
-  Future<void> _refreshHocatrends() async {
+  Future<void> _refreshHocatrends({bool background = false}) async {
     final backend = _discoveryBackend;
-    if (backend == null) return;
-    setState(() {
-      _hocatrendsLoading = true;
-      _hocatrendsError = null;
-    });
+    if (backend == null || _hocatrendsRefreshing) return;
+    final userId = widget.accountSession?.userId;
+    bool current() => mounted && userId == widget.accountSession?.userId;
+    _hocatrendsRefreshing = true;
+    if (!background || _hocatrends == null && _hocatrendsError == null) {
+      setState(() {
+        _hocatrendsLoading = true;
+        _hocatrendsError = null;
+      });
+    }
     try {
       final projection = await backend.loadTrends();
-      if (mounted) setState(() => _hocatrends = projection);
+      if (current()) setState(() {
+        _hocatrends = projection;
+        _hocatrendsError = null;
+      });
     } on StoreBackendException catch (error) {
-      if (mounted) setState(() => _hocatrendsError = error.message);
+      if (current() && (!background || _hocatrends == null)) {
+        setState(() => _hocatrendsError = error.message);
+      }
     } finally {
-      if (mounted) setState(() => _hocatrendsLoading = false);
+      _hocatrendsRefreshing = false;
+      if (current() && _hocatrendsLoading) setState(() => _hocatrendsLoading = false);
     }
   }
 
@@ -1084,7 +1234,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     return (backend as CommercialSellerHomeBackend).loadSellerHomeSummary();
   }
 
-  Future<void> _refreshConfirmedBuyerMeetings() async {
+  Future<void> _refreshConfirmedBuyerMeetings({bool background = false}) async {
     final session = widget.accountSession;
     if (role != UserRole.buyer || session == null || !kCommercialReadsEnabled) {
       return;
@@ -1092,7 +1242,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final backend = createConfiguredCommercialWalletBackend();
     if (backend == null) return;
     final userId = session.userId;
-    setState(() {
+    if (!background) setState(() {
       _buyerCompletionLoading = true;
       _buyerCompletionError = null;
     });
@@ -1564,7 +1714,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           generation != _conversationDealsGeneration) {
         return;
       }
-      final groups = ConversationDealGroups(result.matches, completed);
+      final closedRequests = {for (final offer in selectedOffers) if (offer.requestClosed) offer.requestId};
+      final groups = ConversationDealGroups(result.matches, completed, closedRequests: closedRequests);
       setState(() {
         _conversationMeetingRecords = result.matches;
         _conversationOfferRecords = selectedOffers;
@@ -1576,7 +1727,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         _conversationDeals = [
           ...?_conversationDeals,
           for (final offer in selectedOffers)
-            if (offer.status == OfferStatus.selected &&
+            if (!offer.requestClosed && offer.status == OfferStatus.selected &&
                 !result.matches.any((meeting) => meeting.offerId == offer.id))
               ApprovedDealView.fromSelectedOffer(
                 offer,
@@ -1587,14 +1738,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             ?.map(
               (meeting) => _dealViewFor(
                 meeting,
-                completed: completed!.contains(meeting.meetingId),
+                completed: completed?.contains(meeting.meetingId) ?? false,
+                closed: closedRequests.contains(meeting.requestId),
               ),
             )
             .toList(growable: false);
         _previousConversationDeals = [
           ...?_previousConversationDeals,
           for (final offer in selectedOffers)
-            if (offer.status != OfferStatus.selected &&
+            if ((offer.requestClosed || offer.status != OfferStatus.selected) &&
                 !result.matches.any((meeting) => meeting.offerId == offer.id))
               ApprovedDealView.fromSelectedOffer(offer, buyer: role == UserRole.buyer),
         ];
@@ -1631,6 +1783,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       ...?_conversationDeals,
       ...?_previousConversationDeals,
     ].where((row) => row.id == id).firstOrNull;
+    if (role == UserRole.seller && deal != null) _selectConversationDeal(id);
     if (deal?.completed == true &&
         role == UserRole.buyer &&
         _reviewBackend != null) {
@@ -1655,10 +1808,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             .firstOrNull;
         requestTitle = offer.requestTitle ?? 'Your request';
         _selectedBuyerOffer = BuyerOfferView.fromOffer(offer);
-        go(AppPage.buyerOfferDetail);
+        await _showBuyerDealTerms(offer);
       } else {
-        _selectedSellerOffer = SellerOfferView.fromOffer(offer);
-        go(AppPage.sellerOfferDetail);
+        await _showSellerDealTerms(offer);
       }
       return;
     }
@@ -1715,7 +1867,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     });
   }
 
-  ApprovedDealView _dealViewFor(MeetingView meeting, {bool completed = false}) {
+  ApprovedDealView _dealViewFor(MeetingView meeting, {bool completed = false, bool closed = false}) {
     final summary = meeting.offerSummary;
     final accepted = meeting.acceptedSchedule;
     final pending = meeting.pendingSchedule;
@@ -1725,6 +1877,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         : 'Your response needed';
     final (statusLabel, statusTone) = completed
         ? ('Purchase completed', BuyerNoticeTone.success)
+        : closed ? ('Request closed', BuyerNoticeTone.neutral)
         : meeting.isCancelled
         ? ('Cancelled', BuyerNoticeTone.error)
         : pending != null && accepted != null
@@ -1981,6 +2134,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   @override
   void dispose() {
+    _accountHealthTimer?.cancel();
     _chatRefreshTimer?.cancel();
     _buyerOffersRefreshTimer?.cancel();
     _stopChatLiveUpdates();
@@ -2014,6 +2168,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     role = session.selectedRole == HocalistRole.seller
         ? UserRole.seller
         : UserRole.buyer;
+    _configureAccountHealthRefresh();
     authenticated = true;
     if (!initial) {
       _attachStoreBackendIfNeeded();
@@ -2309,7 +2464,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     } catch (_) {
       // Unreadable saved navigation falls back to the normal entry page.
     } finally {
-      if (mounted) setState(() => _restoringInitialPage = false);
+      if (mounted) {
+        setState(() => _restoringInitialPage = false);
+        unawaited(recordFirstSignedInAppOpen());
+        if (role == UserRole.buyer) unawaited(_refreshBuyerHomeOffers());
+        WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_showSellerMeetingReminder()));
+      }
     }
   }
 
@@ -2318,13 +2478,24 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   Future<void> _restoreDevicePreferences() async {
     final sessionUser = widget.accountSession?.userId;
     final sessionRole = role;
+    final payoutReturn = sessionRole == UserRole.buyer &&
+        widget.accountSession!.takeBuyerRewardsReturn();
+    if (payoutReturn) page = AppPage.buyerRewardsDetail;
     final navigationEpoch = _navigationEpoch;
     final data = await _storage.load();
-    if (!mounted || data == null) return;
+    if (!mounted) return;
+    if (data == null) {
+      final devicePreferences = await _storage.loadAccessibility();
+      if (mounted) setState(() => accessibilityPreferences = devicePreferences);
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
-    final savedPage = prefs.getString(
+    var savedPage = payoutReturn ? AppPage.buyerRewardsDetail.name : prefs.getString(
       'hocalist.navigation.$sessionUser.${sessionRole.name}',
     );
+    if (savedPage == AppPage.withdrawal.name && sessionRole == UserRole.buyer) {
+      savedPage = AppPage.buyerRewardsDetail.name;
+    }
     if (!mounted ||
         widget.accountSession?.userId != sessionUser ||
         role != sessionRole ||
@@ -2598,8 +2769,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     showMessage('Accessibility preferences applied.');
   }
 
-  void go(AppPage next) {
+  String? _sellerChatEntryOfferId;
+  PageStorageBucket _chatViewStorage = PageStorageBucket();
+
+  void go(AppPage next, {String? focusChatOffer}) {
     final destination = _upgradedDestination(next);
+    if (destination == AppPage.buyerChat || destination == AppPage.sellerConversation) {
+      _chatViewStorage = PageStorageBucket();
+      _sellerChatEntryOfferId = focusChatOffer;
+    }
     setState(() {
       _navigationEpoch += 1;
       if (destination == AppPage.createRequest &&
@@ -2677,6 +2855,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   void _refreshDestinationData(AppPage destination) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (destination == AppPage.sellerDashboard) unawaited(_showSellerMeetingReminder());
       if ((destination == AppPage.marketplace ||
               destination == AppPage.sellerDashboard) &&
           _marketplace.isLeadsBacked) {
@@ -2688,7 +2867,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       }
       if (destination == AppPage.buyerDashboard &&
           _marketplace.isRequestsBacked) {
-        unawaited(_marketplace.refreshBuyerRequests());
+        unawaited(_refreshBuyerHomeOffers());
       }
       if (destination == AppPage.buyerDashboard &&
           _marketplace.isNotificationsBacked) {
@@ -2711,8 +2890,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           destination == AppPage.sellerConversation) {
         _refreshChatMessagesIfNeeded();
       }
-      if (destination == AppPage.sellerOfferHistory ||
-          destination == AppPage.sellerOfferDetail) {
+      if (destination == AppPage.sellerDashboard || destination == AppPage.sellerOfferHistory) {
         if (_marketplace.isSellerOffersBacked) {
           unawaited(_marketplace.refreshSellerOffers());
         }
@@ -2744,9 +2922,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   bool _buyerCompletionLoading = false;
   String? _buyerCompletionError;
   String? _meetingError;
+  String? _focusedPinMeetingId;
   final Map<String, ({String key, bool accept, int revision, bool uncertain})>
   _meetingResponseIntents = {};
   String? _meetingCancelKey;
+  String? _meetingCancelReason;
   int? _meetingCancelRevision;
   String? _meetingProposalKey;
   String? _meetingProposalConversation;
@@ -2803,11 +2983,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             );
             return;
           }
-          setState(() {
-            _selectedSellerOffer = SellerOfferView.fromOffer(sellerOffer);
-            _withdrawError = null;
-          });
-          go(AppPage.sellerOfferDetail);
+          await _openSellerOffer(sellerOffer);
           return;
         }
         if (!_marketplace.isBuyerOffersBacked) {
@@ -2860,9 +3036,23 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
   }
 
+  Future<void> _sellerMeetingAction(MeetingView meeting, String action) async {
+    await _openMeetingById(meeting.meetingId);
+    final current = _marketplace.meetingDetail;
+    if (!mounted || current?.meetingId != meeting.meetingId || current!.revision != meeting.revision) return;
+    switch (action) {
+      case 'accept': await _respondToMeeting(accept: true);
+      case 'decline': await _respondToMeeting(accept: false);
+      case 'modify': await _rescheduleMeeting();
+      case 'cancel': await _cancelMeeting();
+    }
+  }
+
   Future<void> _openMeetingDirections([MeetingView? meeting]) async {
     final selectedMeeting = meeting ?? _marketplace.meetingDetail;
-    final schedule = selectedMeeting?.acceptedSchedule;
+    final schedule = role == UserRole.seller
+        ? selectedMeeting?.pendingSchedule ?? selectedMeeting?.acceptedSchedule
+        : selectedMeeting?.acceptedSchedule;
     if (!hasConfirmedMeetingDestination(
       address: schedule?.placeAddress,
       label: schedule?.placeLabel,
@@ -2871,7 +3061,20 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       showMessage('No confirmed meeting address is available.');
       return;
     }
-    if (selectedMeeting == null) return;
+    if (selectedMeeting == null || schedule == null) return;
+    if (role == UserRole.seller) {
+      final destination = schedule.latitude != null && schedule.longitude != null
+          ? '${schedule.latitude},${schedule.longitude}'
+          : schedule.placeAddress ?? schedule.placeLabel ?? '';
+      final url = Uri.https('www.google.com', '/maps/dir/', {
+        'api': '1', 'destination': destination,
+        if (schedule.placeId?.isNotEmpty == true) 'destination_place_id': schedule.placeId!,
+      });
+      try {
+        if (await launcher.launchUrl(url, mode: launcher.LaunchMode.externalApplication)) return;
+      } catch (_) { /* Fall back to Hocalist directions. */ }
+      if (!mounted) return;
+    }
     await appNavigatorKey.currentState!.push(
       MaterialPageRoute<void>(
         builder: (_) => MeetingDirectionsPage(
@@ -2982,16 +3185,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         return;
       }
     }
-    final existing =
-        (hasVerifiedDeals ? _conversationMeetingRecords : _marketplace.meetings)
-            .where(
-              (m) =>
-                  m.conversationId == conversationId &&
-                  (offerId == null || m.offerId == offerId),
-            );
-    if (existing.isNotEmpty) {
+    final existing = findDealMeeting(
+      hasVerifiedDeals ? _conversationMeetingRecords : _marketplace.meetings,
+      conversationId, offerId,
+    );
+    if (existing != null) {
       setState(() => _meetingBusy = false);
-      await _openMeetingById(existing.first.meetingId);
+      await _openMeetingById(existing.meetingId);
       return;
     }
     final offers = _marketplace.buyerOffers.where(
@@ -3002,6 +3202,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         : _selectedMeetingOffer?.conversationId == conversationId
         ? _selectedMeetingOffer!.offer
         : offers.firstOrNull;
+    if (sourceOffer == null && role == UserRole.seller && offerId != null) {
+      sourceOffer = _marketplace.sellerOffers.where((o) => o.conversationId == conversationId && o.id == offerId).firstOrNull;
+    }
     if (sourceOffer == null && _marketplace.isChatBacked) {
       try {
         sourceOffer = await _marketplace.loadActiveConversationOffer();
@@ -3028,6 +3231,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       showMessage(
         'Open the accepted offer to propose its meeting, or ask your counterpart to send a proposal.',
       );
+      return;
+    }
+    if (offerId != null && sourceOffer.id != offerId) {
+      setState(() => _meetingBusy = false);
+      showMessage('This offer is unavailable. Reopen the deal to try again.');
       return;
     }
     if (!sourceOffer.purchaseSelected) {
@@ -3225,6 +3433,24 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     go(AppPage.meetingDetails);
   }
 
+  Future<bool> _reportPastPurchase(MeetingView meeting) async {
+    final buyer = widget.accountSession?.userId;
+    bool current() => mounted && role == UserRole.buyer &&
+        buyer == meeting.buyerUserId && widget.accountSession?.userId == buyer;
+    if (!current()) return false;
+    try {
+      final latest = await _marketplace.meetingsBackend!.loadMeeting(meeting.meetingId);
+      if (!current() || !latest.isPastAcceptedAt(DateTime.now())) return false;
+      final outcome = await createSaleConfirmationAdapter().call(latest.meetingId, 'status');
+      if (!current() || outcome.status == 'confirmed' || outcome.status == 'completed_elsewhere') {
+        return false;
+      }
+      return await (_supportAdapter ??= createSupportAdapter()).reportUnconfirmedPurchase(latest);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _reviewMeetingBuyer() async {
     final meeting = _marketplace.meetingDetail;
     final user = widget.accountSession?.userId;
@@ -3253,7 +3479,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       final host = appNavigatorKey.currentState?.overlay?.context;
       if (host == null) return;
       await showProfileEditor(host, 'Review buyer',
-        BuyerReviewEditor(repository: repository, purchases: reviews.purchases));
+        BuyerReviewEditor(repository: repository, purchases: reviews.purchases), seller: true);
     } catch (_) {
       if (current()) showMessage('Reviews could not be loaded. Please try again.');
     }
@@ -3262,6 +3488,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   Future<void> _openMeetingById(
     String id, {
     int? notificationGeneration,
+    bool focusPurchasePin = false,
   }) async {
     final userId = widget.accountSession?.userId;
     var epoch = _navigationEpoch;
@@ -3280,6 +3507,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       return;
     }
     setState(() {
+      _focusedPinMeetingId = focusPurchasePin ? id : null;
       _meetingReviewDue[id] = false;
       _meetingError = null;
       _meetingCancelKey = null;
@@ -3319,11 +3547,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   Future<void> _rescheduleMeeting() async {
     final meeting = _marketplace.meetingDetail;
-    final schedule = meeting?.acceptedSchedule ?? meeting?.revisions.lastOrNull;
+    final schedule = meeting?.pendingSchedule ?? meeting?.acceptedSchedule ?? meeting?.revisions.lastOrNull;
     if (meeting == null ||
         schedule == null ||
         meeting.isCancelled ||
-        meeting.hasPendingSchedule) {
+        (meeting.hasPendingSchedule &&
+          (role != UserRole.seller || schedule.proposedByUserId != meeting.buyerUserId))) {
       return;
     }
     final dialogContext = appNavigatorKey.currentContext;
@@ -3380,7 +3609,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ? schedule.longitude
                 : changedPlace!.longitude,
           );
-          if (!meeting.hasAcceptedSchedule) {
+          if (!meeting.hasAcceptedSchedule && !meeting.hasPendingSchedule) {
             return _marketplace.proposeMeeting(
               conversationId: meeting.conversationId,
               input: input,
@@ -3459,19 +3688,23 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     if (meeting == null || _meetingBusy) return;
     final host = appNavigatorKey.currentContext;
     if (host == null) return;
-    final confirmed = await confirmMeetingCancellation(host);
+    final seller = role == UserRole.seller;
+    final reason = seller ? (_meetingCancelKey != null ? _meetingCancelReason : await chooseCancellationReason(host)) : null;
+    final confirmed = seller ? reason != null : await confirmMeetingCancellation(host);
     if (confirmed != true || !mounted || _meetingBusy ||
         _marketplace.meetingDetail?.meetingId != meeting.meetingId ||
         _marketplace.meetingDetail?.revision != meeting.revision) return;
     _meetingCancelKey ??= LocalMarketplaceRepository.newStoreOperationKey(
       'meeting-cancel',
     );
+    _meetingCancelReason = reason;
     _meetingCancelRevision ??= meeting.revision;
     setState(() {
       _meetingBusy = true;
       _meetingError = null;
     });
     final result = await _marketplace.cancelMeeting(
+      reason: _meetingCancelReason,
       meetingId: meeting.meetingId,
       expectedRevision: _meetingCancelRevision!,
       operationKey: _meetingCancelKey!,
@@ -3638,24 +3871,147 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
   }
 
-  Future<void> _openSellerOfferChat() async {
-    if (!_marketplace.isSellerOffersBacked) {
-      go(AppPage.sellerConversation);
+  Future<void> _showSellerDealTerms(Offer offer) async {
+    final host = appNavigatorKey.currentState?.overlay?.context;
+    if (host == null) return;
+    await showModalBottomSheet<void>(
+      context: host,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(host),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => ApprovedRealDealDetailsSheet(
+        deal: ApprovedDealView.fromSelectedOffer(offer, buyer: false),
+        offerMessage: (offer.acceptedRevision ?? offer.latestRevision).terms.message.trim(),
+        viewerIsSeller: true,
+        onClose: () => Navigator.pop(sheet),
+        hideUnavailableAction: true,
+        onOpenMeeting: offer.status == OfferStatus.selected && offer.purchaseSelected &&
+                !offer.requestClosed && offer.conversationId != null &&
+                offer.conversationId == _marketplace.activeConversationId
+            ? () {
+                Navigator.pop(sheet);
+                unawaited(_openConversationMeeting(offerId: offer.id));
+              }
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _showBuyerDealTerms(Offer offer) async {
+    final host = appNavigatorKey.currentState?.overlay?.context;
+    if (host == null) return;
+    await showModalBottomSheet<void>(
+      context: host,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(host),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => ApprovedRealDealDetailsSheet(
+        deal: ApprovedDealView.fromSelectedOffer(offer, buyer: true),
+        offerMessage: (offer.acceptedRevision ?? offer.latestRevision).terms.message.trim(),
+        viewerIsSeller: false,
+        onClose: () => Navigator.pop(sheet),
+        hideUnavailableAction: true,
+        onOpenMeeting: offer.status == OfferStatus.selected && !offer.requestClosed
+            ? () {
+                Navigator.pop(sheet);
+                unawaited(_openConversationMeeting(offerId: offer.id));
+              }
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _openBuyerOfferChat(BuyerOfferView view) async {
+    if (_offerSelectionBusy) return;
+    setState(() {
+      _selectedBuyerOffer = view;
+      _offerSelectionError = null;
+    });
+    if (view.isSelectable) {
+      await _selectSelectedOffer();
+      if (mounted && _offerSelectionError != null) showMessage(_offerSelectionError!);
       return;
     }
+    final conversation = view.conversationId;
+    if (conversation == null) {
+      showMessage('This offer is no longer available.');
+      return;
+    }
+    final epoch = _navigationEpoch;
+    final user = widget.accountSession?.userId;
+    await _marketplace.openChatConversation(conversation, offerId: view.offerId);
+    if (!mounted || epoch != _navigationEpoch || user != widget.accountSession?.userId) return;
+    if (_marketplace.chatMessagesError != null) {
+      showMessage(_marketplace.chatMessagesError!);
+      return;
+    }
+    setState(() {
+      _selectedConversationDealId = view.offerId;
+      _chatCounterpart = (name: view.sellerName, profileId: view.sellerProfileId);
+    });
+    go(AppPage.buyerChat);
+  }
+
+  List<Offer> _buyerHomeOffers = const [];
+  bool _buyerHomeOffersLoading = false;
+  String? _buyerHomeOffersError;
+  int _buyerHomeOffersGeneration = 0;
+
+  Future<void> _refreshBuyerHomeOffers({bool background = false}) async {
+    final repository = _marketplace;
+    final backend = repository.buyerOffersBackend;
+    if (backend == null || role != UserRole.buyer || (background && _buyerHomeOffersLoading)) return;
+    final generation = ++_buyerHomeOffersGeneration;
+    final user = widget.accountSession?.userId;
+    setState(() { _buyerHomeOffersLoading = !background; _buyerHomeOffersError = null; });
+    try {
+      await repository.refreshBuyerRequests();
+      if (!mounted || generation != _buyerHomeOffersGeneration || user != widget.accountSession?.userId) return;
+      if (repository.buyerRequestsError != null) throw StateError('requests unavailable');
+      final ids = {
+        for (final r in repository.buyerRequests)
+          if (r.status != RequestStatus.closed && r.status != RequestStatus.cancelled) r.id,
+        for (final m in repository.meetings)
+          if (m.isUpcomingAt(DateTime.now())) m.requestId,
+      };
+      final rows = <Offer>[];
+      for (final id in ids) {
+        rows.addAll(await backend.loadRequestOffers(id));
+        if (!mounted || generation != _buyerHomeOffersGeneration || user != widget.accountSession?.userId) return;
+      }
+      rows.sort((a, b) => b.stamp.updatedAt.compareTo(a.stamp.updatedAt));
+      if (!mounted || generation != _buyerHomeOffersGeneration || user != widget.accountSession?.userId) return;
+      setState(() => _buyerHomeOffers = rows);
+    } catch (_) {
+      if (mounted && generation == _buyerHomeOffersGeneration && user == widget.accountSession?.userId) {
+        setState(() { _buyerHomeOffers = const []; _buyerHomeOffersError = 'Please retry to load your current conversations.'; });
+      }
+    } finally {
+      if (mounted && generation == _buyerHomeOffersGeneration && user == widget.accountSession?.userId) {
+        setState(() => _buyerHomeOffersLoading = false);
+      }
+    }
+  }
+
+  Future<void> _openSellerOffer(Offer record) async {
     if (_openingSellerOfferChat) return;
-    final offer = _selectedSellerOffer;
-    final conversationId = offer?.conversationId;
-    if (conversationId == null) {
-      showMessage(
-        'Chat becomes available when the buyer selects this offer. Check your offers for its status.',
-      );
+    final offer = _sellerOfferView(record);
+    _selectedSellerOffer = offer;
+    if (offer.isWithdrawable && !record.requestClosed && record.conversationId == null) {
+      await _editSelectedSellerOffer(record, offer);
       return;
     }
+    if (offer.conversationId == null) {
+      await _showSellerDealTerms(record);
+      return;
+    }
+    final epoch = _navigationEpoch;
+    final conversationId = offer.conversationId;
     _openingSellerOfferChat = true;
     try {
-      await _marketplace.openChatConversation(conversationId,offerId:offer!.offerId);
+      await _marketplace.openChatConversation(conversationId!, offerId: offer.offerId);
       if (!mounted ||
+          epoch != _navigationEpoch || role != UserRole.seller ||
           _selectedSellerOffer?.offerId != offer.offerId ||
           _marketplace.activeConversationId != conversationId) {
         return;
@@ -3668,7 +4024,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         _chatSendError = null;
         _selectedConversationDealId = offer.offerId;
       });
-      go(AppPage.sellerConversation);
+      go(AppPage.sellerConversation, focusChatOffer: offer.offerId);
+    } on StoreBackendException catch (error) {
+      if (mounted) showMessage(error.message);
     } finally {
       _openingSellerOfferChat = false;
     }
@@ -3934,73 +4292,55 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     return SellerOfferView.fromOffer(offer, requestTitle: title);
   }
 
-  /// Withdraws the offer shown on the seller offer detail screen. A changed
-  /// offer intent allocates a new key; an uncertain outcome keeps it.
-  Future<void> _withdrawSelectedSellerOffer() async {
-    final view = _selectedSellerOffer;
-    if (view == null || !_marketplace.isSellerOffersBacked) return;
-    if (_withdrawBusy) return;
-    if (!view.isWithdrawable) {
-      setState(() => _withdrawError = 'This offer can no longer be withdrawn.');
-      return;
+  String? _offerBusinessAddress() {
+    final address = _sellerBusinessAddress;
+    if (address?.line1 == null || address!.line1!.trim().isEmpty) {
+      return null;
     }
-    if (_withdrawOfferId != view.offerId) {
-      _withdrawOfferId = view.offerId;
-      _withdrawKey = LocalMarketplaceRepository.newStoreOperationKey(
-        'offer-withdraw',
-      );
-    }
-    setState(() {
-      _withdrawBusy = true;
-      _withdrawError = null;
-    });
-    final result = await _marketplace.withdrawSellerOffer(
-      offerId: view.offerId,
-      expectedOfferRevision: view.offerRevision,
-      operationKey: _withdrawKey!,
-    );
-    if (!mounted) return;
-    if (result.isSuccess) {
-      _withdrawKey = null;
-      _withdrawOfferId = null;
-      setState(() {
-        _withdrawBusy = false;
-        _selectedSellerOffer = SellerOfferView.fromOffer(
-          result.offer!,
-          requestTitle: view.requestTitle,
-        );
-      });
-      showMessage('Offer withdrawn.');
-      return;
-    }
-    setState(() {
-      _withdrawBusy = false;
-      _withdrawError = result.error;
-      if (!result.outcomeUncertain) {
-        _withdrawKey = null;
-        _withdrawOfferId = null;
-      }
-    });
+    return [
+      address.line1,
+      address.city,
+      address.state,
+    ].whereType<String>().join(', ');
   }
 
-  Future<void> _editSelectedSellerOffer() async {
-    final selected = _selectedSellerOffer;
-    if (selected == null || !selected.isWithdrawable) return;
-    final matching = _marketplace.sellerOffers.where(
-      (offer) => offer.id == selected.offerId,
-    );
-    if (matching.isEmpty) {
-      showMessage('Check your offers before editing this one.');
-      return;
-    }
-    final offer = matching.first;
+  Future<void> _addOfferBusinessAddress() async {
+    final host = appNavigatorKey.currentState?.overlay?.context;
+    if (widget.accountSession == null || host == null) return;
+    await showModalBottomSheet<void>(context: host, isScrollControlled: true, useSafeArea: true,
+      backgroundColor: Colors.transparent, builder: (sheet) => _businessAddressEditor(onDiscard: () => Navigator.pop(sheet)));
+  }
+
+  Future<void> _editSelectedSellerOffer(Offer offer, SellerOfferView selected) async {
+    final host = appNavigatorKey.currentState?.overlay?.context;
+    if (host == null) return;
+    final eligibility = createConfiguredEntitlementBackend()?.loadEntitlement().then(
+      (view) => view.effectivePlan == PlanCode.pro || view.effectivePlan == PlanCode.elite,
+      onError: (Object error) => false,
+    ) ?? Future.value(false);
+    final lead = _recentSellerLeads.where((row) => row.requestId == offer.requestId).firstOrNull;
     final changed = await showModalBottomSheet<Offer>(
-      context: context,
-      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      context: host,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(host),
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => SellerOfferRevisionEditor(
-        offer: offer,
+        offer: offer, lead: lead, withdrawalEligibility: eligibility,
+        uploadImage: configuredImageUpload('offer'), choosePlace: _chooseOfferPlace,
+        resolveBusiness: _resolveBusinessPlace, businessAddress: _offerBusinessAddress,
+        addBusinessAddress: _addOfferBusinessAddress,
+        onWithdraw: () async {
+          final intent = '${offer.id}:${offer.stamp.revision}';
+          if (_withdrawOfferId != intent || _withdrawKey == null) {
+            _withdrawOfferId = intent;
+            _withdrawKey = LocalMarketplaceRepository.newStoreOperationKey('offer-withdraw');
+          }
+          final result = await _marketplace.withdrawSellerOffer(
+            offerId: offer.id, expectedOfferRevision: offer.stamp.revision, operationKey: _withdrawKey!,
+          );
+          if (!result.outcomeUncertain) _withdrawKey = null;
+          return result;
+        },
         onSave: (terms, key) => _marketplace.reviseSellerOffer(
           offerId: offer.id,
           expectedOfferRevision: offer.stamp.revision,
@@ -4020,7 +4360,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         requestTitle: selected.requestTitle,
       ),
     );
-    showMessage('Updated offer sent to the buyer.');
+    showMessage(changed.status == OfferStatus.withdrawn ? 'Offer withdrawn.' : 'Updated offer sent to the buyer.');
   }
 
   /// Selects the offer shown on the buyer offer detail screen. A changed offer
@@ -4317,7 +4657,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     var choice = await showSavedPlacesSheet(context: context,
       repository: SavedPlacesBackend(Supabase.instance.client), capture: capture,
       primary: _primarySavedPlace(seller), primaryLabel: seller ? 'Business / service location' : 'Home',
-      initial: initial, manage: manage);
+      initial: initial, manage: manage, seller: seller);
     if (!mounted || widget.accountSession?.userId != identity) return null;
     if (choice != null && (seller || !choice.primary) && (choice.place.timezoneId?.isEmpty ?? true)) {
       if (!context.mounted) return null;
@@ -4331,7 +4671,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final account = widget.accountSession;
     final host = appNavigatorKey.currentContext;
     if (account == null || host == null) return;
-    void popup(String title, Widget child) => showProfileEditor(host, title, child);
+    void popup(String title, Widget child) => showProfileEditor(host, title, child, seller: seller);
 
         final id=account.profile?.membershipId;
         if(id==null)return;
@@ -4341,13 +4681,21 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             loadAvatar:()async=>(await _profileAvatarBackend?.loadMemberAvatar(id))?.imageMediaId));
           return;
         }
-        PublicSellerReputation? reputation;
-        try{reputation=await _reviewBackend?.loadReputation(id);}catch(_){}
-        if(!host.mounted || account.userId!=widget.accountSession?.userId)return;
-        final store=createConfiguredSavedBackend(account.userId!);
-        popup('Public profile preview',SellerPublicProfileView(embedded:true,name:sellerName,onBack:()=>Navigator.of(host).pop(),
-          load:()=>ProfilePresentationBackend(Supabase.instance.client).publicSeller(id),reputation:reputation,
-          listings:store==null?null:PublicSellerListings(repository:store.adapter,sellerProfileId:id)));
+        final store = createConfiguredSavedBackend(account.userId!);
+        popup('Public profile preview', FutureBuilder<PublicSellerReputation?>(
+          future: _reviewBackend?.loadReputation(id),
+          builder: (context, snapshot) => SellerPublicProfileView(
+            embedded: true,
+            name: sellerName,
+            onBack: () => Navigator.of(host).pop(),
+            load: () => ProfilePresentationBackend(Supabase.instance.client).publicSeller(id),
+            reputation: snapshot.data,
+            reputationLoading: snapshot.connectionState == ConnectionState.waiting,
+            listings: store == null ? null : PublicSellerListings(
+              repository: store.adapter, sellerProfileId: id,
+            ),
+          ),
+        ));
   }
 
   Widget _profileOverview(bool seller) {
@@ -4355,8 +4703,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final host = appNavigatorKey.currentContext!;
     final profile = account.profile;
     final categoryBackend = createConfiguredProfileCategoriesBackend();
-    void popup(String title, Widget child) => showProfileEditor(host, title, child);
-    Widget details() => ProfileDetailsEditor(readCurrent: () => account.profile,
+    void popup(String title, Widget child) => showProfileEditor(host, title, child, seller: seller);
+    Widget details() => ProfileDetailsEditor(seller: seller, readCurrent: () => account.profile,
       readDisplayName: () => seller ? sellerName : buyerName,
       onSave: account.updateProfileDetails, areaReadOnly: seller, hideRadius: seller,
       onSaved: () { if(mounted)setState((){}); });
@@ -4406,7 +4754,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           await _reloadSellerCategories();return result;
         })),
       onVerification:()=>seller?go(AppPage.sellerVerification):popup('Contact & verification',ContactVerificationPanel(
-        service:ContactVerificationService(Supabase.instance.client),onChanged:()=>unawaited(_refreshAccountHealth()))),
+        buyer: true, service:ContactVerificationService(Supabase.instance.client),onChanged:()=>unawaited(_refreshAccountHealth()))),
       onVisibility:()=>seller?popup('Contact & visibility',SellerVisibilityEditor(
         backend:ProfilePresentationBackend(Supabase.instance.client),savedPlaces:SavedPlacesBackend(Supabase.instance.client)))
         : _discoveryBackend==null?showMessage('Please sign in again.'):popup('Profile privacy',BuyerProfileVisibilityEditor(backend:_discoveryBackend!)),
@@ -4437,7 +4785,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           onDiscard: () => _pendingContactLocation = null,
           readCurrent: () => account.contact, onSave: _savePrivateContact,
         ),
-      ]));
+      ]), seller: seller);
   }
 
   Widget _savedPlacesSettings(bool seller) => Padding(
@@ -4528,6 +4876,29 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   }
 
   /// Opens one real request from the dashboard list by its identity.
+  Future<void> _closeRequestFromHome(BuyerRequestView view) async {
+    final request = _marketplace.buyerRequests.where((r) => r.id == view.requestId).firstOrNull;
+    final host = appNavigatorKey.currentContext;
+    if (request == null || host == null) return;
+    final confirm = await showModalBottomSheet<bool>(
+      context: host, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (sheet) => BuyerModalSheet(
+        title: 'Close and remove request?', icon: Icons.archive_outlined,
+        onClose: () => Navigator.pop(sheet),
+        child: Column(children: [
+          Text('“${request.draft.title}” will leave Home and stop receiving offers. Its conversations stay in Past deals.'),
+          const SizedBox(height: 16),
+          BuyerPrimaryButton(label: 'Close request', onPressed: () => Navigator.pop(sheet, true)),
+          TextButton(onPressed: () => Navigator.pop(sheet), child: const Text('Keep request')),
+        ]),
+      ),
+    );
+    if (!mounted || confirm != true) return;
+    final result = await _marketplace.closeBuyerRequest(requestId: request.id,
+      expectedRevision: request.stamp.revision, operationKey: 'home-close-${request.id}-${request.stamp.revision}');
+    if (mounted) showMessage(result.isSuccess ? 'Request closed.' : result.error ?? 'Could not close request.');
+  }
+
   void _openBuyerRequest(BuyerRequestView view) {
     for (final request in _marketplace.buyerRequests) {
       if (request.id == view.requestId) {
@@ -5082,7 +5453,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               child: BrandHomeScope(
               onHome: signedIn ? () => resetTo(role == UserRole.seller
                   ? AppPage.sellerDashboard : AppPage.buyerDashboard) : null,
-              child: _hocalistTextScale(context, child, accessibilityPreferences),
+              child: AccountRoleSwitchScope(onSelect: widget.accountSession?.selectRole,
+                child: _hocalistTextScale(context, child, accessibilityPreferences)),
             )),
           ),
         );
@@ -5210,22 +5582,19 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                                 AppPage.buyerSupport,
                               }.contains(page),
                           header: signedIn && !_suppressesGlobalHeader
-                              ? Builder(
-                                  builder: (context) {
-                                    return HocalistGlobalHeader(
-                                      role: role,
-                                      accent: roleAccent,
-                                      showSavedIndicator: restoredSession,
-                                      onNotifications: () => go(
-                                        role == UserRole.seller
-                                            ? AppPage.sellerNotifications
-                                            : AppPage.notifications,
-                                      ),
-                                    );
-                                  },
+                              ? HocalistGlobalHeader(
+                                  role: role,
+                                  accent: roleAccent,
+                                  showSavedIndicator: restoredSession,
+                                  onNotifications: () => go(
+                                    role == UserRole.seller
+                                        ? AppPage.sellerNotifications
+                                        : AppPage.notifications,
+                                  ),
                                 )
                               : null,
                           child: _TitleBackScope(
+                            seller: role == UserRole.seller,
                             onBack: showGlobalBack ? back : null,
                             child: HocalistTabPersistenceScope(
                               namespace:
@@ -5246,13 +5615,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     );
   }
 
-  Widget currentPage() => currentPageFor(page);
+  Widget currentPage() {
+    final content = currentPageFor(page);
+    if (page != AppPage.buyerChat && page != AppPage.sellerConversation) return content;
+    return PageStorage(bucket: _chatViewStorage, child: content);
+  }
 
   @visibleForTesting
   Widget currentPageFor(AppPage requested) {
     switch (requested) {
       case AppPage.welcome:
         return ApprovedNoAccountHomePage(
+          onAccessibility: () => go(AppPage.accessibility),
           onStart: () {
             role = UserRole.buyer;
             go(AppPage.buyerSignup);
@@ -5338,7 +5712,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           builder: (context, _) => ApprovedBuyerHomePage(
             onRefresh: () async {
               await Future.wait([
-                if (_marketplace.isRequestsBacked) _marketplace.refreshBuyerRequests(),
+                if (_marketplace.isRequestsBacked) _refreshBuyerHomeOffers(),
                 if (_marketplace.isMeetingsBacked) _marketplace.refreshMeetings(),
                 if (_marketplace.isNotificationsBacked) _marketplace.refreshNotifications(),
               ]);
@@ -5368,6 +5742,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onMore: () => resetTo(AppPage.buyerSupport),
             realRequests: _marketplace.isRequestsBacked
                 ? _marketplace.buyerRequests
+                      .where((request) => request.status != RequestStatus.closed)
                       .map(BuyerRequestView.fromRequest)
                       .toList(growable: false)
                 : null,
@@ -5376,6 +5751,19 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onRefreshRequests: () =>
                 unawaited(_marketplace.refreshBuyerRequests()),
             onOpenRequest: _openBuyerRequest,
+            homeOffers: _buyerHomeOffers,
+            negotiationsLoading: _buyerHomeOffersLoading,
+            negotiationsError: _buyerHomeOffersError,
+            onRefreshNegotiations: () => unawaited(_refreshBuyerHomeOffers()),
+            onOpenNegotiation: (offer) => unawaited(_openBuyerOfferChat(BuyerOfferView.fromOffer(offer))),
+            onMeetingDirections: (meeting) => unawaited(_openMeetingDirections(meeting)),
+            onMeetingMessage: (meeting) => unawaited(_openMeetingChat(meeting)),
+            onMeetingCall: (meeting) async {
+              await _openMeetingChat(meeting);
+              if (mounted && _marketplace.activeConversationId == meeting.conversationId &&
+                  _marketplace.activeChatOfferId == meeting.offerId) await _openCall();
+            },
+            onCloseFromHome: _closeRequestFromHome,
             realMeetings: _marketplace.isMeetingsBacked
                 ? _marketplace.meetings
                       .where(
@@ -5394,6 +5782,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             },
             onOpenMeeting: (meeting) =>
                 unawaited(_openMeetingById(meeting.meetingId)),
+            onOpenPinMeeting: (meeting) => unawaited(
+              _openMeetingById(meeting.meetingId, focusPurchasePin: true),
+            ),
             realActivity: _marketplace.isNotificationsBacked
                 ? _marketplace.notifications
                       .map(
@@ -5440,6 +5831,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           loadSellerPhotos: _discoveryBackend?.loadTopicSellers,
           trendsLoading: _hocatrendsLoading,
           trendsError: _hocatrendsError,
+          onSyncTrends: _discoveryBackend == null
+              ? null
+              : () => unawaited(_refreshHocatrends(background: true)),
           onRefreshTrends: _discoveryBackend == null
               ? null
               : () => unawaited(_refreshHocatrends()),
@@ -5472,8 +5866,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             if (backend == null) return;
             try {
               final opened = await backend.openEnquiry(
-                origin: DiscoveryEnquiryOrigin.hocatrendsEnquiry,
-                subjectId: _selectedTopicId!,
+                origin: seller.listingId == null ? DiscoveryEnquiryOrigin.hocatrendsEnquiry : DiscoveryEnquiryOrigin.storeListing,
+                subjectId: seller.listingId ?? _selectedTopicId!,
                 sellerProfileId: seller.sellerProfileId,
                 operationKey: LocalMarketplaceRepository.newStoreOperationKey(
                   'enquiry',
@@ -5538,23 +5932,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   await showModalBottomSheet<void>(
                     context: sheetHostContext,
                     isScrollControlled: true,
-                    builder: (sheetContext) => SafeArea(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
-                        ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(18),
-                          child: PrivateContactEditor(
-                            isPopup: true,
-                            places:_placesRepository,
-                            onResolvedAddress:_rememberContactPlace,
-                            onDiscard:(){ _pendingContactLocation=null; Navigator.of(sheetContext).pop(); },
-                            readCurrent: () => account.contact,
-                            onSave: _savePrivateContact,
-                          ),
-                        ),
-                      ),
+                    useSafeArea: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (sheetContext) => PrivateContactEditor(
+                      isPopup: true,
+                      places: _placesRepository,
+                      onResolvedAddress: _rememberContactPlace,
+                      onDiscard: () {
+                        _pendingContactLocation = null;
+                        Navigator.of(sheetContext).pop();
+                      },
+                      readCurrent: () => account.contact,
+                      onSave: _savePrivateContact,
                     ),
                   );
                   if (mounted) setState(() {});
@@ -5655,12 +6044,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           },
         );
       case AppPage.offersReceived:
+      case AppPage.buyerOfferDetail:
         return AnimatedBuilder(
           animation: _marketplace,
           builder: (context, _) => ApprovedOffersReceivedPage(
             onBack: back,
             onNotifications: () => go(AppPage.notifications),
-            onViewOffer: () => go(AppPage.buyerOfferDetail),
+            onViewOffer: _selectSelectedOffer,
             onChat: () => commit(
               next: AppPage.buyerChat,
               message: 'Seller selected. Chatroom opened.',
@@ -5686,46 +6076,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 _currentBuyerRequest != null &&
                 _currentBuyerRequest!.status != RequestStatus.active,
             offersLoading: _marketplace.buyerOffersLoading,
+            selectionBusy: _offerSelectionBusy,
+            selectionUncertain: _offerSelectionUncertain,
+            selectionError: _offerSelectionError,
+            onViewSeller: (view) {
+              setState(() => _selectedBuyerOffer = view);
+              _sellerProfileFromConversation = false;
+              go(AppPage.sellerPublicProfile);
+            },
             offersError: _marketplace.buyerOffersError,
             onRefreshOffers: _refreshBuyerOffersIfNeeded,
-            onOpenOffer: (view) {
-              setState(() {
-                _selectedBuyerOffer = view;
-                _offerSelectionError = null;
-                _purchaseSelectionError = null;
-                _purchaseSelectionKey = null;
-                _purchaseSelectionOfferId = null;
-              });
-              go(AppPage.buyerOfferDetail);
-            },
+            onOpenOffer: (view) => unawaited(_openBuyerOfferChat(view)),
           ),
-        );
-      case AppPage.buyerOfferDetail:
-        return ApprovedViewOfferPage(
-          onBack: back,
-          onNotifications: () => go(AppPage.notifications),
-          onSelectSeller: _selectSelectedOffer,
-          onViewProfile: () {
-            _sellerProfileFromConversation = false;
-            go(AppPage.sellerPublicProfile);
-          },
-          navigation: _approvedBuyerNavigation,
-          latestOffer: _marketplace.latestOffer,
-          realOffer: _marketplace.isBuyerOffersBacked
-              ? _selectedBuyerOffer
-              : null,
-          requestTitle: _activeRequest?.draft.title ?? requestTitle,
-          selectionBusy: _offerSelectionBusy,
-          selectionError: _offerSelectionError,
-          selectionUncertain: _offerSelectionUncertain,
-          onChoosePurchaseSeller: _marketplace.isBuyerOffersBacked
-              ? _chooseSelectedPurchaseSeller
-              : null,
-          onArrangeMeeting: () => unawaited(
-            _openConversationMeeting(offerId: _selectedBuyerOffer?.offerId),
-          ),
-          purchaseBusy: _purchaseSelectionBusy,
-          purchaseError: _purchaseSelectionError,
         );
       case AppPage.sellerPublicProfile:
         final chatCounterpart = _currentChatCounterpart;
@@ -6014,6 +6376,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   .toList(growable: false),
               loading: _marketplace.meetingsLoading || _buyerCompletionLoading,
               error: _marketplace.meetingsError ?? _buyerCompletionError,
+              onLoadMore: _marketplace.meetingsHasMore ? _marketplace.loadMoreMeetings : null,
+              onReportPurchase: _reportPastPurchase,
               onRefresh: () {
                 unawaited(_marketplace.refreshMeetings());
                 unawaited(_refreshConfirmedBuyerMeetings());
@@ -6042,6 +6406,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               );
             }
             final meetingDetails = ApprovedMeetingDetailsPage(
+              focusPurchasePin: role == UserRole.buyer && _focusedPinMeetingId != null &&
+                  _focusedPinMeetingId == _marketplace.meetingDetail?.meetingId,
               competingOffers: role == UserRole.seller &&
                   _marketplace.meetingDetail?.acceptedSchedule != null &&
                   !_marketplace.meetingDetail!.isCancelled
@@ -6289,15 +6655,30 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         final rewardsBackend = widget.accountSession != null
             ? createConfiguredCommercialWalletBackend()
             : null;
-        final rewardsWithdrawalBackend = widget.accountSession != null
+        final statusLoader = widget.accountSession != null
             ? createConfiguredWithdrawalStatusLoader()
             : null;
         return ApprovedBuyerRewardsDetailPage(
           realContent: widget.accountSession != null
               ? ApprovedBuyerRewardsRealSections(
+
+                  payoutSetup: BuyerPayoutSetup(key: ValueKey(widget.accountSession?.userId)),
                   load: rewardsBackend?.loadRewardWallet,
-                  loadWithdrawals: rewardsWithdrawalBackend,
-                  onWithdraw: () => go(AppPage.withdrawal),
+                  loadWithdrawals: statusLoader,
+                  openWithdrawal: (context) => showModalBottomSheet<bool>(
+                    context: context, isScrollControlled: true, useSafeArea: true,
+                    enableDrag: false,
+                    backgroundColor: Colors.transparent,
+                    builder: (sheet) {
+                      final backend = createConfiguredWithdrawalBackend();
+                      if (backend == null && statusLoader == null) {
+                        return BuyerModalSheet(title: 'Withdraw rewards',
+                          onClose: () => Navigator.pop(sheet),
+                          child: const Text('Withdrawals are currently unavailable.'));
+                      }
+                      return BuyerPayoutSetup(backend: backend, loadWithdrawals: statusLoader);
+                    },
+                  ),
                   onDealHistory: () => go(AppPage.buyerWallet),
                 )
               : null,
@@ -6306,35 +6687,6 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           onWithdraw: () => go(AppPage.withdrawal),
         );
       case AppPage.withdrawal:
-        if (widget.accountSession != null) {
-          final withdrawalBackend = createConfiguredWithdrawalBackend();
-          final rewardsBackend = createConfiguredCommercialWalletBackend();
-          return ApprovedBuyerRewardsDetailPage(
-            onBack: back,
-            onDealHistory: () => go(AppPage.buyerWallet),
-            realContent: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ApprovedBuyerRewardsRealSections(
-                  load: rewardsBackend?.loadRewardWallet,
-                  loadWithdrawals: createConfiguredWithdrawalStatusLoader(),
-                  onDealHistory: () => go(AppPage.buyerWallet),
-                ),
-                if (withdrawalBackend != null) ...[
-                  const SizedBox(height: 12),
-                  WithdrawalPanel(
-                    load: withdrawalBackend.loadStatus,
-                    submit: (amountMinor, operationKey) =>
-                        withdrawalBackend.requestWithdrawal(
-                          amountMinor: amountMinor,
-                          operationKey: operationKey,
-                        ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }
         return ApprovedBuyerWithdrawalPage(
           onBack: back,
           onComplete: () {
@@ -6549,6 +6901,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             profileDetailsEditor: account == null
                 ? null
                 : ProfileDetailsEditor(
+                    seller: true,
                     areaReadOnly: true,
                     hideRadius: true,
                     readCurrent: () => account.profile,
@@ -6743,23 +7096,27 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 await Future.wait([_marketplace.refreshSellerLeads(), _marketplace.refreshSellerOffers(),
                   _refreshRecommendedLeads(),_refreshAccountHealth()]);
               },
-              onSetupBusiness:()=>go(AppPage.sellerStore),
+              onSetupBusiness:()=>go(AppPage.editProfile),
               onLeads: () {
                 _focusedSellerLead = null;
                 resetTo(AppPage.marketplace);
               },
               onOpenLead: (lead) {
+                _rememberLead(lead);
+                final offer = _marketplace.sellerOffers.where((o) => o.requestId == lead.requestId).firstOrNull;
+                if (offer != null) {
+                  unawaited(_openSellerOffer(offer));
+                  return;
+                }
                 _focusedSellerLead = lead;
                 resetTo(AppPage.marketplace);
               },
+              onOpenRecentOffer: (offer) => unawaited(_openSellerOffer(offer)),
               onBrowseRequests: () => resetTo(AppPage.marketplace),
               onOfferHistory: () => go(AppPage.sellerOfferHistory),
               sellerName: sellerName,
-              realLeads: _marketplace.isLeadsBacked
-                  ? _marketplace.sellerLeads
-                        .map(SellerLeadView.fromProjection)
-                        .toList(growable: false)
-                  : null,
+              realLeads: _marketplace.isLeadsBacked ? _recentSellerLeads : null,
+              sellerOffers: _marketplace.sellerOffers,
               leadsLoading: _marketplace.sellerLeadsLoading,
               leadsError: _marketplace.sellerLeadsError,
               onRefreshLeads: _marketplace.refreshSellerLeads,
@@ -6772,6 +7129,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   ? () => unawaited(_marketplace.refreshSellerOffers())
                   : null,
               recommendedLeads: _recommendedLeads,
+              recommendationsLocked: _recommendationsLocked,
               recommendedLoading: _recommendedLeadsLoading,
               recommendedError: _recommendedLeadsError,
               onRefreshRecommended: _discoveryBackend == null
@@ -6795,6 +7153,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         return _sellerShell(
           selected: SellerNavDestination.store,
           child: ApprovedSellerStorePage(
+            hocatrendsControl: _discoveryBackend == null ? null : (id) => HocatrendsOfferPanel(
+              key: ValueKey(id), forListing: true,
+              load: () => _discoveryBackend!.hocatrendsListingPreference(id),
+              save: (enabled) => _discoveryBackend!.hocatrendsListingPreference(id, enabled: enabled),
+            ),
             repository: _marketplace,
             sellerName: sellerName,
             sellerProfileId: widget.accountSession?.profile?.membershipId,
@@ -6810,37 +7173,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             builder: (context, _) => ApprovedSellerLeadsPage(
               automaticTimezone: true,
               resolveBusinessPlace: _resolveBusinessPlace,
-              readBusinessAddress: () {
-                final address = _sellerBusinessAddress;
-                if (address?.line1 == null || address!.line1!.trim().isEmpty) {
-                  return null;
-                }
-                return [
-                  address.line1,
-                  address.city,
-                  address.state,
-                ].whereType<String>().join(', ');
-              },
-              onAddBusinessAddress: () async {
-                final account = widget.accountSession;
-                if (account == null) return;
-                await showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (sheetContext) => SafeArea(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        18,
-                        18,
-                        18,
-                        MediaQuery.viewInsetsOf(sheetContext).bottom + 18,
-                      ),
-                      child: _businessAddressEditor(onDiscard:()=>Navigator.of(sheetContext).pop()),
-                    ),
-                  ),
-                );
-              },
+              readBusinessAddress: _offerBusinessAddress,
+              onAddBusinessAddress: _addOfferBusinessAddress,
               focusedLead: _focusedSellerLead,
+              onInteract: _rememberLead,
               sellerName: sellerName,
               onOfferSubmitted: _submitSellerOffer,
               onValidateLead: _marketplace.isOffersBacked
@@ -6960,6 +7296,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ]);
               },
               onOpenMeeting: (meeting) => _openMeetingById(meeting.meetingId),
+              onMeetingAction: _sellerMeetingAction,
               onMessageMeeting: (meeting) =>
                   unawaited(_openMeetingChat(meeting)),
               onDirectionsMeeting: (meeting) =>
@@ -7034,7 +7371,22 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         );
       case AppPage.sellerCustomers:
         final customersBackend = _discoveryBackend;
-        if (customersBackend == null) return const SizedBox.shrink();
+        if (customersBackend == null) {
+          return _sellerShell(
+            selected: SellerNavDestination.more,
+            child: SellerResponsivePage(
+              builder: (context, metrics) => ListView(
+                padding: EdgeInsets.all(metrics.pageHorizontalPadding(16)),
+                children: [
+                  SellerNestedHeader(title: 'Customers', subtitle: 'Keep your confirmed buyers close.', onBack: back),
+                  SizedBox(height: metrics.spacing(18)),
+                  const SellerStateNotice(icon: Icons.people_outline, title: 'Customers unavailable',
+                    body: 'Your customer list could not be loaded.'),
+                ],
+              ),
+            ),
+          );
+        }
         return _sellerShell(
           selected: SellerNavDestination.more,
           child: SellerCustomersPage(
@@ -7073,10 +7425,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           body:
               'The buyer can now compare your offer and choose whether to open chat.',
           primaryLabel: 'View offer',
-          onPrimary: () => go(AppPage.sellerOfferDetail),
+          onPrimary: () => go(AppPage.sellerOfferHistory),
           secondaryLabel: 'Offer history',
           onSecondary: () => resetTo(AppPage.sellerOfferHistory),
         );
+      case AppPage.sellerOfferDetail:
       case AppPage.sellerOfferHistory:
         return AnimatedBuilder(
           animation: _marketplace,
@@ -7084,7 +7437,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onBack: back,
             sellerOfferSent: sellerOfferSent,
             offerSelected: offerSelected,
-            onOpen: () => go(AppPage.sellerOfferDetail),
+            onOpen: () => go(AppPage.sellerConversation),
             latestOffer: _marketplace.latestOffer,
             realOffers: _marketplace.isSellerOffersBacked
                 ? _marketplace.sellerOffers
@@ -7096,42 +7449,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onRefreshOffers: () =>
                 unawaited(_marketplace.refreshSellerOffers()),
             onOpenOffer: (view) {
-              setState(() {
-                _selectedSellerOffer = view;
-                _withdrawError = null;
-              });
-              go(AppPage.sellerOfferDetail);
+              final offer = _marketplace.sellerOffers.where((row) => row.id == view.offerId).firstOrNull;
+              if (offer == null) {
+                showMessage('This offer is no longer available.');
+                return;
+              }
+              unawaited(_openSellerOffer(offer));
             },
           ),
-        );
-      case AppPage.sellerOfferDetail:
-        final optedOfferId = _selectedSellerOffer?.offerId;
-        final trendsBackend = _discoveryBackend;
-        return ApprovedSellerOfferDetailPage(
-          hocatrendsPreference: const bool.fromEnvironment('HOCALIST_HOCATRENDS_OPT_IN') &&
-              optedOfferId != null && trendsBackend != null
-              ? HocatrendsOfferPanel(
-                  key: ValueKey('hocatrends-$optedOfferId-${_selectedSellerOffer?.offerRevision}-${_selectedSellerOffer?.status}'),
-                  load: () => trendsBackend.hocatrendsOfferPreference(optedOfferId),
-                  save: (enabled) => trendsBackend.hocatrendsOfferPreference(optedOfferId, enabled: enabled),
-                ) : null,
-          onBack: back,
-          onChat: _openSellerOfferChat,
-          onArrangeMeeting: () => unawaited(
-            _openConversationMeeting(offerId: _selectedSellerOffer?.offerId),
-          ),
-          latestOffer: _marketplace.latestOffer,
-          realOffer: _marketplace.isSellerOffersBacked
-              ? _selectedSellerOffer
-              : null,
-          withdrawBusy: _withdrawBusy,
-          withdrawError: _withdrawError,
-          onWithdraw: _marketplace.isSellerOffersBacked
-              ? _withdrawSelectedSellerOffer
-              : null,
-          onEdit: _marketplace.isSellerOffersBacked
-              ? _editSelectedSellerOffer
-              : null,
         );
       case AppPage.sellerOriginalRequest:
         return ApprovedSellerOriginalRequestPage(
@@ -7155,6 +7480,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               animation: _marketplace,
               builder: (context, _) => ApprovedConversationBody(
                 realContactName: _activeConversationName,
+                entryOfferId: _sellerChatEntryOfferId,
                 key: _marketplace.isChatBacked
                     ? ValueKey(
                         'seller-chat-${_marketplace.activeConversationId}',
@@ -7536,6 +7862,26 @@ class _LocalSessionStore {
   static const _accessibilityButtonStyle = 'hocalist.accessibility.buttonStyle';
   static const _marketplaceSnapshot = 'hocalist.marketplace.snapshot.v1';
 
+  AccessibilityPreferences _readAccessibility(SharedPreferences prefs) => AccessibilityPreferences(
+    textSize: _parseTextSize(prefs.getString(_accessibilityTextSize) ?? prefs.getString(_textSize)),
+    fontStyle: _parseFontStyle(prefs.getString(_accessibilityFontStyle)),
+    buttonStyle: _parseButtonStyle(prefs.getString(_accessibilityButtonStyle)),
+  );
+
+  Future<AccessibilityPreferences> loadAccessibility() async =>
+      _readAccessibility(await SharedPreferences.getInstance());
+
+  Future<void> saveAccessibility(AccessibilityPreferences value) async =>
+      _writeAccessibility(await SharedPreferences.getInstance(), value);
+
+  Future<void> _writeAccessibility(SharedPreferences prefs, AccessibilityPreferences value) async {
+    await prefs.setInt(_accessibilityVersion, 1);
+    await prefs.setString(_accessibilityTextSize, value.textSize.name);
+    await prefs.setString(_accessibilityFontStyle, value.fontStyle.name);
+    await prefs.setString(_accessibilityButtonStyle, value.buttonStyle.name);
+    await prefs.setString(_textSize, value.textSize.name);
+  }
+
   Future<_LocalSessionData?> load() async {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool(_hasSession) ?? false)) return null;
@@ -7564,15 +7910,7 @@ class _LocalSessionStore {
           prefs.getBool(_dealSupportReviewRequested) ?? false,
       reportSubmitted: prefs.getBool(_reportSubmitted) ?? false,
       darkMode: prefs.getBool(_darkMode) ?? false,
-      accessibilityPreferences: AccessibilityPreferences(
-        textSize: _parseTextSize(
-          prefs.getString(_accessibilityTextSize) ?? prefs.getString(_textSize),
-        ),
-        fontStyle: _parseFontStyle(prefs.getString(_accessibilityFontStyle)),
-        buttonStyle: _parseButtonStyle(
-          prefs.getString(_accessibilityButtonStyle),
-        ),
-      ),
+      accessibilityPreferences: _readAccessibility(prefs),
       marketplaceSnapshot: prefs.getString(_marketplaceSnapshot) ?? '',
     );
   }
@@ -7602,23 +7940,7 @@ class _LocalSessionStore {
     );
     await prefs.setBool(_reportSubmitted, data.reportSubmitted);
     await prefs.setBool(_darkMode, data.darkMode);
-    await prefs.setInt(_accessibilityVersion, 1);
-    await prefs.setString(
-      _accessibilityTextSize,
-      data.accessibilityPreferences.textSize.name,
-    );
-    await prefs.setString(
-      _accessibilityFontStyle,
-      data.accessibilityPreferences.fontStyle.name,
-    );
-    await prefs.setString(
-      _accessibilityButtonStyle,
-      data.accessibilityPreferences.buttonStyle.name,
-    );
-    await prefs.setString(
-      _textSize,
-      data.accessibilityPreferences.textSize.name,
-    );
+    await _writeAccessibility(prefs, data.accessibilityPreferences);
     await prefs.setString(_marketplaceSnapshot, data.marketplaceSnapshot);
   }
 
@@ -7806,4 +8128,3 @@ class AuthPageFrame extends StatelessWidget {
     );
   }
 }
-

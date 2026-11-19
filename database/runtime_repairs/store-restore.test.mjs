@@ -18,4 +18,3 @@ test('Store restore preserves ownership, private draft and capacity',async t=>{
  await t.test('reapplication is safe',async()=>{await db.exec(sql);assert.equal((await restore()).id,row.id);});
  }finally{await db.close()}
 });
-

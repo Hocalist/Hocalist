@@ -350,7 +350,7 @@ void main() {
     );
   });
 
-  testWidgets('archived listings stay out of Store and restore into private drafts', (tester) async {
+  testWidgets('All includes archived listings and restores them into private drafts', (tester) async {
     final backend = _WidgetStoreBackend();
     backend.listings = [const LocalStoreListing(
       id: 'archived-1', kind: LocalListingKind.product, title: 'Archived item',
@@ -361,7 +361,8 @@ void main() {
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
     await pumpStore(tester, repository);
-    expect(find.text('Archived item'), findsNothing);
+    expect(find.text('Archived item'), findsOneWidget);
+    expect(find.text('All (1)'), findsOneWidget);
     expect(repository.storeListings, isEmpty);
     expect(repository.archivedStoreListings, hasLength(1));
     await tester.tap(find.byTooltip('Store options'));
@@ -379,6 +380,41 @@ void main() {
     expect(repository.storeListings.single.status, LocalListingStatus.draft);
     expect(repository.storeListings.single.isPubliclyVisible, isFalse);
     expect(find.text('0 published'), findsOneWidget);
+  });
+
+  testWidgets('status shortcuts show only matching listings and counts follow search', (tester) async {
+    const base = LocalStoreListing(
+      id: 'active', kind: LocalListingKind.product, title: 'Active camera',
+      priceLabel: '15', description: '', category: 'Electronics',
+      serviceArea: 'Chicago', availability: 'Today', status: LocalListingStatus.active,
+    );
+    final backend = _WidgetStoreBackend()..listings = [
+      base,
+      base.copyWith(id: 'review', title: 'Review camera', pendingReview: true),
+      base.copyWith(id: 'rejected', title: 'Rejected tripod', rejected: true),
+      base.copyWith(id: 'draft', title: 'Draft lens', status: LocalListingStatus.draft),
+      base.copyWith(id: 'paused', title: 'Paused lens', status: LocalListingStatus.paused),
+      base.copyWith(id: 'archive', title: 'Archived lens', status: LocalListingStatus.archived),
+    ];
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    await pumpStore(tester, repository);
+    expect(find.text('All (6)'), findsOneWidget);
+    for (final pair in {
+      'Active': 'Active camera', 'In review': 'Review camera', 'Not approved': 'Rejected tripod',
+      'Draft': 'Draft lens', 'Paused': 'Paused lens', 'Archived': 'Archived lens',
+    }.entries) {
+      final chip = find.text('${pair.key} (1)');
+      await tester.ensureVisible(chip);
+      await tester.tap(chip);
+      await _settle(tester);
+      expect(find.text(pair.value), findsOneWidget);
+      expect(find.byTooltip('Manage listing'), findsOneWidget);
+    }
+    await tester.enterText(find.byKey(const Key('sellerStoreSearch')), 'camera');
+    await _settle(tester);
+    expect(find.text('All (2)'), findsOneWidget);
+    expect(find.text('Archived (0)'), findsOneWidget);
   });
 
   testWidgets('pending review is not presented as published', (tester) async {
@@ -407,6 +443,13 @@ void main() {
     expect(find.text('In review'), findsOneWidget);
     expect(find.text('0 published'), findsOneWidget);
     expect(find.text('Awaiting review item'), findsOneWidget);
+    await tester.ensureVisible(find.text('Active (0)'));
+    await tester.tap(find.text('Active (0)'));
+    await _settle(tester);
+    expect(find.text('Awaiting review item'), findsNothing);
+    await tester.ensureVisible(find.text('In review (1)'));
+    await tester.tap(find.text('In review (1)'));
+    await _settle(tester);
     await tester.tap(find.text('Awaiting review item'));
     await _settle(tester);
     expect(find.text('Archive listing'), findsOneWidget);

@@ -17,7 +17,19 @@ import '../../data/phase2/maps/device_location.dart';
 
 enum _StoreKindFilter { all, products, services }
 
-enum _StoreStatusFilter { all, active, draft, paused, archived }
+enum _StoreStatusFilter { all, active, inReview, notApproved, draft, paused, archived }
+
+_StoreStatusFilter _listingGroup(LocalStoreListing item) {
+  if (item.status == LocalListingStatus.archived) return _StoreStatusFilter.archived;
+  if (item.rejected) return _StoreStatusFilter.notApproved;
+  if (item.status == LocalListingStatus.active && item.pendingReview) return _StoreStatusFilter.inReview;
+  return switch (item.status) {
+    LocalListingStatus.active => _StoreStatusFilter.active,
+    LocalListingStatus.draft => _StoreStatusFilter.draft,
+    LocalListingStatus.paused => _StoreStatusFilter.paused,
+    LocalListingStatus.archived => _StoreStatusFilter.archived,
+  };
+}
 
 class ApprovedSellerStorePage extends StatefulWidget {
   const ApprovedSellerStorePage({
@@ -26,6 +38,7 @@ class ApprovedSellerStorePage extends StatefulWidget {
     this.sellerName,
     this.sellerProfileId,
     this.imageUpload,
+    this.hocatrendsControl,
     this.questionLoader = loadCategoryQuestions,
     super.key,
   });
@@ -37,6 +50,7 @@ class ApprovedSellerStorePage extends StatefulWidget {
   final String? sellerName;
   final String? sellerProfileId;
   final ImageUpload? imageUpload;
+  final Widget Function(String listingId)? hocatrendsControl;
   final CategoryQuestionLoader questionLoader;
 
   @override
@@ -56,7 +70,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
     super.dispose();
   }
 
-  List<LocalStoreListing> _visibleListings(List<LocalStoreListing> listings) {
+  List<LocalStoreListing> _matchingSearchAndKind(List<LocalStoreListing> listings) {
     final query = _query.trim().toLowerCase();
     return listings
         .where((listing) {
@@ -67,22 +81,12 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
             _StoreKindFilter.services =>
               listing.kind == LocalListingKind.service,
           };
-          final statusMatches = switch (_statusFilter) {
-            _StoreStatusFilter.all => listing.status != LocalListingStatus.archived,
-            _StoreStatusFilter.archived => listing.status == LocalListingStatus.archived,
-            _StoreStatusFilter.active =>
-              listing.status == LocalListingStatus.active,
-            _StoreStatusFilter.draft =>
-              listing.status == LocalListingStatus.draft,
-            _StoreStatusFilter.paused =>
-              listing.status == LocalListingStatus.paused,
-          };
           final queryMatches =
               query.isEmpty ||
               listing.title.toLowerCase().contains(query) ||
               listing.category.toLowerCase().contains(query) ||
               listing.description.toLowerCase().contains(query);
-          return kindMatches && statusMatches && queryMatches;
+          return kindMatches && queryMatches;
         })
         .toList(growable: false);
   }
@@ -357,6 +361,10 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
         onClose: () => Navigator.of(sheetContext).pop(),
         child: Column(
           children: [
+            if (widget.hocatrendsControl case final control?) ...[
+              control(listing.id),
+              const SizedBox(height: 8),
+            ],
             _StoreSheetAction(
               key: const Key('sellerStoreEditListing'),
               icon: Icons.edit_outlined,
@@ -548,7 +556,15 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
         child: AnimatedBuilder(
           animation: widget.repository,
           builder: (context, _) {
-            final listings = _visibleListings([...widget.repository.storeListings, ...widget.repository.archivedStoreListings]);
+            final inventory = [...widget.repository.storeListings, ...widget.repository.archivedStoreListings];
+            final matching = _matchingSearchAndKind(inventory);
+            final counts = <_StoreStatusFilter, int>{_StoreStatusFilter.all: matching.length};
+            for (final item in matching) {
+              counts.update(_listingGroup(item), (value) => value + 1, ifAbsent: () => 1);
+            }
+            final listings = _statusFilter == _StoreStatusFilter.all
+                ? matching
+                : matching.where((item) => _listingGroup(item) == _statusFilter).toList();
             final activeCount = widget.repository.storeListings
                 .where((listing) => listing.isPubliclyVisible)
                 .length;
@@ -635,7 +651,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                   SizedBox(height: metrics.spacing(12)),
                   _StoreSummaryCard(
                     activeCount: activeCount,
-                    totalCount: widget.repository.storeListings.length,
+                    totalCount: inventory.length,
                   ),
                   SizedBox(height: metrics.spacing(12)),
                   _AddListingCard(
@@ -651,10 +667,20 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                     onSelected: (value) => setState(() => _kindFilter = value),
                   ),
                   SizedBox(height: metrics.spacing(10)),
-                  Row(
+                  SizedBox(
+                    height: 48 + (MediaQuery.textScalerOf(context).scale(16) - 16).clamp(0.0, double.infinity),
+                    child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
                         child: TextField(
+                          expands: true,
+                          inputFormatters: [FilteringTextInputFormatter.singleLineFormatter],
+                          minLines: null,
+                          maxLines: null,
+                          keyboardType: TextInputType.text,
+                          textInputAction: TextInputAction.search,
+                          textAlignVertical: TextAlignVertical.center,
                           key: const Key('sellerStoreSearch'),
                           controller: _searchController,
                           onChanged: (value) => setState(() => _query = value),
@@ -668,12 +694,14 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                         ),
                       ),
                       SizedBox(width: metrics.spacing(8)),
-                      SizedBox.square(
-                        dimension: 48,
+                      SizedBox(
+                        width: 48,
                         child: OutlinedButton(
                           key: const Key('sellerStoreFilter'),
                           onPressed: _showFilters,
                           style: OutlinedButton.styleFrom(
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            minimumSize: const Size(48, 48),
                             padding: EdgeInsets.zero,
                             foregroundColor: HocalistPalette.text(
                               context,
@@ -697,6 +725,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                             smallSize: metrics.geometry(7),
                             child: Icon(
                               Icons.filter_alt_outlined,
+                              semanticLabel: 'Filter listings',
                               size: metrics.artSize(20),
                             ),
                           ),
@@ -704,14 +733,34 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                       ),
                     ],
                   ),
+                  ),
+                  SizedBox(height: metrics.spacing(8)),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: [
+                      for (final status in _StoreStatusFilter.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: _StoreFilterChip(
+                            label: '${_statusLabel(status)} (${counts[status] ?? 0})',
+                            inset: 10,
+                            selected: _statusFilter == status,
+                            onTap: () => setState(() => _statusFilter = status),
+                          ),
+                        ),
+                    ]),
+                  ),
                   SizedBox(height: metrics.spacing(13)),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          _statusFilter == _StoreStatusFilter.all
-                              ? 'Your listings'
-                              : '${_statusLabel(_statusFilter)} listings',
+                          switch (_statusFilter) {
+                            _StoreStatusFilter.all => 'Your listings',
+                            _StoreStatusFilter.inReview => 'Listings in review',
+                            _StoreStatusFilter.notApproved => 'Listings not approved',
+                            _ => '${_statusLabel(_statusFilter)} listings',
+                          },
                           style: sellerText(
                             metrics,
                             14,
@@ -733,10 +782,10 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                   SizedBox(height: metrics.spacing(8)),
                   if (listings.isEmpty)
                     _StoreEmptyState(
-                      title: _statusFilter == _StoreStatusFilter.archived ? 'No archived listings' : widget.repository.storeListings.isEmpty
+                      title: _statusFilter == _StoreStatusFilter.archived ? 'No archived listings' : inventory.isEmpty
                           ? 'No listings yet'
                           : 'No listings found',
-                      body: _statusFilter == _StoreStatusFilter.archived ? 'Listings you archive will appear here.' : widget.repository.storeListings.isEmpty
+                      body: _statusFilter == _StoreStatusFilter.archived ? 'Listings you archive will appear here.' : inventory.isEmpty
                           ? 'Add your first product or service. It stays '
                                 'private until you publish it.'
                           : _query.isEmpty
@@ -981,7 +1030,9 @@ class _StoreKindFilters extends StatelessWidget {
 }
 
 class _StoreFilterChip extends StatelessWidget {
+  final double inset;
   const _StoreFilterChip({
+    this.inset = 0,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -1014,7 +1065,7 @@ class _StoreFilterChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(metrics.geometry(10)),
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: metrics.geometry(8)),
+          padding: EdgeInsets.symmetric(horizontal: metrics.geometry(inset), vertical: metrics.geometry(8)),
           child: Text(
             label,
             textAlign: TextAlign.center,
@@ -2071,22 +2122,14 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
             spacing: 8,
             children: _existingImageIds
                 .map(
-                  (id) => Column(
-                    mainAxisSize: MainAxisSize.min,
+                  (id) => Stack(
+                    key: ValueKey('saved-store-photo-$id'),
                     children: [
-                      PrivateRemoteImage(id: id),
-                      SizedBox(
-                        width: 120,
-                        child: SellerSecondaryButton(
-                          compact: true,
-                          label: 'Remove',
-                          onPressed: _saving || _imagePending || _ambiguous
-                              ? null
-                              : () => setState(
-                                  () => _existingImageIds.remove(id),
-                                ),
-                        ),
-                      ),
+                      ClipRRect(borderRadius: BorderRadius.circular(12), child: PrivateRemoteImage(id: id)),
+                      Positioned(top: 0, right: 0, child: StorePhotoRemoveButton(
+                        onPressed: _saving || _imagePending || _ambiguous ? null
+                            : () => setState(() => _existingImageIds.remove(id)),
+                      )),
                     ],
                   ),
                 )
@@ -2097,7 +2140,7 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
             PrivateImagePicker(
               upload: upload,
               existingImageCount: _existingImageIds.length,
-              maxImages: 10 - _existingImageIds.length,
+              storePhotoControls: true,
               onPendingChanged: (value) =>
                   setState(() => _imagePending = value),
               enabled: !_saving && !_ambiguous,
@@ -2561,6 +2604,8 @@ String _statusLabel(_StoreStatusFilter status) => switch (status) {
   _StoreStatusFilter.all => 'All',
   _StoreStatusFilter.active => 'Active',
   _StoreStatusFilter.draft => 'Draft',
+  _StoreStatusFilter.inReview => 'In review',
+  _StoreStatusFilter.notApproved => 'Not approved',
   _StoreStatusFilter.paused => 'Paused',
   _StoreStatusFilter.archived => 'Archived',
 };

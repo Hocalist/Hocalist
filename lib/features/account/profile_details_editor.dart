@@ -1,4 +1,6 @@
 import '../../components/hocalist_account_field.dart';
+import '../../components/account_role_components.dart';
+import '../../theme/seller_ui_foundation.dart' show SellerSectionHeading;
 import 'package:flutter/material.dart';
 import '../../data/local_marketplace_repository.dart';
 import '../../domain/phase2/accounts.dart';
@@ -12,6 +14,7 @@ class ProfileDetailsEditor extends StatefulWidget {
     required this.readCurrent,
     required this.onSave,
     this.readDisplayName,
+    this.seller = false,
     this.onSaved,
     this.serviceAreaOnly = false,
     this.radiusOnly = false,
@@ -22,6 +25,7 @@ class ProfileDetailsEditor extends StatefulWidget {
   final AccountRoleProfile? Function() readCurrent;
   final String Function()? readDisplayName;
   final VoidCallback? onSaved;
+  final bool seller;
   final bool serviceAreaOnly;
   final bool radiusOnly;
   final bool areaReadOnly;
@@ -157,7 +161,7 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final seller = _base?.role == HocalistRole.seller;
+    final seller = _base == null ? widget.seller : _base!.role == HocalistRole.seller;
     final labels = [
       seller ? (widget.areaReadOnly ? 'Service area (from Business / Store address)' : 'Service area') : 'Your area',
       seller ? 'About your business' : 'About you',
@@ -177,9 +181,10 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (!widget.serviceAreaOnly)
-            const BuyerSectionHeading(title: 'Profile details'),
+            seller ? const SellerSectionHeading(title: 'Profile details') : const BuyerSectionHeading(title: 'Profile details'),
           if (_base == null)
-            const BuyerStateNotice(
+            AccountStateNotice(
+              seller: seller,
               icon: Icons.person_off_outlined,
               tone: BuyerNoticeTone.warning,
               title: 'Profile details are unavailable',
@@ -208,7 +213,8 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
                 const SizedBox(height: 8),
               ],
           if (_message != null) ...[
-            BuyerStateNotice(
+            AccountStateNotice(
+              seller: seller,
               key: const Key('profileDetailsMessage'),
               icon: _message!.contains('saved')
                   ? Icons.check_circle_rounded
@@ -220,7 +226,8 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
             ),
             const SizedBox(height: 10),
           ],
-          BuyerPrimaryButton(
+          AccountActionButton(
+            seller: seller,
             key: const Key('profileDetailsSave'),
             onPressed: _busy || _base == null ? null : _save,
             label: _busy
@@ -234,7 +241,8 @@ class _ProfileDetailsEditorState extends State<ProfileDetailsEditor> {
                 : 'Retry profile save',
           ),
           const SizedBox(height: 8),
-          BuyerSecondaryButton(
+          AccountSecondaryButton(
+            seller: seller,
             label: 'Discard changes',
             onPressed: _busy
                 ? null

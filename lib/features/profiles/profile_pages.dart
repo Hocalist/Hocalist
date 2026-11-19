@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/hocalist_loading_indicator.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../approved/approved_replica_metrics.dart';
 import '../../domain/phase2/reviews.dart';
@@ -160,7 +161,7 @@ class _SellerPublicProfileViewState extends State<SellerPublicProfileView> {
       children: [
         if (!widget.embedded)
           ProfileHeading('Seller profile', onBack: widget.onBack),
-        if (loading) const LinearProgressIndicator(),
+        if (loading) const Center(child: HocalistLoadingIndicator()),
         if (error != null)
           ProfileCard(
             child: Column(
@@ -264,7 +265,7 @@ class _SellerPublicProfileViewState extends State<SellerPublicProfileView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (widget.reputationLoading)
-                  const LinearProgressIndicator()
+                  const Center(child: HocalistLoadingIndicator())
                 else if (widget.reputationError != null)
                   Text(widget.reputationError!)
                 else if (reputation?.available != true)
@@ -285,7 +286,7 @@ class _SellerPublicProfileViewState extends State<SellerPublicProfileView> {
                                   style: const TextStyle(color: Color(0xff3320b7), fontWeight: FontWeight.w800))),
                               const SizedBox(width: 10),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(review.reviewerLabel, style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+                                Text(review.reviewerLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
                                 const SizedBox(height: 5),
                                 ProfileRatingStars(rating: review.rating.toDouble()),
                               ])),

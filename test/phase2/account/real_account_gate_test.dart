@@ -163,6 +163,28 @@ void main() {
     expect(find.text('Log in to your account'), findsOneWidget);
   });
 
+  for (final original in HocalistRole.values) {
+    testWidgets('switching from ${original.name} can return without signing out', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      auth.signIn(signedInA);
+      accounts.memberships = [membership(role: original)];
+      accounts.membershipHandler = (role) => role == original
+          ? RepositorySuccess(membership(role: role))
+          : const RepositoryFailureResult(NotFoundError(entityType: 'membership', entityId: 'missing'));
+      accounts.profileHandler = (role) => RepositorySuccess(roleProfile(role: role));
+      final controller = buildController();
+      await controller.start();
+      controller.selectRole(original == HocalistRole.buyer ? HocalistRole.seller : HocalistRole.buyer);
+      await tester.pumpWidget(gate(controller));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back to ${original.name} mode'));
+      await tester.pumpAndSettle();
+      expect(controller.selectedRole, original);
+      expect(controller.userId, signedInA.userId);
+      expect(controller.phase, AccountAccessPhase.active);
+    });
+  }
+
   testWidgets('missing membership onboards before showing app content', (
     tester,
   ) async {

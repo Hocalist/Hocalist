@@ -1,3 +1,4 @@
+import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,10 +97,10 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     expect(reads, 1);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(HocalistLoadingIndicator), findsOneWidget);
     done.complete();
     await tester.pumpAndSettle();
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(HocalistLoadingIndicator), findsNothing);
     expect(find.text('Pull to refresh'), findsNothing);
   });
   testWidgets('a cancelled pull leaves no instruction or reload', (

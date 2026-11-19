@@ -416,7 +416,8 @@ void main() {
       expect(find.text('Your Pro Plan'), findsOneWidget);
       expect(find.text(r'Initial bid $1.90'), findsOneWidget);
       expect(find.text(r'Winning Bid $4.75'), findsOneWidget);
-      expect(find.text('Buyer is not open to higher offers.'), findsOneWidget);
+      expect(find.textContaining('Buyer’s budget:'), findsOneWidget);
+      expect(find.byKey(const Key('sellerHigherOffersAllowed')), findsNothing);
       expect(find.text('Send your offer to the buyer.'), findsOneWidget);
       expect(
         find.byKey(const Key('sellerOfferCurrencyPrefix')),
@@ -1172,7 +1173,6 @@ void main() {
         sellerOfferSent: true,
         offerSelected: false,
       ),
-      ApprovedSellerOfferDetailPage(onBack: () {}, onChat: () {}),
       ApprovedSellerBillingPage(onBack: () {}, onPayment: () {}),
       ApprovedSellerPaymentMethodPage(onBack: () {}, onDone: () {}),
     ];

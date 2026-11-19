@@ -81,6 +81,12 @@ void main() {
         );
       },
     );
+    final kindMenu = find.byKey(const Key('verificationKind'));
+    await tester.ensureVisible(kindMenu);
+    await tester.tap(kindMenu);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Business').last);
+    await tester.pumpAndSettle();
     final field = find.byKey(const Key('verificationNote'));
     await tester.enterText(field, 'Synthetic evidence for regression');
     final submit = find.byKey(const Key('verificationSubmit'));
@@ -90,6 +96,9 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Submission was not confirmed. Retry the same evidence note.'), findsOneWidget);
     expect(tester.widget<TextField>(field).enabled, isFalse);
+    expect(attempts.single.$1, 'business');
+    final menu = find.descendant(of: kindMenu, matching: find.byType(PopupMenuButton<String>));
+    expect(tester.widget<PopupMenuButton<String>>(menu).enabled, isFalse);
     await tester.ensureVisible(submit);
     await tester.tap(submit);
     await tester.pumpAndSettle();

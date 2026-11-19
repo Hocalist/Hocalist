@@ -7,6 +7,7 @@ export type WaitlistSubmission = {
   consent: boolean;
   market?: string;
   source?: string;
+  lead?: { name: string; city: string; interest: string };
 };
 
 export function validateWaitlistSubmission(
@@ -29,7 +30,16 @@ export function validateWaitlistSubmission(
     typeof record.market === 'string' ? record.market.trim().slice(0, 80) : undefined;
   const source =
     typeof record.source === "string" ? record.source.trim().slice(0, 80) : undefined;
-  return { ok: true, submission: { email, consent: true, market, source } };
+  let lead: WaitlistSubmission['lead'];
+  if (record.lead !== undefined) {
+    if (!record.lead || typeof record.lead !== 'object') return { ok: false, error: 'invalid_lead' };
+    const input = record.lead as Record<string, unknown>;
+    if (typeof input.name !== 'string' || input.name.trim().length > 100 ||
+        typeof input.city !== 'string' || input.city.trim().length > 100 ||
+        !['buyer', 'seller', 'both'].includes(String(input.interest))) return { ok: false, error: 'invalid_lead' };
+    lead = { name: input.name.trim(), city: input.city.trim(), interest: String(input.interest) };
+  }
+  return { ok: true, submission: { email, consent: true, market, source, ...(lead ? { lead } : {}) } };
 }
 
 // Server-selected parameters for the consented waitlist RPC. The consent
@@ -46,5 +56,6 @@ export function waitlistRpcParams(
     p_source: submission.source ?? submission.market ?? "website",
     p_client_hash: clientHash,
     p_intake_token: intakeToken,
+    ...(submission.lead ? { p_lead: submission.lead } : {}),
   };
 }

@@ -89,4 +89,3 @@ SELECT set_config('hocalist.location_backfill','on',true);
 UPDATE hocalist.seller_business_addresses SET updated_at=updated_at;
 NOTIFY pgrst,'reload schema';
 COMMIT;
-

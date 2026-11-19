@@ -49,6 +49,7 @@ class Phase2MarketplaceOffersBackend implements MarketplaceOffersBackend {
   }
 
   String? _code(RepositoryError error) {
+    if (error is ConflictError) return error.conflictCode;
     if (error is ValidationError) {
       for (final issue in error.issues) {
         if (issue.code == 'ambiguous_local_time' ||

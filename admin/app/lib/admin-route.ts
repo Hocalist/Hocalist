@@ -19,7 +19,7 @@ import {
   type AdminEvidenceResolver,
 } from "./admin-http";
 import { adminMfaPolicy } from "./admin-rules";
-import { mediaEvidenceResolver } from "./admin-media-evidence";
+import { mediaEvidenceResolver, reportImageResolver } from "./admin-media-evidence";
 import {
   adminConfig,
   MFA_PENDING_COOKIE,
@@ -128,7 +128,11 @@ export async function evidenceRoute(
   resolver: AdminEvidenceResolver = mediaEvidenceResolver,
 ): Promise<NextResponse> {
   return coreResponse(
-    await handleEvidenceCore(await coreRequest(request), coreDeps(), resolver),
+    await (async () => {
+      const core = await coreRequest(request);
+      const report = core.body && typeof core.body === 'object' && (core.body as Record<string, unknown>).scope === 'report';
+      return handleEvidenceCore(core, coreDeps(), report ? reportImageResolver : resolver, report ? 'report' : 'verification');
+    })(),
     request,
   );
 }

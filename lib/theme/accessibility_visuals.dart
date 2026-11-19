@@ -8,8 +8,10 @@ class HocalistAccessibilityVisuals
     required this.buttonBackground,
     required this.buttonForeground,
     required this.buttonBorderWidth,
+    this.fontFamily = 'Nunito',
   });
 
+  final String fontFamily;
   final double buttonRadius;
   final Color buttonBackground;
   final Color buttonForeground;
@@ -28,12 +30,14 @@ class HocalistAccessibilityVisuals
 
   @override
   HocalistAccessibilityVisuals copyWith({
+    String? fontFamily,
     double? buttonRadius,
     Color? buttonBackground,
     Color? buttonForeground,
     double? buttonBorderWidth,
   }) {
     return HocalistAccessibilityVisuals(
+      fontFamily: fontFamily ?? this.fontFamily,
       buttonRadius: buttonRadius ?? this.buttonRadius,
       buttonBackground: buttonBackground ?? this.buttonBackground,
       buttonForeground: buttonForeground ?? this.buttonForeground,
@@ -48,6 +52,7 @@ class HocalistAccessibilityVisuals
   ) {
     if (other == null) return this;
     return HocalistAccessibilityVisuals(
+      fontFamily: t < .5 ? fontFamily : other.fontFamily,
       buttonRadius: buttonRadius + (other.buttonRadius - buttonRadius) * t,
       buttonBackground: Color.lerp(
         buttonBackground,

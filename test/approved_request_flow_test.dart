@@ -3,11 +3,16 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hocalist/components/account_role_switch.dart';
+import 'package:hocalist/domain/phase2/profiles.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
 import 'package:hocalist/domain/phase2/common.dart';
 
 import 'test_fonts.dart';
+import 'visual_proof_capture.dart';
 
 const _proofHeight = 844.0;
 const _compactProofHeight = 693.0;
@@ -20,6 +25,36 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(loadHocalistTestFonts);
+
+  testWidgets('request header keeps Back, notifications and the role switch independent', (tester) async {
+    for (final width in [320.0, 390.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        HocalistRole? selected;
+        var backs = 0;
+        var notifications = 0;
+        await _pumpWidget(tester, width: width, textScale: scale,
+          child: AccountRoleSwitchScope(
+            onSelect: (role) => selected = role,
+            child: ApprovedBuyerRequestShell(
+              onBack: () => backs++,
+              onNotifications: () => notifications++,
+              child: const Text('Request'),
+            ),
+          ),
+        );
+        await tester.tap(find.byTooltip('Switch account'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Seller'));
+        await tester.pumpAndSettle();
+        expect(selected, HocalistRole.seller);
+        await tester.tap(find.byKey(BuyerTopLevelHeader.notificationsKey));
+        await tester.tap(find.byTooltip('Back'));
+        expect(notifications, 1);
+        expect(backs, 1);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
 
   testWidgets('missing home address opens only after choosing home', (tester) async {
     var opened = 0;
@@ -825,14 +860,16 @@ void main() {
     'writes labelled approved request flow comparison sheet',
     (tester) async {
       final comparisons = <_Comparison>[];
+        final bundle = ProofAssetBundle();
+        await tester.runAsync(() => AssetManifest.loadFromAssetBundle(bundle));
       for (final state in _ProofState.values) {
-        await _pumpState(tester, state: state, width: 390);
-        final actual = await _capture(tester);
+          await _pumpState(tester, state: state, width: 390, bundle: bundle);
+          await paintProofArtwork(tester);
+          final actual = (await tester.runAsync(() => _capture(tester)))!;
         final output = File(
-          'assets/approved_request_flow/${state.name}-actual-390.png',
+            '${visualProofDirectory.path}/${state.name}-actual-390.png',
         );
-        output.parent.createSync(recursive: true);
-        await output.writeAsBytes(await _pngBytes(actual));
+          await tester.runAsync(() async => output.writeAsBytes(await _pngBytes(actual)));
         comparisons.add(
           _Comparison(
             label: state.label,
@@ -842,11 +879,17 @@ void main() {
         );
       }
 
-      final contactSheet = await _contactSheet(comparisons);
       final output = File(
-        'assets/approved_request_flow/request-flow-comparison-contact-sheet.png',
+          '${visualProofDirectory.path}/request-flow-comparison-contact-sheet.png',
       );
-      await output.writeAsBytes(await _pngBytes(contactSheet));
+        await tester.runAsync(() async {
+          final contactSheet = await _contactSheet(comparisons);
+          await output.writeAsBytes(await _pngBytes(contactSheet));
+          contactSheet.dispose();
+          for (final comparison in comparisons) {
+            comparison.actual.dispose();
+          }
+        });
 
       expect(output.existsSync(), isTrue);
       expect(output.lengthSync(), greaterThan(1000));
@@ -882,12 +925,14 @@ Future<void> _pumpState(
   WidgetTester tester, {
   required _ProofState state,
   required double width,
+  AssetBundle? bundle,
   double height = _proofHeight,
   double textScale = 1,
 }) async {
   if (state == _ProofState.details) {
     await _pumpWidget(
       tester,
+      bundle: bundle,
       width: width,
       height: height,
       textScale: textScale,
@@ -907,6 +952,7 @@ Future<void> _pumpState(
 
   await _pumpWidget(
     tester,
+    bundle: bundle,
     width: width,
     height: height,
     textScale: textScale,
@@ -944,6 +990,7 @@ Future<void> _pumpState(
 
 Future<void> _pumpWidget(
   WidgetTester tester, {
+  AssetBundle? bundle,
   required double width,
   required Widget child,
   double height = _proofHeight,
@@ -973,7 +1020,7 @@ Future<void> _pumpWidget(
           ),
         );
       },
-      home: child,
+      home: bundle == null ? child : DefaultAssetBundle(bundle: bundle, child: child),
     ),
   );
   await tester.pumpAndSettle();

@@ -1,29 +1,37 @@
 import { strict as assert } from "node:assert";
 import { ACCOUNT, backend, PROJECT } from "../_shared/stripe-test-billing.ts";
+import { qaAccount } from "../_shared/stripe-test-project.ts";
 import { createCheckoutHandler } from "./handler.ts";
 
+for (const [project, account, keyName] of [
+  [PROJECT, ACCOUNT, "HOCALIST_STRIPE_TEST_API_KEY"],
+  [PROJECT, qaAccount, "HOCALIST_REWARD_STRIPE_SANDBOX_KEY"],
+]) {
 for (const knownCustomer of [false, true]) {
-Deno.test(`checkout prefills the verified email for ${knownCustomer ? 'existing' : 'new'} customers and accepts void acknowledgements`, async () => {
+Deno.test(`${account} checkout prefills the verified email for ${knownCustomer ? 'existing' : 'new'} customers and accepts void acknowledgements`, async () => {
   const names = [
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
-    "HOCALIST_STRIPE_TEST_API_KEY",
+    keyName,
+    "HOCALIST_SELLER_TEST_ACCOUNT_ID",
   ];
   const saved = names.map((name) => Deno.env.get(name));
   const originalFetch = globalThis.fetch;
   const checkout = "2f0c9d1a-0000-4000-8000-000000000003";
   const calls: string[] = [];
   try {
-    Deno.env.set(names[0], PROJECT);
+    Deno.env.set(names[0], project);
     Deno.env.set(names[1], "synthetic-service-key");
     Deno.env.set(names[2], "rk_test_synthetic");
+    Deno.env.set(names[3], account);
     globalThis.fetch = (input, init) => {
       const url = String(input);
       const path = new URL(url).pathname;
       calls.push(path);
       const reply = (body: unknown) => Promise.resolve(Response.json(body));
       if (path === "/auth/v1/user") return reply({ id: "test-user", email: "seller@example.test", email_confirmed_at: "2026-10-17T00:00:00Z" });
-      if (path === "/v1/account") return reply({ id: ACCOUNT });
+      if (!path.startsWith("/v1/")) assert.equal(new URL(url).origin, project);
+      if (path === "/v1/account") return reply({ id: account });
       if (path === "/rest/v1/rpc/stripe_test_deposit_begin") {
         return reply({
           checkout_id: checkout,
@@ -92,4 +100,5 @@ Deno.test(`checkout prefills the verified email for ${knownCustomer ? 'existing'
     );
   }
 });
+}
 }

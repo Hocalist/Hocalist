@@ -178,7 +178,6 @@ class _PublicListingCardState extends State<_PublicListingCard> {
             Text(
               item.title,
               style: const TextStyle(
-                fontFamily: 'Nunito',
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -283,7 +282,6 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontFamily: 'Nunito',
                                 fontWeight: FontWeight.w800,
                                 fontSize: 15,
                               ),
@@ -348,7 +346,6 @@ class _PublicListingCardState extends State<_PublicListingCard> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           textStyle: const TextStyle(
-                            fontFamily: 'Nunito',
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
                           ),

@@ -19,7 +19,7 @@ void main() {
       )));
       await tester.pumpWidget(page(2));
       await tester.pumpAndSettle();
-      expect(find.text('Current Deals'), findsOneWidget);
+      expect(find.text('Current deals'), findsOneWidget);
       final indicator = find.byKey(const ValueKey('deal-unread-first'));
       expect(indicator, findsOneWidget);
       final dot = tester.widget<Container>(indicator);

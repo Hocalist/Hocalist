@@ -8,6 +8,7 @@ export const AUDIT_SOURCES = [
   "trust",
   "calls",
   "withdrawals",
+  "meetings",
 ] as const;
 
 export type AuditSource = (typeof AUDIT_SOURCES)[number];

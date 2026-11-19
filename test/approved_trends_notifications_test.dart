@@ -1,8 +1,6 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/approved_replica_metrics.dart';
@@ -12,6 +10,7 @@ import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'test_fonts.dart';
+import 'visual_proof_capture.dart';
 
 const _writeProof = bool.fromEnvironment(
   'HOCALIST_WRITE_TRENDS_NOTIFICATIONS_PROOF',
@@ -152,6 +151,39 @@ void _expectSingleRenderedLine(
 }
 
 void main() {
+  testWidgets('empty trends offer a reset only for an active search or filter', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pumpApprovedSurface(tester,
+      ApprovedHocatrendsPage(accent: Colors.indigo, realMode: true, onSeeSellers: () {}),
+      width: 320, height: 740);
+    expect(find.text('No matching opportunities'), findsOneWidget);
+    expect(find.text('Clear search and filters'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('approved-hocatrends-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('High'));
+    await tester.tap(find.text('Apply filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('No matching opportunities'), findsOneWidget);
+    await tester.tap(find.text('Clear search and filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear search and filters'), findsNothing);
+
+    await _pumpApprovedSurface(tester,
+      ApprovedHocatrendsPage(accent: Colors.indigo, onSeeSellers: () {}),
+      width: 390);
+    await tester.tap(find.byKey(const Key('approved-hocatrends-search')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'no-match-123');
+    await tester.tap(find.text('Show results'));
+    await tester.pumpAndSettle();
+    expect(find.text('No matching opportunities'), findsOneWidget);
+    await tester.tap(find.text('Clear search and filters'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('approved-trend-card-1')), findsOneWidget);
+    expect(find.text('Clear search and filters'), findsNothing);
+  });
   setUpAll(loadHocalistTestFonts);
 
   setUp(() {
@@ -180,7 +212,7 @@ void main() {
     final saving = tester.widget<Text>(find.text('Saving'));
     expect(saving.style?.fontFamily, HocalistTheme.appFontFamily);
     expect(
-      find.text('Skip the Rewards & save on current offers'),
+      find.text('Shop from seller Stores'),
       findsOneWidget,
     );
   });
@@ -795,11 +827,6 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final output = Directory(
-      '${Directory.systemTemp.path}\\hocalist-trends-notifications-proof',
-    );
-    await output.create(recursive: true);
-
     final pages = <String, Widget>{
       'hocatrends-render.png': ApprovedHocatrendsPage(
         accent: HocalistTheme.actionBlue,
@@ -823,14 +850,7 @@ void main() {
         height: 2800,
         boundaryKey: boundaryKey,
       );
-      final boundary =
-          boundaryKey.currentContext!.findRenderObject()!
-              as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 1);
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      await File(
-        '${output.path}\\${entry.key}',
-      ).writeAsBytes(bytes!.buffer.asUint8List());
+      await writeProofImage(tester, find.byKey(boundaryKey), entry.key);
     }
   }, skip: !_writeProof);
 }

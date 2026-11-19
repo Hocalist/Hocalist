@@ -15,6 +15,7 @@ import '../../domain/phase2/requests.dart';
 import '../../domain/phase2/profiles.dart' show NotificationPreferences;
 import '../../domain/phase2/schedule.dart';
 import '../../theme/input_foundation.dart';
+import '../../theme/control_foundation.dart';
 import '../../components/hocalist_motion.dart';
 import '../../components/notification_preference_edits.dart';
 import '../../components/hocalist_section_tabs.dart';
@@ -686,8 +687,8 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
           children: [
             _SellerSubpageRow(
               icon: Icons.support_agent_outlined,
-              title: 'Ask for help',
-              body: 'Save a question with the details support will need.',
+              title: 'Get help or send feedback',
+              body: 'Ask a question, report an issue, or suggest an improvement.',
               status: 'Open support form',
               onTap:
                   onContactSupport ?? () => _showForm(context, safety: false),
@@ -816,30 +817,14 @@ class _SellerSupportFormSheetState extends State<_SellerSupportFormSheet> {
           ),
         ),
         const SizedBox(height: 5),
-        DropdownButtonFormField<String>(
+        HocalistSelectMenu<String>(
           key: const Key('sellerSupportTopic'),
-          initialValue: _topic,
-          isExpanded: true,
-          dropdownColor: SellerUiColors.white,
-          borderRadius: BorderRadius.circular(metrics.geometry(12)),
-          menuMaxHeight: metrics.geometry(240),
-          style: sellerText(metrics, 12.5, weight: FontWeight.w700),
-          decoration: _sellerSheetInputDecoration(context, ''),
-          items: const [
-            DropdownMenuItem(
-              value: 'Deal or meetup',
-              child: Text('Deal or meetup'),
-            ),
-            DropdownMenuItem(
-              value: 'Credits or billing',
-              child: Text('Credits or billing'),
-            ),
-            DropdownMenuItem(
-              value: 'Account or safety',
-              child: Text('Account or safety'),
-            ),
-          ],
-          onChanged: (value) => setState(() => _topic = value ?? _topic),
+          role: HocalistControlRole.seller,
+          expanded: true,
+          value: _topic,
+          options: const ['Deal or meetup', 'Credits or billing', 'Account or safety'],
+          labelBuilder: (value) => value,
+          onSelected: (value) => setState(() => _topic = value),
         ),
         const SizedBox(height: 12),
         _SellerSheetField(
@@ -2096,7 +2081,6 @@ class _VerificationStep extends StatelessWidget {
                     Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [Text(
                       title,
                       style: TextStyle(
-                        fontFamily: 'Nunito',
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: HocalistPalette.text(
@@ -2109,7 +2093,6 @@ class _VerificationStep extends StatelessWidget {
                     Text(
                       body,
                       style: TextStyle(
-                        fontFamily: 'Nunito',
                         fontSize: 12,
                         color: HocalistPalette.text(
                           context,
@@ -2449,171 +2432,6 @@ class ApprovedSellerOfferHistoryPage extends StatelessWidget {
   }
 }
 
-class ApprovedSellerOfferDetailPage extends StatelessWidget {
-  const ApprovedSellerOfferDetailPage({
-    required this.onBack,
-    required this.onChat,
-    this.latestOffer,
-    this.realOffer,
-    this.withdrawBusy = false,
-    this.withdrawError,
-    this.onWithdraw,
-    this.onEdit,
-    this.onArrangeMeeting,
-    this.hocatrendsPreference,
-    super.key,
-  });
-
-  final VoidCallback onBack;
-  final VoidCallback onChat;
-  final LocalOfferRecord? latestOffer;
-
-  /// Authoritative offer shown in real mode.
-  final SellerOfferView? realOffer;
-  final bool withdrawBusy;
-  final String? withdrawError;
-  final VoidCallback? onWithdraw;
-  final VoidCallback? onEdit;
-  final VoidCallback? onArrangeMeeting;
-  final Widget? hocatrendsPreference;
-
-  @override
-  Widget build(BuildContext context) {
-    final offer = realOffer;
-    return _SellerSubpageBlock(
-      key: const Key('approvedSellerOfferDetailPage'),
-      title: 'Offer details',
-      subtitle: 'Review the terms currently shared with the buyer.',
-      onBack: onBack,
-      children: [
-        if (offer != null &&
-            (offer.requestAcceptanceExpiresAt != null ||
-                offer.purchaseSelected)) ...[
-          _SellerSubpageSection(
-            title: offer.purchaseSelected ? 'Final purchase' : 'Buyer window',
-            children: [
-              _SellerSubpageRow(
-                icon: Icons.verified_outlined,
-                title: offer.status == OfferStatus.completed
-                    ? 'Purchase confirmed'
-                    : offer.purchaseSelected
-                    ? 'The buyer chose you to complete the purchase.'
-                    : 'New offers close for this request.',
-                body: offer.status == OfferStatus.completed
-                    ? 'This purchase is complete. Item payment remains between buyer and seller.'
-                    : offer.purchaseSelected
-                    ? 'Only you can complete the request PIN. Other negotiations close after a confirmed purchase.'
-                    : 'Accepted meetings stay valid to their own next-local-midnight cutoff.',
-                status: offer.requestAcceptanceExpiresAt == null
-                    ? ''
-                    : _sellerOfferWindowLabel(
-                        offer.requestAcceptanceExpiresAt!,
-                      ),
-              ),
-            ],
-          ),
-        ],
-        _SellerSubpageSection(
-          title: 'Agreed offer',
-          children: [
-            _SellerSubpageRow(
-              icon: Icons.tablet_mac_outlined,
-              title:
-                  offer?.requestTitle ??
-                  latestOffer?.requestTitle ??
-                  'iPad Air 5th Gen 64GB',
-              body: offer != null
-                  ? offer.placeLabel
-                  : latestOffer == null
-                  ? 'Good condition • Pickup in Yonkers, NY'
-                  : 'Good condition • ${latestOffer!.location}',
-              status: offer?.priceLabel ?? latestOffer?.price ?? r'$650',
-            ),
-            _SellerSubpageRow(
-              icon: Icons.schedule_outlined,
-              title: 'Meeting time',
-              body:
-                  offer?.meetingLabel ??
-                  (latestOffer == null
-                      ? 'Today • 5:00 PM'
-                      : '${latestOffer!.meetingDate} • '
-                            '${latestOffer!.meetingTime}'),
-              status: offer?.statusLabel ?? 'Meeting set',
-            ),
-          ],
-        ),
-        if (offer != null && offer.message.isNotEmpty)
-          _SellerSubpageSection(
-            title: 'Your message',
-            children: [
-              _SellerSubpageRow(
-                icon: Icons.chat_bubble_outline,
-                title: 'Message sent with the offer',
-                body: offer.message,
-                status: '',
-              ),
-            ],
-          ),
-        if (withdrawError != null) ...[
-          SizedBox(height: 8),
-          Text(
-            withdrawError!,
-            key: const Key('sellerOfferWithdrawError'),
-            style: sellerText(
-              ApprovedReplicaScope.of(context),
-              11.5,
-              weight: FontWeight.w700,
-              color: SellerUiColors.red,
-            ),
-          ),
-        ],
-        if (offer?.purchaseSelected == true && onArrangeMeeting != null)
-          SellerPrimaryButton(
-            label: 'Review meeting details',
-            onPressed: onArrangeMeeting,
-          ),
-        SellerPrimaryButton(
-          key: const Key('sellerOfferDetailChat'),
-          label: 'Open conversation',
-          onPressed: onChat,
-          leading: Icon(
-            Icons.chat_bubble_outline,
-            size: 18,
-            color: HocalistPalette.text(context, Colors.white),
-          ),
-        ),
-        ?hocatrendsPreference,
-        if (offer != null && offer.isWithdrawable && onEdit != null) ...[
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('sellerOfferEdit'),
-            onPressed: onEdit,
-            child: const Text('Update offer'),
-          ),
-        ],
-        if (offer != null && offer.isWithdrawable && onWithdraw != null) ...[
-          SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('sellerOfferWithdraw'),
-            onPressed: withdrawBusy ? null : onWithdraw,
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(44),
-              foregroundColor: HocalistPalette.text(
-                context,
-                SellerUiColors.red,
-              ),
-              side: BorderSide(
-                color: HocalistPalette.border(context, SellerUiColors.red),
-              ),
-            ),
-            child: Text(withdrawBusy ? 'Withdrawing…' : 'Withdraw offer'),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 enum _SellerBillingFilter { all, spent, restored, purchased }
 
 class _SellerCreditActivity {
@@ -2799,40 +2617,14 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
                     ),
                   ),
                 ),
-                PopupMenuButton<_SellerBillingFilter>(
+                HocalistSelectMenu<_SellerBillingFilter>(
                   key: const Key('sellerBillingFilter'),
-                  initialValue: _filter,
-                  position: PopupMenuPosition.under,
-                  color: SellerUiColors.white,
-                  surfaceTintColor: SellerUiColors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(metrics.geometry(12)),
-                    side: BorderSide(
-                      color: HocalistPalette.border(
-                        context,
-                        SellerUiColors.line,
-                      ),
-                    ),
-                  ),
+                  role: HocalistControlRole.seller,
+                  value: _filter,
+                  options: _SellerBillingFilter.values,
+                  labelBuilder: _filterLabel,
                   onSelected: (value) => setState(() => _filter = value),
-                  itemBuilder: (context) => [
-                    for (final value in _SellerBillingFilter.values)
-                      PopupMenuItem(
-                        value: value,
-                        height: metrics.geometry(44),
-                        child: Text(
-                          _filterLabel(value),
-                          style: sellerText(
-                            metrics,
-                            11.5,
-                            weight: value == _filter
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
-                  child: Container(
+                  trigger: Container(
                     padding: EdgeInsets.symmetric(
                       horizontal: metrics.spacing(10),
                       vertical: metrics.spacing(7),
@@ -4086,67 +3878,7 @@ class _SellerSubpageBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: metrics.artSize(44),
-                height: metrics.artSize(44),
-                child: IconButton(
-                  key: const Key('sellerSubpageBack'),
-                  tooltip: 'Back',
-                  onPressed: onBack,
-                  padding: EdgeInsets.zero,
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: HocalistPalette.text(
-                      context,
-                      Theme.of(context).brightness == Brightness.dark
-                          ? Theme.of(context).colorScheme.onSurface
-                          : SellerUiColors.ink,
-                    ),
-                    size: metrics.artSize(23),
-                  ),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(6)),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(top: metrics.spacing(3)),
-                  child: Column(
-                    children: [
-                      Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        style: sellerText(
-                          metrics,
-                          16,
-                          weight: FontWeight.w800,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Theme.of(context).colorScheme.onSurface
-                              : SellerUiColors.ink,
-                        ),
-                      ),
-                      SizedBox(height: metrics.spacing(3)),
-                      Text(
-                        subtitle,
-                        textAlign: TextAlign.center,
-                        style: sellerText(
-                          metrics,
-                          12,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Theme.of(context).colorScheme.onSurfaceVariant
-                              : SellerUiColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(width: metrics.spacing(6)),
-              SizedBox(width: metrics.artSize(44)),
-            ],
-          ),
+          SellerNestedHeader(title: title, subtitle: subtitle, onBack: onBack, backKey: const Key('sellerSubpageBack')),
           SizedBox(height: metrics.spacing(18)),
           if (tabbed)
             HocalistSectionTabs(
@@ -4783,48 +4515,19 @@ Future<void> _showSellerProfilePhotoOptions(
   await showModalBottomSheet<void>(
     context: context,
     sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-    backgroundColor: HocalistPalette.surface(context, SellerUiColors.white),
+    backgroundColor: Colors.transparent,
     isScrollControlled: true,
     useSafeArea: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
     builder: (sheetContext) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(
-          metrics.spacing(20),
-          metrics.spacing(10),
-          metrics.spacing(20),
-          metrics.spacing(20),
-        ),
+      return SellerModalSheet(
+        title: 'Change profile picture',
+        icon: Icons.account_circle_outlined,
+        subtitle: 'Choose how you want to update your Seller photo.',
+        onClose: () => Navigator.pop(sheetContext),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: metrics.artSize(42),
-                height: metrics.geometry(4),
-                decoration: BoxDecoration(
-                  color: HocalistPalette.surface(
-                    context,
-                    SellerUiColors.lavenderBorder,
-                  ),
-                  borderRadius: BorderRadius.circular(metrics.geometry(10)),
-                ),
-              ),
-            ),
-            SizedBox(height: metrics.spacing(14)),
-            Text(
-              'Change profile picture',
-              style: sellerText(metrics, 18, weight: FontWeight.w800),
-            ),
-            SizedBox(height: metrics.spacing(4)),
-            Text(
-              'Choose how you want to update your Seller photo.',
-              style: sellerText(metrics, 12, color: SellerUiColors.muted),
-            ),
-            SizedBox(height: metrics.spacing(12)),
             _SellerPhotoOption(
               metrics: metrics,
               optionKey: const Key('sellerPhotoTakePhoto'),

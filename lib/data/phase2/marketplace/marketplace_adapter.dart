@@ -898,6 +898,14 @@ class MarketplaceDataAdapter
 
   @override
   Future<RepositoryResult<Offer>> submitOffer(SubmitOfferCommand command) {
+    final publication = command.terms.storePublication;
+    if (publication != null) {
+      return _read('hocatrends_submit_store_offer', {
+        'p_key': command.idempotencyKey,
+        'p_offer': {'request_id': command.requestId, ..._offerFields(command.terms)},
+        'p_listing': publication.toInput(),
+      }, decodeOfferJson);
+    }
     return _commandRecord('offer.submit', command.idempotencyKey, {
       'request_id': command.requestId,
       ..._offerFields(command.terms),

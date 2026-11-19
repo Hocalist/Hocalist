@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../components/hocalist_loading_indicator.dart';
 import '../../domain/phase2/requests.dart';
 import '../../domain/phase2/money.dart';
 import '../media/private_remote_image.dart';
@@ -62,7 +63,7 @@ class _ProfileRequestCardState extends State<ProfileRequestCard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (loading)
-              const LinearProgressIndicator()
+              const Center(child: HocalistLoadingIndicator())
             else if (failed) ...[
               const Text('This request could not be loaded.'),
               ProfileSecondaryAction(
@@ -84,7 +85,6 @@ class _ProfileRequestCardState extends State<ProfileRequestCard> {
               Text(
                 r.title,
                 style: const TextStyle(
-                  fontFamily: 'Nunito',
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),

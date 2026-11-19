@@ -56,13 +56,22 @@ SellerLeadView view({
   String requestId = '30000000-0000-4000-8000-000000000001',
   String request = 'Synthetic request',
   String initials = 'BA',
+  DateTime? publishedAt,
   String? categoryId,
   String? buyerLocationTimezone,
+  int? maximumMinor,
+  int? minimumMinor,
+  bool acceptsHigherOffers = false,
 }) => SellerLeadView(
   requestId: requestId,
+  publishedAt: publishedAt,
   requestRevision: 3,
   categoryId: categoryId,
   buyerLocationTimezone: buyerLocationTimezone,
+  maximumMinor: maximumMinor,
+  minimumMinor: minimumMinor,
+  realMode: maximumMinor != null,
+  acceptsHigherOffers: acceptsHigherOffers,
   name: 'Buyer A',
   initials: initials,
   city: 'Yonkers, NY',
@@ -129,6 +138,112 @@ Future<void> tapSubmit(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('buyer permission is visible and allows above maximum submission', (tester) async {
+    var submissions = 0;
+    await pumpLeads(tester, ApprovedSellerLeadsPage(
+      leads: [view(maximumMinor: 80000, acceptsHigherOffers: true)],
+      onRefreshLeads: () {}, offerTimezones: const ['America/New_York'],
+      onSubmitOffer: (lead, terms, key) async {
+        submissions++;
+        return OfferSubmissionResult.success(_offer());
+      },
+    ));
+    await openOfferSheet(tester);
+    expect(find.text('Buyer welcomes higher offers.'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('sellerOfferPrice')), '1000');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await selectNewYorkTimezone(tester);
+    await tapSubmit(tester);
+    expect(submissions, 1);
+  });
+
+  for (final minimum in [30000, 45000]) {
+    testWidgets('buyer minimum $minimum is dynamic and inclusive', (tester) async {
+      var submissions = 0;
+      await pumpLeads(tester, ApprovedSellerLeadsPage(
+        leads: [view(minimumMinor: minimum, maximumMinor: 80000)],
+        onRefreshLeads: () {}, offerTimezones: const ['America/New_York'],
+        onSubmitOffer: (lead, terms, key) async {
+          submissions++;
+          return OfferSubmissionResult.success(_offer());
+        },
+      ));
+      await openOfferSheet(tester);
+      await tester.enterText(find.byKey(const Key('sellerOfferPrice')), ((minimum - 1) / 100).toStringAsFixed(2));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tapSubmit(tester);
+      expect(submissions, 0);
+      expect(find.text('Send a lower offer?'), findsOneWidget);
+      await tester.tap(find.text('Edit price'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('sellerOfferPrice')));
+      final amount = minimum == 30000 ? minimum - 1 : minimum;
+      await tester.enterText(find.byKey(const Key('sellerOfferPrice')), (amount / 100).toStringAsFixed(2));
+      await tester.pumpAndSettle();
+      await selectNewYorkTimezone(tester);
+      await tapSubmit(tester);
+      if (amount < minimum) {
+        await tester.tap(find.text('Send offer').last);
+        await tester.pumpAndSettle();
+      }
+      expect(submissions, 1);
+    });
+  }
+
+  testWidgets('over-budget offer is blocked and warning clears for valid price', (tester) async {
+    var submissions = 0;
+    await pumpLeads(tester, ApprovedSellerLeadsPage(
+      leads: [view(maximumMinor: 80000)], onRefreshLeads: () {},
+      offerTimezones: const ['America/New_York'],
+      onSubmitOffer: (lead, terms, key) async {
+        submissions++;
+        return OfferSubmissionResult.success(_offer());
+      },
+    ));
+    await openOfferSheet(tester);
+    await tester.enterText(find.byKey(const Key('sellerOfferPrice')), '1000');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sellerHigherOfferWarning')), findsNothing);
+    await tapSubmit(tester);
+    expect(submissions, 0);
+    expect(find.text('Your offer exceeds the buyer’s maximum budget. Higher offers are not accepted.'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const Key('sellerOfferPrice'))).focusNode!.hasFocus, isTrue);
+    expect(tester.getRect(find.byKey(const Key('sellerOfferPrice'))).top, inInclusiveRange(0, 700));
+    await tester.ensureVisible(find.byKey(const Key('sellerOfferPrice')));
+    await tester.enterText(find.byKey(const Key('sellerOfferPrice')), '677');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sellerHigherOfferWarning')), findsNothing);
+    expect(find.text('Your offer exceeds the buyer’s maximum budget. Higher offers are not accepted.'), findsNothing);
+    await tester.enterText(find.byKey(const Key('sellerOfferPrice')), '800');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sellerHigherOfferWarning')), findsNothing);
+  });
+
+  testWidgets('payment setup preserves the offer and requires a deliberate send', (tester) async {
+    var submissions = 0;
+    await pumpLeads(tester, ApprovedSellerLeadsPage(
+      leads: [view()], onRefreshLeads: () {},
+      offerTimezones: const ['America/New_York'],
+      onSubmitOffer: (lead, terms, key) async {
+        submissions++;
+        return const OfferSubmissionResult.failure('Add a payment method', paymentSetupRequired: true);
+      },
+    ));
+    await openOfferSheet(tester);
+    await selectNewYorkTimezone(tester);
+    await tapSubmit(tester);
+    expect(find.text('Return to my offer'), findsOneWidget);
+    expect(submissions, 1);
+    await tester.ensureVisible(find.text('Return to my offer'));
+    await tester.tap(find.text('Return to my offer'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const Key('sellerOfferPrice'))).controller!.text, '550');
+    expect(submissions, 1);
+    expect(tester.takeException(), isNull);
+  });
  for (final timeOnly in [false, true]) {
  testWidgets('offer picker shows only requested field time=$timeOnly', (tester) async {
    await pumpLeads(tester, ApprovedSellerLeadsPage(leads: [view()], onRefreshLeads: () {}));
@@ -197,7 +312,10 @@ void main() {
   await tester.tap(find.text('Budget').first);await tester.pumpAndSettle();
   await tester.tap(find.text(r'Under $100').first);await tester.pumpAndSettle();
   final chip=find.byKey(const Key('sellerActiveFilter-budget'));
-  expect(chip,findsOneWidget);expect(find.text('Synthetic request'),findsNothing);
+  expect(chip,findsOneWidget);
+  expect(tester.widget<InputChip>(chip).isEnabled, isTrue);
+  expect(tester.widget<InputChip>(chip).onSelected, isNotNull);
+  expect(find.text('Synthetic request'),findsNothing);
   await tester.tap(find.descendant(of:chip,matching:find.byTooltip(r'Remove Under $100')));await tester.pumpAndSettle();
   expect(chip,findsNothing);expect(find.text('Synthetic request'),findsOneWidget);
   await tester.enterText(find.byKey(const Key('sellerLeadsSearch')),'missing');await tester.pumpAndSettle();
@@ -349,12 +467,14 @@ void main() {
     await pumpLeads(
       tester,
       ApprovedSellerLeadsPage(
-        leads: [view()],
+        leads: [view(publishedAt: DateTime(2026, 11, 7))],
         offeredRequestIds: {view().requestId!},
         onRefreshLeads: () {},
       ),
     );
     expect(find.text('Offer sent'), findsOneWidget);
+    expect(find.text('Posted Nov 7'), findsOneWidget);
+    expect(find.text('New request'), findsNothing);
     expect(find.text('Prepare offer'), findsNothing);
     expect(find.byKey(const Key('sellerSendOfferBottomSheet')), findsNothing);
   });

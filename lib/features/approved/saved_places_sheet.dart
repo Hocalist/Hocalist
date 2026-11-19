@@ -1,4 +1,6 @@
 import 'saved_place_list.dart';
+import '../../components/account_role_components.dart';
+import '../../components/hocalist_account_field.dart';
 import 'package:flutter/material.dart';
 import '../../data/phase2/accounts/saved_places_backend.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -38,6 +40,7 @@ Future<SavedPlaceChoice?> showSavedPlacesSheet({
   PlaceCaptureResult? primary,
   String primaryLabel = 'Home',
   bool manage = false,
+  bool seller = false,
   PlaceCaptureResult? initial,
 }) => showModalBottomSheet<SavedPlaceChoice>(
   context: context,
@@ -50,6 +53,7 @@ Future<SavedPlaceChoice?> showSavedPlacesSheet({
     primary: primary,
     primaryLabel: primaryLabel,
     manage: manage,
+    seller: seller,
     initial: initial,
   ),
 );
@@ -62,13 +66,14 @@ class SavedPlacesSheet extends StatefulWidget {
     this.primary,
     this.primaryLabel = 'Home',
     this.manage = false,
+    this.seller = false,
     this.initial,
   });
   final SavedPlacesRepository repository;
   final CaptureSavedPlace capture;
   final PlaceCaptureResult? primary;
   final String primaryLabel;
-  final bool manage;
+  final bool manage, seller;
   final PlaceCaptureResult? initial;
   @override
   State<SavedPlacesSheet> createState() => _SavedPlacesSheetState();
@@ -135,6 +140,7 @@ class _SavedPlacesSheetState extends State<SavedPlacesSheet> {
         backgroundColor: Colors.transparent,
         builder: (_) => _SavePlaceConfirmation(
           place: place,
+          seller: widget.seller,
           name: editing?.name,
           mustSave: widget.manage || editing != null,
         ),
@@ -165,7 +171,8 @@ class _SavedPlacesSheetState extends State<SavedPlacesSheet> {
       context: context,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (c) => BuyerModalSheet(
+      isScrollControlled: true,
+      builder: (c) => AccountModalSheet(seller: widget.seller,
         title: 'Remove saved place?', icon: Icons.delete_outline,
         onClose: () => Navigator.pop(c, false),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -173,9 +180,9 @@ class _SavedPlacesSheetState extends State<SavedPlacesSheet> {
           const SizedBox(height: 12),
           const Text('Existing requests and meetings will keep their address.'),
           const SizedBox(height: 20),
-          BuyerPrimaryButton(onPressed: () => Navigator.pop(c, true), label: 'Remove place'),
+          AccountActionButton(seller: widget.seller, onPressed: () => Navigator.pop(c, true), label: 'Remove place'),
           const SizedBox(height: 10),
-          BuyerSecondaryButton(onPressed: () => Navigator.pop(c, false), label: 'Keep place'),
+          AccountSecondaryButton(seller: widget.seller, onPressed: () => Navigator.pop(c, false), label: 'Keep place'),
         ]),
       ),
     );
@@ -213,14 +220,14 @@ class _SavedPlacesSheetState extends State<SavedPlacesSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => BuyerModalSheet(
+  Widget build(BuildContext context) => AccountModalSheet(seller: widget.seller,
     title: 'Saved places',
     subtitle: 'Your saved places are private to you.',
     icon: Icons.bookmark_border_rounded,
     onClose: () => Navigator.pop(context),
     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (_loading) const BuyerProgressStrip(label: 'Loading saved places…'),
-      if (_error != null) BuyerStateNotice(icon: Icons.cloud_off_outlined,
+      if (_error != null) AccountStateNotice(seller: widget.seller, icon: Icons.cloud_off_outlined,
         title: _error!, actionLabel: 'Try again', onAction: _busy ? null : _load),
       if (_places.isNotEmpty || (widget.primary != null && !widget.manage))
         SavedPlaceList(children: [
@@ -232,14 +239,14 @@ class _SavedPlacesSheetState extends State<SavedPlacesSheet> {
           id: place.id, choice: SavedPlaceChoice(place.place), saved: place),
         ]),
       if (!_busy && _error == null && _places.isEmpty && (widget.manage || widget.primary == null))
-        const BuyerStateNotice(icon: Icons.bookmark_border_rounded, title: 'No saved places yet',
+        AccountStateNotice(seller: widget.seller, icon: Icons.bookmark_border_rounded, title: 'No saved places yet',
           body: 'Save a place to choose it quickly next time.'),
       const SizedBox(height: 8),
-      BuyerSecondaryButton(onPressed: _busy ? null : () => _capture(),
+      AccountSecondaryButton(seller: widget.seller, onPressed: _busy ? null : () => _capture(),
         label: widget.manage ? 'Add a place' : 'Use a different address'),
       if (!widget.manage) ...[
         const SizedBox(height: 12),
-        BuyerPrimaryButton(onPressed: _busy || _selected == null ? null : () => Navigator.pop(context, _selected), label: 'Use this place'),
+        AccountActionButton(seller: widget.seller, onPressed: _busy || _selected == null ? null : () => Navigator.pop(context, _selected), label: 'Use this place'),
       ],
     ]),
   );
@@ -255,10 +262,11 @@ class _SavePlaceConfirmation extends StatefulWidget {
   const _SavePlaceConfirmation({
     required this.place,
     required this.mustSave,
+    this.seller = false,
     this.name,
   });
   final PlaceCaptureResult place;
-  final bool mustSave;
+  final bool mustSave, seller;
   final String? name;
   @override
   State<_SavePlaceConfirmation> createState() => _SavePlaceConfirmationState();
@@ -276,7 +284,7 @@ class _SavePlaceConfirmationState extends State<_SavePlaceConfirmation> {
   }
 
   @override
-  Widget build(BuildContext context) => BuyerModalSheet(
+  Widget build(BuildContext context) => AccountModalSheet(seller: widget.seller,
     title: widget.mustSave ? 'Save place' : 'Use this address?',
     icon: Icons.bookmark_add_outlined,
     onClose: () => Navigator.pop(context),
@@ -285,12 +293,10 @@ class _SavePlaceConfirmationState extends State<_SavePlaceConfirmation> {
       const SizedBox(height: 16),
       if (!widget.mustSave) CheckboxListTile(contentPadding: EdgeInsets.zero,
         value: _save, onChanged: (v) => setState(() => _save = v ?? false), title: const Text('Save for next time')),
-      if (_save) TextField(controller: _name, maxLength: 60,
-        decoration: InputDecoration(labelText: 'Name (optional)', hintText: 'Office, pickup spot…',
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+      if (_save) HocalistAccountField(controller: _name, maxLength: 60,
+        label: 'Name (optional)', hintText: 'Office, pickup spot…', seller: widget.seller),
       const SizedBox(height: 16),
-      BuyerPrimaryButton(onPressed: () => Navigator.pop(context, _SaveDecision(_save, _name.text)),
+      AccountActionButton(seller: widget.seller, onPressed: () => Navigator.pop(context, _SaveDecision(_save, _name.text)),
         label: widget.mustSave ? 'Save place' : 'Use this address'),
     ]),
   );

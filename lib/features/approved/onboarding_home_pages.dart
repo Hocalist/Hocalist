@@ -1,4 +1,6 @@
+import '../meetings/sale_confirmation_panel.dart' show PurchasePinCard;
 import '../../components/pull_refresh.dart';
+import '../../components/hocalist_section_tabs.dart';
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
@@ -6,6 +8,7 @@ import '../../theme/original_gift_artwork.dart';
 import '../../components/notification_indicator.dart';
 
 import 'package:flutter/material.dart';
+import '../commercial/money_help.dart';
 import '../../components/hocalist_motion.dart';
 
 import '../../data/local_marketplace_repository.dart';
@@ -21,6 +24,7 @@ import '../../domain/phase2/commercial/commercial.dart';
 import '../../domain/phase2/money.dart';
 import '../../domain/phase2/notifications.dart';
 import '../../domain/phase2/requests.dart';
+import '../../domain/phase2/offers.dart';
 import '../../domain/phase2/reviews.dart';
 import '../../theme/accessibility_visuals.dart';
 import '../../theme/buyer_ui_foundation.dart';
@@ -89,12 +93,14 @@ class ApprovedAccountCreationPage extends StatefulWidget {
     this.onRealSubmit,
     this.onRealGoogle,
     this.onRealEmailLink,
+    this.onResendConfirmation,
     this.onPhoneRequestCode,
     this.onPhoneConfirmCode,
     this.initialLoginMode = false,
     this.phoneSheet = false,
     this.draft,
     this.onForgotPassword,
+    this.onAccessibility,
     super.key,
   });
 
@@ -121,10 +127,12 @@ class ApprovedAccountCreationPage extends StatefulWidget {
   final Future<void> Function(String email, String name)? onRealEmailLink;
   final ApprovedPhoneRequest? onPhoneRequestCode;
   final ApprovedPhoneConfirm? onPhoneConfirmCode;
+  final Future<void> Function(String email)? onResendConfirmation;
   final bool initialLoginMode;
   final bool phoneSheet;
   final ApprovedAccountDraft? draft;
   final VoidCallback? onForgotPassword;
+  final VoidCallback? onAccessibility;
 
   @override
   State<ApprovedAccountCreationPage> createState() =>
@@ -136,6 +144,7 @@ class _ApprovedAccountCreationPageState
   static final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
   static final RegExp _phonePattern = RegExp(r'^\+[1-9][0-9]{7,14}$');
 
+  String? _unconfirmedEmail;
   bool _loginMode = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
@@ -246,16 +255,26 @@ class _ApprovedAccountCreationPageState
       return;
     }
     await _run(() async {
-      await handler(
-        ApprovedAccountSubmission(
-          role: widget.role,
-          loginMode: _loginMode,
-          name: _name.trim(),
-          email: _email.trim(),
-          password: _password,
-          phone: _phone.trim(),
-        ),
-      );
+      final submittedEmail = _email.trim();
+      _unconfirmedEmail = null;
+      try {
+        await handler(
+          ApprovedAccountSubmission(
+            role: widget.role,
+            loginMode: _loginMode,
+            name: _name.trim(),
+            email: submittedEmail,
+            password: _password,
+            phone: _phone.trim(),
+          ),
+        );
+      } on AccountActionException catch (error) {
+        if (_loginMode && error.code == 'email_not_confirmed' &&
+            submittedEmail == _email.trim()) {
+          _unconfirmedEmail = submittedEmail;
+        }
+        rethrow;
+      }
       widget.draft?.clear();
     }, fallback: 'Sign-in failed. Try again.');
   }
@@ -446,6 +465,8 @@ class _ApprovedAccountCreationPageState
               ),
               child: Column(
                 children: [
+                  if (!widget.phoneSheet && widget.onAccessibility != null)
+                    Align(alignment: Alignment.centerLeft, child: _WelcomeAccessibilityLink(onTap: widget.onAccessibility!)),
                   SizedBox(
                     key: const ValueKey('approved-account-modal-header'),
                     height: metrics.geometry(widget.phoneSheet ? 40 : 103),
@@ -523,13 +544,14 @@ class _ApprovedAccountCreationPageState
                     style: _text(context, size: 12.5, color: _muted),
                   ),
                   SizedBox(height: metrics.geometry(23)),
-                  if (!widget.phoneSheet)
+                  if (!widget.phoneSheet && !loginMode) ...[
                     _ApprovedRoleSelector(
                       role: widget.role,
                       stacked: accessibilityReflow,
                       onChanged: widget.onRoleChanged,
                     ),
-                  SizedBox(height: metrics.geometry(23)),
+                    SizedBox(height: metrics.geometry(23)),
+                  ],
                   if (!phoneMode) ...[
                     if (!loginMode) ...[
                       _ApprovedField(
@@ -555,6 +577,13 @@ class _ApprovedAccountCreationPageState
                       keyboardType: TextInputType.emailAddress,
                       initialValue: _email,
                       onChanged: (value) {
+                        if (_unconfirmedEmail != null && value.trim() != _unconfirmedEmail) {
+                          setState(() {
+                            _unconfirmedEmail = null;
+                            _formError = null;
+                            _providerNotice = null;
+                          });
+                        }
                         _email = value;
                         widget.draft?.email = value;
                       },
@@ -691,6 +720,20 @@ class _ApprovedAccountCreationPageState
                       ),
                     ),
                   ],
+                  if (!phoneMode && loginMode && _unconfirmedEmail != null &&
+                      widget.onResendConfirmation != null)
+                    TextButton(
+                      onPressed: _submitting || _cooldown > 0 ? null : () {
+                        final email = _unconfirmedEmail!;
+                        _run(() async {
+                          await widget.onResendConfirmation!(email);
+                          if (!mounted || _unconfirmedEmail != email) return;
+                          setState(() => _providerNotice = 'Check $email for a new confirmation link.');
+                          _startCooldown();
+                        }, fallback: 'Could not resend the confirmation email. Try again.');
+                      },
+                      child: Text(_cooldown > 0 ? 'Resend in ${_cooldown}s' : 'Resend confirmation email'),
+                    ),
                   if (_providerNotice != null) ...[
                     SizedBox(height: metrics.geometry(10)),
                     Text(
@@ -844,6 +887,7 @@ class _ApprovedAccountCreationPageState
                           onPressed: _submitting
                               ? null
                               : () => setState(() {
+                                  _unconfirmedEmail = null;
                                   _loginMode = !loginMode;
                                   widget.draft?.loginMode = _loginMode;
                                   widget.draft?.loginMode = _loginMode;
@@ -1200,8 +1244,8 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
   static const _firstBenefits = [
     _ApprovedBenefit(
       'benefit-reward.png',
-      'Earn rewards on every purchase',
-      'Sellers pay you to have the chance to earn your business. Choose one to buy from and keep your earnings.',
+      'Earn rewards on eligible purchases',
+      'Eligible purchases earn rewards after PIN confirmation and fee collection. Reviews are optional.',
     ),
     _ApprovedBenefit(
       'benefit-tag.png',
@@ -1526,7 +1570,7 @@ class _ApprovedBuyerWelcome extends StatelessWidget {
             ),
             SizedBox(height: metrics.geometry(3)),
             Text(
-              'With your Hocalist buyer account, you get paid to buy and enjoy the best offers.',
+              'Compare offers and earn rewards on eligible, confirmed purchases.',
               textAlign: stack ? TextAlign.center : TextAlign.left,
               style: _text(context, size: 11.5, color: _muted, height: 1.28),
             ),
@@ -1740,11 +1784,23 @@ class _ApprovedAssetButton extends StatelessWidget {
   }
 }
 
+class _WelcomeAccessibilityLink extends StatelessWidget {
+  const _WelcomeAccessibilityLink({required this.onTap});
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    onPressed: onTap,
+    icon: const Icon(Icons.accessibility_new_rounded, size: 18),
+    label: const Text('Accessibility'),
+  );
+}
+
 class ApprovedNoAccountHomePage extends StatefulWidget {
   const ApprovedNoAccountHomePage({
     required this.onStart,
     required this.onBuyer,
     required this.onSeller,
+    this.onAccessibility,
     this.onNotifications,
     this.onHome,
     this.onTrends,
@@ -1756,6 +1812,7 @@ class ApprovedNoAccountHomePage extends StatefulWidget {
   final VoidCallback onStart;
   final VoidCallback onBuyer;
   final VoidCallback onSeller;
+  final VoidCallback? onAccessibility;
   final VoidCallback? onNotifications;
   final VoidCallback? onHome;
   final VoidCallback? onTrends;
@@ -1847,6 +1904,8 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
                         _ApprovedHeader(
                           onNotifications: widget.onNotifications ?? () {},
                         ),
+                        if (widget.onAccessibility != null)
+                          Align(alignment: Alignment.centerLeft, child: _WelcomeAccessibilityLink(onTap: widget.onAccessibility!)),
                         SizedBox(height: metrics.geometry(16)),
                         _ApprovedImageAction(
                           semanticLabel:
@@ -2557,14 +2616,16 @@ class BuyerRequestView {
     this.createdAt,
     this.isActive = true,
     this.canViewOffers = true,
+    this.purchaseOfferId,
   });
 
   factory BuyerRequestView.fromRequest(MarketplaceRequest request) {
     final draft = request.draft;
     return BuyerRequestView(
       requestId: request.id,
+      purchaseOfferId: request.purchaseOfferId,
       revision: request.stamp.revision,
-      createdAt: request.stamp.createdAt,
+      createdAt: request.homeActivityAt ?? request.stamp.createdAt,
       isActive: request.status == RequestStatus.active,
       title: draft.title,
       budgetLabel: _formatBudget(draft.budget),
@@ -2581,6 +2642,7 @@ class BuyerRequestView {
   }
 
   final String requestId;
+  final String? purchaseOfferId;
   final int revision;
   final String title;
   final String budgetLabel;
@@ -2718,6 +2780,8 @@ class ApprovedBuyerMeetingsPage extends StatelessWidget {
     required this.error,
     this.onRefresh,
     this.onOpenMeeting,
+    this.onReportPurchase,
+    this.onLoadMore,
     super.key,
   });
 
@@ -2727,6 +2791,8 @@ class ApprovedBuyerMeetingsPage extends StatelessWidget {
   final String? error;
   final VoidCallback? onRefresh;
   final ValueChanged<MeetingView>? onOpenMeeting;
+  final Future<bool> Function(MeetingView)? onReportPurchase;
+  final VoidCallback? onLoadMore;
 
   @override
   Widget build(BuildContext context) {
@@ -2781,13 +2847,27 @@ class ApprovedBuyerMeetingsPage extends StatelessWidget {
                       onRetry: onRefresh,
                     )
                   else
-                    _ApprovedRealMeetingsPanel(
-                      meetings: meetings,
-                      loading: loading,
-                      error: error,
-                      onRetry: onRefresh,
-                      onOpen: onOpenMeeting,
+                    HocalistSectionTabs(
+                      accent: _blue,
+                      underlined: true,
+                      sections: {
+                        for (final past in [false, true])
+                          (past ? 'Past' : 'Upcoming'): [
+                            _ApprovedRealMeetingsPanel(
+                              meetings: meetings,
+                              loading: loading,
+                              error: error,
+                              onRetry: onRefresh,
+                              onOpen: onOpenMeeting,
+                              limit: null,
+                              past: past,
+                              onReport: onReportPurchase,
+                            ),
+                          ],
+                      },
                     ),
+                  if (onLoadMore != null && !loading && error == null)
+                    TextButton(onPressed: onLoadMore, child: const Text('Load more meetings')),
                 ],
               ),
             ),
@@ -2822,12 +2902,22 @@ class ApprovedBuyerHomePage extends StatelessWidget {
     this.requestsError,
     this.onRefreshRequests,
     this.onOpenRequest,
+    this.onCloseFromHome,
     this.loadRealRewards,
     this.realMeetings,
     this.meetingsLoading = false,
     this.meetingsError,
     this.onRefreshMeetings,
     this.onOpenMeeting,
+    this.onOpenPinMeeting,
+    this.homeOffers = const [],
+    this.negotiationsLoading = false,
+    this.negotiationsError,
+    this.onRefreshNegotiations,
+    this.onOpenNegotiation,
+    this.onMeetingDirections,
+    this.onMeetingMessage,
+    this.onMeetingCall,
     this.realActivity,
     this.activityLoading = false,
     this.activityError,
@@ -2865,6 +2955,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   final String? requestsError;
   final VoidCallback? onRefreshRequests;
   final ValueChanged<BuyerRequestView>? onOpenRequest;
+  final ValueChanged<BuyerRequestView>? onCloseFromHome;
 
   /// When set, dashboard reward cards use the authenticated ledger instead of
   /// the approved prototype figures.
@@ -2874,6 +2965,13 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   final String? meetingsError;
   final VoidCallback? onRefreshMeetings;
   final ValueChanged<MeetingView>? onOpenMeeting;
+  final ValueChanged<MeetingView>? onOpenPinMeeting;
+  final List<Offer> homeOffers;
+  final bool negotiationsLoading;
+  final String? negotiationsError;
+  final VoidCallback? onRefreshNegotiations;
+  final ValueChanged<Offer>? onOpenNegotiation;
+  final ValueChanged<MeetingView>? onMeetingDirections, onMeetingMessage, onMeetingCall;
 
   /// Real inbox summaries for the home Recent activity section. Null keeps the
   /// approved prototype activity card.
@@ -2883,6 +2981,37 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   final VoidCallback? onRefreshActivity;
   final ValueChanged<ApprovedActivityView>? onOpenActivity;
   final Future<void> Function()? onRefresh;
+
+  void _openRequestPin(BuildContext context, BuyerRequestView request) {
+    final matches = (realMeetings ?? const <MeetingView>[])
+        .where((meeting) => meeting.requestId == request.requestId && !meeting.isCancelled)
+        .toList();
+    final selected = matches.where((meeting) => request.purchaseOfferId != null
+        ? meeting.offerId == request.purchaseOfferId
+        : meeting.purchaseSelected).toList();
+    if (request.purchaseOfferId == null && selected.isEmpty) {
+      showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheet) => _ApprovedBuyerFlowSheet(
+          icon: Icons.password_rounded,
+          title: 'Purchase PIN',
+          subtitle: 'Choose a seller to access the purchase PIN.',
+          onClose: () => Navigator.pop(sheet),
+          children: const [],
+        ),
+      );
+      return;
+    }
+    final open = onOpenPinMeeting ?? onOpenMeeting;
+    if (selected.length == 1 && open != null) {
+      open(selected.single);
+    } else {
+      onMeetingDetails?.call();
+    }
+  }
 
   bool get usesRealRequests => realRequests != null;
 
@@ -2904,25 +3033,9 @@ class ApprovedBuyerHomePage extends StatelessWidget {
           availableWidth: viewport.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
-        final now = DateTime.now();
-        bool upcoming(BuyerRequestView row) =>
-            row.isActive &&
-            (row.acceptanceExpiresAt == null ||
-                row.acceptanceExpiresAt!.isAfter(now));
         final requests = realRequests == null
             ? null
             : (List<BuyerRequestView>.of(realRequests!)..sort((a, b) {
-                final aUpcoming = upcoming(a);
-                final bUpcoming = upcoming(b);
-                if (aUpcoming != bUpcoming) return aUpcoming ? -1 : 1;
-                final aExpiry = aUpcoming ? a.acceptanceExpiresAt : null;
-                final bExpiry = bUpcoming ? b.acceptanceExpiresAt : null;
-                if (aExpiry != null && bExpiry == null) return -1;
-                if (aExpiry == null && bExpiry != null) return 1;
-                final expiryOrder = aExpiry == null
-                    ? 0
-                    : aExpiry.compareTo(bExpiry!);
-                if (expiryOrder != 0) return expiryOrder;
                 final createdOrder = (b.createdAt ?? DateTime(1970)).compareTo(
                   a.createdAt ?? DateTime(1970),
                 );
@@ -3032,29 +3145,24 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                   onPressed: () => showModalBottomSheet<void>(
                                     context: context,
                                     isScrollControlled: true,
-                                    builder: (sheetContext) => SafeArea(
-                                      child: SizedBox(
-                                        height:
-                                            MediaQuery.sizeOf(
-                                              sheetContext,
-                                            ).height *
-                                            .75,
-                                        child: ListView(
-                                          padding: const EdgeInsets.all(18),
-                                          children: [
-                                            Text(
-                                              'My requests',
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleLarge,
-                                            ),
-                                            const SizedBox(height: 12),
+                                    backgroundColor: Colors.transparent,
+                                    builder: (sheetContext) => BuyerModalSheet(
+                                      title: 'My requests',
+                                      icon: Icons.assignment_outlined,
+                                      onClose: () => Navigator.pop(sheetContext),
+                                      child: Column(
+                                        children: [
                                             for (final request in requests) ...[
                                               _ApprovedActiveRequest(
                                                 title: request.title,
+                                                onClose: request.isActive && onCloseFromHome != null ? () {
+                                                  Navigator.pop(sheetContext);
+                                                  onCloseFromHome!(request);
+                                                } : null,
                                                 showOffers:
                                                     request.canViewOffers,
                                                 showPin: false,
+                                  onPin: () => _openRequestPin(context, request),
                                                 metaLabel: [
                                                   request.statusLabel,
                                                   request.budgetLabel,
@@ -3070,8 +3178,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                               ),
                                               const SizedBox(height: 8),
                                             ],
-                                          ],
-                                        ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -3108,8 +3215,10 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                               for (final request in requests.take(4)) ...[
                                 _ApprovedActiveRequest(
                                   title: request.title,
+                                  onClose: request.isActive && onCloseFromHome != null ? () => onCloseFromHome!(request) : null,
                                   showOffers: request.canViewOffers,
                                   showPin: false,
+                                  onPin: () => _openRequestPin(context, request),
                                   metaLabel: [
                                     request.statusLabel,
                                     request.budgetLabel,
@@ -3136,6 +3245,15 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                             ),
                         ],
                         SizedBox(height: metrics.geometry(8)),
+                        _BuyerNegotiationsPanel(
+                          offers: homeOffers,
+                          meetings: realMeetings ?? const [],
+                          loading: negotiationsLoading,
+                          error: negotiationsError,
+                          onRetry: onRefreshNegotiations,
+                          onOpen: onOpenNegotiation,
+                          onViewAll: onChats,
+                        ),
                         Row(
                           children: [
                             Expanded(
@@ -3180,6 +3298,10 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                             error: meetingsError,
                             onRetry: onRefreshMeetings,
                             onOpen: onOpenMeeting,
+                            homeOffers: homeOffers,
+                            onDirections: onMeetingDirections,
+                            onMessage: onMeetingMessage,
+                            onCall: onMeetingCall,
                           )
                         else
                           _ApprovedUpcomingMeetingsPanel(
@@ -3345,6 +3467,8 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
     required this.onBack,
     required this.onDealHistory,
     this.onWithdraw,
+    this.heading = 'Rewards',
+    this.subheading = 'Your earned buyer rewards.',
     this.realContent,
     super.key,
   });
@@ -3353,6 +3477,7 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
   final VoidCallback onDealHistory;
   final VoidCallback? onWithdraw;
   final Widget? realContent;
+  final String heading, subheading;
 
   @override
   Widget build(BuildContext context) {
@@ -3364,8 +3489,8 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _ApprovedDetailHeading(
-              title: 'Rewards',
-              subtitle: 'Your earned buyer rewards.',
+              title: heading,
+              subtitle: subheading,
               onBack: onBack,
             ),
             SizedBox(height: metrics.spacing(16)),
@@ -3717,14 +3842,20 @@ class ApprovedBuyerRewardsRealSections extends StatefulWidget {
   const ApprovedBuyerRewardsRealSections({
     this.load,
     this.loadWithdrawals,
+    this.payoutSetup,
+    this.previewBalanceMinor,
     this.onWithdraw,
+    this.openWithdrawal,
     this.onDealHistory,
     super.key,
   });
 
+  final Widget? payoutSetup;
+  final int? previewBalanceMinor;
   final Future<RewardWalletView> Function()? load;
   final Future<WithdrawalStatusView> Function()? loadWithdrawals;
   final VoidCallback? onWithdraw;
+  final Future<bool?> Function(BuildContext)? openWithdrawal;
   final VoidCallback? onDealHistory;
 
   @override
@@ -3736,6 +3867,7 @@ class _ApprovedBuyerRewardsRealSectionsState
     extends State<ApprovedBuyerRewardsRealSections> {
   RewardWalletView? _wallet;
   WithdrawalStatusView? _withdrawals;
+  Timer? _payoutRefresh;
   bool _busy = true;
   bool _withdrawalsBusy = false;
   String? _error;
@@ -3773,11 +3905,13 @@ class _ApprovedBuyerRewardsRealSectionsState
 
   @override
   void dispose() {
+    _payoutRefresh?.cancel();
     _generation++;
     super.dispose();
   }
 
   Future<void> _load() async {
+    _payoutRefresh?.cancel();
     final run = ++_generation;
     setState(() {
       _busy = true;
@@ -3806,19 +3940,26 @@ class _ApprovedBuyerRewardsRealSectionsState
     await _loadWithdrawals(run);
   }
 
-  Future<void> _loadWithdrawals(int run) async {
+  Future<void> _loadWithdrawals(int run, {bool background = false}) async {
     final load = widget.loadWithdrawals;
     if (load == null) return;
     if (mounted && run == _generation) {
       setState(() {
-        _withdrawalsBusy = true;
+        _withdrawalsBusy = !background;
         _withdrawalsError = null;
       });
     }
     try {
       final value = await load();
       if (!mounted || run != _generation) return;
+      final previouslyProcessing = _withdrawals?.requests
+          .where((row) => row.status == 'processing').map((row) => row.id).toSet();
       setState(() => _withdrawals = value);
+      if (background && value.requests.any((row) =>
+          row.status != 'processing' && (previouslyProcessing?.contains(row.id) ?? false))) {
+        await _load();
+        return;
+      }
     } catch (_) {
       if (mounted && run == _generation) {
         setState(
@@ -3828,6 +3969,10 @@ class _ApprovedBuyerRewardsRealSectionsState
     } finally {
       if (mounted && run == _generation) {
         setState(() => _withdrawalsBusy = false);
+        if (_withdrawals?.requests.any((row) => row.status == 'processing') == true) {
+          _payoutRefresh?.cancel();
+          _payoutRefresh = Timer(const Duration(seconds: 20), () => _loadWithdrawals(run, background: true));
+        }
       }
     }
   }
@@ -3837,14 +3982,32 @@ class _ApprovedBuyerRewardsRealSectionsState
   @override
   Widget build(BuildContext context) {
     final wallet = _wallet;
+    final status = _withdrawals;
+    final minimum = status?.minimumMinor ?? wallet?.withdrawal.minimumMinor;
+    final available = widget.previewBalanceMinor ?? status?.availableMinor ?? wallet?.availableMinor;
+    final canWithdraw = wallet != null && !_busy && !_walletFailed && !_withdrawalsBusy &&
+        (widget.loadWithdrawals == null || (status != null && _withdrawalsError == null)) &&
+        minimum != null && minimum > 0 && available != null && available >= minimum &&
+        (widget.previewBalanceMinor ?? wallet.availableMinor) >= minimum;
     final metrics = _replicaMetrics(context);
     return Column(
       key: const ValueKey('approved-rewards-real-sections'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (widget.previewBalanceMinor != null)
+          const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('Test balance · preview only')),
         _hero(wallet, metrics),
         SizedBox(height: metrics.spacing(12)),
         _metricsRow(wallet, metrics),
+        Align(alignment: Alignment.centerRight, child: TextButton(
+          onPressed: () => showMoneyHelp(context, title: 'Rewards and withdrawals', answers: {
+            'When can I withdraw a reward?': 'An eligible purchase must be confirmed with the request PIN and the related seller fees collected. Only the available balance can be withdrawn.',
+            if (minimum != null) 'How much can I withdraw?': 'The minimum withdrawal is ${_usd(minimum)}. You can request up to your available balance.',
+            if (status?.feeMinor != null || wallet?.withdrawal.feeMinor != null)
+              'What goes to my bank?': 'The payout fee is ${_usd(status?.feeMinor ?? wallet!.withdrawal.feeMinor!)}. Review the amount after the fee before you confirm.',
+            'Where can I track it?': 'Open payout history in Buyer Rewards to check the status of your withdrawal.',
+          }), child: const Text('How rewards and withdrawals work'))),
+
         if (wallet?.estimatedMinor != null) ...[
           SizedBox(height: metrics.spacing(8)),
           Text(
@@ -3860,7 +4023,7 @@ class _ApprovedBuyerRewardsRealSectionsState
         SizedBox(height: metrics.spacing(16)),
         _sectionHeading('Payout destination'),
         SizedBox(height: metrics.geometry(8)),
-        _payoutDestinationSection(wallet, metrics),
+        widget.payoutSetup ?? _payoutDestinationSection(wallet, metrics),
         SizedBox(height: metrics.spacing(16)),
         _sectionHeading('Payout history'),
         SizedBox(height: metrics.geometry(8)),
@@ -3871,8 +4034,11 @@ class _ApprovedBuyerRewardsRealSectionsState
         SizedBox(height: metrics.spacing(16)),
         BuyerPrimaryButton(
           key: const ValueKey('approved-rewards-withdraw-button'),
-          label: 'Manage payout & withdraw',
-          onPressed: widget.onWithdraw,
+          label: widget.payoutSetup == null ? 'Manage payout & withdraw' : 'Withdraw rewards',
+          onPressed: !canWithdraw ? null : widget.openWithdrawal == null ? widget.onWithdraw : () async {
+            final submitted = await widget.openWithdrawal!(context);
+            if (mounted && submitted == true) await _load();
+          },
         ),
         SizedBox(height: metrics.spacing(10)),
         BuyerSecondaryButton(
@@ -3911,7 +4077,7 @@ class _ApprovedBuyerRewardsRealSectionsState
           _heroLabel(),
           SizedBox(height: metrics.geometry(6)),
           Text(
-            _usd(wallet.earnedMinor),
+            _usd(widget.previewBalanceMinor ?? wallet.earnedMinor),
             key: const ValueKey('approved-rewards-earned'),
             style: _text(
               context,
@@ -3922,7 +4088,7 @@ class _ApprovedBuyerRewardsRealSectionsState
           ),
           SizedBox(height: metrics.geometry(5)),
           Text(
-            'Available to withdraw: ${_usd(wallet.availableMinor)}',
+            'Available to withdraw: ${_usd(widget.previewBalanceMinor ?? wallet.availableMinor)}',
             key: const ValueKey('approved-rewards-available-caption'),
             style: _text(context, size: 11.5, color: _muted),
           ),
@@ -4046,7 +4212,7 @@ class _ApprovedBuyerRewardsRealSectionsState
     final minimum = configured ? wallet.withdrawal.minimumMinor : null;
     final untilPayout = minimum == null || wallet == null
         ? null
-        : (minimum - wallet.availableMinor).clamp(0, minimum);
+        : (minimum - (widget.previewBalanceMinor ?? wallet.availableMinor)).clamp(0, minimum);
     final pending = wallet == null
         ? '—'
         : _usd(wallet.estimatedMinor ?? wallet.pendingMinor);
@@ -4173,7 +4339,7 @@ class _ApprovedBuyerRewardsRealSectionsState
     if (wallet != null) {
       return _ApprovedDetailSurface(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        child: wallet.items.isEmpty
+        child: wallet.items.isEmpty && wallet.testCreditMinor == 0
             ? _emptyState(
                 metrics,
                 icon: Icons.savings_outlined,
@@ -4184,6 +4350,16 @@ class _ApprovedBuyerRewardsRealSectionsState
               )
             : Column(
                 children: [
+                  if (wallet.testCreditMinor > 0) ...[
+                    _ApprovedRewardActivityRow(
+                      asset: 'ready-gift.png',
+                      title: 'Test credit',
+                      subtitle: 'Added for payout testing',
+                      value: '+${_usd(wallet.testCreditMinor)}',
+                      valueColor: _green,
+                    ),
+                    if (wallet.items.isNotEmpty) Divider(height: 1, color: _line),
+                  ],
                   for (var index = 0; index < wallet.items.length; index++) ...[
                     _activityRow(wallet.items[index], metrics),
                     if (index != wallet.items.length - 1)
@@ -4276,10 +4452,11 @@ class _ApprovedBuyerRewardsRealSectionsState
     int minimum,
     ApprovedReplicaMetrics metrics,
   ) {
-    final ready = wallet.availableMinor >= minimum;
+    final available = widget.previewBalanceMinor ?? wallet.availableMinor;
+    final ready = available >= minimum;
     final progress = minimum <= 0
         ? 1.0
-        : (wallet.availableMinor / minimum).clamp(0.0, 1.0);
+        : (available / minimum).clamp(0.0, 1.0);
     return _ApprovedDetailSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4326,7 +4503,7 @@ class _ApprovedBuyerRewardsRealSectionsState
           ),
           SizedBox(height: metrics.geometry(8)),
           Text(
-            '${_usd(wallet.availableMinor)} of ${_usd(minimum)} ready',
+            '${_usd(widget.previewBalanceMinor ?? wallet.availableMinor)} of ${_usd(minimum)} ready',
             key: const ValueKey('approved-rewards-next-payout-caption'),
             style: _text(
               context,
@@ -5513,6 +5690,7 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
     this.viewerUserId,
     this.onDirections,
     this.saleConfirmation,
+    this.focusPurchasePin = false,
     this.onReviewPurchase,
     this.onReviewBuyer,
     this.onChoosePurchaseSeller,
@@ -5535,6 +5713,7 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
   final String? viewerUserId;
   final VoidCallback? onDirections;
   final Widget? saleConfirmation;
+  final bool focusPurchasePin;
   final VoidCallback? onReviewPurchase;
   final VoidCallback? onReviewBuyer;
   final VoidCallback? onChoosePurchaseSeller;
@@ -5723,6 +5902,13 @@ class _ApprovedMeetingDetailsPageState
             onBack: widget.onBack,
           ),
           SizedBox(height: metrics.spacing(compactViewport ? 8 : 16)),
+          if (widget.focusPurchasePin && realMode) ...[
+            if (_meeting!.purchaseSelected && _meeting!.hasAcceptedSchedule && widget.saleConfirmation != null)
+              widget.saleConfirmation!
+            else
+              const PurchasePinCard(isBuyer: true),
+            SizedBox(height: metrics.spacing(8)),
+          ],
           _ApprovedDetailSurface(
             padding: EdgeInsets.all(compactViewport ? 10 : 14),
             child: Row(
@@ -5857,7 +6043,7 @@ class _ApprovedMeetingDetailsPageState
               onPressed: widget.busy ? null : widget.onChoosePurchaseSeller,
             ),
           ],
-          if (widget.saleConfirmation != null &&
+          if (!widget.focusPurchasePin && widget.saleConfirmation != null &&
               (!realMode ||
                   _meeting!.purchaseSelected && _meeting!.hasAcceptedSchedule))
             widget.saleConfirmation!,
@@ -9449,75 +9635,73 @@ class _ApprovedEmptySectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
+    final heading = Text(
+      title,
+      style: _text(context, size: 12, weight: FontWeight.w800, color: _navy),
+    );
+    final description = Text(
+      body,
+      style: _text(context, size: 10, weight: FontWeight.w500, color: _muted, height: 1.35),
+    );
+    final action = actionLabel == null || onAction == null
+        ? null
+        : TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              backgroundColor: HocalistPalette.surface(context, _lavender),
+              minimumSize: Size(0, metrics.geometry(34)),
+              padding: metrics.geometryInsets(
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              actionLabel!,
+              style: _text(context, size: 10.5, weight: FontWeight.w700, color: _blue),
+            ),
+          );
+
     return Container(
       padding: EdgeInsets.all(metrics.geometry(12)),
       decoration: _panelDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              BuyerAssetIcon(
-                asset: '$_approvedAssetRoot/$asset',
-                slotSize: metrics.artSize(44),
-              ),
-              SizedBox(width: metrics.geometry(9)),
-              Expanded(
-                child: Column(
+          BuyerAssetIcon(
+            asset: '$_approvedAssetRoot/$asset',
+            slotSize: metrics.artSize(44),
+          ),
+          SizedBox(width: metrics.geometry(9)),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = action != null && constraints.maxWidth < 360;
+                final copy = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: _text(
-                        context,
-                        size: 12,
-                        weight: FontWeight.w800,
-                        color: _navy,
-                      ),
-                    ),
-                    SizedBox(height: metrics.geometry(3)),
-                    Text(
-                      body,
-                      style: _text(
-                        context,
-                        size: 10,
-                        weight: FontWeight.w500,
-                        color: _muted,
-                        height: 1.35,
-                      ),
-                    ),
+                    heading,
+                    if (!compact) ...[
+                      SizedBox(height: metrics.geometry(3)),
+                      description,
+                    ],
                   ],
-                ),
-              ),
-            ],
-          ),
-          if (actionLabel != null && onAction != null) ...[
-            SizedBox(height: metrics.geometry(8)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  backgroundColor: HocalistPalette.surface(context, _lavender),
-                  minimumSize: Size(0, metrics.geometry(34)),
-                  padding: metrics.geometryInsets(
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  ),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  actionLabel!,
-                  style: _text(
-                    context,
-                    size: 10.5,
-                    weight: FontWeight.w700,
-                    color: _blue,
-                  ),
-                ),
-              ),
+                );
+                if (action == null) return copy;
+                final row = Row(
+                  children: [
+                    Expanded(child: copy),
+                    SizedBox(width: metrics.geometry(8)),
+                    action,
+                  ],
+                );
+                if (!compact) return row;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [row, SizedBox(height: metrics.geometry(3)), description],
+                );
+              },
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -9531,6 +9715,8 @@ class _ApprovedActiveRequest extends StatelessWidget {
     required this.onOffers,
     this.showOffers = true,
     this.showPin = true,
+    this.onClose,
+    this.onPin,
     this.metaLabel,
   });
 
@@ -9539,8 +9725,11 @@ class _ApprovedActiveRequest extends StatelessWidget {
   final VoidCallback onOffers;
   final bool showOffers;
 
+  final VoidCallback? onClose;
+
   /// Real mode hides the prototype PIN claim until PIN policy is approved.
   final bool showPin;
+  final VoidCallback? onPin;
 
   /// Real status/budget summary replacing the prototype posted-date text.
   final String? metaLabel;
@@ -9567,6 +9756,7 @@ class _ApprovedActiveRequest extends StatelessWidget {
             if (showPin) SizedBox(height: metrics.geometry(2)),
             Text(
               title,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
               style: _text(
                 context,
                 size: 14,
@@ -9602,13 +9792,61 @@ class _ApprovedActiveRequest extends StatelessWidget {
             ),
           ),
         );
+        final actions = Wrap(
+          spacing: metrics.geometry(4),
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (onPin != null)
+              Tooltip(
+                message: 'Purchase PIN',
+                child: TextButton(
+                  onPressed: onPin,
+                  style: action.style,
+                  child: Text('PIN', style: _text(context, size: 10, weight: FontWeight.w700, color: _blue)),
+                ),
+              ),
+            if (showOffers) action,
+            IconButton(
+              tooltip: 'Request options',
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (sheet) => _ApprovedBuyerFlowSheet(
+                  icon: Icons.edit_note_rounded,
+                  title: 'Request options',
+                  subtitle: title,
+                  onClose: () => Navigator.pop(sheet),
+                  children: [
+                    BuyerPrimaryButton(label: 'Edit request', onPressed: () {
+                      Navigator.pop(sheet);
+                      onDetails();
+                    }),
+                    if (onClose != null) ...[
+                      const SizedBox(height: 12),
+                      BuyerSecondaryButton(label: 'Close request', onPressed: () {
+                        Navigator.pop(sheet);
+                        onClose!();
+                      }),
+                    ],
+                  ],
+                ),
+              ),
+              icon: const Icon(Icons.more_horiz),
+            ),
+          ],
+        );
         return _ApprovedDashboardCard(
           key: const ValueKey('approved-active-request-card'),
           padding: metrics.geometryInsets(
             const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           ),
           child: InkWell(
-            onTap: onDetails,
+            onLongPress: onClose,
+            onTap: showOffers ? onOffers : null,
             child: stacked
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -9625,7 +9863,7 @@ class _ApprovedActiveRequest extends StatelessWidget {
                         ],
                       ),
                       SizedBox(height: metrics.geometry(6)),
-                      if (showOffers) action,
+                      if (onPin != null || showOffers) actions,
                     ],
                   )
                 : Row(
@@ -9636,13 +9874,110 @@ class _ApprovedActiveRequest extends StatelessWidget {
                       ),
                       SizedBox(width: metrics.geometry(8)),
                       Expanded(child: details),
-                      if (showOffers) action,
+                      if (onPin != null || showOffers) actions,
                     ],
                   ),
           ),
         );
       },
     );
+  }
+}
+
+class _BuyerNegotiationsPanel extends StatelessWidget {
+  const _BuyerNegotiationsPanel({required this.offers, required this.meetings,
+    required this.loading, required this.error, this.onRetry, this.onOpen, this.onViewAll});
+  final List<Offer> offers;
+  final List<MeetingView> meetings;
+  final bool loading;
+  final String? error;
+  final VoidCallback? onRetry, onViewAll;
+  final ValueChanged<Offer>? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final negotiating = offers.where((offer) => offer.status == OfferStatus.selected &&
+      !offer.requestClosed && offer.conversationId != null &&
+      !meetings.any((m) => m.offerId == offer.id && m.hasAcceptedSchedule && !m.isCancelled)).toList();
+    if (!loading && error == null && negotiating.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: Text('Ongoing negotiations', style: _text(context, size: 14, weight: FontWeight.w800, color: _navy))),
+        TextButton(onPressed: onViewAll, child: const Text('View all')),
+      ]),
+      if (loading) const BuyerProgressStrip(label: 'Loading your conversations…')
+      else if (error != null) BuyerStateNotice(title: 'Conversations could not be loaded',
+        icon: Icons.chat_bubble_outline, body: error, onAction: onRetry, actionLabel: 'Retry')
+      else for (final offer in negotiating.take(3)) Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: _ApprovedDashboardCard(child: InkWell(
+          key: ValueKey('home-negotiation-${offer.id}'),
+          onTap: onOpen == null ? null : () => onOpen!(offer),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(offer.sellerDisplayName ?? 'Seller', style: _text(context, size: 14, weight: FontWeight.w700, color: _navy)),
+            const SizedBox(height: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if ((offer.acceptedRevision ?? offer.latestRevision).terms.imageMediaIds.firstOrNull case final photo?) ...[
+                ClipRRect(borderRadius: BorderRadius.circular(12), child: PrivateRemoteImage(id: photo, size: 64)),
+                const SizedBox(width: 12),
+              ],
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(offer.requestTitle ?? 'Your request', maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: _text(context, size: 13, weight: FontWeight.w700, color: _navy)),
+                const SizedBox(height: 4),
+                Text('\$${((offer.acceptedRevision ?? offer.latestRevision).terms.price.minorUnits / 100).toStringAsFixed(2)}',
+                  style: _text(context, size: 16, weight: FontWeight.w800, color: _blue)),
+              ])),
+              const Icon(Icons.chevron_right_rounded, color: _blue),
+            ]),
+            const SizedBox(height: 8),
+            Text('Continue conversation', style: _text(context, size: 12, color: _blue)),
+          ]),
+        )),
+      ),
+    ]);
+  }
+}
+
+class _BuyerHomeMeetingSummary extends StatelessWidget {
+  const _BuyerHomeMeetingSummary({required this.meeting, this.offer, this.onDirections, this.onMessage, this.onCall});
+  final MeetingView meeting;
+  final Offer? offer;
+  final ValueChanged<MeetingView>? onDirections, onMessage, onCall;
+  @override
+  Widget build(BuildContext context) {
+    final schedule = meeting.acceptedSchedule ?? meeting.pendingSchedule;
+    final terms = offer?.acceptedRevision?.terms;
+    final image = terms?.imageMediaIds.firstOrNull;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (image != null) ...[
+          ClipRRect(borderRadius: BorderRadius.circular(12), child: PrivateRemoteImage(id: image, size: 74)),
+          const SizedBox(width: 12),
+        ],
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (schedule != null) Text('${schedule.date} · ${schedule.startTime}',
+            style: _text(context, size: 12, color: _blue, weight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          Text(meeting.offerSummary?.title ?? offer?.requestTitle ?? 'Meeting', maxLines: 2,
+            overflow: TextOverflow.ellipsis, style: _text(context, size: 14, weight: FontWeight.w800, color: _navy)),
+          if (meeting.offerSummary?.priceLabel case final price?)
+            Text(price, style: _text(context, size: 18, weight: FontWeight.w800, color: _blue)),
+          if (schedule != null) Text(schedule.placeLabel ?? schedule.placeAddress ?? 'View meeting location',
+            maxLines: 2, overflow: TextOverflow.ellipsis, style: _text(context, size: 12, color: _muted)),
+        ])),
+      ]),
+      if (meeting.hasPendingSchedule) Padding(padding: const EdgeInsets.only(top: 6),
+        child: Text(meeting.hasAcceptedSchedule ? 'Change awaiting agreement · original details shown' : 'Awaiting agreement',
+          style: _text(context, size: 11, color: _muted))),
+      const Divider(height: 20),
+      Text(offer?.sellerDisplayName ?? 'Your seller', style: _text(context, size: 12, weight: FontWeight.w700, color: _navy)),
+      Wrap(spacing: 8, children: [
+        if (onDirections != null) TextButton.icon(onPressed: () => onDirections!(meeting), icon: const Icon(Icons.map_outlined, size: 18), label: const Text('Maps')),
+        if (onCall != null) TextButton.icon(onPressed: () => onCall!(meeting), icon: const Icon(Icons.call_outlined, size: 18), label: const Text('Call')),
+        if (onMessage != null) TextButton.icon(onPressed: () => onMessage!(meeting), icon: const Icon(Icons.chat_bubble_outline, size: 18), label: const Text('Message')),
+      ]),
+    ]);
   }
 }
 
@@ -9653,6 +9988,13 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
     required this.error,
     required this.onRetry,
     required this.onOpen,
+    this.past = false,
+    this.limit = 3,
+    this.onReport,
+    this.homeOffers = const [],
+    this.onDirections,
+    this.onMessage,
+    this.onCall,
   });
 
   final List<MeetingView> meetings;
@@ -9660,6 +10002,11 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
   final String? error;
   final VoidCallback? onRetry;
   final ValueChanged<MeetingView>? onOpen;
+  final bool past;
+  final int? limit;
+  final Future<bool> Function(MeetingView)? onReport;
+  final List<Offer> homeOffers;
+  final ValueChanged<MeetingView>? onDirections, onMessage, onCall;
 
   @override
   Widget build(BuildContext context) {
@@ -9677,13 +10024,18 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
       );
     }
     final now = DateTime.now();
-    final upcoming = meetings
-        .where((meeting) {
-          return meeting.isUpcomingAt(now);
-        })
-        .take(3)
-        .toList(growable: false);
-    if (upcoming.isEmpty) {
+    final matching = meetings.where((meeting) => past
+        ? meeting.isPastAcceptedAt(now)
+        : meeting.isUpcomingAt(now));
+    final rows = limit == null ? matching : matching.take(limit!);
+    if (rows.isEmpty && past) {
+      return const _ApprovedEmptySectionCard(
+        asset: 'dashboard-calendar.png',
+        title: 'No past meetings to follow up',
+        body: 'Agreed meetings without a recorded purchase appear here after the PIN expires.',
+      );
+    }
+    if (rows.isEmpty) {
       return const _ApprovedEmptySectionCard(
         key: Key('buyerMeetingsEmpty'),
         asset: 'dashboard-calendar.png',
@@ -9699,7 +10051,7 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
       decoration: _panelDecoration(context),
       child: Column(
         children: [
-          for (final meeting in upcoming)
+          for (final meeting in rows)
             InkWell(
               key: ValueKey('buyerMeeting-${meeting.meetingId}'),
               onTap: onOpen == null ? null : () => onOpen!(meeting),
@@ -9710,8 +10062,19 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (!past && onMessage != null) ...[
+                      _BuyerHomeMeetingSummary(
+                        meeting: meeting,
+                        offer: homeOffers.where((o) => o.id == meeting.offerId).firstOrNull,
+                        onDirections: onDirections,
+                        onMessage: onMessage,
+                        onCall: onCall,
+                      ),
+                    ] else ...[
                     Text(
                       meeting.offerSummary?.title ?? 'Meeting',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: _text(
                         context,
                         size: 12,
@@ -9732,12 +10095,19 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
                           style: _text(context, size: 10.5, color: _muted),
                         ),
                     ],
-                    Text(meeting.latestProposalDeclined ? meeting.declinedProposalMessage : switch (meeting.status) {
+                    Text(past ? 'No purchase recorded' : meeting.latestProposalDeclined ? meeting.declinedProposalMessage : switch (meeting.status) {
                       'accepted' => 'Confirmed',
                       'proposed' => 'Proposed',
                       'reschedule_proposed' => 'Reschedule requested',
                       _ => 'Awaiting update',
                     }, style: _text(context, size: 10, color: _blue)),
+                    ],
+                    if (past && onReport != null)
+                      _PastPurchaseReport(
+                        key: ValueKey(meeting.meetingId),
+                        meeting: meeting,
+                        submit: onReport!,
+                      ),
                   ],
                 ),
               ),
@@ -9746,6 +10116,63 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PastPurchaseReport extends StatefulWidget {
+  const _PastPurchaseReport({required this.meeting, required this.submit, super.key});
+
+  final MeetingView meeting;
+  final Future<bool> Function(MeetingView) submit;
+
+  @override
+  State<_PastPurchaseReport> createState() => _PastPurchaseReportState();
+}
+
+class _PastPurchaseReportState extends State<_PastPurchaseReport> {
+  bool _sending = false;
+  bool _sent = false;
+  bool _failed = false;
+
+  Future<void> _report() async {
+    final meeting = widget.meeting;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheet) => _ApprovedBuyerFlowSheet(
+        icon: Icons.receipt_long_outlined,
+        title: 'Report unconfirmed purchase',
+        subtitle: 'Did you complete this purchase without the seller confirming your PIN?',
+        onClose: () => Navigator.pop(sheet, false),
+        children: [
+          _ApprovedDetailSurface(child: Text(meeting.offerSummary?.title ?? 'Meeting on ${meeting.acceptedSchedule!.date}')),
+          const SizedBox(height: 12),
+          BuyerPrimaryButton(label: 'Send report', onPressed: () => Navigator.pop(sheet, true)),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || _sending || _sent) return;
+    setState(() { _sending = true; _failed = false; });
+    var sent = false;
+    try {
+      sent = await widget.submit(meeting);
+    } finally {
+      if (mounted) setState(() { _sending = false; _sent = sent; _failed = !sent; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (_failed) const Text('Could not send your report. Please try again.'),
+      TextButton.icon(
+        onPressed: _sending || _sent ? null : _report,
+        icon: Icon(_sent ? Icons.check_circle_outline : Icons.flag_outlined, size: 17),
+        label: Text(_sent ? 'Report sent to support' : _sending ? 'Sending report…' : 'Report unconfirmed purchase'),
+      ),
+    ],
+  );
 }
 
 class _ApprovedUpcomingMeetingsPanel extends StatelessWidget {

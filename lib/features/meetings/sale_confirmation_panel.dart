@@ -245,9 +245,9 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
             title: done ? 'Purchase confirmed' : 'Confirm purchase',
             message: message,
           ),
-          if (result?.pin != null) ...[
+          if (result?.pin != null || (widget.isBuyer && !done)) ...[
             SizedBox(height: metrics.spacing(12)),
-            _PinDisplayCard(pin: result!.pin!, isBuyer: widget.isBuyer),
+            PurchasePinCard(pin: result?.pin, isBuyer: widget.isBuyer),
           ],
           if (!widget.isBuyer && !done && widget.meetingAccepted) ...[
             SizedBox(height: metrics.spacing(12)),
@@ -386,10 +386,10 @@ class _ConfirmationNotice extends StatelessWidget {
   }
 }
 
-class _PinDisplayCard extends StatelessWidget {
-  const _PinDisplayCard({required this.pin, required this.isBuyer});
+class PurchasePinCard extends StatelessWidget {
+  const PurchasePinCard({this.pin, required this.isBuyer});
 
-  final String pin;
+  final String? pin;
   final bool isBuyer;
 
   @override
@@ -444,7 +444,8 @@ class _PinDisplayCard extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              pin,
+              pin ?? '•••••',
+              semanticsLabel: pin == null ? 'PIN hidden' : null,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: resolved.fontSize(38),
@@ -456,7 +457,7 @@ class _PinDisplayCard extends StatelessWidget {
           ),
           SizedBox(height: resolved.spacing(8)),
           Text(
-            'Valid through the accepted meeting day in the meeting timezone.',
+            pin == null ? 'Share your PIN only after you pay.' : 'Valid through the accepted meeting day in the meeting timezone.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: resolved.fontSize(11.5),

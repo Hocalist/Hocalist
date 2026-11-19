@@ -98,6 +98,17 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('PIN shortcut shows a masked card before schedule acceptance', (tester) async {
+    await _pump(tester, ApprovedMeetingDetailsPage(
+      meeting: _meeting(status: 'proposed', purchaseSelected: false),
+      focusPurchasePin: true,
+      onBack: () {},
+      onConfirm: () {},
+      saleConfirmation: const Text('Eligible purchase controls'),
+    ));
+    expect(find.text('•••••'), findsOneWidget);
+    expect(find.text('Eligible purchase controls'), findsNothing);
+  });
   testWidgets('reschedule preserves confirmed details and labels proposed changes', (tester) async {
     var accepted = 0;
     await _pump(tester, ApprovedMeetingDetailsPage(
@@ -397,7 +408,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Past meetings · needs attention'), findsOneWidget);
+      expect(find.text('No upcoming appointments'), findsOneWidget);
+      expect(find.text('Loop Resale iPad Air'), findsNothing);
+      await tester.tap(find.byKey(const Key('sellerMeetFilterPast')));
+      await tester.pumpAndSettle();
+      expect(find.text('Meeting was confirmed'), findsOneWidget);
+      expect(find.text('No purchase recorded.'), findsOneWidget);
+      expect(find.text('No upcoming appointments'), findsNothing);
       expect(find.text('Loop Resale iPad Air'), findsOneWidget);
       await tester.ensureVisible(find.text('View meeting'));
       await tester.pumpAndSettle();
@@ -433,7 +450,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Past meetings · needs attention'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('Past appointments, 0')), findsOneWidget);
     expect(find.text('Loop Resale iPad Air'), findsNothing);
     await tester.tap(find.byKey(const Key('sellerMeetFilterCompleted')));
     await tester.pumpAndSettle();
