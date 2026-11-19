@@ -3,6 +3,7 @@ import WaitlistForm from '../WaitlistForm';
 import { PageShell } from '../site-content';
 import { downloadOptions } from '../lib/download-options';
 import { DownloadLink } from './DownloadLink';
+import { androidTestRelease } from '../lib/android-test-release';
 
 export const metadata = {
   title: 'Hocalist Mobile App | Early access updates',
@@ -10,6 +11,7 @@ export const metadata = {
 };
 
 const { android: playStoreUrl, ios: appStoreUrl } = downloadOptions(process.env);
+const isAndroidTest = playStoreUrl === androidTestRelease.pageUrl;
 
 export default function DownloadPage() {
   return (
@@ -32,7 +34,7 @@ export default function DownloadPage() {
               </Link>
             </div>
             <div className="download-status-row" aria-label="App availability">
-              <span>{playStoreUrl && appStoreUrl ? 'Android and iOS available' : playStoreUrl ? 'Android available · iOS coming soon' : appStoreUrl ? 'iOS available · Android coming soon' : 'Android and iOS planned'}</span>
+              <span>{isAndroidTest ? `Android testing available · iOS ${appStoreUrl ? 'available' : 'coming soon'}` : playStoreUrl && appStoreUrl ? 'Android and iOS available' : playStoreUrl ? 'Android available · iOS coming soon' : appStoreUrl ? 'iOS available · Android coming soon' : 'Android and iOS planned'}</span>
               <span>Buyer requests</span>
               <span>Seller offers</span>
             </div>
@@ -107,7 +109,14 @@ export default function DownloadPage() {
               review offers, and coordinate locally.
             </p>
             {playStoreUrl ? (
-              <DownloadLink href={playStoreUrl} platform="android">{playStoreUrl.includes('play.google.com') ? 'Get it on Google Play' : 'Download Android test app'}</DownloadLink>
+              <>
+                <DownloadLink href={isAndroidTest ? '/download/android' : playStoreUrl} platform="android">{playStoreUrl.includes('play.google.com') ? 'Get it on Google Play' : 'Download Android test app'}</DownloadLink>
+                {isAndroidTest && <p className="store-availability">
+                  Testing build · {androidTestRelease.date} · {Math.round(androidTestRelease.bytes / 1000000)} MB.
+                  {' '}Requires Android 7 or later. Download the APK, then open it on your Android phone to install.
+                  {' '}This is an early-access test app, not a Google Play release. Payments remain in test mode.
+                </p>}
+              </>
             ) : (
               <p className="store-availability">Not available to download yet. Store links appear here once the listing is live.</p>
             )}

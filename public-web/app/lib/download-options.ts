@@ -1,3 +1,5 @@
+import { androidTestRelease } from './android-test-release';
+
 export type DownloadPlatform = 'android' | 'ios';
 export function downloadOptions(env: Record<string, string | undefined>) {
   function safe(value: string | undefined, hosts: string[]) {
@@ -7,7 +9,9 @@ export function downloadOptions(env: Record<string, string | undefined>) {
     } catch { return null; }
   }
   const android = safe(env.NEXT_PUBLIC_PLAY_STORE_URL, ['play.google.com']) ??
-    safe(env.HOCALIST_ANDROID_TEST_DOWNLOAD_URL, ['hocalist.com', 'www.hocalist.com']);
+    (env.HOCALIST_ANDROID_TEST_DOWNLOAD_URL === undefined
+      ? androidTestRelease.pageUrl
+      : safe(env.HOCALIST_ANDROID_TEST_DOWNLOAD_URL, ['hocalist.com', 'www.hocalist.com']));
   const ios = safe(env.NEXT_PUBLIC_APP_STORE_URL, ['apps.apple.com']) ??
     safe(env.HOCALIST_IOS_TESTFLIGHT_URL, ['testflight.apple.com']);
   return { android, ios };
