@@ -20,7 +20,7 @@ export type PortalConfig = {
 // verified account inside the database, the return URL is built from the
 // approved origin and path allowlist, and no card data or customer id ever
 // reaches the browser.
-export function createPortalHandler(api: Backend, config: PortalConfig) {
+export function createPortalHandler(original: Backend, config: PortalConfig, qa?: Backend) {
   return async (request: Request): Promise<Response> => {
     if (request.method !== "POST") {
       return json({ error: "method_not_allowed" }, 405);
@@ -29,7 +29,7 @@ export function createPortalHandler(api: Backend, config: PortalConfig) {
       return json({ error: "billing_unavailable" }, 503);
     }
     try {
-      const user = await api.user(request);
+      const user = await original.user(request);
       const input = await boundedBody(request);
       const keys = Object.keys(input).sort().join(",");
       if (keys !== "" && keys !== "return_path") {
@@ -40,10 +40,11 @@ export function createPortalHandler(api: Backend, config: PortalConfig) {
         throw new BillingError("invalid_request", 400);
       }
       const returnUrl = serviceUrl(new URL(path, serviceUrl(config.origin)).toString());
-      await assertAccount(api);
       const access = object(
-        await api.rpc("stripe_test_portal_access", { p_user: user }),
+        await original.rpc("stripe_test_portal_access", { p_user: user }),
       );
+      const api = qa && access.qa_subscription ? qa : original;
+      await assertAccount(api);
       if (access.requires_review === true) {
         throw new BillingError("billing_review_required", 403);
       }

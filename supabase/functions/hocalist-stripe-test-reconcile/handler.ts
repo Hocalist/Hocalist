@@ -34,7 +34,7 @@ export async function authorizedBySecret(
 }
 
 // Retrieve current provider state; never grant access from a historical event body.
-async function snapshot(
+export async function snapshot(
   api: Backend,
   customer: string,
   context: ObjectMap,
@@ -196,7 +196,7 @@ async function quarantineDeposit(
 // Deposit reconciliation: classification comes from the stored session/checkout
 // binding, and every provider metadata/mode/customer/amount value is validated
 // against that contract before a batch can be created.
-async function reconcileDeposit(
+export async function reconcileDeposit(
   api: Backend,
   session: ObjectMap,
   customer: string,
@@ -277,7 +277,7 @@ export function createReconcileHandler(deps: {
       const payload = object(object(event.data).object);
       if (
         event.livemode !== false ||
-        (event.account && event.account !== ACCOUNT) ||
+        (event.account && event.account !== (api.account ?? ACCOUNT)) ||
         event.id !== claim.event_id || event.type !== claim.event_type ||
         payload.id !== claim.object_id
       ) throw new Error("review_required");

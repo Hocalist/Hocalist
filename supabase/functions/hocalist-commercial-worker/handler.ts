@@ -1,10 +1,13 @@
+import { rewardSandboxProject } from "../_shared/reward-sandbox-project.ts";
+import { sharedProject, qaAccount } from "../_shared/stripe-test-project.ts";
+import { stripeRewardProvider } from "./stripe-reward-provider.ts";
 // Hocalist commercial worker request handler.
 //
 // Kept separate from index.ts so the HTTP contract (shared-secret
 // authorization, Hocalist schema headers, RPC path/body) can be proved with an
 // injected fetch. No provider is named, called or emulated here: until a
 // verified adapter is installed the handler reports that state honestly.
-import { runPayoutCycle, type CommercialRpc } from "./executor.ts";
+import { type CommercialRpc, runPayoutCycle } from "./executor.ts";
 import type { PayoutProvider } from "./payout_provider.ts";
 
 export const HOCALIST_SCHEMA = "hocalist";
@@ -80,9 +83,19 @@ export function serviceRpc(deps: HandlerDependencies): CommercialRpc {
 // recipient eligibility. Until one is installed this returns null and the
 // handler reports the honest state instead of guessing an integration.
 export function configuredProvider(
-  _env: (name: string) => string | undefined,
+  deps: HandlerDependencies,
 ): PayoutProvider | null {
-  return null;
+  if (deps.env("HOCALIST_PAYOUT_PROVIDER_KEY") !== "stripe_global_sandbox") {
+    return null;
+  }
+  const secret = deps.env("HOCALIST_REWARD_STRIPE_SANDBOX_KEY") ?? "";
+  const account = deps.env("HOCALIST_REWARD_FINANCIAL_ACCOUNT") ?? "";
+  if (
+    !(rewardSandboxProject(deps.env) || (deps.env("SUPABASE_URL") === sharedProject &&
+      deps.env("HOCALIST_REWARD_SANDBOX_ACCOUNT_ID") === qaAccount)) || !secret ||
+    !/^fa_[a-zA-Z0-9_]+$/.test(account)
+  ) return null;
+  return stripeRewardProvider(secret, account, serviceRpc(deps), deps.fetcher);
 }
 
 export function createHandler(
@@ -93,11 +106,20 @@ export function createHandler(
       return json({ error: "method_not_allowed" }, 405);
     }
     try {
-      if (!await authorized(request, deps.env("HOCALIST_COMMERCIAL_WORKER_SECRET") ?? "")) {
+      if (
+        !await authorized(
+          request,
+          deps.env("HOCALIST_COMMERCIAL_WORKER_SECRET") ?? "",
+        )
+      ) {
         return json({ error: "authentication_required" }, 401);
       }
+      if (deps.env("SUPABASE_URL") === sharedProject) {
+        const guard = await serviceRpc(deps)("sandbox_payout_execution_guard", {});
+        if (guard.ready !== true) return json({ status: "sandbox_guard_unavailable" }, 503);
+      }
       const providerKey = deps.env("HOCALIST_PAYOUT_PROVIDER_KEY") ?? "";
-      const provider = configuredProvider(deps.env);
+      const provider = configuredProvider(deps);
       if (provider === null) {
         return json({
           status: providerKey.length === 0

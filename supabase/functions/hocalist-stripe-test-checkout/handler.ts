@@ -113,8 +113,9 @@ async function recoverSession(
   return providerUrl(existing.url, "checkout.stripe.com");
 }
 
-export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
+export function createCheckoutHandler(original: Backend, config: CheckoutConfig, qa?: Backend) {
   return async (request: Request): Promise<Response> => {
+    let api = original;
     if (request.method !== "POST") {
       return json({ error: "method_not_allowed" }, 405);
     }
@@ -123,10 +124,37 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
     }
     try {
       const user = await api.user(request);
-      const input = parseCheckoutInput(await boundedBody(request));
+      const body = await boundedBody(request);
+      if (body.kind === 'cancel') {
+        if (Object.keys(body).sort().join(',') !== 'checkout_id,kind') throw new BillingError('invalid_request', 400);
+        const checkoutId = uuid(body.checkout_id);
+        const pending = object(await api.rpc('stripe_test_pending_checkout', { p_user: user }));
+        if (qa && (pending.qa_credit === true || pending.qa_subscription === true)) api = qa;
+        await assertAccount(api);
+        if (pending.checkout_id !== checkoutId || !pending.session_id) throw new BillingError('checkout_reconciliation_required', 409);
+        const customer = String(pending.customer_id ?? '');
+        if (!/^cus_[A-Za-z0-9]+$/.test(customer)) throw new BillingError('checkout_reconciliation_required', 409);
+        const path = `checkout/sessions/${encodeURIComponent(String(pending.session_id))}`;
+        let session = await api.stripe(path);
+        const owns = (value: Record<string, unknown>) => value.id === pending.session_id &&
+          id(value.customer) === customer && value.livemode === false;
+        if (!owns(session)) throw new BillingError('checkout_reconciliation_required', 409);
+        if (session.status === 'open' && session.payment_status === 'unpaid') {
+          session = await api.stripe(`${path}/expire`, {}, `hocalist-cancel-${checkoutId}`);
+        }
+        // A concurrent payment or ambiguous provider response must never clear
+        // the retained purchase. Only confirmed expiry closes our record.
+        if (!owns(session) || session.status !== 'expired' || session.payment_status !== 'unpaid') {
+          throw new BillingError('checkout_reconciliation_required', 409);
+        }
+        await api.rpc('stripe_test_checkout_expire', {
+          p_checkout: checkoutId, p_session: session.id, p_customer: customer,
+        });
+        return json({ checkout_id: checkoutId, cancelled: true });
+      }
+      const input = parseCheckoutInput(body);
       const success = serviceUrl(config.success);
       const cancel = serviceUrl(config.cancel);
-      await assertAccount(api);
 
       // Recover a checkout retained on the server after browser storage is lost
       // or another purchase type was selected. Only Stripe can prove expiry.
@@ -144,7 +172,9 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
           const customer = String(pending.customer_id ?? '');
           if (!/^cus_[A-Za-z0-9]+$/.test(customer)) throw error;
           try {
-            await recoverSession(api, pending, customer);
+            const owner = qa && (pending.qa_credit === true || pending.qa_subscription === true) ? qa : original;
+            await assertAccount(owner);
+            await recoverSession(owner, pending, customer);
           } catch (recovery) {
             if (recovery instanceof BillingError && recovery.code === 'checkout_closed') {
               return await api.rpc(name, body);
@@ -158,13 +188,15 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
 
       if (input.kind === "credit_deposit") {
         const checkout = object(
-          await begin(input.amount!==undefined?"stripe_test_standard_deposit_begin":"stripe_test_deposit_begin", {
+          await begin(qa ? "qa_credit_begin" : input.amount!==undefined?"stripe_test_standard_deposit_begin":"stripe_test_deposit_begin", {
             p_user: user,
             ...(input.amount!==undefined?{p_amount:input.amount}:{p_option:input.option}),
             p_key: input.key,
           }),
         );
-        const customer = await ensureCustomer(api, checkout, "stripe_test_deposit_bind", api.userEmail(request));
+        if (qa && checkout.qa_credit === true) api = qa;
+        await assertAccount(api);
+        const customer = await ensureCustomer(api, checkout, "stripe_test_deposit_bind", original.userEmail(request));
         const recovered = await recoverSession(api, checkout, customer);
         if (recovered) return json({ checkout_id: checkout.checkout_id, url: recovered });
         const amount = positiveMinor(checkout.amount_minor);
@@ -203,19 +235,21 @@ export function createCheckoutHandler(api: Backend, config: CheckoutConfig) {
       }
 
       const checkout = object(
-        await begin(input.interval ? "stripe_test_subscription_begin" : "stripe_test_checkout_begin", {
+        await begin(qa ? "qa_subscription_begin" : input.interval ? "stripe_test_subscription_begin" : "stripe_test_checkout_begin", {
           p_user: user,
           p_plan: input.plan,
           p_key: input.key,
           ...(input.interval ? {p_interval: input.interval} : {}),
         }),
       );
+      if (qa && checkout.qa_subscription === true) api = qa;
+      await assertAccount(api);
       const metadata = {
         "metadata[app]": "hocalist",
         "metadata[membership_id]": String(checkout.membership_id),
         "metadata[checkout_id]": String(checkout.checkout_id),
       };
-      const customer = await ensureCustomer(api, checkout, "stripe_test_checkout_bind", api.userEmail(request));
+      const customer = await ensureCustomer(api, checkout, "stripe_test_checkout_bind", original.userEmail(request));
       const recovered = await recoverSession(api, checkout, customer);
       if (recovered) return json({ checkout_id: checkout.checkout_id, url: recovered });
       const subscriptions = rows(

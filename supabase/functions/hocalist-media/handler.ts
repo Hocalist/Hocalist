@@ -4,6 +4,8 @@ export interface ImageGateway {
   sanitize(bytes:Uint8Array):{bytes:Uint8Array;width:number;height:number};
   store(path:string,bytes:Uint8Array):Promise<void>;
   read(path:string):Promise<Uint8Array>;
+  readEvidence?(authorization:string,submissionId:string,mediaId:string):Promise<Uint8Array>;
+ readStoreEvidence?(authorization:string,submissionId:string,mediaId:string):Promise<Uint8Array>;
 }
 const MAX=4*1024*1024;
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -15,6 +17,14 @@ export function createMediaHandler(deps:ImageGateway){return async(req:Request):
   if(!auth.startsWith('Bearer '))return json({error:'unauthorized'},401);
   const user=await deps.authenticate(auth);if(!user)return json({error:'unauthorized'},401);
   const action=new URL(req.url).searchParams.get('action');
+  if(action==='evidence'||action==='store-evidence'){
+   const url=new URL(req.url),id=url.searchParams.get('id')??'',submission=url.searchParams.get('submission_id')??'';
+   if(!uuid.test(id)||!uuid.test(submission))return json({error:'invalid_input'},400);
+   const reader=action==='store-evidence'?deps.readStoreEvidence:deps.readEvidence;
+   if(!reader)return json({error:'media_unavailable'},503);
+   const bytes=await reader(auth,submission,id);
+   return new Response(new Uint8Array(bytes).buffer,{headers:{'Content-Type':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+  }
   if(action==='read'){
    const id=new URL(req.url).searchParams.get('id')??'';
    if(!uuid.test(id))return json({error:'invalid_input'},400);

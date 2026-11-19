@@ -14,7 +14,7 @@ import {
 import {refreshManagedPaygoCard} from '../_shared/paygo-managed-card.ts';
 export function createPaygoSetupHandler(
   api: Backend,
-  config: { enabled: boolean; success: string; cancel: string },
+  config: { enabled: boolean; success: string; cancel: string; offerReturnUrl?: string },
 ) {
   return async (request: Request): Promise<Response> => {
     if (request.method !== "POST") {
@@ -102,13 +102,15 @@ export function createPaygoSetupHandler(
         const cancelUrl = new URL('/billing', serviceUrl(config.cancel));
         cancelUrl.hostname='www.hocalist.com';
         cancelUrl.searchParams.set('paygo_cancelled','1');
+        const offerReturn = config.offerReturnUrl && new URL(config.offerReturnUrl);
+        if (offerReturn) offerReturn.searchParams.set("setup", String(setup.setup_id));
         const session = await api.stripe("checkout/sessions", {
           mode: "setup",
           currency: "usd",
           customer: String(setup.customer_id),
           "payment_method_types[0]": "card",
-          success_url: returnUrl.toString(),
-          cancel_url: cancelUrl.toString(),
+          success_url: offerReturn ? offerReturn.href + "&result=finished" : returnUrl.toString(),
+          cancel_url: offerReturn ? offerReturn.href + "&result=canceled" : cancelUrl.toString(),
           "custom_text[submit][message]":
             "Sending an offer is free. Free and Pro initial fees apply after the buyer replies. Elite fees wait until a PIN-confirmed purchase or the seven-day deadline; eligible no-purchase fees are waived. A purchase may add the remaining winning fee. See your plan rates before sending an offer. Use Manage payment to update your card.",
           "metadata[app]": "hocalist",

@@ -1,0 +1,108 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {setup,A,B,C,callAs,schedule} from '../outcomes/tests/fixture.mjs';
+const read=p=>readFile(new URL(p,import.meta.url),'utf8');
+const topic='20000000-0000-4000-8000-000000000001';
+const seller='10000000-0000-4000-8000-00000000000b';
+test('discovery enquiries stay separate from deals, eligibility and money',async t=>{
+ const db=await setup(false);
+ const rpc=async(u,sql,args=[])=>(await callAs(db,'authenticated',u,sql,args))[0].d;
+ const cmd=(u,op,input)=>rpc(u,'SELECT hocalist.marketplace_command($1,$2,$3::jsonb) AS d',[op,crypto.randomUUID(),JSON.stringify(input)]);
+ try {
+  for(const p of ['../marketplace/021_request_coordinates.sql','../marketplace/023_multi_negotiation.sql','../outcomes/080_sale_confirmation.sql','./192_confirmed_meeting_coordinates.sql','./209_pair_conversations.sql','../commercial/090_credit_batches.sql','../commercial/091_buyer_rewards.sql','../commercial/092_credit_settlement.sql','../chat/012_credit_qualification.sql','./207_offer_submission_fee.sql','./228_target_fee_policy.sql','../media/100_private_images.sql','../chat/011_chat_attachments.sql','../notifications/030_notification_inbox.sql','../notifications/031_notification_producers.sql','./231_deal_chat_threads.sql','./232_deal_read_markers.sql','../discovery_completion/140_discovery_leads.sql','../discovery_completion/142_reviews.sql','../discovery_completion/144_discovery_enquiry.sql','./224_hocatrends_seller_eligibility.sql','./247_hocatrends_explicit_opt_in.sql','./251_hocatrends_available_sellers.sql']) await db.exec(await read(p));
+  await db.query("SELECT hocalist.credit_deposit_internal($1,'enquiry-test',4000,145,325,'test')",[B]);
+  const r=await cmd(A,'request.create',{kind:'product',title:'Enquiry isolation test',description:'Synthetic item',condition:'used',quantity:1,budget_minimum_minor:1000,budget_maximum_minor:50000,currency_code:'USD',use_home_address:true,category_id:topic});
+  const o=await cmd(B,'offer.submit',{request_id:r.id,price_minor:20000,currency_code:'USD',message:'Seller opening message',image_media_ids:[],...schedule()});
+  await cmd(A,'offer.select',{offer_id:o.id,revision_id:o.revisions[0].id,expected_offer_revision:o.revision});
+  const chat=await cmd(A,'conversation.open_offer',{offer_id:o.id});
+  const conversation=chat.conversation_id;
+  const listing=(await db.query("INSERT INTO hocalist.store_listings(seller_user_id,seller_profile_id,kind,title,category_id,price_label,status,moderation_status) VALUES($1,$2,'product','Synthetic Store item',$3,'$20','active','approved') RETURNING id",[B,seller,topic])).rows[0].id;
+  const open=(input,key=crypto.randomUUID())=>rpc(A,'SELECT hocalist.discovery_open_enquiry($1,$2::jsonb) AS d',[key,JSON.stringify(input)]);
+  const storeInput={origin:'store_listing',listing_id:listing};
+  const legacy=await open(storeInput,'old-receipt');
+  assert.equal(legacy.conversation_id,conversation);
+  const repair=await read('./250_discovery_enquiry_threads.sql');
+  await db.exec(repair);
+  const store=await open(storeInput,'old-receipt');
+  const send=(u,e,key,text)=>rpc(u,'SELECT hocalist.chat_enquiry_send($1,$2,$3,$4) AS d',[conversation,e,key,text]);
+  const messages=(u,e,cursor=null,size=100)=>rpc(u,'SELECT hocalist.chat_enquiry_messages($1,$2,$3,$4) AS d',[conversation,e,size,cursor]);
+  const money=async()=>(await db.query('SELECT charged_minor,qualified_at,status FROM hocalist.credit_targets WHERE offer_id=$1',[o.id])).rows[0];
+  const baseline=await money();
+  await t.test('replayed old receipt gains stable context without another conversation',async()=>{
+   assert.ok(store.enquiry_id); assert.equal(store.conversation_id,conversation);
+   assert.equal((await open(storeInput)).enquiry_id,store.enquiry_id);
+   assert.equal((await rpc(B,'SELECT hocalist.chat_enquiries($1) AS d',[conversation])).items[0].label,'Synthetic Store item');
+  });
+  await t.test('buyer and seller messages never qualify or charge the existing offer',async()=>{
+   const first=await send(A,store.enquiry_id,'first','About the listing');
+   assert.equal(first.offer_id,null);assert.equal(first.enquiry_id,store.enquiry_id);
+   const notice=(await db.query('SELECT payload FROM hocalist.notifications WHERE source_id=$1',[first.id])).rows[0];
+   assert.equal(notice.payload.enquiry_id,store.enquiry_id);assert.equal(notice.payload.offer_id,null);
+   assert.equal((await send(A,store.enquiry_id,'first','About the listing')).id,first.id);
+   await send(B,store.enquiry_id,'reply','Available');
+   assert.deepEqual(await money(),baseline);
+   assert.equal((await rpc(A,'SELECT hocalist.chat_deal_messages($1,$2) AS d',[conversation,o.id])).items.length,0);
+   const page=await messages(A,store.enquiry_id,null,1);
+   assert.ok(page.next_cursor);assert.equal((await messages(A,store.enquiry_id,page.next_cursor,1)).items.length,1);
+  });
+  await t.test('Hocatrends retains explicit opt-in and plan eligibility',async()=>{
+   const available=async(u=A)=>(await rpc(u,'SELECT hocalist.hocatrends_trends() AS d')).items.find(x=>x.category_id===topic).available_sellers;
+   assert.equal(await available(),0);
+   const input={origin:'hocatrends_enquiry',topic_id:topic,seller_profile_id:seller};
+   await assert.rejects(open(input),/seller_not_eligible/);
+   await db.query('UPDATE hocalist.offers SET hocatrends_opt_in=true WHERE id=$1',[o.id]);
+   await assert.rejects(open(input),/seller_not_eligible/,'free plan stays excluded even when opted in');
+   await db.query("INSERT INTO hocalist.seller_entitlements(user_id,plan_code,source,active) VALUES($1,'pro','admin',true) ON CONFLICT(user_id) DO UPDATE SET plan_code='pro',active=true",[B]);
+   const plan=(await db.query('SELECT hocalist.marketplace_seller_plan($1) AS plan',[B])).rows[0].plan;
+   assert.ok(['pro','elite'].includes(plan),`fixture plan ${plan}`);
+   assert.equal(await available(),1);
+   assert.equal(await available(B),0,'seller cannot count their own listing');
+   assert.equal((await rpc(A,'SELECT hocalist.hocatrends_topic_sellers($1) AS d',[topic])).items.length,await available());
+   const trend=await open(input);
+   assert.equal(trend.conversation_id,conversation); assert.notEqual(trend.enquiry_id,store.enquiry_id);
+   await assert.rejects(send(A,trend.enquiry_id,'first','About the listing'),/idempotency_conflict/);
+   await send(A,trend.enquiry_id,'trend','About the topic');
+   assert.equal((await messages(A,trend.enquiry_id)).items.length,1);
+   await db.query('UPDATE hocalist.offers SET hocatrends_opt_in=false WHERE id=$1',[o.id]);
+   await assert.rejects(open(input),/seller_not_eligible/);
+   assert.equal(await available(),0);
+   await db.exec(await read('./251_hocatrends_available_sellers.sql'));
+   assert.equal(await available(),0);
+   assert.deepEqual(await money(),baseline);
+  });
+  await t.test('outsiders, foreign contexts and cursors are denied',async()=>{
+   await assert.rejects(messages(C,store.enquiry_id),/access_denied/);
+   await assert.rejects(send(C,store.enquiry_id,'outside','No'),/access_denied/);
+   await assert.rejects(messages(A,crypto.randomUUID()),/enquiry_access_denied/);
+   const d=await rpc(B,'SELECT hocalist.chat_deal_send($1,$2,$3,$4) AS d',[conversation,o.id,'deal','Deal only']);
+   await assert.rejects(messages(A,store.enquiry_id,d.id),/invalid_cursor/);
+   assert.equal(d.enquiry_id,null);
+  });
+  await t.test('read markers preserve other-context unread and reapplication is safe',async()=>{
+   const rows=(await messages(B,store.enquiry_id)).items;
+   const mark=await rpc(B,'SELECT hocalist.chat_enquiry_mark_read($1,$2,$3) AS d',[conversation,store.enquiry_id,rows.at(-1).id]);
+   assert.equal(mark.unread_count,1,'topic enquiry remains unread');
+   assert.equal((await messages(A,store.enquiry_id)).items[0].read_by_counterpart,true);
+   const inbox=await rpc(B,'SELECT hocalist.chat_inbox(50,NULL) AS d');
+   assert.equal(inbox.items.find(x=>x.conversation.id===conversation).unread_count,1);
+   await db.exec(repair);
+   assert.equal((await open(storeInput)).enquiry_id,store.enquiry_id);
+   assert.deepEqual(await money(),baseline);
+   await assert.rejects(callAs(db,'authenticated',A,'SELECT * FROM hocalist.chat_enquiries'),/permission denied/);
+   await assert.rejects(callAs(db,'authenticated',A,'SELECT hocalist.chat_ensure_enquiry($1,$2,$3)',[conversation,'store_listing',listing]),/permission denied/);
+  });
+  await t.test('attachments retain enquiry identity and private media ownership',async()=>{
+   const image=crypto.randomUUID();
+   await db.query("INSERT INTO hocalist.media_images(id,owner_user_id,intent_key,purpose,state,size_bytes,width,height,content_hash) VALUES($1,$2,$3,'chat','ready',1000,100,100,repeat('a',64))",[image,A,crypto.randomUUID()]);
+   const attach=(u,key)=>rpc(u,'SELECT hocalist.chat_enquiry_send($1,$2,$3,$4,$5::jsonb) AS d',[conversation,store.enquiry_id,key,'Synthetic photo',JSON.stringify([image])]);
+   await assert.rejects(attach(B,'foreign-image'),/media|image|attachment/);
+   const sent=await attach(A,'own-image');assert.equal(sent.enquiry_id,store.enquiry_id);assert.equal(sent.offer_id,null);
+   assert.deepEqual(sent.attachment_media_ids,[image]);assert.equal((await attach(A,'own-image')).id,sent.id);
+   assert.deepEqual(await money(),baseline);
+   await db.query('UPDATE hocalist.conversation_members SET revoked_at=now() WHERE conversation_id=$1 AND user_id=$2',[conversation,A]);
+   await assert.rejects(messages(A,store.enquiry_id),/access_denied/);
+   await assert.rejects(send(A,store.enquiry_id,'revoked','No'),/access_denied/);
+  });
+ } finally {await db.close();}
+});

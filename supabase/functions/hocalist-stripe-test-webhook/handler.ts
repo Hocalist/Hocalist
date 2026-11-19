@@ -1,6 +1,7 @@
 import Stripe from 'npm:stripe@22.6.2';
 
-export const account = 'acct_1Le6hqDmHEV44E5Y';
+import { sharedBillingAccount } from '../_shared/stripe-test-project.ts';
+export const account = sharedBillingAccount;
 const types = new Set([
   'checkout.session.completed', 'checkout.session.async_payment_succeeded',
   'checkout.session.async_payment_failed', 'customer.subscription.created',
@@ -18,12 +19,14 @@ const reply = (status: number, value: string) => new Response(value, {
 });
 
 export function createHandler(options: {
+  expectedAccount?: string;
   signingSecret: string;
   receive: (receipt: Receipt) => Promise<void>;
   receivePaygo?: (receipt: Receipt) => Promise<void>;
 }) {
   // Signature verification requires no Stripe API key or network request.
   const stripe = new Stripe('sk_test_unused_signature_verification_only');
+  const expectedAccount = options.expectedAccount ?? account;
   return async (request: Request): Promise<Response> => {
     if (request.method !== 'POST') return reply(405, 'method not allowed');
     if (!options.signingSecret.startsWith('whsec_')) return reply(503, 'configuration unavailable');
@@ -53,7 +56,7 @@ export function createHandler(options: {
         options.signingSecret, 300, Stripe.createSubtleCryptoProvider(),
       );
     } catch { return reply(400, 'invalid signature'); }
-    if (!event || typeof event !== 'object' || event.livemode !== false || (event.account && event.account !== account)) {
+    if (!event || typeof event !== 'object' || event.livemode !== false || (event.account && event.account !== expectedAccount)) {
       return reply(400, 'wrong account or mode');
     }
     const paygo = paygoTypes.has(event.type) && options.receivePaygo;
@@ -65,7 +68,7 @@ export function createHandler(options: {
     }
     if (paygo && (object.metadata?.app !== 'hocalist' || object.metadata?.kind !== 'paygo_targeting')) return reply(200,'ignored');
     try {
-      await (paygo ? options.receivePaygo! : options.receive)({p_account:account,p_event_id:event.id,p_type:event.type,
+      await (paygo ? options.receivePaygo! : options.receive)({p_account:expectedAccount,p_event_id:event.id,p_type:event.type,
         p_object_id:object.id,p_created:event.created,p_livemode:false});
     } catch { return reply(503, 'receipt unavailable'); }
     // Acknowledge only after durable insert. Processing is a separate worker.

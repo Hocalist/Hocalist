@@ -301,3 +301,28 @@ for (const status of ['expired','open','complete','foreign','live','unbound','di
   assert.equal(api.calls.stripe.filter(c=>c.path==='checkout/sessions').length,['expired','unbound'].includes(status)?1:0);
  });
 }
+
+for (const scenario of ['open','expired','complete','foreign','paid','race','wrong-id','unbound','provider-failure']) {
+  Deno.test(`cancel checkout safely: ${scenario}`, async () => {
+    const api = new FakeBackend();
+    api.rpcHandlers = {
+      stripe_test_pending_checkout: () => depositCheckout({session_id:scenario==='unbound'?null:'cs_test_session1'}),
+      stripe_test_checkout_expire: () => ({ok:true}),
+    };
+    api.stripeMatchers = [
+      {match:/^account$/,value:{id:ACCOUNT,livemode:false}},
+      {match:/\/expire$/,value:() => {
+        if(scenario==='provider-failure') throw new Error('network');
+        return session({status:scenario==='race'?'complete':'expired',payment_status:scenario==='race'?'paid':'unpaid'});
+      }},
+      {match:/^checkout\/sessions\//,value:session({status:scenario==='complete'?'complete':scenario==='expired'?'expired':'open',payment_status:scenario==='paid'?'paid':'unpaid',...(scenario==='foreign'?{customer:'cus_other'}:{})})},
+    ];
+    const response = await createCheckoutHandler(api.asBackend(),config)(post({kind:'cancel',checkout_id:scenario==='wrong-id'?OPTION:CHECKOUT}));
+    const safe = scenario==='open'||scenario==='expired';
+    assert.equal(response.status===200,safe);
+    assert.equal(api.calls.rpc.some(c=>c.name==='stripe_test_checkout_expire'),safe);
+    if(safe) assert.equal((await response.json()).cancelled,true);
+    assert.equal(api.calls.rpc[0].body.p_user,USER);
+    if(['foreign','paid','complete','wrong-id','unbound'].includes(scenario)) assert.equal(api.calls.stripe.some(c=>c.path.endsWith('/expire')),false);
+  });
+}
