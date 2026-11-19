@@ -4,6 +4,6 @@ export const androidTestRelease = {
   assetUrl: 'https://github.com/Hocalist/Hocalist/releases/download/android-test-2026-11-19/Hocalist-Android-Test-2026-11-19.apk',
   date: '19 November 2026',
   version: '1.0.0',
-  bytes: 250084991,
-  sha256: '56e7151761225ff074f6a99770937f55c109c85cd0ec7614551415f4a7df7bf4',
+  bytes: 164859005,
+  sha256: '2c2c2b003ea0f84489096a1de4feb1dfae41ca01279e9542af9a13c0e6ede5a0',
 } as const;
