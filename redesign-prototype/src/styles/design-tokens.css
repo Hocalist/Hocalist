@@ -1,0 +1,362 @@
+/* ==========================================================================
+   Hocalist Design Tokens & Base Styles
+   Brand Authority: Navy #00036C, White, Cool Neutrals (docs/DECISIONS.md)
+   ========================================================================== */
+
+:root {
+  /* Brand Core Authority: Deep Navy #00036C, White, Cool Neutrals (docs/DECISIONS.md) */
+  --hoca-navy: #00036C;
+  --hoca-navy-deep: #000242;
+  --hoca-navy-dark: #000128;
+  --hoca-navy-surface: #070B4A;
+  --hoca-blue: #1A28D4;
+  --hoca-blue-bright: #2540FF;
+  --hoca-blue-light: #4A63FF;
+  --hoca-blue-tint: #EEF2FF;
+  --hoca-blue-tint-soft: #F5F7FF;
+  --hoca-ice: #F8FAFC;
+  --hoca-teal-accent: #00A3A6;
+
+  /* Surfaces & Backgrounds */
+  --bg-white: #FFFFFF;
+  --bg-subtle: #F8FAFC;
+  --bg-muted: #F1F5F9;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FFFFFF;
+  --bg-dark-card: #0A0F3D;
+
+  /* Text Colors */
+  --text-primary: #090D25;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-subtle: #94A3B8;
+  --text-on-dark: #FFFFFF;
+  --text-on-dark-muted: #CBD5E1;
+
+  /* Borders & Dividers */
+  --border-subtle: #E2E8F0;
+  --border-medium: #CBD5E1;
+  --border-focus: #1A28D4;
+  --border-highlight: rgba(0, 3, 108, 0.12);
+
+  /* Semantic Accents (never to replace brand blue) */
+  --success-green: #0D8249;
+  --success-bg: #EDFBF3;
+  --success-border: #A3E6BA;
+  --warning-amber: #B45309;
+  --warning-bg: #FEF3C7;
+  --warning-border: #FDE68A;
+  --danger-red: #B91C1C;
+  --danger-bg: #FEE2E2;
+  --danger-border: #FCA5A5;
+
+  /* Typography */
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  --radius-full: 9999px;
+
+  /* Shadows - Layered & Subtle */
+  --shadow-sm: 0 1px 3px 0 rgba(0, 3, 108, 0.04), 0 1px 2px -1px rgba(0, 3, 108, 0.02);
+  --shadow-md: 0 4px 16px -2px rgba(0, 3, 108, 0.08), 0 2px 6px -1px rgba(0, 3, 108, 0.03);
+  --shadow-lg: 0 16px 36px -4px rgba(0, 3, 108, 0.12), 0 6px 14px -2px rgba(0, 3, 108, 0.05);
+  --shadow-xl: 0 24px 52px -8px rgba(0, 3, 108, 0.18);
+  --shadow-float: 0 20px 40px -10px rgba(0, 3, 108, 0.22), 0 8px 18px -4px rgba(0, 3, 108, 0.1);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 380ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout */
+  --container-max: 1200px;
+  --container-wide: 1280px;
+  --header-height: 80px;
+}
+
+/* Base Reset & Typography */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background-color: var(--bg-white);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-primary);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+p {
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.reduced-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Utility Containers */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.container-wide {
+  width: 100%;
+  max-width: var(--container-wide);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all var(--transition-normal);
+  text-align: center;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: var(--hoca-navy);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 3, 108, 0.2);
+}
+
+.btn-primary:hover {
+  background-color: var(--hoca-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 3, 108, 0.25);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background-color: var(--hoca-blue-tint);
+  color: var(--hoca-navy);
+  border: 1px solid rgba(0, 3, 108, 0.12);
+}
+
+.btn-secondary:hover {
+  background-color: #E0E7FF;
+  border-color: rgba(0, 3, 108, 0.2);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--hoca-navy);
+  border: 1.5px solid var(--hoca-navy);
+}
+
+.btn-outline:hover {
+  background-color: var(--hoca-blue-tint);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background-color: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn-lg {
+  padding: 0.9rem 2rem;
+  font-size: 1.05rem;
+  border-radius: var(--radius-lg);
+}
+
+/* Chips & Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-navy {
+  background-color: var(--hoca-blue-tint);
+  color: var(--hoca-navy);
+  border: 1px solid rgba(0, 3, 108, 0.1);
+}
+
+.badge-success {
+  background-color: var(--success-bg);
+  color: var(--success-green);
+  border: 1px solid var(--success-border);
+}
+
+.badge-warning {
+  background-color: var(--warning-bg);
+  color: var(--warning-amber);
+  border: 1px solid var(--warning-border);
+}
+
+.badge-danger {
+  background-color: var(--danger-bg);
+  color: var(--danger-red);
+  border: 1px solid var(--danger-border);
+}
+
+.badge-neutral {
+  background-color: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Boundary Notice Cards */
+.boundary-notice {
+  background: linear-gradient(135deg, #F0F4FF 0%, #FFFFFF 100%);
+  border: 1.5px solid #CBD5E1;
+  border-left: 4px solid var(--hoca-navy);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.boundary-notice strong {
+  color: var(--hoca-navy);
+}
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Section Rhythm Classes */
+.section {
+  padding: 5rem 0;
+  position: relative;
+}
+
+.section-tint {
+  background-color: var(--bg-subtle);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.section-dark {
+  background-color: var(--hoca-navy-deep);
+  color: var(--text-on-dark);
+}
+
+.section-dark h1, .section-dark h2, .section-dark h3 {
+  color: var(--text-on-dark);
+}
+
+.section-dark p {
+  color: var(--text-on-dark-muted);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-smooth) forwards;
+}
