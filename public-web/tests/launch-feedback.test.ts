@@ -3,13 +3,24 @@ import {strict as assert} from 'node:assert';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 import {downloadOptions} from '../app/lib/download-options';
+import {androidTestRelease} from '../app/lib/android-test-release';
+import {GET as downloadAndroid} from '../app/download/android/route';
 import {validateWaitlistSubmission} from '../app/api/waitlist/waitlist';
 
 test('downloads reject unsafe and unrelated destinations; absent platforms stay unavailable',()=>{
-  assert.deepEqual(downloadOptions({}),{android:null,ios:null});
-  assert.equal(downloadOptions({NEXT_PUBLIC_PLAY_STORE_URL:'https://evil.test/app'}).android,null);
+  assert.deepEqual(downloadOptions({}),{android:androidTestRelease.pageUrl,ios:null});
+  assert.equal(downloadOptions({NEXT_PUBLIC_PLAY_STORE_URL:'https://evil.test/app'}).android,androidTestRelease.pageUrl);
   assert.equal(downloadOptions({HOCALIST_ANDROID_TEST_DOWNLOAD_URL:'http://hocalist.com/test.apk'}).android,null);
   assert.equal(downloadOptions({HOCALIST_IOS_TESTFLIGHT_URL:'https://testflight.apple.com/join/example'}).ios,'https://testflight.apple.com/join/example');
+});
+test('Android download uses the pinned release without an open redirect and store links take precedence',()=>{
+  const response = downloadAndroid();
+  assert.equal(response.status,307);
+  assert.equal(response.headers.get('location'),androidTestRelease.assetUrl);
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal(downloadOptions({NEXT_PUBLIC_PLAY_STORE_URL:'https://play.google.com/store/apps/details?id=com.hocalist.app'}).android,
+    'https://play.google.com/store/apps/details?id=com.hocalist.app');
+  assert.equal(downloadOptions({HOCALIST_ANDROID_TEST_DOWNLOAD_URL:''}).android,null);
 });
 test('lead inputs are bounded and interest is explicit',()=>{
   assert.equal(validateWaitlistSubmission({email:'a@example.com',consent:true,lead:{name:'A',city:'City',interest:'both'}}).ok,true);

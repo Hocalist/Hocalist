@@ -56,11 +56,17 @@ the existing waitlist admission secret, consent checks and support cases.
 Feedback screenshots reuse private report evidence and require an admin plus
 an exact case/media reference to read them.
 
-For early access, `HOCALIST_ANDROID_TEST_DOWNLOAD_URL` may point to an approved
+The Android test download defaults to `/download/android`, which redirects to
+the versioned APK in this repository's GitHub Releases. The release date, size
+and SHA-256 live in `app/lib/android-test-release.ts`. Upload and verify the
+release asset before changing that metadata. The page identifies it as a test
+build; iOS remains unavailable until a real destination is configured.
+
+For early access, `HOCALIST_ANDROID_TEST_DOWNLOAD_URL` may override this with an approved
 HTTPS APK on `hocalist.com` or `www.hocalist.com`.
 `HOCALIST_IOS_TESTFLIGHT_URL` may point to an existing Apple TestFlight invite.
 Official store links take precedence. Missing or invalid links remain marked
-unavailable; neither a sample link nor an unapproved APK is published.
+unavailable for iOS. An empty Android override disables the test download.
 Keep download access independent of waitlist signup.
 
 Keep `HOCALIST_WEBSITE_PREVIEW` unset on the public deployment. Store download
