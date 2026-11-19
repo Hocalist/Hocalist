@@ -26,13 +26,14 @@ export function decodeEvidenceResponse(value: unknown): EvidenceClientResult | n
 export async function requestEvidence(
   submissionId: string,
   mediaId: string,
+  scope?: 'report',
 ): Promise<EvidenceClientResult> {
   let response: Response;
   try {
     response = await fetch("/api/admin-evidence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submission_id: submissionId, media_id: mediaId }),
+      body: JSON.stringify({ submission_id: submissionId, media_id: mediaId, ...(scope ? {scope} : {}) }),
     });
   } catch {
     return { ok: false, state: "unreachable", message: "The evidence gateway is unreachable." };

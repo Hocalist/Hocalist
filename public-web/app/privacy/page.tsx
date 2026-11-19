@@ -24,6 +24,7 @@ export default function PrivacyPage() {
           title: 'Information we collect',
           body: [
             'We may collect account information, profile details, contact information, buyer request details, seller offer information, support messages, safety reports, and usage information related to the app or website.',
+            'Our launch list records the email and optional name and area you provide, your buying or selling interest, and consent to launch updates. We count download-link clicks separately from the first signed-in app open per account and mobile platform. A click does not confirm an installation. Feedback and optional screenshots go to our support team; platform and account mode are included only when you leave that option selected.',
             'For seller billing, a secure billing provider may collect the payment information needed for seller subscriptions, credits, or related seller service fees.'
           ]
         },

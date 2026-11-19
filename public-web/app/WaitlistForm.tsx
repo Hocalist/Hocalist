@@ -6,6 +6,9 @@ type Status = 'idle' | 'submitting' | 'unavailable' | 'confirmed' | 'error';
 
 export default function WaitlistForm() {
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [city, setCity] = useState('');
+  const [interest, setInterest] = useState('buyer');
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
@@ -24,7 +27,7 @@ export default function WaitlistForm() {
       const response = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, consent, source: 'download-page' })
+        body: JSON.stringify({ email, consent, source: 'download-page', lead: { name, city, interest } })
       });
       if (response.ok) {
         const data = await response.json().catch(() => null);
@@ -63,6 +66,9 @@ export default function WaitlistForm() {
 
   return (
     <form className="waitlist-form" onSubmit={submit} noValidate>
+      <label className="request-field wide"><span>Name (optional)</span><input autoComplete="name" maxLength={100} value={name} onChange={e => setName(e.target.value)}/></label>
+      <label className="request-field wide"><span>City or area (optional)</span><input autoComplete="address-level2" maxLength={100} value={city} onChange={e => setCity(e.target.value)}/></label>
+      <label className="request-field wide"><span>I’m interested in</span><select value={interest} onChange={e => setInterest(e.target.value)}><option value="buyer">Buying</option><option value="seller">Selling</option><option value="both">Buying and selling</option></select></label>
       <label className="request-field wide">
         <span>Email for launch updates</span>
         <input

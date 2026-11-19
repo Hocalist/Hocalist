@@ -3,8 +3,11 @@ import type { AdminEvidenceResolver } from "./admin-http";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /** Reads authorized bytes with the admitted admin session; never uses a service key. */
-export const mediaEvidenceResolver: AdminEvidenceResolver = {
-  async resolveEvidence({ mediaId, accessToken, config, fetchImpl }) {
+export const mediaEvidenceResolver = createMediaEvidenceResolver("evidence");
+export const storeImageResolver = createMediaEvidenceResolver("store-evidence");
+export const reportImageResolver = createMediaEvidenceResolver("read");
+function createMediaEvidenceResolver(action: "evidence" | "store-evidence" | "read"): AdminEvidenceResolver { return {
+  async resolveEvidence({ submissionId, mediaId, accessToken, config, fetchImpl }) {
     const unavailable = {
       state: "unavailable" as const,
       reason: "evidence_read_unavailable",
@@ -12,8 +15,9 @@ export const mediaEvidenceResolver: AdminEvidenceResolver = {
     };
     try {
       const endpoint = new URL(`${config.url}/functions/v1/hocalist-media`);
-      endpoint.searchParams.set("action", "read");
+      endpoint.searchParams.set("action", action);
       endpoint.searchParams.set("id", mediaId);
+      endpoint.searchParams.set("submission_id", submissionId);
       const response = await fetchImpl(endpoint, {
         method: "POST", redirect: "error",
         headers: { apikey: config.anonKey, Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-store" },
@@ -36,3 +40,5 @@ export const mediaEvidenceResolver: AdminEvidenceResolver = {
     } catch { return unavailable; }
   },
 };
+
+}

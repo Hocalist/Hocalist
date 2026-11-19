@@ -20,6 +20,8 @@ test("accounts byte gateway connects only after the admin reference check", asyn
     if (url.includes("/rest/v1/rpc/admin_evidence_reference")) return Response.json({reference_ok:true});
     assert.equal(new URL(url).pathname, "/functions/v1/hocalist-media");
     assert.equal(new URL(url).searchParams.get("id"), mediaId);
+    assert.equal(new URL(url).searchParams.get("action"), "evidence");
+    assert.equal(new URL(url).searchParams.get("submission_id"), mediaId);
     assert.equal(init?.redirect, "error");
     return new Response(new Uint8Array([255,216,255,217]), {headers:{"Content-Type":"image/jpeg"}});
   }) as typeof fetch;

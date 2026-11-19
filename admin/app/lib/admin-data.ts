@@ -59,6 +59,11 @@ export type AdminLocation = {
 };
 
 export type AdminListing = {
+  description?: string;
+  service_area?: string;
+  availability?: string;
+  image_media_ids?: string[];
+  category_answers?: Record<string, unknown>;
   id: string;
   seller_user_id: string;
   kind: string;

@@ -63,6 +63,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: parsedBody.status });
   }
   const result = validateWaitlistSubmission(parsedBody.body);
+  const event = parsedBody.body as Record<string, unknown> | null;
+  if (event?.event === 'download_click') {
+    if (!['android', 'ios'].includes(String(event.platform)) ||
+        typeof event.eventId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(event.eventId)) {
+      return NextResponse.json({ error: 'invalid_event' }, { status: 400 });
+    }
+    const fingerprint = clientFingerprint(request, secret);
+    if (!withinRouteLimit(fingerprint)) return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    const saved = await callAnonRpc(config, 'website_download_record', {
+      p_event_id: event.eventId, p_platform: event.platform,
+      p_source: 'download-page', p_client_hash: fingerprint, p_intake_token: secret,
+    });
+    return NextResponse.json({ recorded: saved.ok }, { status: saved.ok ? 200 : 503 });
+  }
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }

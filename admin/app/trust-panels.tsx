@@ -30,6 +30,7 @@ export function TrustPanel() {
   const [data, setData] = useState<ReviewQueue | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [healthDecision, setHealthDecision] = useState("no_action");
@@ -37,6 +38,11 @@ export function TrustPanel() {
   const [retry, setRetry] = useState<{ operation: string; input: Record<string, unknown> } | null>(null);
   const [evidenceNotice, setEvidenceNotice] = useState<string | null>(null);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
+  const [evidencePreview, setEvidencePreview] = useState<string | null>(null);
+  const evidenceGeneration = useRef(0);
+  useEffect(() => () => {
+    if (evidencePreview?.startsWith("blob:")) URL.revokeObjectURL(evidencePreview);
+  }, [evidencePreview]);
   const intent = useRef(new AdminIntent());
   const generation = useRef(0);
   const inFlight = useRef(false);
@@ -44,6 +50,9 @@ export function TrustPanel() {
   const loaded = useRef<ReviewQueue | null>(null);
 
   async function load(replace = true, section?: Section) {
+    ++evidenceGeneration.current;
+    setEvidencePreview(null);
+    setEvidenceBusy(null);
     const cursor =
       replace || !section || !loaded.current
         ? null
@@ -52,6 +61,7 @@ export function TrustPanel() {
     const current = ++generation.current;
     setBusy(true);
     setError(null);
+    setRequiresSignIn(false);
     const result = await adminRpc("admin_review_queue", {
       p_limit: 25,
       p_verifications_cursor: section === "verifications" && !replace ? cursor : null,
@@ -64,6 +74,7 @@ export function TrustPanel() {
     if (current !== generation.current) return;
     setBusy(false);
     if (!result.ok) {
+      setRequiresSignIn(result.state === "signed_out");
       setData(null);
       loaded.current = null;
       setError(
@@ -98,6 +109,7 @@ export function TrustPanel() {
     void load(true);
     return () => {
       ++generation.current;
+      ++evidenceGeneration.current;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -112,6 +124,7 @@ export function TrustPanel() {
   async function execute(operation: string, input: Record<string, unknown>) {
     if (inFlight.current) return;
     if (reason.trim().length === 0) {
+      setRequiresSignIn(false);
       setError("A recorded reason is required before deciding.");
       return;
     }
@@ -124,6 +137,7 @@ export function TrustPanel() {
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
+      setRequiresSignIn(result.state === "signed_out");
       setRetry({ operation, input: prepared.input });
       setError(trustErrorMessage(result.message, result.state));
       return;
@@ -136,19 +150,20 @@ export function TrustPanel() {
   }
 
   async function viewEvidence(submissionId: string, mediaId: string) {
+    const current = ++evidenceGeneration.current;
     const key = `${submissionId}:${mediaId}`;
     setEvidenceBusy(key);
     setEvidenceNotice(null);
+    setEvidencePreview(null);
     const result = await requestEvidence(submissionId, mediaId);
+    if (current !== evidenceGeneration.current) {
+      if (result.ok && result.url.startsWith("blob:")) URL.revokeObjectURL(result.url);
+      return;
+    }
     setEvidenceBusy(null);
     if (result.ok) {
-      window.open(result.url, "_blank", "noopener,noreferrer");
-      if (result.url.startsWith("blob:")) {
-        setTimeout(() => URL.revokeObjectURL(result.url), 60_000);
-      }
-      setEvidenceNotice(
-        "Evidence loaded through the authorized gateway. Allow this site's pop-up if the preview did not open.",
-      );
+      setEvidencePreview(result.url);
+      setEvidenceNotice("Photo ready to review.");
       return;
     }
     setEvidenceNotice(result.message);
@@ -166,7 +181,7 @@ export function TrustPanel() {
       {error && (
         <div role="alert" className="demo-notice">
           <span>{error}</span>
-          <Link href="/login">Sign in</Link>
+          {requiresSignIn && <Link href="/login">Sign in</Link>}
           <button disabled={busy} onClick={() => void load(true)}>
             Try again
           </button>
@@ -228,6 +243,14 @@ export function TrustPanel() {
             />
           </label>
           {evidenceNotice && <p role="status">{evidenceNotice}</p>}
+          {evidencePreview && <section aria-label="Verification photo" className="section">
+            <div className="section-title"><h3>Verification photo</h3>
+              <button onClick={() => { setEvidencePreview(null); setEvidenceNotice(null); }}>Close photo</button>
+            </div>
+            {/* Evidence must remain readable without cropping or pop-up permissions. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={evidencePreview} alt="Photo attached to the selected verification review" style={{display:"block",width:"100%",maxHeight:"70vh",objectFit:"contain"}} />
+          </section>}
 
           <SectionTabs label="Trust review sections" sections={[{title:"Verification",content:<><h3>Evidence submissions</h3>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>

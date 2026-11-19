@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PaygoPaymentSetup from './PaygoPaymentSetup';
 import BillingLoading from './BillingLoading';
+import { closeUnpaidCheckout } from './close-unpaid-checkout';
 import {paygoReturn} from './paygo-return';
 import SellerBillingOverview, {type BillingEntitlement,type StandardRate} from './SellerBillingOverview';
 import CreditFundingDialog from './CreditFundingDialog';
@@ -263,18 +264,20 @@ export default function BillingPortal({
       if (!value.includes(':')) value += ':month';
       if (existing?.kind === 'subscription' && !existing.value.includes(':')) existing = {...existing,value:`${existing.value}:month`};
     }
-    if (existing && !intentMatches(existing, kind, value)) {
-      setAction({
-        busy: null,
-        message: 'A different checkout is already retained for this account. Finish it or wait for it to expire before choosing another.',
-        tone: 'error'
-      });
-      return;
-    }
-    const intent: CheckoutIntent = existing ?? { kind, value, key: newKey(), checkoutId: null };
-    writeIntent(browserStorage(), membershipId, intent);
     setAction({ busy: `${kind}:${value}`, message: null, tone: 'info' });
     try {
+      const pending = [view.data.selected, ...view.data.deposits].find(
+        row => row && (row.state === 'creating' || row.state === 'open')
+      );
+      const sameIntent = intentMatches(existing, kind, value);
+      if (pending && !(sameIntent && (!existing?.checkoutId || existing.checkoutId === pending.id))) {
+        if (pending.state === 'creating') throw new Error('Checkout is being prepared. Please try again shortly.');
+        await closeUnpaidCheckout(pending.id);
+        existing = null;
+      }
+      if (membershipRef.current !== membershipId) return;
+      const intent: CheckoutIntent = (sameIntent && existing) || { kind, value, key: newKey(), checkoutId: null };
+      writeIntent(browserStorage(), membershipId, intent);
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -307,8 +310,9 @@ export default function BillingPortal({
         tone: 'error'
       });
       await load();
-    } catch {
-      setAction({ busy: null, message: 'Checkout could not reach the server. Try again.', tone: 'error' });
+    } catch (error) {
+      setAction({ busy: null, message: error instanceof Error ? error.message : 'Checkout could not reach the server. Try again.', tone: 'error' });
+      await load();
     }
   }
 
@@ -443,9 +447,7 @@ export default function BillingPortal({
   const activePaid = !!subscription && !subscription.requires_review &&
     (subscription.provider_status === 'active' || subscription.provider_status === 'trialing') &&
     !!subscription.paid_until && new Date(subscription.paid_until).getTime()>Date.now();
-  const selectedPending = view.data.selected;
-  const openCheckout = selectedPending && ['creating', 'open'].includes(selectedPending.state)
-    ? selectedPending : deposits.find((checkout) => checkout.state === 'creating' || checkout.state === 'open');
+  const purchases = deposits.filter(row => row.state === 'complete');
 
   return (
     <section className="billing-section seller-billing-design">
@@ -460,20 +462,6 @@ export default function BillingPortal({
         accessLabel={activePaid&&subscription?.paid_until?`${subscription.provider_status==='trialing'?'Trial ends':subscription.cancel_at_period_end?'Access ends':'Renews after'} ${new Date(subscription.paid_until).toLocaleDateString()}`:view.data.entitlement?.effective_source==='earned'?'Earned Pro · this calendar month':'Your seller benefits'}
         onAddCredits={()=>setFundingOpen(true)}
         onSelectPlan={()=>document.getElementById('seller-plans')?.scrollIntoView({behavior:'smooth',block:'start'})}/></div>
-        {openCheckout ? (
-          <div className="billing-message info" role="status">
-            A checkout is open right now. Complete it in the Stripe page, or choose the same option
-            again to reopen the same session.
-            {(openCheckout.kind === 'subscription' && openCheckout.plan_code) ||
-             (openCheckout.kind === 'credit_deposit' && (openCheckout.option_id||openCheckout.standard_deposit)) ? (
-              <button className="button secondary" type="button" disabled={action.busy !== null}
-                onClick={() => void startCheckout(openCheckout.kind === 'subscription' ? 'subscription' : 'credit_deposit',
-                  (openCheckout.kind === 'subscription' ? `${openCheckout.plan_code}:${openCheckout.billing_interval ?? 'month'}` : openCheckout.standard_deposit?`standard:${openCheckout.amount_minor}`:openCheckout.option_id)!)}>
-                Resume checkout
-              </button>
-            ) : null}
-          </div>
-        ) : null}
         {action.message ? (
           <p className={`billing-message ${action.tone}`} role={action.tone === 'error' ? 'alert' : 'status'}>
             {action.message}
@@ -538,26 +526,20 @@ export default function BillingPortal({
       <PlanChangeDialog target={planChange} onClose={()=>setPlanChange(null)} onContinue={()=>{setPlanChange(null);void openPortal();}} busy={action.busy!==null} entitlement={view.data.entitlement} paidUntil={subscription?.paid_until}/>
       <div className="billing-card">
         <h2>Recent credit purchases</h2>
-        {deposits.length === 0 ? (
+        {purchases.length === 0 ? (
           <div className="billing-empty">
             <span className="status-chip">No purchases yet</span>
             <p>A completed credit purchase appears here after the payment is verified.</p>
           </div>
         ) : (
           <ul className="billing-history">
-            {deposits.map((checkout) => (
+            {purchases.map((checkout) => (
               <li key={checkout.id}>
                 <div>
                   <strong>{formatUsdMinor(checkout.amount_minor)} credit pack</strong>
                   <span>{new Date(checkout.created_at ?? '').toLocaleString()}</span>
                 </div>
-                <span className={`status-chip ${checkout.state === 'complete' ? 'success' : ''}`}>
-                  {checkout.state === 'complete'
-                    ? 'Verified — credited'
-                    : checkout.state === 'open' || checkout.state === 'creating'
-                      ? 'Awaiting payment'
-                      : checkout.state}
-                </span>
+                <span className="status-chip success">Verified — credited</span>
               </li>
             ))}
           </ul>
