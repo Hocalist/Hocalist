@@ -1,9 +1,9 @@
 // Authenticate the exact review reference with the original signed user JWT.
 // The service key is used only for the already-authorized private object read.
-export function createEvidenceReader(project:string,service:string,fetcher:typeof fetch=fetch,scope:"verification"|"store"="verification"){
+export function createEvidenceReader(project:string,service:string,fetcher:typeof fetch=fetch,scope:"verification"|"store"|"report"="verification"){
  const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
  return async(authorization:string,submissionId:string,mediaId:string):Promise<Uint8Array>=>{
-  const ref=await fetcher(`${project}/rest/v1/rpc/${scope==="store"?"admin_store_image":"admin_evidence_image"}`,{
+  const ref=await fetcher(`${project}/rest/v1/rpc/${scope==="report"?"admin_report_image":scope==="store"?"admin_store_image":"admin_evidence_image"}`,{
    method:'POST',redirect:'error',headers:{apikey:service,Authorization:authorization,'Content-Type':'application/json','Content-Profile':'hocalist'},
    body:JSON.stringify({p_submission:submissionId,p_media:mediaId}),signal:AbortSignal.timeout(10000),
   });

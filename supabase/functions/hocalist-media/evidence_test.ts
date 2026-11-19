@@ -41,3 +41,28 @@ Deno.test('Store image bytes are fetched only after exact Store authorization',a
  return new Response(new Uint8Array([255,216,255,217]),{headers:{'Content-Type':'image/jpeg'}});};
  check((await createEvidenceReader('https://example.test','secret',f,'store')('Bearer user',owner,id)).length===4);check(calls===2);
 });
+
+Deno.test('feedback screenshot endpoint uses only the exact report reader',async()=>{
+ let reads=0;
+ const deps:ImageGateway={authenticate:async()=>owner,rpc:async()=>{throw Error('ordinary_gateway_must_not_run');},sanitize:()=>{throw Error();},store:async()=>{},read:async()=>{throw Error();},readEvidence:async()=>{throw Error('wrong_scope');},readStoreEvidence:async()=>{throw Error('wrong_scope');},readReportEvidence:async(auth,caseId,media)=>{reads++;check(auth==='Bearer user'&&caseId===owner&&media===id);return new Uint8Array([255,216,255,217]);}};
+ const request=(query:string)=>new Request(`https://example.test?action=report-evidence&${query}`,{method:'POST',headers:{Authorization:'Bearer user'}});
+ const handler=createMediaHandler(deps);
+ check((await handler(request(`id=${id}`))).status===400);check(reads===0);
+ check((await handler(request(`id=${id}&submission_id=${owner}`))).status===200);check(reads===1);
+});
+
+Deno.test('report bytes require original admin session and exact case before private storage',async()=>{
+ for(const allowed of [true,false]){
+  let calls=0;
+  const f:typeof fetch=async(input,init)=>{
+   calls++;
+   const options=init as RequestInit|undefined;
+   if(calls===1){check(String(input).endsWith('/rpc/admin_report_image'));check(new Headers(options?.headers).get('Authorization')==='Bearer user');check(JSON.parse(String(options?.body)).p_submission===owner);return allowed?Response.json({id,owner_user_id:owner,state:'ready'}):new Response(null,{status:403});}
+   check(allowed&&new Headers(options?.headers).get('Authorization')==='Bearer secret');
+   return new Response(new Uint8Array([255,216,255,217]),{headers:{'Content-Type':'image/jpeg'}});
+  };
+  let denied=false;
+  try{check((await createEvidenceReader('https://example.test','secret',f,'report')('Bearer user',owner,id)).length===4);}catch{denied=true;}
+  check(denied===!allowed);check(calls===(allowed?2:1));
+ }
+});
