@@ -54,7 +54,7 @@ export default async function BlogPostPage({ params }: Props) {
   return (
     <PageShell>
       <main className={styles.shell}>
-        <article className={styles.article}>
+        <article className={styles.article} data-editorial-version={post.version}>
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
           <header className={styles.intro}>
             <Link href="/blog">← All guides</Link>

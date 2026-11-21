@@ -1,4 +1,17 @@
-export const blogPosts = [
+import editorialPosts from './editorial-posts.json';
+
+type BlogPost = {
+  slug: string;
+  title: string;
+  description: string;
+  image: string;
+  imageAlt: string;
+  sections: { heading: string; body: string }[];
+  next: { href: string; label: string };
+  version?: string;
+};
+
+const starterPosts: BlogPost[] = [
   {
     slug: 'how-to-write-a-local-buying-request',
     title: 'How to write a local buying request that gets useful offers',
@@ -52,6 +65,8 @@ export const blogPosts = [
     next: { href: '/safety', label: 'Read Hocalist’s meetup and safety guidance' }
   }
 ];
+
+export const blogPosts: BlogPost[] = [...editorialPosts, ...starterPosts];
 
 export function blogPostPath(slug: string) {
   return `/blog/${slug}`;
