@@ -66,7 +66,13 @@ const starterPosts: BlogPost[] = [
   }
 ];
 
-export const blogPosts: BlogPost[] = [...editorialPosts, ...starterPosts];
+const managedPosts: BlogPost[] = editorialPosts;
+const managedSlugs = new Set(managedPosts.map(post => post.slug));
+
+export const blogPosts: BlogPost[] = [
+  ...managedPosts,
+  ...starterPosts.filter(post => !managedSlugs.has(post.slug))
+];
 
 export function blogPostPath(slug: string) {
   return `/blog/${slug}`;
