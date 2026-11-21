@@ -115,6 +115,7 @@ export default function DownloadPage() {
                   Testing build · {androidTestRelease.date} · {(androidTestRelease.bytes / 1000000).toFixed(1)} MB.
                   {' '}For 64-bit Android phones running Android 7 or later. Download the APK, then open it on your Android phone to install.
                   {' '}This is an early-access test app, not a Google Play release. Payments remain in test mode.
+                  {' '}Includes optional usage analytics, off by default.
                 </p>}
               </>
             ) : (
