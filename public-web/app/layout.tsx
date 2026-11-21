@@ -8,6 +8,7 @@ import { ScrollReveal } from './ScrollReveal';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://hocalist.com'),
+  verification: { google: 'H8l7yG0sWm21gzro72WE_l1we1DZ7G4s0TjSVwbDEL0' },
   title: {
     default: 'Hocalist | Post What You Need and Compare Local Seller Offers',
     template: '%s | Hocalist'
