@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import './illustrated-site.css';
 import './approved-home.css';
 import { ScrollReveal } from './ScrollReveal';
+
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://hocalist.com'),
@@ -27,6 +29,7 @@ export const metadata: Metadata = {
   }
 };
 
+
 export default function RootLayout({
   children
 }: Readonly<{
@@ -38,7 +41,25 @@ export default function RootLayout({
       <body>
         <ScrollReveal />
         {children}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-Q8XK3M608D"
+          strategy="afterInteractive"
+        />
+        <Script id="hocalist-google-analytics" strategy="afterInteractive">
+          {`
+            if (['hocalist.com', 'www.hocalist.com'].includes(window.location.hostname)) {
+              window.dataLayer = window.dataLayer || [];
+              function gtag() { window.dataLayer.push(arguments); }
+              gtag('js', new Date());
+              gtag('config', 'G-Q8XK3M608D', {
+                allow_google_signals: false,
+                allow_ad_personalization_signals: false
+              });
+            }
+          `}
+        </Script>
       </body>
     </html>
   );
 }
+
