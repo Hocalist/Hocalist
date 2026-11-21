@@ -56,6 +56,7 @@ export default async function BlogPostPage({ params }: Props) {
       <main className={styles.shell}>
         <article className={styles.article} data-editorial-version={post.version}>
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
+          <script type="application/json" id="hocalist-editorial-article" dangerouslySetInnerHTML={{ __html: JSON.stringify(post).replace(/</g, '\\u003c') }} />
           <header className={styles.intro}>
             <Link href="/blog">← All guides</Link>
             <h1>{post.title}</h1>
