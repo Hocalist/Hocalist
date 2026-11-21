@@ -55,6 +55,15 @@ export default function RootLayout({
                 allow_google_signals: false,
                 allow_ad_personalization_signals: false
               });
+              document.addEventListener('click', (event) => {
+                const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+                if (!(link instanceof HTMLAnchorElement)) return;
+
+                const destination = new URL(link.href);
+                if (destination.origin !== window.location.origin || destination.pathname !== '/download/android') return;
+
+                gtag('event', 'app_download_click', { platform: 'android' });
+              }, { capture: true });
             }
           `}
         </Script>
