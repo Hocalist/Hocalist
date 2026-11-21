@@ -112,8 +112,8 @@ export default function DownloadPage() {
               <>
                 <DownloadLink href={isAndroidTest ? '/download/android' : playStoreUrl} platform="android">{playStoreUrl.includes('play.google.com') ? 'Get it on Google Play' : 'Download Android test app'}</DownloadLink>
                 {isAndroidTest && <p className="store-availability">
-                  Testing build · {androidTestRelease.date} · {Math.round(androidTestRelease.bytes / 1000000)} MB.
-                  {' '}Requires Android 7 or later. Download the APK, then open it on your Android phone to install.
+                  Testing build · {androidTestRelease.date} · {(androidTestRelease.bytes / 1000000).toFixed(1)} MB.
+                  {' '}For 64-bit Android phones running Android 7 or later. Download the APK, then open it on your Android phone to install.
                   {' '}This is an early-access test app, not a Google Play release. Payments remain in test mode.
                 </p>}
               </>
