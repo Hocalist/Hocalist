@@ -5,7 +5,8 @@ import { MobileMenu } from './MobileMenu';
 export const siteNav = [
   { href: '/how-it-works', label: 'How it works' },
   { href: '/#discover', label: 'What can I find?' },
-  { href: '/#sellers', label: 'For sellers' }
+  { href: '/#sellers', label: 'For sellers' },
+  { href: '/blog', label: 'Blog' }
 ];
 
 export const legalNav = [
