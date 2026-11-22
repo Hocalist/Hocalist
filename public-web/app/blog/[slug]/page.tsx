@@ -71,10 +71,17 @@ export default async function BlogPostPage({ params }: Props) {
             <p>{post.description}</p>
           </header>
           <Image className={styles.heroImage} src={post.image} alt={post.imageAlt} width={1040} height={560} sizes="(max-width: 800px) 100vw, 760px" priority />
-          {post.sections.map(({ heading, body }) => (
-            <section key={heading}>
+          {post.sections.map(({ heading, body }, sectionIndex) => (
+            <section key={`${sectionIndex}-${heading}`}>
               <h2>{heading}</h2>
-              <p>{body}</p>
+              {body.split(/\r?\n[ \t]*\r?\n+|\r?\n(?=### )/).flatMap((block, index) => {
+                const text = block.trim();
+                if (!text) return [];
+                const heading = /^### +([^\r\n]+)(?:\r?\n([\s\S]*))?$/.exec(text);
+                if (!heading) return [<p key={index}>{text}</p>];
+                return [<h3 key={index}>{heading[1]}</h3>,
+                  ...(heading[2]?.trim() ? [<p key={`${index}-text`}>{heading[2].trim()}</p>] : [])];
+              })}
             </section>
           ))}
           {editorialLinks === undefined
