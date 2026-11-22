@@ -1,6 +1,6 @@
 import editorialPosts from './editorial-posts.json';
 
-type BlogPost = {
+export type BlogPost = {
   slug: string;
   title: string;
   description: string;
@@ -8,6 +8,7 @@ type BlogPost = {
   imageAlt: string;
   sections: { heading: string; body: string }[];
   next: { href: string; label: string };
+  links?: { href: string; label: string }[];
   version?: string;
   datePublished?: string;
   dateModified?: string;

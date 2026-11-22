@@ -14,6 +14,10 @@ const nextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+    ] }, { source: '/blog/preview', headers: [
+      { key: 'Cache-Control', value: 'private, no-store' },
+      { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+      { key: 'Referrer-Policy', value: 'no-referrer' },
     ] }];
     if (process.env.HOCALIST_PAYGO_TEST_ENABLED === 'true') {
       const base = rules[0].headers[0].value;
