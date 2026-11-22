@@ -9,11 +9,14 @@ type BlogPost = {
   sections: { heading: string; body: string }[];
   next: { href: string; label: string };
   version?: string;
+  datePublished?: string;
+  dateModified?: string;
 };
 
 const starterPosts: BlogPost[] = [
   {
     slug: 'how-to-write-a-local-buying-request',
+    datePublished: '2026-11-20',
     title: 'How to write a local buying request that gets useful offers',
     description: 'Learn what to include in a local buying request so sellers can tell whether they have what you need and send an offer you can compare.',
     image: '/images/how-it-works/buyer-request.png',
@@ -40,6 +43,7 @@ const starterPosts: BlogPost[] = [
   },
   {
     slug: 'how-to-compare-local-seller-offers',
+    datePublished: '2026-11-20',
     title: 'How to compare offers from local sellers',
     description: 'Compare condition, total cost, pickup logistics, and seller answers before choosing an offer and arranging a local meetup.',
     image: '/images/how-it-works/seller-offer.png',
@@ -70,7 +74,10 @@ const managedPosts: BlogPost[] = editorialPosts;
 const managedSlugs = new Set(managedPosts.map(post => post.slug));
 
 export const blogPosts: BlogPost[] = [
-  ...managedPosts,
+  ...managedPosts.map(post => ({
+    ...post,
+    datePublished: post.datePublished ?? starterPosts.find(starter => starter.slug === post.slug)?.datePublished
+  })),
   ...starterPosts.filter(post => !managedSlugs.has(post.slug))
 ];
 

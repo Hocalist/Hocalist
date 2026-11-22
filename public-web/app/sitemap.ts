@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { blogPostPath, blogPosts } from './blog/posts';
+import { articleDates, blogTopicPath, groupBlogPosts } from './blog/topics';
 
 const siteUrl = 'https://www.hocalist.com';
 
@@ -21,8 +22,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${siteUrl}${route}`,
       lastModified: new Date('2026-07-09')
     })),
-    ...['/blog', ...blogPosts.map(({ slug }) => blogPostPath(slug))].map((route) => ({
-      url: `${siteUrl}${route}`
-    }))
+    { url: `${siteUrl}/blog` },
+    ...groupBlogPosts(blogPosts).map(({ slug }) => ({ url: siteUrl + blogTopicPath(slug) })),
+    ...blogPosts.map(post => {
+      const { datePublished, dateModified } = articleDates(post);
+      const lastModified = dateModified ?? datePublished;
+      return { url: siteUrl + blogPostPath(post.slug), ...(lastModified && { lastModified }) };
+    })
   ];
 }

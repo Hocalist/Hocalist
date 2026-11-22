@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageShell } from '../../site-content';
 import { blogPostPath, blogPosts } from '../posts';
+import { articleDates, blogTopicPath, topicForPost } from '../topics';
 import styles from '../blog.module.css';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -25,6 +26,7 @@ async function getPost(params: Props['params']) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = await getPost(params);
   const canonical = siteUrl + blogPostPath(post.slug);
+  const dates = articleDates(post);
   return {
     title: post.title,
     description: post.description,
@@ -34,6 +36,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: post.description,
       url: canonical,
       type: 'article',
+      publishedTime: dates.datePublished,
+      modifiedTime: dates.dateModified,
       images: [{ url: siteUrl + post.image, alt: post.imageAlt }]
     }
   };
@@ -41,6 +45,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogPostPage({ params }: Props) {
   const post = await getPost(params);
+  const dates = articleDates(post);
+  const topic = topicForPost(post);
   const editorialLinks = (post as typeof post & {
     links?: { href: string; label: string }[];
   }).links?.slice(0, 2).filter(({ href }) =>
@@ -55,6 +61,7 @@ export default async function BlogPostPage({ params }: Props) {
     '@type': 'BlogPosting',
     headline: post.title,
     description: post.description,
+    ...dates,
     image: siteUrl + post.image,
     mainEntityOfPage: siteUrl + blogPostPath(post.slug),
     author: { '@type': 'Organization', name: 'Hocalist', url: siteUrl }
@@ -66,11 +73,19 @@ export default async function BlogPostPage({ params }: Props) {
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
           <script type="application/json" id="hocalist-editorial-article" dangerouslySetInnerHTML={{ __html: JSON.stringify(post).replace(/</g, '\\u003c') }} />
           <header className={styles.intro}>
-            <Link href="/blog">← All guides</Link>
+            <nav className={styles.breadcrumbs} aria-label="Blog navigation">
+              <Link href="/blog">All guides</Link>
+              <span aria-hidden="true">/</span>
+              <Link href={blogTopicPath(topic.slug)}>{topic.title}</Link>
+            </nav>
             <h1>{post.title}</h1>
             <p>{post.description}</p>
+            {dates.datePublished && <p className={styles.date}>
+              Published <ArticleDate value={dates.datePublished} />
+              {dates.dateModified && <> · Updated <ArticleDate value={dates.dateModified} /></>}
+            </p>}
           </header>
-          <Image className={styles.heroImage} src={post.image} alt={post.imageAlt} width={1040} height={560} sizes="(max-width: 800px) 100vw, 760px" priority />
+          <Image className={styles.heroImage} src={post.image} alt={post.imageAlt} width={1040} height={560} sizes="(max-width: 792px) calc(100vw - 32px), 760px" quality={65} priority />
           {post.sections.map(({ heading, body }, sectionIndex) => (
             <section key={`${sectionIndex}-${heading}`}>
               <h2>{heading}</h2>
@@ -97,4 +112,10 @@ export default async function BlogPostPage({ params }: Props) {
       </main>
     </PageShell>
   );
+}
+
+function ArticleDate({ value }: { value: string }) {
+  return <time dateTime={value}>{new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'long', timeZone: /^\d{4}-\d{2}-\d{2}$/.test(value) ? 'UTC' : 'America/New_York'
+  }).format(new Date(value))}</time>;
 }

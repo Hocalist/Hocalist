@@ -45,9 +45,41 @@
   padding: 1.5rem;
 }
 
-.card h2 {
+.card h2,
+.card h3 {
   margin: 0 0 .65rem;
   font-size: clamp(1.25rem, 2.4vw, 1.65rem);
+}
+
+.topicNav,
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.topicNav {
+  margin-bottom: 2.5rem;
+}
+
+.topicNav a {
+  background: #f0eafa;
+  border-radius: 2rem;
+  padding: .6rem 1rem;
+}
+
+.topic + .topic {
+  margin-top: 3rem;
+}
+
+.topic > h2 {
+  margin-bottom: .4rem;
+}
+
+.date {
+  color: #574d6c;
+  font-size: .9rem;
 }
 
 .article,

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import { PageShell } from '../site-content';
-import { blogPostPath, blogPosts } from './posts';
+import { blogPosts } from './posts';
+import BlogCards from './BlogCards';
+import { blogTopicPath, groupBlogPosts } from './topics';
 import styles from './blog.module.css';
 
 const title = 'Blog and local marketplace guides';
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 export default function BlogPage() {
+  const topics = groupBlogPosts(blogPosts);
   return (
     <PageShell>
       <main className={styles.shell}>
@@ -25,17 +27,16 @@ export default function BlogPage() {
           <h1>Buying and selling locally</h1>
           <p>{description}</p>
         </header>
-        <div className={styles.grid}>
-          {blogPosts.map((post) => (
-            <article className={styles.card} key={post.slug}>
-              <Image src={post.image} alt={post.imageAlt} width={768} height={440} sizes="(max-width: 640px) 100vw, 520px" />
-              <div>
-                <h2><Link href={blogPostPath(post.slug)}>{post.title}</Link></h2>
-                <p>{post.description}</p>
-              </div>
-            </article>
-          ))}
-        </div>
+        <nav className={styles.topicNav} aria-label="Browse blog topics">
+          {topics.map(topic => <Link key={topic.slug} href={blogTopicPath(topic.slug)}>{topic.title}</Link>)}
+        </nav>
+        {topics.map(topic => (
+          <section className={styles.topic} key={topic.slug}>
+            <h2><Link href={blogTopicPath(topic.slug)}>{topic.title}</Link></h2>
+            <p>{topic.description}</p>
+            <BlogCards posts={topic.articles.slice(0, 4)} heading="h3" />
+          </section>
+        ))}
       </main>
     </PageShell>
   );
