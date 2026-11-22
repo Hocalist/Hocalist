@@ -41,7 +41,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogPostPage({ params }: Props) {
   const post = await getPost(params);
-  const related = blogPosts.find(
+  const editorialLinks = (post as typeof post & {
+    links?: { href: string; label: string }[];
+  }).links?.slice(0, 2).filter(({ href }) =>
+    /^\/(?:blog\/[a-z0-9-]+|how-it-works|safety|downloads?)$/.test(href) ||
+    /^https:\/\/[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:[/?#][^\s<>"'\\]*)?$/i.test(href)
+  );
+  const related = editorialLinks === undefined && blogPosts.find(
     (entry) => entry.slug !== post.slug && blogPostPath(entry.slug) !== post.next.href
   );
   const structuredData = {
@@ -71,7 +77,9 @@ export default async function BlogPostPage({ params }: Props) {
               <p>{body}</p>
             </section>
           ))}
-          <p><Link href={post.next.href}>{post.next.label} →</Link></p>
+          {editorialLinks === undefined
+            ? <p><Link href={post.next.href}>{post.next.label} →</Link></p>
+            : editorialLinks.map(({ href, label }) => <p key={href}><Link href={href}>{label} →</Link></p>)}
         </article>
         {related && (
           <aside className={styles.related} aria-label="Related guides">
