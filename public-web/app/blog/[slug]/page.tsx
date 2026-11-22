@@ -41,7 +41,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogPostPage({ params }: Props) {
   const post = await getPost(params);
-  const related = blogPosts.filter((entry) => entry.slug !== post.slug);
+  const related = blogPosts.find(
+    (entry) => entry.slug !== post.slug && blogPostPath(entry.slug) !== post.next.href
+  );
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -71,10 +73,12 @@ export default async function BlogPostPage({ params }: Props) {
           ))}
           <p><Link href={post.next.href}>{post.next.label} →</Link></p>
         </article>
-        <aside className={styles.related} aria-label="Related guides">
-          <h2>Related guides</h2>
-          {related.map((entry) => <p key={entry.slug}><Link href={blogPostPath(entry.slug)}>{entry.title}</Link></p>)}
-        </aside>
+        {related && (
+          <aside className={styles.related} aria-label="Related guides">
+            <h2>Related guides</h2>
+            <p><Link href={blogPostPath(related.slug)}>{related.title}</Link></p>
+          </aside>
+        )}
       </main>
     </PageShell>
   );
