@@ -71,8 +71,9 @@ const starterPosts: BlogPost[] = [
   }
 ];
 
-const managedPosts: BlogPost[] = editorialPosts;
-const managedSlugs = new Set(managedPosts.map(post => post.slug));
+const catalog: (BlogPost | { slug: string; removed: true })[] = editorialPosts;
+const managedSlugs = new Set(catalog.map(post => post.slug));
+const managedPosts = catalog.filter((post): post is BlogPost => !('removed' in post));
 
 export const blogPosts: BlogPost[] = [
   ...managedPosts.map(post => ({
