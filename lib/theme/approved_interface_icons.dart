@@ -17,6 +17,7 @@ class ApprovedInterfaceIcon extends StatelessWidget {
     'home-benefit-shield.png' => 'shield',
     'chat-send.png' => 'send',
     'chat-call.png' => 'phone',
+    'meeting-map.png' => 'map',
     _ => null,
   };
 
@@ -92,6 +93,13 @@ class _InterfacePainter extends CustomPainter {
         canvas.drawPath(path,stroke);
         line([const Offset(15,19),const Offset(29,3)]);
         line([const Offset(15,19),const Offset(14,26),const Offset(18,23)],width:1.3);
+      case 'map':
+        final path = Path()..moveTo(4,7)..lineTo(12,4)..lineTo(21,7)
+          ..lineTo(28,4)..lineTo(28,25)..lineTo(21,28)..lineTo(12,25)
+          ..lineTo(4,28)..close();
+        canvas.drawPath(path, stroke);
+        canvas.drawLine(const Offset(12,4), const Offset(12,25), stroke);
+        canvas.drawLine(const Offset(21,7), const Offset(21,28), stroke);
       case 'phone':
         final path=Path()..moveTo(9,4)..lineTo(5,5)..cubicTo(0,10,8,25,20,28)
           ..quadraticBezierTo(25,30,28,24)..lineTo(23,19)..quadraticBezierTo(21,18,19,22)

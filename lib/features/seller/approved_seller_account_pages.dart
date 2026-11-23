@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../components/hocalist_paged_list.dart';
 import '../account/device_push_settings.dart';
+import '../account/analytics_consent_setting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/local_marketplace_repository.dart';
@@ -233,6 +234,7 @@ class ApprovedSellerSettingsPage extends StatelessWidget {
               status: textSizeLabel,
               onTap: onAccessibility,
             ),
+            const AnalyticsConsentSetting(),
           ],
         ),
         if (contactEditor != null)

@@ -11991,6 +11991,7 @@ class _BuyerAccountSettingsPage extends StatelessWidget {
               status: textSize.label,
               onTap: onAccessibility,
             ),
+            const AnalyticsConsentSetting(),
           ],
         ),
         if (onAccountLifecycle != null)

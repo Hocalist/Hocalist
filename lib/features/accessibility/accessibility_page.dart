@@ -373,7 +373,22 @@ class _AccessibilityFullPreviewState extends State<_AccessibilityFullPreview> {
   Widget build(BuildContext context) {
     const title = 'Preview';
     const subtitle = 'This is how Hocalist will look';
-    final text = Theme.of(context).textTheme;
+    final metrics = ApprovedReplicaMetrics.resolve(
+      availableWidth: MediaQuery.sizeOf(context).width,
+      textScaler: MediaQuery.textScalerOf(context),
+      brightness: Theme.of(context).brightness,
+    );
+    final body = BuyerTypography.style(
+      context,
+      metrics,
+      BuyerTextRole.primaryBody,
+    );
+    final heading = BuyerTypography.style(
+      context,
+      metrics,
+      BuyerTextRole.cardTitle,
+      color: Theme.of(context).textTheme.titleLarge?.color,
+    );
     void close() => Navigator.pop(context, false);
 
     return Dialog.fullscreen(
@@ -398,41 +413,64 @@ class _AccessibilityFullPreviewState extends State<_AccessibilityFullPreview> {
               const SizedBox(height: 18),
               Text(
                 'Review titles, descriptions, controls, and buttons before applying your selection.',
-                style: text.bodyLarge,
+                style: body,
               ),
               const SizedBox(height: 20),
-              HocalistAccountField(
-                label: 'Example field',
-                hintText: 'Your content remains easy to read',
-                controller: _example,
-                seller: widget.seller,
-                readOnly: true,
+              Theme(
+                data: Theme.of(context).copyWith(
+                  inputDecorationTheme: Theme.of(context).inputDecorationTheme
+                      .copyWith(
+                        hintStyle: body.copyWith(
+                          color: HocalistPalette.text(
+                            context,
+                            BuyerUiTokens.muted,
+                          ),
+                        ),
+                      ),
+                ),
+                child: HocalistAccountField(
+                  label: 'Example field',
+                  hintText: 'Example text',
+                  controller: _example,
+                  seller: widget.seller,
+                  readOnly: true,
+                ),
               ),
               const SizedBox(height: 16),
               HocalistAccountFormCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Example request card', style: text.titleLarge),
+                    Text('Example request card', style: heading),
                     const SizedBox(height: 6),
                     Text(
                       'Important descriptions can wrap without hiding the next action.',
-                      style: text.bodyMedium,
+                      style: body,
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              AccountActionButton(
-                seller: widget.seller,
-                label: 'Apply changes',
-                onPressed: () => Navigator.pop(context, true),
-              ),
+              if (widget.seller)
+                SellerPrimaryButton(
+                  label: 'Apply changes',
+                  minimumHeight: 48,
+                  onPressed: () => Navigator.pop(context, true),
+                )
+              else
+                BuyerPrimaryButton(
+                  label: 'Apply changes',
+                  minimumHeight: 48,
+                  onPressed: () => Navigator.pop(context, true),
+                ),
               const SizedBox(height: 10),
-              AccountSecondaryButton(
-                seller: widget.seller,
-                label: 'Cancel',
-                onPressed: close,
+              ConstrainedBox(
+                constraints: BoxConstraints(minHeight: metrics.geometry(48)),
+                child: AccountSecondaryButton(
+                  seller: widget.seller,
+                  label: 'Cancel',
+                  onPressed: close,
+                ),
               ),
             ],
           ),

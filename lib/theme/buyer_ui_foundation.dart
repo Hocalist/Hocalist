@@ -427,6 +427,7 @@ class BuyerPrimaryButton extends StatelessWidget {
   const BuyerPrimaryButton({
     required this.label,
     required this.onPressed,
+    this.onLongPress,
     this.leading,
     this.trailing,
     this.compact = false,
@@ -439,6 +440,7 @@ class BuyerPrimaryButton extends StatelessWidget {
 
   final String label;
   final VoidCallback? onPressed;
+  final VoidCallback? onLongPress;
   final Widget? leading;
   final Widget? trailing;
   final bool compact;
@@ -468,6 +470,7 @@ class BuyerPrimaryButton extends StatelessWidget {
       container: true,
       label: label,
       onTap: onPressed,
+      onLongPress: onPressed == null ? null : onLongPress,
       excludeSemantics: true,
       button: true,
       enabled: onPressed != null,
@@ -500,6 +503,7 @@ class BuyerPrimaryButton extends StatelessWidget {
               color: HocalistPalette.surface(context, Colors.transparent),
               child: InkWell(
                 onTap: onPressed,
+                onLongPress: onPressed == null ? null : onLongPress,
                 borderRadius: BorderRadius.circular(radius),
                 child: Padding(
                   padding: EdgeInsets.symmetric(
@@ -577,6 +581,7 @@ class BuyerSecondaryButton extends StatelessWidget {
     required this.onPressed,
     this.compact = false,
     this.fontSize = 14,
+    this.minimumHeight,
     this.color = BuyerUiTokens.action,
     super.key,
   });
@@ -585,6 +590,7 @@ class BuyerSecondaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool compact;
   final double fontSize;
+  final double? minimumHeight;
   final Color color;
 
   @override
@@ -622,7 +628,7 @@ class BuyerSecondaryButton extends StatelessWidget {
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
             foregroundColor: HocalistPalette.textOrNull(context, color),
-            minimumSize: Size.fromHeight(metrics.geometry(compact ? 40 : 44)),
+            minimumSize: Size.fromHeight(metrics.geometry(minimumHeight ?? (compact ? 40 : 44))),
             padding: EdgeInsets.symmetric(
               horizontal: metrics.geometry(compact ? 6 : 18),
               vertical: metrics.geometry(compact ? 7 : 9),
@@ -1013,6 +1019,14 @@ enum BuyerTextRole {
 }
 
 abstract final class BuyerTypography {
+  /// The existing approved Home text treatment, shared with its deal cards.
+  static TextStyle homeStyle(BuildContext context, ApprovedReplicaMetrics metrics, {
+    required double size, required Color color, FontWeight weight = FontWeight.w400,
+    double? height,
+  }) => Theme.of(context).textTheme.bodyMedium!.copyWith(
+    fontSize: metrics.fontSize(size), fontWeight: weight,
+    color: HocalistPalette.text(context, color), height: height, letterSpacing: 0,
+  );
   static TextStyle style(
     BuildContext context,
     ApprovedReplicaMetrics metrics,

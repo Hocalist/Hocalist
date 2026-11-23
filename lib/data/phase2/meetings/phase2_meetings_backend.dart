@@ -6,10 +6,26 @@ import '../../local_marketplace_repository.dart';
 import 'meeting_adapter.dart';
 import 'meeting_codecs.dart';
 
-class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
+class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend, MarketplaceOfferedMeetingBackend {
   Phase2MarketplaceMeetingsBackend({required this.adapter});
 
   final MeetingDataAdapter adapter;
+
+  @override
+  Future<MeetingView> acceptOfferedMeeting({
+    required String offerId, required int expectedOfferRevision,
+    int? expectedMeetingRevision, required String operationKey,
+  }) async {
+    final result = await adapter.acceptOfferedMeeting(offerId: offerId,
+      expectedOfferRevision: expectedOfferRevision,
+      expectedMeetingRevision: expectedMeetingRevision, operationKey: operationKey);
+    if (result.isFailure) {
+      final error = result.errorOrNull!;
+      throw StoreBackendException(_message(error), ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null);
+    }
+    return result.valueOrNull!;
+  }
 
   @override
   Future<MeetingPageView> loadMeetings({
@@ -156,6 +172,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend {
   String _message(RepositoryError? error) {
     if (error is ConflictError &&
         const {
+          'meeting_time_passed',
           'meeting_seller_payment_required',
           'meeting_seller_account_pending',
         }.contains(error.conflictCode)) {

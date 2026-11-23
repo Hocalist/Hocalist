@@ -224,6 +224,7 @@ class MarketplaceDataAdapter
       'category_id': draft.categoryId,
       'category_answers': categoryAnswerInput(draft.categoryAnswers),
       'use_home_address': location.useHomeAddress,
+      'prefer_meet_here': location.preferMeetHere,
       if (location.timezoneId != null) 'location_timezone': location.timezoneId,
       'address_line1': address?.line1,
       'address_line2': address?.line2,
@@ -928,6 +929,19 @@ class MarketplaceDataAdapter
       'expected_offer_revision': command.expectedOfferRevision,
       if (command.reason != null) 'reason': command.reason,
     }, decodeOfferJson);
+  }
+
+  Future<RepositoryResult<Offer>> declineBuyerOffer({required String offerId,
+    required int expectedRevision, required String key}) async {
+    final result = await _rpc('buyer_decline_offer', {
+      'p_offer': offerId, 'p_expected_revision': expectedRevision, 'p_key': key,
+    });
+    if (result.isFailure) return RepositoryFailureResult(result.errorOrNull!);
+    try {
+      return RepositorySuccess(decodeOfferJson(result.valueOrNull!, 'buyer_decline_offer'));
+    } catch (_) {
+      return const RepositoryFailureResult(MalformedResponseError(operation: 'buyer_decline_offer', detail: 'Invalid offer'));
+    }
   }
 
   @override

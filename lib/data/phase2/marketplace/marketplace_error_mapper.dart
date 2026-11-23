@@ -148,6 +148,10 @@ class MarketplaceErrorMapper {
     if (_has(message, 'payment_permission_required')) {
       return const ConflictError(conflictCode: 'payment_permission_required');
     }
+    if (_has(message, 'meeting_time_passed')) {
+      return const ConflictError(conflictCode: 'meeting_time_passed',
+        debugMessage: 'The offered meeting time has passed. Long-press Accept offer and meet to reschedule.');
+    }
     if (_has(message, 'meeting_seller_payment_required')) {
       return const ConflictError(
         conflictCode: 'meeting_seller_payment_required',

@@ -2,6 +2,7 @@ import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../commercial/money_help.dart';
@@ -18,12 +19,15 @@ import '../../domain/phase2/communication_completion.dart';
 import '../../domain/phase2/conversations.dart';
 import '../../domain/phase2/money.dart';
 import '../../domain/phase2/offers.dart';
+import '../../domain/phase2/requests.dart';
+import '../../data/phase2/meetings/meeting_codecs.dart';
 import '../../domain/phase2/schedule.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../../theme/input_foundation.dart';
 import '../../theme/seller_ui_foundation.dart' show SellerPrimaryButton;
 import 'approved_replica_metrics.dart';
 import 'buyer_bottom_navigation.dart';
+import 'buyer_deal_card.dart';
 
 export 'buyer_bottom_navigation.dart';
 
@@ -155,13 +159,36 @@ class BuyerOfferView {
     this.imageMediaIds = const [],
     this.purchaseSelected = false,
     this.requestAcceptanceExpiresAt,
+    this.requestTitle = 'Your request',
+    this.distanceLabel,
   });
 
-  factory BuyerOfferView.fromOffer(Offer offer) {
-    final revision = offer.latestRevision;
+  factory BuyerOfferView.fromOffer(Offer offer, {bool agreedTerms = false,
+      MeetingView? meeting, RequestCoordinates? origin}) {
+    final revision = agreedTerms
+        ? offer.acceptedRevision ?? offer.latestRevision
+        : offer.latestRevision;
     final terms = revision.terms;
     final name = offer.sellerDisplayName ?? 'Hocalist seller';
+    final agreed = meeting?.offerId == offer.id && meeting?.requestId == offer.requestId &&
+        meeting?.isCancelled == false ? meeting?.acceptedSchedule : null;
+    final schedule = agreed == null ? terms.schedule : LocalSchedule(
+      date: agreed.date, startTime: agreed.startTime, timezoneId: agreed.timezoneId,
+      occurrence: agreed.occurrence);
+    final lat = agreed == null ? terms.place.latitude : agreed.latitude;
+    final lng = agreed == null ? terms.place.longitude : agreed.longitude;
+    String? distance;
+    if (origin != null && lat != null && lng != null && lat.isFinite && lng.isFinite &&
+        lat.abs() <= 90 && lng.abs() <= 180) {
+      double radians(double value) => value * math.pi / 180;
+      final a = math.pow(math.sin(radians(lat - origin.latitude) / 2), 2) +
+          math.cos(radians(origin.latitude)) * math.cos(radians(lat)) *
+          math.pow(math.sin(radians(lng - origin.longitude) / 2), 2);
+      final miles = 3958.7613 * 2 * math.asin(math.sqrt(a.clamp(0, 1)));
+      distance = '~${miles.toStringAsFixed(1)} mi away';
+    }
     return BuyerOfferView(
+      requestTitle: offer.requestTitle ?? 'Your request',
       offerId: offer.id,
       requestId: offer.requestId,
       revisionId: revision.id,
@@ -171,8 +198,9 @@ class BuyerOfferView {
       initials: _initialsFor(name),
       priceLabel: BuyerOfferView._formatMoney(terms.price),
       message: terms.message.trim(),
-      meetingLabel: _formatSchedule(terms.schedule),
-      placeLabel: BuyerOfferView._formatPlace(terms.place),
+      meetingLabel: formatSchedule(schedule),
+      placeLabel: formatPlaceLabel(address: agreed?.placeAddress, label: agreed?.placeLabel, fallback: BuyerOfferView._formatPlace(terms.place)),
+      distanceLabel: distance,
       status: offer.status,
       conversationId: offer.conversationId,
       imageMediaIds: List.unmodifiable(terms.imageMediaIds),
@@ -181,6 +209,7 @@ class BuyerOfferView {
     );
   }
 
+  final String requestTitle;
   final String offerId;
   final String requestId;
   final String revisionId;
@@ -192,6 +221,7 @@ class BuyerOfferView {
   final String message;
   final String meetingLabel;
   final String placeLabel;
+  final String? distanceLabel;
   final OfferStatus status;
   final String? conversationId;
   final List<String> imageMediaIds;
@@ -241,7 +271,7 @@ class BuyerOfferView {
     return '\$$text';
   }
 
-  static String _formatSchedule(LocalSchedule schedule) {
+  static String formatSchedule(LocalSchedule schedule) {
     final date = DateTime(
       schedule.date.year,
       schedule.date.month,
@@ -271,7 +301,18 @@ class BuyerOfferView {
         '$displayHour:$minute $period';
   }
 
+  /// Use only the meeting location returned for this participant. Public
+  /// projections without an address continue to show their safe label.
+  static String formatPlaceLabel({String? address, String? label, String fallback = 'View meeting location'}) {
+    for (final value in [address, label]) {
+      if (value != null && value.trim().isNotEmpty) return value.trim();
+    }
+    return fallback;
+  }
+
   static String _formatPlace(MeetingPlace place) {
+    final address = place.address?.trim();
+    if (address != null && address.isNotEmpty) return address;
     final label = place.label?.trim();
     if (label != null && label.isNotEmpty) return label;
     return switch (place.choice) {
@@ -385,6 +426,8 @@ class ApprovedOffersReceivedPage extends StatefulWidget {
     this.onRefreshOffers,
     this.onOpenOffer,
     this.onViewSeller,
+    this.onDeclineOffer,
+    this.loadSeller,
     this.selectionBusy = false,
     this.selectionUncertain = false,
     this.selectionError,
@@ -410,6 +453,8 @@ class ApprovedOffersReceivedPage extends StatefulWidget {
   /// Selects the seller if needed, then opens this offer's conversation.
   final ValueChanged<BuyerOfferView>? onOpenOffer;
   final ValueChanged<BuyerOfferView>? onViewSeller;
+  final ValueChanged<BuyerOfferView>? onDeclineOffer;
+  final BuyerDealSellerLoader? loadSeller;
   final bool selectionBusy;
   final bool selectionUncertain;
   final String? selectionError;
@@ -521,7 +566,8 @@ class _ApprovedOffersReceivedPageState
   List<Widget> _realOfferCards(BuildContext context) {
     final source = widget.requestClosed
         ? const <BuyerOfferView>[]
-        : widget.realOffers ?? const <BuyerOfferView>[];
+        : (widget.realOffers ?? const <BuyerOfferView>[]).where((offer) =>
+            offer.status == OfferStatus.submitted).toList();
     final visible = _underFourHundredOnly
         ? source.where((offer) {
             final value = double.tryParse(
@@ -546,34 +592,24 @@ class _ApprovedOffersReceivedPageState
       if (widget.selectionError != null)
         BuyerStateNotice(title: 'Could not open the conversation', body: widget.selectionError, icon: Icons.info_outline, tone: BuyerNoticeTone.error),
       for (var index = 0; index < visible.length; index++)
-        _ApprovedOfferCard(
+        BuyerDealCard(
           key: ValueKey('approved-real-offer-${visible[index].offerId}'),
-          realMode: true,
-          actionLabel: visible[index].conversationId != null ? 'Open chat' : widget.selectionUncertain ? 'Retry selection & chat' : 'Select seller & chat',
-          actionBusy: widget.selectionBusy,
+          busy: widget.selectionBusy,
+          sellerProfileId: visible[index].sellerProfileId,
+          loadSeller: widget.loadSeller,
           onProfile: widget.onViewSeller == null ? null : () => widget.onViewSeller!(visible[index]),
-          photoId: visible[index].imageMediaIds.firstOrNull,
-          additionalPhotos: visible[index].imageMediaIds.skip(1).toList(),
-          seller: visible[index].sellerName,
-          initials: visible[index].initials,
-          reviews: '',
-          status: visible[index].status == OfferStatus.selected
-              ? 'Selected'
-              : 'Offer received',
-          statusColor: visible[index].status == OfferStatus.selected
-              ? _green
-              : _offersBlue,
+          photos: visible[index].imageMediaIds,
+          sellerName: visible[index].sellerName,
+          title: visible[index].requestTitle,
           price: visible[index].priceLabel,
-          description: visible[index].message.isEmpty
-              ? 'No message was included with this offer.'
-              : visible[index].message,
-          firstFactAsset: 'offers-identity.png',
-          firstFactTitle: 'Meet-up',
-          firstFactBody: visible[index].meetingLabel,
-          placeLabel: visible[index].placeLabel,
-          distance: '—',
-          availability: visible[index].meetingLabel,
-          onDetails: () {
+          message: visible[index].message,
+          meeting: visible[index].meetingLabel,
+          place: visible[index].placeLabel,
+          distanceLabel: visible[index].distanceLabel,
+          onDecline: widget.onDeclineOffer == null ||
+            !{OfferStatus.submitted, OfferStatus.selected}.contains(visible[index].status)
+              ? null : () => widget.onDeclineOffer!(visible[index]),
+          onChat: () {
             final open = widget.onOpenOffer;
             if (open != null) {
               open(visible[index]);
@@ -681,11 +717,13 @@ class _ApprovedOffersReceivedPageState
                     key: const Key('approvedOffersEmpty'),
                     title: widget.requestClosed
                         ? 'No offers for this closed request'
-                        : 'No offers yet',
+                        : (widget.realOffers?.any((offer) => offer.status == OfferStatus.selected) == true ? 'No new offers' : 'No offers yet'),
                     icon: Icons.mark_email_unread_outlined,
                     message: widget.requestClosed
                         ? 'This request is closed and cannot receive new offers. Your existing request remains in your history.'
-                        : 'Sellers nearby will appear here when they respond to your request.',
+                        : widget.realOffers?.any((offer) => offer.status == OfferStatus.selected) == true
+                            ? 'Your negotiations are in Deals in progress and Chats. New offers will appear here.'
+                            : 'Sellers nearby will appear here when they respond to your request.',
                   ),
               ],
               for (var index = 0; index < offers.length; index++) ...[
@@ -1074,9 +1112,9 @@ class ApprovedDealView {
       actionLabel: historical
           ? 'View offer details'
           : offer.purchaseSelected
-          ? 'Review offered meeting'
+          ? (buyer ? 'Accept offer and meet' : 'Review offered meeting')
           : buyer
-          ? 'Confirm seller'
+          ? 'Accept offer and meet'
           : 'Waiting for buyer',
       scheduleLabel: "${terms.schedule.date} · ${terms.schedule.startTime}",
       zoneLabel: terms.schedule.timezoneId,
@@ -1112,6 +1150,7 @@ class ApprovedBuyerChatPage extends StatelessWidget {
   const ApprovedBuyerChatPage({
     required this.onBack,
     required this.onPrimary,
+    this.onMeetingOptions,
     required this.onCall,
     required this.onMore,
     required this.onRequestChange,
@@ -1168,6 +1207,7 @@ class ApprovedBuyerChatPage extends StatelessWidget {
 
   final VoidCallback onBack;
   final VoidCallback onPrimary;
+  final VoidCallback? onMeetingOptions;
   final VoidCallback onCall;
   final VoidCallback onMore;
   final VoidCallback onRequestChange;
@@ -1257,6 +1297,7 @@ class ApprovedBuyerChatPage extends StatelessWidget {
       body: ApprovedConversationBody(
         onBack: onBack,
         onPrimary: onPrimary,
+        onMeetingOptions: onMeetingOptions,
         onCall: onCall,
         onMore: onMore,
         onRequestChange: onRequestChange,
@@ -1317,6 +1358,7 @@ class ApprovedConversationBody extends StatefulWidget {
   const ApprovedConversationBody({
     required this.onBack,
     required this.onPrimary,
+    this.onMeetingOptions,
     required this.onCall,
     required this.onMore,
     required this.onRequestChange,
@@ -1386,6 +1428,7 @@ class ApprovedConversationBody extends StatefulWidget {
 
   final VoidCallback onBack;
   final VoidCallback onPrimary;
+  final VoidCallback? onMeetingOptions;
   final VoidCallback onCall;
   final VoidCallback onMore;
   final VoidCallback onRequestChange;
@@ -2539,6 +2582,17 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                     ],
                                   ),
                                 ),
+                              if (widget.usesRealEntries && !widget.viewerIsSeller &&
+                                  _showPastDeals != true && _selectedRealDeal != null &&
+                                  !_selectedRealDeal!.completed &&
+                                  (widget.realDeals?.any((deal) => deal.id == _selectedRealDeal!.id) ?? false)) ...[
+                                const SizedBox(height: 12),
+                                BuyerPrimaryButton(key: const Key('buyer-chat-meeting-action'),
+                                  label: widget.primaryLabel, minimumHeight: 48,
+                                  onPressed: widget.onPrimary,
+                                  onLongPress: widget.onMeetingOptions),
+                                const SizedBox(height: 12),
+                              ],
                               if (widget.usesRealEntries &&
                                   widget.blockState != null &&
                                   (widget.blockState!.isBlockedByMe ||
@@ -3407,439 +3461,18 @@ class _OffersStateNotice extends StatelessWidget {
 }
 
 class _ApprovedOfferCard extends StatelessWidget {
-  const _ApprovedOfferCard({
-    required this.seller,
-    required this.initials,
-    required this.reviews,
-    required this.status,
-    required this.statusColor,
-    required this.price,
-    required this.description,
-    required this.firstFactAsset,
-    required this.firstFactTitle,
-    required this.firstFactBody,
-    required this.distance,
-    required this.availability,
-    required this.onDetails,
-    this.placeLabel,
-    this.photoId,
-    this.additionalPhotos = const [],
-    this.topMatch = false,
-    this.realMode = false,
-    this.actionLabel = 'Select seller & chat',
-    this.actionBusy = false,
-    this.onProfile,
-    super.key,
-  });
-
-  final String seller;
-  final String initials;
-  final String reviews;
-  final String status;
+  const _ApprovedOfferCard({required this.seller, required this.initials, required this.reviews,
+    required this.status, required this.statusColor, required this.price, required this.description,
+    required this.firstFactAsset, required this.firstFactTitle, required this.firstFactBody,
+    required this.distance, required this.availability, required this.onDetails, this.topMatch = false});
+  final String seller, initials, reviews, status, price, description, firstFactAsset, firstFactTitle, firstFactBody, distance, availability;
   final Color statusColor;
-  final String price;
-  final String description;
-  final String firstFactAsset;
-  final String firstFactTitle;
-  final String firstFactBody;
-  final String distance;
-  final String availability;
-  final VoidCallback onDetails;
-
-  /// Authoritative meet-up place for the real-mode fact row.
-  final String? placeLabel;
-  final String? photoId;
-  final List<String> additionalPhotos;
   final bool topMatch;
-  final bool realMode;
-  final String actionLabel;
-  final bool actionBusy;
-  final VoidCallback? onProfile;
-
+  final VoidCallback onDetails;
   @override
-  Widget build(BuildContext context) {
-    return HocalistEntrance(
-      child: HocalistPressFeedback(
-        child: _Surface(
-          key: Key('approved-offer-card-$initials'),
-          padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (topMatch)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(4, 0, 7, 0),
-                  decoration: BoxDecoration(
-                    color: HocalistPalette.surface(context, Color(0xffe5f5eb)),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8),
-                      bottomRight: Radius.circular(14),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _asset('offers-top-match.png', width: 11, height: 11),
-                      const SizedBox(width: 3),
-                      Text(
-                        'Top match',
-                        style: _text(
-                          context,
-                          size: 8,
-                          weight: FontWeight.w800,
-                          color: _green,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(3),
-                child: Column(
-                  children: [
-                    _OfferCardHeader(
-                      seller: seller,
-                      initials: initials,
-                      reviews: reviews,
-                      status: status,
-                      statusColor: statusColor,
-                      realMode: realMode,
-                    ),
-                    const SizedBox(height: 2),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final compact = constraints.maxWidth < 300;
-                        final priceCard = Container(
-                          constraints: BoxConstraints(
-                            minWidth: compact ? 80 : 112,
-                            minHeight: compact ? 52 : 76,
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: compact ? 7 : 10,
-                            vertical: compact ? 6 : 9,
-                          ),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: HocalistPalette.surface(
-                              context,
-                              const Color(0xfff8f7ff),
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              BuyerGlyphIcon(
-                                icon: Icons.sell_outlined,
-                                slotSize: compact ? 17 : 23,
-                                glyphSize: compact ? 17 : 23,
-                                color: HocalistPalette.text(
-                                  context,
-                                  _offersBlue,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                price,
-                                style: _text(
-                                  context,
-                                  size: compact ? 18 : 24,
-                                  weight: FontWeight.w900,
-                                  color: _offersBlue,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            if (photoId != null || !realMode) ...[
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: photoId != null ? SizedBox(width: compact ? 38 : 50, height: compact ? 25 : 33, child: PrivateRemoteImage(key: ValueKey(photoId), id: photoId!, showWholeImage: true)) : _asset(
-                                'offer-thumbnail.png',
-                                width: compact ? 38 : 50,
-                                height: compact ? 25 : 33,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            SizedBox(width: compact ? 5 : 7),
-                            ],
-                            Expanded(
-                              child: Text(
-                                description,
-                                style: _text(
-                                  context,
-                                  size: compact ? 8 : 10,
-                                  weight: FontWeight.w500,
-                                  height: 1.35,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: compact ? 5 : 8),
-                            priceCard,
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 2),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = !_usesAccessibilityReflow(context);
-                        final facts = realMode
-                            ? [
-                                _OfferFact(
-                                  asset: firstFactAsset,
-                                  title: firstFactTitle,
-                                  body: firstFactBody,
-                                ),
-                                _OfferFact(
-                                  asset: 'offers-location.png',
-                                  title: 'Meet-up place',
-                                  body: (placeLabel ?? '').trim().isEmpty
-                                      ? 'To be confirmed'
-                                      : placeLabel!.trim(),
-                                ),
-                                _OfferFact(
-                                  asset: 'offers-clock.png',
-                                  title: 'Available',
-                                  body: availability,
-                                ),
-                              ]
-                            : [
-                                _OfferFact(
-                                  asset: firstFactAsset,
-                                  title: firstFactTitle,
-                                  body: firstFactBody,
-                                ),
-                                _OfferFact(
-                                  asset: 'offers-location.png',
-                                  title: distance,
-                                  body: 'from you',
-                                ),
-                                _OfferFact(
-                                  asset: 'offers-clock.png',
-                                  title: 'Available',
-                                  body: availability,
-                                ),
-                              ];
-                        if (!columns) {
-                          return Column(
-                            children: [
-                              for (final fact in facts)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: fact,
-                                ),
-                            ],
-                          );
-                        }
-                        return Row(
-                          children: [
-                            for (var i = 0; i < facts.length; i++) ...[
-                              Expanded(child: facts[i]),
-                              if (i < facts.length - 1)
-                                const SizedBox(width: 5),
-                            ],
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 2),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final stacked = _usesAccessibilityReflow(context);
-                        final compact = constraints.maxWidth < 300;
-                        final details = _PrimaryButton(
-                          key: Key('approved-view-offer-$initials'),
-                          label: actionBusy ? 'Opening…' : actionLabel,
-                          onPressed: actionBusy ? null : onDetails,
-                          height: compact ? 30 : 44,
-                          backgroundColor: HocalistPalette.surface(
-                            context,
-                            _offersBlue,
-                          ),
-                        );
-                        if (stacked) {
-                          return SizedBox(
-                            width: double.infinity,
-                            child: details,
-                          );
-                        }
-                        return SizedBox(width: double.infinity, child: details);
-                      },
-                    ),
-                    if (onProfile != null)
-                      TextButton(onPressed: onProfile, child: const Text('View seller profile')),
-                    if (additionalPhotos.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Wrap(spacing: 8, runSpacing: 8, children: [
-                          for (final id in additionalPhotos)
-                            ClipRRect(borderRadius: BorderRadius.circular(8),
-                              child: PrivateRemoteImage(id: id, size: 64, showWholeImage: true)),
-                        ]),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => BuyerDealCard(sellerName: seller, title: description,
+    price: price, meeting: availability, place: 'View offer location', message: '', onChat: onDetails);
 }
-
-class _OfferCardHeader extends StatelessWidget {
-  const _OfferCardHeader({
-    required this.seller,
-    required this.initials,
-    required this.reviews,
-    required this.status,
-    required this.statusColor,
-    this.realMode = false,
-  });
-  final String seller;
-  final String initials;
-  final String reviews;
-  final String status;
-  final Color statusColor;
-  final bool realMode;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final tight = constraints.maxWidth < 300;
-        final identity = Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _InitialsAvatar(initials: initials, size: tight ? 28 : 36),
-            SizedBox(width: tight ? 5 : 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          seller,
-                          style: _text(
-                            context,
-                            size: tight ? 11 : 14,
-                            weight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      if (!realMode) ...[
-                        const SizedBox(width: 4),
-                        _asset(
-                          'detail-verified.png',
-                          width: tight ? 13 : 16,
-                          height: tight ? 13 : 16,
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Wrap(
-                    spacing: 5,
-                    runSpacing: 3,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (!realMode) ...[
-                        _asset(
-                          'detail-star.png',
-                          width: tight ? 10 : 13,
-                          height: tight ? 10 : 13,
-                        ),
-                        Text(
-                          reviews,
-                          style: _text(
-                            context,
-                            size: tight ? 7 : 9,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                      Text(
-                        realMode ? status : '•  $status',
-                        style: _text(
-                          context,
-                          size: tight ? 7 : 9,
-                          weight: FontWeight.w700,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-        return identity;
-      },
-    );
-  }
-}
-
-class _OfferFact extends StatelessWidget {
-  const _OfferFact({
-    required this.asset,
-    required this.title,
-    required this.body,
-  });
-  final String asset;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 95;
-        return Row(
-          children: [
-            _asset(asset, width: compact ? 17 : 26, height: compact ? 17 : 26),
-            SizedBox(width: compact ? 3 : 5),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    style: _text(
-                      context,
-                      size: compact ? 7 : 9,
-                      weight: FontWeight.w800,
-                    ),
-                  ),
-                  SizedBox(height: compact ? 1 : 2),
-                  Text(
-                    body,
-                    maxLines: 3,
-                    style: _text(
-                      context,
-                      size: compact ? 6 : 8,
-                      weight: FontWeight.w500,
-                      color: _muted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 class _SecurePrivateNotice extends StatelessWidget {
   const _SecurePrivateNotice();
 
@@ -6017,6 +5650,7 @@ class ApprovedRealDealDetailsSheet extends StatelessWidget {
     required this.viewerIsSeller,
     required this.onClose,
     required this.onOpenMeeting,
+    this.onMeetingOptions,
     this.onViewOriginalRequest,
   });
 
@@ -6026,6 +5660,7 @@ class ApprovedRealDealDetailsSheet extends StatelessWidget {
   final bool viewerIsSeller;
   final VoidCallback onClose;
   final VoidCallback? onOpenMeeting;
+  final VoidCallback? onMeetingOptions;
   final VoidCallback? onViewOriginalRequest;
 
   @override
@@ -6220,6 +5855,7 @@ class ApprovedRealDealDetailsSheet extends StatelessWidget {
                     ? 'Review meeting details'
                     : 'Open meeting details'),
             onPressed: onOpenMeeting,
+            onLongPress: onMeetingOptions,
           ),
           if (onOpenMeeting == null && !hideUnavailableAction) ...[
             SizedBox(height: metrics.geometry(6)),

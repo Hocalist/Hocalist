@@ -1314,7 +1314,8 @@ class _RealMeetingCard extends StatelessWidget {
           };
     final title = meeting.offerSummary?.title ?? 'Meeting';
     final price = meeting.offerSummary?.priceLabel;
-    final place = schedule?.placeLabel ?? schedule?.placeAddress;
+    final address = schedule?.placeAddress?.trim();
+    final place = address != null && address.isNotEmpty ? address : schedule?.placeLabel;
     final accepted = onAction != null ? meeting.pendingSchedule ?? meeting.acceptedSchedule : meeting.acceptedSchedule;
     final awaitingSeller = meeting.pendingSchedule?.proposedByUserId == meeting.buyerUserId;
     final actionable = !completed && ['accepted','proposed','reschedule_proposed'].contains(meeting.status);

@@ -52,13 +52,14 @@ class RequestCoordinates {
 }
 
 class RequestLocation {
-  const RequestLocation.homeAddress({this.timezoneId, this.coordinates, this.address})
+  const RequestLocation.homeAddress({this.timezoneId, this.coordinates, this.address, this.preferMeetHere = false})
     : useHomeAddress = true;
 
   factory RequestLocation.custom({
     required PostalAddress address,
     RequestCoordinates? coordinates,
     String? timezoneId,
+    bool preferMeetHere = false,
   }) {
     if (address.isEmpty) {
       throw ArgumentError.value(
@@ -71,6 +72,7 @@ class RequestLocation {
       address: address,
       coordinates: coordinates,
       timezoneId: timezoneId,
+      preferMeetHere: preferMeetHere,
     );
   }
 
@@ -78,9 +80,18 @@ class RequestLocation {
     required this.address,
     this.coordinates,
     this.timezoneId,
+    this.preferMeetHere = false,
   }) : useHomeAddress = false;
 
   final bool useHomeAddress;
+  /// A preference for this request, not consent to publish the private address.
+  final bool preferMeetHere;
+
+  RequestLocation withMeetingPreference(bool value) => useHomeAddress
+      ? RequestLocation.homeAddress(address: address, coordinates: coordinates,
+          timezoneId: timezoneId, preferMeetHere: value)
+      : RequestLocation.custom(address: address!, coordinates: coordinates,
+          timezoneId: timezoneId, preferMeetHere: value);
   final String? timezoneId;
 
   /// Custom address, or the resolved city/region snapshot for a home request.
@@ -95,13 +106,14 @@ class RequestLocation {
   bool operator ==(Object other) =>
       other is RequestLocation &&
       other.useHomeAddress == useHomeAddress &&
+      other.preferMeetHere == preferMeetHere &&
       other.address == address &&
       other.coordinates == coordinates &&
       other.timezoneId == timezoneId;
 
   @override
   int get hashCode =>
-      Object.hash(useHomeAddress, address, coordinates, timezoneId);
+      Object.hash(useHomeAddress, address, coordinates, timezoneId, preferMeetHere);
 
   @override
   String toString() => useHomeAddress

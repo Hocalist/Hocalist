@@ -1,3 +1,6 @@
+import 'features/approved/confirm_offered_meeting_sheet.dart';
+import 'features/approved/buyer_deal_card.dart';
+import 'domain/phase2/failures.dart';
 import 'features/commercial/buyer_payout_setup.dart';
 import 'data/phase2/providers/launch_usage.dart';
 import 'components/account_role_switch.dart';
@@ -40,6 +43,7 @@ import 'features/chat/conversation_send_feedback.dart';
 import 'features/account/profile_details_editor.dart';
 
 import 'package:flutter/material.dart';
+import 'features/account/analytics_consent_setting.dart';
 import 'components/page_swipe_navigation.dart';
 import 'features/meetings/meeting_cancel_confirmation.dart';
 import 'package:flutter/semantics.dart';
@@ -57,6 +61,7 @@ import 'features/meetings/sale_confirmation_panel.dart';
 import 'features/meetings/meeting_proposal_location.dart';
 import 'data/phase2/media/image_gateway.dart';
 import 'features/calls/hocalist_call_page.dart';
+import 'data/phase2/calls/call_gateway.dart';
 import 'features/calls/call_invitation_listener.dart';
 import 'features/commercial/credit_wallet_panel.dart';
 import 'domain/phase2/commercial/commercial.dart';
@@ -119,6 +124,7 @@ import 'domain/phase2/notifications.dart';
 import 'domain/phase2/notification_destination.dart';
 import 'domain/phase2/profiles.dart' show HocalistRole, NotificationPreferences;
 import 'domain/phase2/requests.dart';
+import 'features/meetings/request_meeting_preference.dart';
 import 'domain/phase2/reviews.dart';
 import 'features/account/hocalist_account_controller.dart';
 import 'features/account/private_contact_editor.dart';
@@ -503,6 +509,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           unawaited(
             repository.refreshBuyerOffers(request.id, background: true),
           );
+          unawaited(repository.refreshMeetings(background: true));
         }
       });
     }
@@ -570,7 +577,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       } else if (page == AppPage.buyerChats || page == AppPage.sellerChat) {
         await repository.refreshChatInbox(background: true);
       } else if (page == AppPage.buyerDashboard) {
-        await repository.refreshMeetings();
+        await repository.refreshMeetings(background: true);
         if (current()) await _refreshBuyerHomeOffers(background: true);
       } else if (page == AppPage.meetingDetails && !_meetingBusy) {
         final id = repository.meetingDetail?.meetingId;
@@ -3125,7 +3132,19 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
     if (_callOpen) return;
     _callOpen = true;
+    final callEpoch = _navigationEpoch;
+    final callUser = widget.accountSession?.userId;
     try {
+      final problem = await callEntryProblem(
+        CallGateway(Supabase.instance.client),
+      );
+      if (!mounted || callEpoch != _navigationEpoch ||
+          callUser != widget.accountSession?.userId ||
+          conversation != _marketplace.activeConversationId) return;
+      if (problem != null) {
+        showMessage(problem);
+        return;
+      }
       await appNavigatorKey.currentState!.push(
         MaterialPageRoute<void>(
           builder: (_) => HocalistCallPage(conversationId: conversation),
@@ -3252,7 +3271,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         showMessage(
           'Seller confirmed. Review the meeting details from the offer.',
         );
-        unawaited(_openConversationMeeting(offerId: sourceOffer.id));
+        await _openConversationMeeting(offerId: sourceOffer.id);
       } else {
         showMessage(
           'The buyer must confirm this seller before you arrange a meeting.',
@@ -3552,7 +3571,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         schedule == null ||
         meeting.isCancelled ||
         (meeting.hasPendingSchedule &&
-          (role != UserRole.seller || schedule.proposedByUserId != meeting.buyerUserId))) {
+          schedule.proposedByUserId == widget.accountSession?.userId)) {
       return;
     }
     final dialogContext = appNavigatorKey.currentContext;
@@ -3635,6 +3654,33 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   Future<void> _respondToMeeting({required bool accept}) async {
     final meeting = _marketplace.meetingDetail;
     if (meeting == null || _meetingBusy) return;
+    final schedule = meeting.pendingSchedule;
+    final viewer = widget.accountSession?.userId;
+    if (accept && role == UserRole.buyer && schedule != null) {
+      final responseEpoch = _navigationEpoch;
+      _meetingBusy = true;
+      try {
+      if (!await _ensureBuyerMeetingRequest(meeting.requestId) || !mounted ||
+          responseEpoch != _navigationEpoch || viewer != widget.accountSession?.userId ||
+          _marketplace.meetingDetail?.meetingId != meeting.meetingId ||
+          _marketplace.meetingDetail?.revision != meeting.revision) return;
+      final preferred = preferredPlaceToReview(
+        request: _marketplace.buyerRequests.where((r) => r.id == meeting.requestId).firstOrNull,
+        requestId: meeting.requestId, buyerUserId: viewer,
+        proposedAddress: schedule.placeAddress, latitude: schedule.latitude, longitude: schedule.longitude);
+      if (preferred != null) {
+        final host = appNavigatorKey.currentContext;
+        if (host == null) return;
+        final agreed = await confirmOfferedMeeting(host, title: 'Confirm the proposed meeting',
+          time: '${schedule.date} · ${schedule.startTime}', timezone: schedule.timezoneId,
+          place: schedule.placeAddress ?? schedule.placeLabel ?? 'Meeting place not provided',
+          preferredPlace: preferred);
+        if (!agreed || !mounted || responseEpoch != _navigationEpoch || viewer != widget.accountSession?.userId ||
+            _marketplace.meetingDetail?.meetingId != meeting.meetingId ||
+            _marketplace.meetingDetail?.revision != meeting.revision) return;
+      }
+      } finally { _meetingBusy = false; }
+    }
     final pending = _meetingResponseIntents[meeting.meetingId];
     if (pending?.uncertain == true &&
         pending != null &&
@@ -3911,10 +3957,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         viewerIsSeller: false,
         onClose: () => Navigator.pop(sheet),
         hideUnavailableAction: true,
+        onMeetingOptions: offer.status == OfferStatus.selected && !offer.requestClosed ? () { Navigator.pop(sheet); unawaited(_buyerDealOptions(offer)); } : null,
         onOpenMeeting: offer.status == OfferStatus.selected && !offer.requestClosed
             ? () {
                 Navigator.pop(sheet);
-                unawaited(_openConversationMeeting(offerId: offer.id));
+                unawaited(_buyerHomeMeetingAction(offer));
               }
             : null,
       ),
@@ -3953,19 +4000,230 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   }
 
   List<Offer> _buyerHomeOffers = const [];
+  final Map<String, Future<BuyerDealSeller>> _dealSellerReads = {};
+
+  BuyerOfferView _buyerDealView(Offer offer) => BuyerOfferView.fromOffer(
+    offer, agreedTerms: true,
+    meeting: _marketplace.meetings.where((m) => m.offerId == offer.id && !m.isCancelled).firstOrNull,
+    origin: _marketplace.buyerRequests.where((r) => r.id == offer.requestId).firstOrNull?.draft.location.coordinates,
+  );
+
+  Future<BuyerDealSeller> _loadDealSeller(String profileId) {
+    final user = widget.accountSession?.userId;
+    final cacheKey = '$user:$profileId';
+    return _dealSellerReads.putIfAbsent(cacheKey, () async {
+      try {
+        final values = await Future.wait<Object?>([
+          ProfilePresentationBackend(Supabase.instance.client).publicSeller(profileId),
+          if (_reviewBackend != null) _reviewBackend!.loadReputation(profileId),
+        ]);
+        if (widget.accountSession?.userId != user) throw StateError('Account changed');
+        final profile = values.first as Map<String, dynamic>;
+        final reputation = values.length > 1 ? values[1] as PublicSellerReputation : null;
+        if (profile['available'] != true) throw StateError('Profile unavailable');
+        return BuyerDealSeller(
+          avatarId: profile['avatar_media_id'] as String?,
+          verified: (profile['badges'] as List? ?? []).contains('Admin reviewed'),
+          rating: reputation?.available == true ? reputation!.averageRating : null,
+          reviewCount: reputation?.available == true ? reputation!.ratingCount : null,
+          sales: (profile['completed_sales'] as num?)?.toInt() ??
+            (reputation?.available == true ? reputation!.completedDeals : null),
+        );
+      } catch (_) {
+        _dealSellerReads.remove(cacheKey);
+        rethrow;
+      }
+    });
+  }
+
+  bool _homeMeetingActionBusy = false;
+  bool _buyerDeclineBusy = false;
+  final Map<String, ({String key, int revision})> _buyerDeclineIntents = {};
+
+  Future<void> _declineBuyerOffer(BuyerOfferView offer) async {
+    if (_buyerDeclineBusy) return;
+    final host = appNavigatorKey.currentContext;
+    final user = widget.accountSession?.userId;
+    if (host == null || user == null) return;
+    final confirmed = await showModalBottomSheet<bool>(context: host,
+      isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (sheet) => BuyerModalSheet(title: 'Decline this offer?',
+        subtitle: 'This ends this offer. Any existing conversation stays in Past deals. Your request remains open for other sellers.',
+        onClose: () => Navigator.pop(sheet, false),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          BuyerPrimaryButton(label: 'Keep offer', onPressed: () => Navigator.pop(sheet, false)),
+          const SizedBox(height: 10),
+          BuyerSecondaryButton(label: 'Decline offer', color: const Color(0xffd92d20),
+            onPressed: () => Navigator.pop(sheet, true)),
+        ])));
+    if (confirmed != true || !mounted || _buyerDeclineBusy || user != widget.accountSession?.userId) return;
+    final intentId = '$user:${offer.offerId}';
+    final intent = _buyerDeclineIntents.putIfAbsent(intentId, () => (
+      key: LocalMarketplaceRepository.newStoreOperationKey('buyer-decline'), revision: offer.offerRevision));
+    setState(() => _buyerDeclineBusy = true);
+    try {
+      final result = await createMarketplaceDataAdapter(client: Supabase.instance.client)
+        .declineBuyerOffer(offerId: offer.offerId, expectedRevision: intent.revision, key: intent.key);
+      if (!mounted || user != widget.accountSession?.userId) return;
+      if (result.isFailure) {
+        // Keep the same receipt identity through ambiguous retries.
+        final error = result.errorOrNull!;
+        if ({RepositoryFailureKind.conflict, RepositoryFailureKind.permissionDenied,
+             RepositoryFailureKind.notFound, RepositoryFailureKind.validation}.contains(error.kind)) {
+          _buyerDeclineIntents.remove(intentId);
+        }
+        showMessage('The offer could not be declined. If a meeting is already agreed, cancel it in Meeting details. Otherwise refresh this offer and retry.');
+        return;
+      }
+      _buyerDeclineIntents.remove(intentId);
+      await Future.wait([
+        _refreshBuyerHomeOffers(background: true),
+        if (_currentBuyerRequest?.id == offer.requestId) _marketplace.refreshBuyerOffers(offer.requestId),
+        _marketplace.refreshMeetings(),
+      ]);
+      if (mounted && user == widget.accountSession?.userId) showMessage('Offer declined. Your request is still open.');
+    } finally {
+      if (mounted) setState(() => _buyerDeclineBusy = false);
+    }
+  }
+  final Map<String, ({String key, int offerRevision, int? meetingRevision})> _offeredMeetingIntents = {};
+
+  Offer? get _buyerChatOffer {
+    final id = _selectedConversationDeal?.offerId;
+    return [..._conversationOfferRecords, ..._marketplace.buyerOffers, ..._buyerHomeOffers]
+      .where((offer) => offer.id == id).firstOrNull;
+  }
+
+  MeetingView? _meetingForOffer(String id) =>
+    [..._conversationMeetingRecords, ..._marketplace.meetings]
+      .where((meeting) => meeting.offerId == id).firstOrNull;
+
+  String get _buyerChatMeetingLabel {
+    final offer = _buyerChatOffer;
+    final meeting = offer == null ? null : _meetingForOffer(offer.id);
+    if (meeting?.isCancelled == true || (meeting?.hasAcceptedSchedule == true && meeting?.hasPendingSchedule != true)) return 'View meeting';
+    if (meeting?.pendingSchedule?.proposedByUserId == widget.accountSession?.userId) return 'View meeting';
+    return offer == null ? 'View deal' : 'Accept offer and meet';
+  }
+
+  Future<void> _buyerChatMeetingAction() async {
+    final offer = _buyerChatOffer;
+    if (offer == null) { await _openNextConversationAction(); return; }
+    await _buyerHomeMeetingAction(offer);
+  }
+
+  Future<bool> _ensureBuyerMeetingRequest(String requestId) async {
+    if (!_marketplace.isRequestsBacked) return true;
+    if (!_marketplace.buyerRequests.any((r) => r.id == requestId)) {
+      await _marketplace.refreshBuyerRequests();
+    }
+    if (!mounted) return false;
+    if (!_marketplace.buyerRequests.any((r) => r.id == requestId)) {
+      showMessage('We could not check your requested meeting place. Please try again.');
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _buyerHomeMeetingAction(Offer offer, {bool reschedule = false}) async {
+    if (_homeMeetingActionBusy || role != UserRole.buyer) return;
+    final user = widget.accountSession?.userId;
+    final originalPage = page;
+    final epoch = _navigationEpoch;
+    final existing = _meetingForOffer(offer.id);
+    _homeMeetingActionBusy = true;
+    try {
+      if (reschedule || (existing?.hasAcceptedSchedule == true && existing?.hasPendingSchedule != true) || existing?.isCancelled == true ||
+          (existing?.pendingSchedule != null && existing!.pendingSchedule!.proposedByUserId == user)) {
+        await _openBuyerOfferChat(BuyerOfferView.fromOffer(offer));
+        if (!mounted || user != widget.accountSession?.userId || _marketplace.activeChatOfferId != offer.id) return;
+        await _openConversationMeeting(offerId: offer.id);
+        // Without a meeting, the existing flow already opens its initial scheduling editor.
+        if (reschedule && existing != null && mounted && page == AppPage.meetingDetails) {
+          if (existing.pendingSchedule?.proposedByUserId == user) {
+            showMessage('Waiting for the seller to respond to your proposed meeting.');
+          } else {
+            await _rescheduleMeeting();
+          }
+        }
+        return;
+      }
+      final host = appNavigatorKey.currentContext;
+      if (host == null) return;
+      final terms = (offer.acceptedRevision ?? offer.latestRevision).terms;
+      final pending = existing?.pendingSchedule;
+      if (!await _ensureBuyerMeetingRequest(offer.requestId) || !mounted ||
+          epoch != _navigationEpoch || user != widget.accountSession?.userId) return;
+      final approved = await confirmOfferedMeeting(host, title: offer.requestTitle ?? 'Your offer',
+        preferredPlace: preferredPlaceToReview(
+          request: _marketplace.buyerRequests.where((r) => r.id == offer.requestId).firstOrNull,
+          requestId: offer.requestId, buyerUserId: user,
+          proposedAddress: pending == null ? terms.place.address : pending.placeAddress,
+          latitude: pending == null ? terms.place.latitude : pending.latitude,
+          longitude: pending == null ? terms.place.longitude : pending.longitude),
+        time: pending == null ? BuyerOfferView.fromOffer(offer, agreedTerms: true).meetingLabel
+          : '${pending.date} · ${pending.startTime}',
+        timezone: pending?.timezoneId ?? terms.schedule.timezoneId,
+        place: pending?.placeAddress ?? pending?.placeLabel ?? terms.place.address ?? terms.place.label ?? 'Meeting place not provided');
+      if (!approved || !mounted || epoch != _navigationEpoch || page != originalPage || user != widget.accountSession?.userId) return;
+      await _openBuyerOfferChat(BuyerOfferView.fromOffer(offer));
+      if (!mounted || user != widget.accountSession?.userId || _marketplace.activeChatOfferId != offer.id || page != AppPage.buyerChat) return;
+      final selected = _selectedBuyerOffer;
+      if (selected?.offerId != offer.id) return;
+      final intent = _offeredMeetingIntents.putIfAbsent(offer.id, () => (
+        key: LocalMarketplaceRepository.newStoreOperationKey('accept-offered-meeting'),
+        offerRevision: selected!.offerRevision, meetingRevision: existing?.revision));
+      final result = await _marketplace.acceptOfferedMeeting(offerId: offer.id,
+        expectedOfferRevision: intent.offerRevision, expectedMeetingRevision: intent.meetingRevision, operationKey: intent.key);
+      if (!result.outcomeUncertain) _offeredMeetingIntents.remove(offer.id);
+      if (!mounted || user != widget.accountSession?.userId || _marketplace.activeChatOfferId != offer.id) return;
+      if (!result.isSuccess) {
+        showMessage(result.error ?? 'Could not confirm the meeting. Try again.');
+        unawaited(_loadConversationDeals(force: true));
+        return;
+      }
+      _adoptConversationMeeting(result.meeting!);
+      await _loadConversationDeals(force: true);
+      if (!mounted || user != widget.accountSession?.userId || page != AppPage.buyerChat || _marketplace.activeChatOfferId != offer.id) return;
+      showMessage('Meeting confirmed. The seller has been notified.');
+      await _openMeetingById(result.meeting!.meetingId);
+    } finally {
+      _homeMeetingActionBusy = false;
+      if (mounted) unawaited(_refreshBuyerHomeOffers(background: true));
+    }
+  }
+
+  Future<void> _buyerDealOptions(Offer offer) async {
+    final host = appNavigatorKey.currentContext;
+    if (host == null) return;
+    final action = await showModalBottomSheet<String>(context: host,
+      isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (sheet) => BuyerModalSheet(title: 'Your offer',
+        subtitle: offer.requestTitle, onClose: () => Navigator.pop(sheet),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          BuyerPrimaryButton(label: 'Reschedule', onPressed: () => Navigator.pop(sheet, 'reschedule')),
+          const SizedBox(height: 10),
+          BuyerSecondaryButton(label: 'Decline offer', onPressed: () => Navigator.pop(sheet, 'decline')),
+        ])));
+    if (!mounted) return;
+    if (action == 'reschedule') await _buyerHomeMeetingAction(offer, reschedule: true);
+    if (action == 'decline') await _declineBuyerOffer(BuyerOfferView.fromOffer(offer));
+  }
   bool _buyerHomeOffersLoading = false;
+  bool _buyerHomeOffersRefreshing = false;
   String? _buyerHomeOffersError;
   int _buyerHomeOffersGeneration = 0;
 
   Future<void> _refreshBuyerHomeOffers({bool background = false}) async {
     final repository = _marketplace;
     final backend = repository.buyerOffersBackend;
-    if (backend == null || role != UserRole.buyer || (background && _buyerHomeOffersLoading)) return;
+    if (backend == null || role != UserRole.buyer || (background && _buyerHomeOffersRefreshing)) return;
     final generation = ++_buyerHomeOffersGeneration;
     final user = widget.accountSession?.userId;
-    setState(() { _buyerHomeOffersLoading = !background; _buyerHomeOffersError = null; });
+    _buyerHomeOffersRefreshing = true;
+    if (!background) setState(() { _buyerHomeOffersLoading = true; _buyerHomeOffersError = null; });
     try {
-      await repository.refreshBuyerRequests();
+      await repository.refreshBuyerRequests(background: background);
       if (!mounted || generation != _buyerHomeOffersGeneration || user != widget.accountSession?.userId) return;
       if (repository.buyerRequestsError != null) throw StateError('requests unavailable');
       final ids = {
@@ -3981,14 +4239,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       }
       rows.sort((a, b) => b.stamp.updatedAt.compareTo(a.stamp.updatedAt));
       if (!mounted || generation != _buyerHomeOffersGeneration || user != widget.accountSession?.userId) return;
-      setState(() => _buyerHomeOffers = rows);
+      setState(() { _buyerHomeOffers = rows; _buyerHomeOffersError = null; });
     } catch (_) {
       if (mounted && generation == _buyerHomeOffersGeneration && user == widget.accountSession?.userId) {
-        setState(() { _buyerHomeOffers = const []; _buyerHomeOffersError = 'Please retry to load your current conversations.'; });
+        if (!background) setState(() { _buyerHomeOffersError = 'Please retry to load your offers.'; });
       }
     } finally {
       if (mounted && generation == _buyerHomeOffersGeneration && user == widget.accountSession?.userId) {
-        setState(() => _buyerHomeOffersLoading = false);
+        setState(() { _buyerHomeOffersLoading = false; _buyerHomeOffersRefreshing = false; });
       }
     }
   }
@@ -4274,6 +4532,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   void _refreshBuyerOffersIfNeeded() {
     final request = _currentBuyerRequest;
     if (request == null || !_marketplace.isBuyerOffersBacked) return;
+    unawaited(_marketplace.refreshMeetings(background: true));
     if (_marketplace.buyerOffersRequestId == request.id &&
         !_marketplace.buyerOffersLoading) {
       return;
@@ -5756,6 +6015,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             negotiationsError: _buyerHomeOffersError,
             onRefreshNegotiations: () => unawaited(_refreshBuyerHomeOffers()),
             onOpenNegotiation: (offer) => unawaited(_openBuyerOfferChat(BuyerOfferView.fromOffer(offer))),
+            onAcceptNegotiation: (offer) => unawaited(_buyerHomeMeetingAction(offer)),
+            onNegotiationOptions: (offer) => unawaited(_buyerDealOptions(offer)),
+            loadDealSeller: _loadDealSeller,
+            presentHomeOffer: _buyerDealView,
             onMeetingDirections: (meeting) => unawaited(_openMeetingDirections(meeting)),
             onMeetingMessage: (meeting) => unawaited(_openMeetingChat(meeting)),
             onMeetingCall: (meeting) async {
@@ -6066,7 +6329,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             latestOffer: _marketplace.latestOffer,
             realOffers: _marketplace.isBuyerOffersBacked
                 ? _marketplace.buyerOffers
-                      .map(BuyerOfferView.fromOffer)
+                      .map(_buyerDealView)
                       .toList(growable: false)
                 : null,
             budgetMaximum: _currentBuyerRequest?.draft.budget.maximum == null
@@ -6076,7 +6339,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 _currentBuyerRequest != null &&
                 _currentBuyerRequest!.status != RequestStatus.active,
             offersLoading: _marketplace.buyerOffersLoading,
-            selectionBusy: _offerSelectionBusy,
+            selectionBusy: _offerSelectionBusy || _buyerDeclineBusy,
             selectionUncertain: _offerSelectionUncertain,
             selectionError: _offerSelectionError,
             onViewSeller: (view) {
@@ -6087,6 +6350,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             offersError: _marketplace.buyerOffersError,
             onRefreshOffers: _refreshBuyerOffersIfNeeded,
             onOpenOffer: (view) => unawaited(_openBuyerOfferChat(view)),
+            onDeclineOffer: (view) => unawaited(_declineBuyerOffer(view)),
+            loadSeller: _loadDealSeller,
           ),
         );
       case AppPage.sellerPublicProfile:
@@ -6253,7 +6518,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 : null,
             onBack: back,
             onPrimary: _marketplace.isMeetingsBacked
-                ? _openNextConversationAction
+                ? _buyerChatMeetingAction
                 : () => commit(
                     next: AppPage.buyerDashboard,
                     message:
@@ -6267,11 +6532,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                     },
                   ),
             primaryLabel: _marketplace.isMeetingsBacked
-                ? (_nextConversationDeal?.actionLabel ?? 'View deal')
+                ? _buyerChatMeetingLabel
                 : 'Accept to meet',
             onCall: _openCall,
             onMore: () => go(AppPage.reportIssue),
             onRequestChange: () => showMessage('Request change opened.'),
+            onMeetingOptions: _buyerChatOffer == null ? null : () => unawaited(_buyerDealOptions(_buyerChatOffer!)),
             onChangeLocation: _openConversationMeeting,
             onAttach: _marketplace.chatAttachmentsSupported
                 ? () => unawaited(_pickAndSendChatAttachment())

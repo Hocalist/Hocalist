@@ -79,6 +79,25 @@ class DisabledCalls extends FakeCalls {
   }
 }
 
+class UnavailableCalls extends FakeCalls {
+  @override
+  Future<Map<String, dynamic>> command(
+    String action,
+    Map<String, Object?> input,
+  ) async => throw const CallGatewayException('call_unavailable');
+}
+
+class DisabledIncomingCalls extends FakeCalls {
+  @override
+  Future<Map<String, dynamic>> command(
+    String action,
+    Map<String, Object?> input,
+  ) async {
+    actions.add(action);
+    return {'call': null, 'enabled': false};
+  }
+}
+
 class DeniedCalls extends FakeCalls {
   bool denied = false;
   CallGatewayException denial = const CallGatewayException(
@@ -157,6 +176,30 @@ void mockWebRtc(
 }
 
 void main() {
+  test('call entry checks the switch without inviting or accessing media', () async {
+    final calls = FakeCalls();
+    expect(await callEntryProblem(calls), isNull);
+    expect(calls.actions, ['incoming']);
+  });
+
+  test('disabled call entry explains that chat is still available', () async {
+    final calls = DisabledCalls();
+    expect(await callEntryProblem(calls), contains('currently turned off'));
+    expect(calls.actions, ['incoming']);
+  });
+
+  test('failed availability check does not claim the admin disabled calls', () async {
+    final problem = await callEntryProblem(UnavailableCalls());
+    expect(problem, contains('Please try again'));
+    expect(problem, isNot(contains('turned off')));
+  });
+
+  test('disabled incoming response blocks entry without issuing an invite', () async {
+    final calls = DisabledIncomingCalls();
+    expect(await callEntryProblem(calls), contains('currently turned off'));
+    expect(calls.actions, ['incoming']);
+  });
+
   testWidgets(
     'disabled calling never claims a camera failure or starts media',
     (tester) async {

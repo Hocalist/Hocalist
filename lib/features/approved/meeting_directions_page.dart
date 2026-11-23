@@ -205,6 +205,15 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
     super.dispose();
   }
 
+  ApprovedReplicaMetrics get metrics => ApprovedReplicaScope.maybeOf(context) ??
+      ApprovedReplicaMetrics.resolve(
+        availableWidth: MediaQuery.sizeOf(context).width.clamp(0, 600).toDouble(),
+        textScaler: MediaQuery.textScalerOf(context),
+        brightness: Theme.of(context).brightness,
+      );
+
+  TextStyle textStyle(BuyerTextRole role) => BuyerTypography.style(context, metrics, role);
+
   Widget routeMap(MeetingRoute value) {
     if (widget.mapBuilder != null) {
       return widget.mapBuilder!(value);
@@ -288,8 +297,8 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
       children: [
         const Icon(Icons.map_outlined, size: 40),
         const SizedBox(height: 12),
-        Text(destinationLoading ? 'Loading meeting map…' : 'Map preview unavailable', style: const TextStyle(fontWeight: FontWeight.w700)),
-        if (!destinationLoading) const Text('Enter your starting point to find a route.', textAlign: TextAlign.center),
+        Text(destinationLoading ? 'Loading meeting map…' : 'Map preview unavailable', style: textStyle(BuyerTextRole.cardTitle)),
+        if (!destinationLoading) Text('Enter your starting point to find a route.', textAlign: TextAlign.center, style: textStyle(BuyerTextRole.secondaryBody)),
       ],
     )));
   }
@@ -313,8 +322,8 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
                 child: IconButton(tooltip: 'Back', onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.arrow_back_rounded))),
               const SizedBox(width: 12),
               Expanded(child: Material(color: surface, elevation: 3, borderRadius: BorderRadius.circular(20),
-                child: const Padding(padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  child: Text('Your meeting route', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))))),
+                child: Padding(padding: EdgeInsets.symmetric(horizontal: metrics.geometry(18), vertical: metrics.geometry(14)),
+                  child: Text('Your meeting route', style: textStyle(BuyerTextRole.pageTitle))))),
             ]),
           )),
           Align(alignment: Alignment.bottomCenter, child: SizedBox(
@@ -339,29 +348,29 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
                 child: ListView(
                   key: const Key('meeting-directions-scroll'),
                   controller: sheetScroll,
-                  padding: EdgeInsets.fromLTRB(20, 10, 20, MediaQuery.paddingOf(context).bottom + 20),
+                  padding: EdgeInsets.fromLTRB(metrics.geometry(20), metrics.geometry(10), metrics.geometry(20), MediaQuery.paddingOf(context).bottom + metrics.geometry(20)),
                   children: [
                     Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 18),
                       decoration: BoxDecoration(color: HocalistPalette.border(context, const Color(0xFFD7D5E4)), borderRadius: BorderRadius.circular(8)))),
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(route == null ? 'Meet here' : (route!.seconds / 60).ceil().toString() + ' min',
-                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+                          style: textStyle(BuyerTextRole.pageTitle)),
                         if (route != null) Text((route!.distanceMeters / 1609.344).toStringAsFixed(1) + ' miles · ' + (mode == 'WALK' ? 'Walking' : 'Driving'),
-                          style: const TextStyle(fontSize: 14)),
+                          style: textStyle(BuyerTextRole.secondaryBody)),
                       ])),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(color: HocalistPalette.surface(context, const Color(0xFFF1EEFF)),borderRadius: BorderRadius.circular(20)),
-                        child: const Text('Meeting place', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                        child: Text('Meeting place', style: textStyle(BuyerTextRole.badgeStatus))),
                     ]),
                     const SizedBox(height: 8),
-                    Text(widget.destination, style: const TextStyle(fontSize: 14)),
+                    Text(widget.destination, style: textStyle(BuyerTextRole.primaryBody)),
                     const SizedBox(height: 18),
-                    Row(children: [
+                    IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Expanded(child: travelOption('DRIVE', 'Driving')),
                       const SizedBox(width: 10),
                       Expanded(child: travelOption('WALK', 'Walking')),
-                    ]),
+                    ])),
                     const SizedBox(height: 14),
                     if (route == null || editingStart) ...[
                       ...startControls(),
@@ -369,7 +378,7 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
                     ] else
                       ListTile(contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.trip_origin, size: 20),
-                        title: Text(origin.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
+                        title: Text(origin.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: textStyle(BuyerTextRole.primaryBody)),
                         trailing: const Icon(Icons.edit_outlined, size: 20),
                         onTap: () => setState(() => editingStart = true)),
                     if (widget.seller)
@@ -382,15 +391,15 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
                       ExpansionTile(
                         key: const Key('route-steps'),
                         tilePadding: EdgeInsets.zero,
-                        title: const Text('Step-by-step directions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                        subtitle: Text(value.steps.length.toString() + ' steps · Google'),
+                        title: Text('Step-by-step directions', style: textStyle(BuyerTextRole.cardTitle)),
+                        subtitle: Text(value.steps.length.toString() + ' steps · Google', style: textStyle(BuyerTextRole.secondaryBody)),
                         children: [for (var i = 0; i < value.steps.length; i++) ListTile(
-                          leading: Text((i + 1).toString()), title: Text(value.steps[i], style: const TextStyle(fontSize: 14))),
-                          const Padding(padding: EdgeInsets.all(12), child: Text('Follow road signs and local conditions.'))],
+                          leading: Text((i + 1).toString(), style: textStyle(BuyerTextRole.metadata)), title: Text(value.steps[i], style: textStyle(BuyerTextRole.primaryBody))),
+                          Padding(padding: const EdgeInsets.all(12), child: Text('Follow road signs and local conditions.', style: textStyle(BuyerTextRole.secondaryBody)))],
                       ),
                     const SizedBox(height: 16),
-                    const Text('Google provides address suggestions and directions. Location is used only when you choose it.',
-                      style: TextStyle(fontSize: 11)),
+                    Text('Google provides address suggestions and directions. Location is used only when you choose it.',
+                      style: textStyle(BuyerTextRole.metadata)),
                   ],
                 ),
               ),
@@ -403,14 +412,15 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
 
   List<Widget> startControls() => [
           if (widget.seller)
-            SellerSecondaryButton(compact: true, label: findingStart ? startProgress : 'Use my current location', onPressed: busy || findingStart ? null : () => chooseStart(null))
+            SellerSecondaryButton(label: findingStart ? startProgress : 'Use my current location', onPressed: busy || findingStart ? null : () => chooseStart(null))
           else
-            BuyerSecondaryButton(compact: true, label: findingStart ? startProgress : 'Use my current location', onPressed: busy || findingStart ? null : () => chooseStart(null)),
+            BuyerSecondaryButton(minimumHeight: 44, label: findingStart ? startProgress : 'Use my current location', onPressed: busy || findingStart ? null : () => chooseStart(null)),
           if (findingStart)
-            TextButton(onPressed: cancelStart, child: const Text('Cancel location lookup')),
+            BuyerTextAction(onPressed: cancelStart, label: 'Cancel location lookup'),
           const SizedBox(height: 12),
           TextField(
             controller: origin,
+            style: textStyle(BuyerTextRole.primaryBody),
             enabled: !busy,
             onChanged: searchStart,
             maxLength: 200,
@@ -438,13 +448,13 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     leading: Icon(Icons.location_on_outlined, color: HocalistPalette.text(context, BuyerUiTokens.action)),
-                    title: Text(suggestion.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    title: Text(suggestion.label, style: textStyle(BuyerTextRole.primaryBody)),
                     trailing: const Icon(Icons.chevron_right, size: 20),
                     onTap: () => chooseStart(suggestion),
                   ),
                   if (suggestion != suggestions.last) const Divider(height: 1, indent: 16, endIndent: 16),
                 ],
-                const Padding(padding: EdgeInsets.all(12), child: Text('Powered by Google', style: TextStyle(fontSize: 12))),
+                Padding(padding: const EdgeInsets.all(12), child: Text('Powered by Google', style: textStyle(BuyerTextRole.metadata))),
               ])),
             ),
   ];
@@ -454,11 +464,11 @@ class _MeetingDirectionsPageState extends State<MeetingDirectionsPage> {
     final action = busy ? null : select;
     if (widget.seller) {
       return mode == value
-          ? SellerPrimaryButton(compact: true, label: label, onPressed: action)
-          : SellerSecondaryButton(compact: true, label: label, onPressed: action);
+          ? SellerPrimaryButton(minimumHeight: 44, label: label, onPressed: action)
+          : SellerSecondaryButton(label: label, onPressed: action);
     }
     return mode == value
-        ? BuyerPrimaryButton(compact: true, label: label, onPressed: action)
-        : BuyerSecondaryButton(compact: true, label: label, onPressed: action);
+        ? BuyerPrimaryButton(minimumHeight: 44, label: label, onPressed: action)
+        : BuyerSecondaryButton(minimumHeight: 44, label: label, onPressed: action);
   }
 }

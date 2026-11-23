@@ -11,6 +11,7 @@ import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 
 import 'package:flutter/material.dart';
+import 'analytics_consent_setting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/phase2/providers/provider_connections.dart';
@@ -649,6 +650,7 @@ class _AccountOnboardingPageState extends State<_AccountOnboardingPage> {
                               ),
                             ),
                           ),
+                          const AnalyticsConsentSetting(),
                           if (_error != null) ...[
                             const SizedBox(height: 10),
                             Text(
