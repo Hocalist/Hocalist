@@ -550,6 +550,9 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
   final location = row['location'];
   if (location is! Map) throw MarketplaceDecodeException('$context.location');
   final locationMap = Map<String, Object?>.from(location);
+  final preferMeetHere = locationMap.containsKey('prefer_meet_here')
+      ? _requireBool(locationMap, 'prefer_meet_here', '$context.location.prefer_meet_here')
+      : false;
   final useHomeAddress = _requireBool(
     locationMap,
     'use_home_address',
@@ -607,11 +610,13 @@ RequestDraft _requestDraft(Map<String, Object?> row, String context) {
     categoryAnswers: _categoryAnswers(row),
     location: useHomeAddress
         ? RequestLocation.homeAddress(
+            preferMeetHere: preferMeetHere,
             address: address.isEmpty ? null : address,
             coordinates: coordinates,
             timezoneId: _optionalString(locationMap, 'timezone_id'),
           )
         : RequestLocation.custom(
+            preferMeetHere: preferMeetHere,
             address: address,
             coordinates: coordinates,
             timezoneId: _optionalString(locationMap, 'timezone_id'),

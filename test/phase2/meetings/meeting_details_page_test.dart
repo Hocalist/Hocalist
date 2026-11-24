@@ -10,6 +10,7 @@ import 'package:hocalist/features/seller/approved_seller_reschedule_dialog.dart'
 import 'package:hocalist/data/local_marketplace_repository.dart';
 
 import '../../test_fonts.dart';
+import '../../visual_proof_capture.dart';
 
 MeetingScheduleView _schedule({
   String? placeLabel = 'Cross County Mall',
@@ -60,9 +61,8 @@ MeetingView _meeting({
           revisionId: '41000000-0000-4000-8000-000000000001',
         )
       : null,
-  acceptedSchedule: status == 'accepted'
-      ? acceptedSchedule ?? _schedule(status: 'accepted')
-      : null,
+  acceptedSchedule: acceptedSchedule ?? (status == 'accepted'
+      ? _schedule(status: 'accepted') : null),
   pendingSchedule: withPending ? _schedule() : null,
   revisions: [_schedule(status: declined ? 'rejected' : 'proposed')],
 );
@@ -98,6 +98,19 @@ Future<void> _pump(
 }
 
 void main() {
+  for (final pinShortcut in [false, true]) {
+    testWidgets('cancelled accepted meeting hides purchase controls, shortcut=$pinShortcut', (tester) async {
+      await _pump(tester, ApprovedMeetingDetailsPage(
+        meeting: _meeting(status: 'cancelled', withPending: false,
+          acceptedSchedule: _schedule(status: 'accepted')),
+        focusPurchasePin: pinShortcut, onBack: () {}, onConfirm: () {},
+        saleConfirmation: const Text('Purchase controls'),
+      ));
+      expect(find.text('Meeting cancelled'), findsOneWidget);
+      expect(find.text('Purchase controls'), findsNothing);
+      expect(find.text('•••••'), findsNothing);
+    });
+  }
   testWidgets('PIN shortcut shows a masked card before schedule acceptance', (tester) async {
     await _pump(tester, ApprovedMeetingDetailsPage(
       meeting: _meeting(status: 'proposed', purchaseSelected: false),
@@ -113,14 +126,21 @@ void main() {
     var accepted = 0;
     await _pump(tester, ApprovedMeetingDetailsPage(
       meeting: _meeting(status: 'accepted',
-        acceptedSchedule: _schedule(status: 'accepted', placeLabel: 'Original meeting place')),
+        acceptedSchedule: _schedule(status: 'accepted', placeLabel: 'Original meeting place', placeAddress: '456 Agreed Street')),
       viewerUserId: 'user-b', onBack: () {}, onConfirm: () => accepted++,
+      onDecline: () {},
     ));
-    expect(find.text('Original meeting place'), findsOneWidget);
+    expect(find.text('456 Agreed Street'), findsOneWidget);
+    expect(find.text('Original meeting place'), findsNothing);
     expect(find.textContaining('Proposed change:'), findsOneWidget);
     expect(find.textContaining('Your confirmed meeting stays unchanged'), findsOneWidget);
     expect(find.text('Your response needed'), findsWidgets);
     await tester.ensureVisible(find.text('Accept change'));
+    if (const bool.fromEnvironment('HOCALIST_MEETING_DESIGN_CAPTURE')) {
+      await tester.ensureVisible(find.text('Decline change'));
+      await tester.pumpAndSettle();
+      await writeProofImage(tester, find.byType(Scaffold).first, 'meeting-change-actions.png');
+    }
     await tester.tap(find.text('Accept change'));
     expect(accepted, 1);
   });
@@ -131,6 +151,7 @@ void main() {
         meetingExpiresAt: DateTime.utc(2099))],
     ), scroll: false);
     expect(find.text('Change declined'), findsOneWidget);
+    expect(find.text('123 Synthetic Ave'), findsOneWidget);
     expect(find.text('Proposed change declined. Your original meeting is still confirmed.'), findsOneWidget);
     expect(find.textContaining('18:30'), findsWidgets);
   });
@@ -145,6 +166,22 @@ void main() {
     expect(find.text('Meeting confirmed'), findsNothing);
   });
   setUpAll(loadHocalistTestFonts);
+  for (final viewer in ['user-a', 'user-b']) {
+    testWidgets('closed meeting stays closed after buyer decline for $viewer', (tester) async {
+      await _pump(tester, ApprovedMeetingDetailsPage(
+        onBack: () {}, onConfirm: () {},
+        onChoosePurchaseSeller: () {},
+        viewerUserId: viewer,
+        meeting: _meeting(status: 'cancelled', purchaseSelected: false, withPending: false),
+      ));
+      expect(find.text('Meeting cancelled'), findsOneWidget);
+      expect(find.text('Awaiting buyer confirmation'), findsNothing);
+      expect(find.text('Confirm your seller first'), findsNothing);
+      expect(find.text('Confirm this seller'), findsNothing);
+      expect(find.text('Deal history'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('completed elsewhere names the other seller outcome', (tester) async {
     await _pump(tester, ApprovedMeetingDetailsPage(
       onBack: () {}, onConfirm: () {}, purchaseConfirmed: true,
@@ -376,7 +413,7 @@ void main() {
         home: Scaffold(
           body: ApprovedSellerMeetsPage(
             onOpenChat: () {},
-            meetings: [_meeting()],
+            meetings: [_meeting(meetingExpiresAt: DateTime.utc(2099))],
           ),
         ),
       ),
@@ -502,12 +539,14 @@ void main() {
   testWidgets('seller card actions use their own meeting and conversation', (
     tester,
   ) async {
-    final first = _meeting(status: 'accepted', withPending: false);
+    final first = _meeting(status: 'accepted', withPending: false,
+      meetingExpiresAt: DateTime.utc(2099));
     final second = _meeting(
       status: 'accepted',
       withPending: false,
       meetingId: '80000000-0000-4000-8000-000000000002',
       conversationId: '60000000-0000-4000-8000-000000000002',
+      meetingExpiresAt: DateTime.utc(2099),
     );
     String? messaged, directed;
     var genericMessages = 0;
@@ -544,6 +583,7 @@ void main() {
       final meeting = _meeting(
         status: 'accepted',
         withPending: false,
+        meetingExpiresAt: DateTime.utc(2099),
         acceptedSchedule: _schedule(
           placeAddress: null,
           placeLabel: 'Seller business',
@@ -635,7 +675,8 @@ void main() {
     expect(find.text('Loop Resale iPad Air'), findsOneWidget);
     expect(find.text(r'$390'), findsOneWidget);
     expect(find.text('Your response needed'), findsWidgets);
-    expect(find.text('Cross County Mall'), findsOneWidget);
+    expect(find.text('123 Synthetic Ave'), findsOneWidget);
+    expect(find.text('Cross County Mall'), findsNothing);
     expect(find.text('Oct 1 • 6:30 PM · America/New_York'), findsOneWidget);
     expect(find.text('iPad Air 5th Gen 64GB'), findsNothing);
     expect(find.text(r'$650'), findsNothing);

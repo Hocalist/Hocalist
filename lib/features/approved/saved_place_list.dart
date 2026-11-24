@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/adaptive_palette.dart';
 import '../../theme/buyer_ui_foundation.dart';
+import 'approved_replica_metrics.dart';
 
 /// Saved places use the same grouped rows and icon treatment as More.
 class SavedPlaceList extends StatelessWidget {
@@ -29,11 +30,19 @@ class SavedPlaceRow extends StatelessWidget {
   final VoidCallback? onTap, onEdit, onRemove;
   final bool selectable, selected;
   @override
-  Widget build(BuildContext context) => InkWell(
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.maybeOf(context) ?? ApprovedReplicaMetrics.resolve(
+      availableWidth: MediaQuery.sizeOf(context).width,
+      textScaler: MediaQuery.textScalerOf(context), brightness: Theme.of(context).brightness);
+    final name = title.trim();
+    final fullAddress = address.trim();
+    final repeatedStreet = fullAddress.toLowerCase().startsWith('${name.toLowerCase()},');
+    final detail = repeatedStreet ? fullAddress.substring(name.length + 1).trim() : fullAddress;
+    return InkWell(
     onTap: onTap,
     child: Ink(
       color: selected ? HocalistPalette.surface(context, BuyerUiTokens.activeSurface) : null,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: metrics.spacing(12), vertical: metrics.spacing(12)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Container(width: 34, height: 34, alignment: Alignment.center,
           decoration: BoxDecoration(shape: BoxShape.circle,
@@ -42,11 +51,12 @@ class SavedPlaceRow extends StatelessWidget {
             color: HocalistPalette.text(context, BuyerUiTokens.action))),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-            color: HocalistPalette.text(context, BuyerUiTokens.text))),
-          const SizedBox(height: 3),
-          Text(address, style: TextStyle(fontSize: 12, height: 1.4,
-            color: HocalistPalette.text(context, BuyerUiTokens.muted))),
+          Text(name, style: BuyerTypography.style(context, metrics,
+            BuyerTextRole.primaryBody, weight: FontWeight.w700)),
+          if (detail.isNotEmpty && detail.toLowerCase() != name.toLowerCase()) ...[
+            SizedBox(height: metrics.spacing(3)),
+            Text(detail, style: BuyerTypography.style(context, metrics, BuyerTextRole.metadata)),
+          ],
         ])),
         const SizedBox(width: 8),
         if (onEdit != null || onRemove != null)
@@ -59,4 +69,5 @@ class SavedPlaceRow extends StatelessWidget {
       ]),
     ),
   );
+  }
 }

@@ -304,6 +304,8 @@ void main() {
       await tester.ensureVisible(find.text('Enter a different address'));
       await tester.tap(find.text('Enter a different address'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('I’d prefer to meet here'));
+      await tester.tap(find.text('I’d prefer to meet here')); await tester.pumpAndSettle();
       final street=find.byKey(const Key('approved-request-address-street-address'));
       await tester.ensureVisible(street);
       await tester.tap(street);
@@ -338,6 +340,7 @@ void main() {
       }
       expect(drafts.single.location.coordinates?.latitude, 40.9);
       expect(drafts.single.location.timezoneId,'America/Chicago');
+      expect(drafts.single.location.preferMeetHere, isTrue);
       final address = find.byKey(
         const Key('approved-request-address-street-address'),
       );
@@ -348,6 +351,7 @@ void main() {
       expect(drafts.last.location.coordinates?.latitude, 40.9);
       expect(drafts.last.location.timezoneId, 'America/Chicago');
       expect(drafts.last.location.address?.line1, 'Manual replacement');
+      expect(drafts.last.location.preferMeetHere, isTrue);
       expect(drafts.last.location.address?.city, 'Chicago');
       expect(drafts.last.location.address?.state, 'IL');
       final submitted = drafts.length;

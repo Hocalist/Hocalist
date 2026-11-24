@@ -10,6 +10,7 @@ import 'package:hocalist/features/approved/place_capture_sheet.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
 import 'package:hocalist/features/approved/request_saved_addresses.dart';
 import 'test_fonts.dart';
+import 'package:hocalist/main.dart' show HocalistTheme;
 
 const address = PostalAddress(line1: '100 Example Street', line2: 'Suite 2',
   city: 'Chicago', state: 'IL', postalCode: '60606', country: 'US');
@@ -92,15 +93,16 @@ void main() {
       expect(t.takeException(), isNull);
     });
   }
-  for (final width in [320.0, 430.0]) {
-    testWidgets('saved address popup fits $width at enlarged text', (t) async {
+  for (final width in [320.0, 390.0, 430.0]) {
+    for (final scale in [1.0, 1.6]) {
+    testWidgets('saved address popup fits $width at text scale $scale', (t) async {
       t.view.physicalSize = Size(width, 850); t.view.devicePixelRatio = 1;
       addTearDown(t.view.resetPhysicalSize); addTearDown(t.view.resetDevicePixelRatio);
       PlaceCaptureResult? selected;
-      await t.pumpWidget(MaterialApp(theme: ThemeData(fontFamily: 'Nunito'), builder: (c, child) => MediaQuery(
-        data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.6)), child: child!),
+      await t.pumpWidget(MaterialApp(theme: HocalistTheme.light, builder: (c, child) => MediaQuery(
+        data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)), child: child!),
         home: Scaffold(body: Builder(builder: (c) => TextButton(onPressed: () async {
-          selected = await chooseRequestSavedAddress(c, [const SavedPlace(id: 'office', name: 'Office', place: place)]);
+          selected = await chooseRequestSavedAddress(c, [const SavedPlace(id: 'office', name: '100 Example Street', place: place)]);
         }, child: const Text('Open'))))));
       await t.tap(find.text('Open')); await t.pumpAndSettle();
       expect(t.takeException(), isNull);
@@ -110,11 +112,14 @@ void main() {
         final layer = boundary.debugLayer! as OffsetLayer;
         final image = await layer.toImage(Offset.zero & Size(width, 850));
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-        File('output/saved-address-$width.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+        final directory = Directory('${Directory.systemTemp.path}/hocalist-design-proof')..createSync(recursive: true);
+        File('${directory.path}/saved-address-$width-$scale.png').writeAsBytesSync(bytes!.buffer.asUint8List());
         });
       }
-      await t.tap(find.text('Office')); await t.pumpAndSettle();
+      expect(find.text('Suite 2, Chicago, IL 60606'), findsOneWidget);
+      await t.tap(find.text('100 Example Street')); await t.pumpAndSettle();
       expect(selected, place);
     });
+    }
   }
 }

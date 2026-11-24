@@ -244,7 +244,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       _kind != widget.initialKind || _quantity != 1 || _categoryId != null ||
       _categoryAnswers.isNotEmpty || _minimum.isNotEmpty || _maximum.isNotEmpty ||
       _condition != 'New' || _serviceType != 'Single' || !_acceptHigherOffers ||
-      !_useHomeAddress || _mapLocation != null || _addressLine1 != null ||
+      _preferMeetHere || !_useHomeAddress || _mapLocation != null || _addressLine1 != null ||
       _addressLine2 != null || _city != null || _state != null ||
       _postalCode != null || _country != null;
 
@@ -284,6 +284,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   int _quantity = 1;
   bool _acceptHigherOffers = true;
   bool _useHomeAddress = true;
+  bool _preferMeetHere = false;
 
   void _selectHomeAddress(bool value) {
     FocusScope.of(context).unfocus();
@@ -530,7 +531,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       acceptsHigherOffers: _acceptHigherOffers,
       categoryId: _categoryId,
       categoryAnswers: _categoryAnswers,
-      location: location,
+      location: location.withMeetingPreference(_preferMeetHere),
     );
   }
 
@@ -907,6 +908,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onStreetSelection: (selection) => _streetSelection = selection,
                       onAddressCompleted: () => unawaited(_rememberAddress()),
                       useHomeAddress: _useHomeAddress,
+                      preferMeetHere: _preferMeetHere,
+                      onPreferMeetHereChanged: _submitting || _outcomeUncertain ? null
+                          : (value) => setState(() => _preferMeetHere = value),
                       onUseHomeAddressChanged: _selectHomeAddress,
                       onBack: () {
                         _showStep(_ApprovedRequestStep.details);
@@ -1464,6 +1468,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
     required this.onUseHomeAddressChanged,
     required this.onBack,
     required this.onSubmit,
+    this.preferMeetHere = false,
+    this.onPreferMeetHereChanged,
     this.savedAddressMode = false,
     this.onAddressCompleted,
     this.onStreetSelection,
@@ -1492,6 +1498,8 @@ class ApprovedLocationRequestStep extends StatelessWidget {
   });
 
   final bool savedAddressMode;
+  final bool preferMeetHere;
+  final ValueChanged<bool>? onPreferMeetHereChanged;
   final VoidCallback? onAddressCompleted;
   final ValueChanged<Future<void>>? onStreetSelection;
   final bool useHomeAddress;
@@ -1816,6 +1824,10 @@ class ApprovedLocationRequestStep extends StatelessWidget {
           ),
         ),
         SizedBox(height: metrics.geometry(12)),
+        ...[
+          _MeetingPreferenceChoice(value: preferMeetHere, onChanged: onPreferMeetHereChanged),
+          SizedBox(height: metrics.geometry(12)),
+        ],
         _ApprovedLocationActions(
           onBack: onBack,
           onSubmit: onSubmit,
@@ -1827,6 +1839,37 @@ class ApprovedLocationRequestStep extends StatelessWidget {
       ],
     );
   }
+}
+
+class _MeetingPreferenceChoice extends StatelessWidget {
+  const _MeetingPreferenceChoice({required this.value, this.onChanged});
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Checkbox(value: value, onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
+            activeColor: BuyerUiTokens.action, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
+          const SizedBox(width: 4),
+          Expanded(child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('I’d prefer to meet here', style: _bodyStyle(context).copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text('Use this address as my preferred meeting place for this request. I can agree to another place with the seller.', style: _smallStyle(context)),
+            ],
+          ))),
+        ]),
+      ),
+    ),
+  );
 }
 
 class _ApprovedRecommendedBadge extends StatelessWidget {
@@ -1940,6 +1983,7 @@ class _ApprovedBuyerRequestDetailsPageState
   RequestDraft? _pendingDraft;
   String? _pendingOperationKey;
   RequestLocation? _editedLocation;
+  bool _preferMeetHere = false;
   String _editedMinimum = '';
   String _editedMaximum = '';
   late final TextEditingController _detailMinimumController;
@@ -1965,6 +2009,7 @@ class _ApprovedBuyerRequestDetailsPageState
               "Color doesn't matter.",
     );
     if (draft != null) {
+      _preferMeetHere = draft.location.preferMeetHere;
       _editedMinimum = draft.budget.minimum == null ? '' : _formatMinorUnits(draft.budget.minimum!.minorUnits);
       _editedMaximum = draft.budget.maximum == null ? '' : _formatMinorUnits(draft.budget.maximum!.minorUnits);
       _categoryAnswers = draft.categoryAnswers;
@@ -2075,7 +2120,7 @@ class _ApprovedBuyerRequestDetailsPageState
       serviceType: current.kind == RequestKind.service ? _serviceType : null,
       quantity: current.kind == RequestKind.product ? _quantity : 1,
       acceptsHigherOffers: _acceptHigherOffers,
-      location: _editedLocation ?? current.location,
+      location: (_editedLocation ?? current.location).withMeetingPreference(_preferMeetHere),
       categoryAnswers: _categoryAnswers,
       budget: MoneyRange(
         minimum: _budgetAmount(_editedMinimum),
@@ -2554,6 +2599,9 @@ class _ApprovedBuyerRequestDetailsPageState
                 ]),
               ),
             ),
+            if (widget.usesRealRequest && _canEdit)
+              _MeetingPreferenceChoice(value: _preferMeetHere,
+                onChanged: _saving || _outcomeUncertain ? null : (value) => setState(() => _preferMeetHere = value)),
             if (widget.request != null && !_canEdit)
               _ApprovedRealOffersPanel(onOffers: widget.onOffers),
             if (widget.onRecovery != null && widget.request != null &&

@@ -90,3 +90,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Keep aligned with the existing firebase_core Android SDK version.
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-analytics")
+}

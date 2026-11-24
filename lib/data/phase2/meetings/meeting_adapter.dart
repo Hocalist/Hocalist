@@ -87,6 +87,22 @@ class MeetingDataAdapter {
 
   static const String schema = 'hocalist';
 
+  Future<RepositoryResult<MeetingView>> acceptOfferedMeeting({
+    required String offerId, required int expectedOfferRevision,
+    int? expectedMeetingRevision, required String operationKey,
+  }) async {
+    final result = await _rpc('meeting_accept_offer', {
+      'p_offer': offerId, 'p_expected_offer_revision': expectedOfferRevision,
+      'p_expected_meeting_revision': expectedMeetingRevision, 'p_key': operationKey,
+    });
+    if (result.isFailure) return _failure(result.errorOrNull!);
+    try {
+      return RepositorySuccess(decodeMeetingJson(result.valueOrNull!, 'meeting_accept_offer'));
+    } on MarketplaceDecodeException catch (error) {
+      return _failure(MalformedResponseError(operation: 'meeting_accept_offer', detail: error.detail));
+    }
+  }
+
   static const RepositoryError _unauthenticated = PermissionDeniedError(
     action: 'authenticate',
     entityType: 'account_session',

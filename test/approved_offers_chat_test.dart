@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/approved_replica_metrics.dart';
 import 'package:hocalist/features/approved/offers_chat_pages.dart';
+import 'package:hocalist/features/approved/buyer_deal_card.dart';
+import 'package:hocalist/features/media/listing_image_placeholder.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
 
 import 'test_fonts.dart';
@@ -111,14 +113,20 @@ void main() {
       final calls = _Calls();
 
       await _pumpPage(tester, _offers(calls), width: 320, height: 693);
-      _expectSameRow(
-        tester,
-        'iPad Air 5, 256GB, keyboard case, public pickup, Saturday.',
-        '\$420',
-      );
-      _expectSameRow(tester, 'Identity verified', '1.2 mi away');
+      final card = _offerCard('Northside Tech');
+      final title = find.descendant(of: card, matching: find.text('iPad Air 5, 256GB, keyboard case, public pickup, Saturday.'));
+      final price = find.descendant(of: card, matching: find.text(r'$420'));
+      final photo = find.descendant(of: card, matching: find.byType(ListingImagePlaceholder));
+      expect(tester.getRect(photo).right, lessThan(tester.getRect(title).left));
+      expect(tester.getRect(title).bottom, lessThan(tester.getRect(price).top));
+      final titleWidget = tester.widget<Text>(title);
+      expect(titleWidget.maxLines, 2);
+      expect(titleWidget.overflow, TextOverflow.ellipsis);
+      expect(find.text('Meet-up'), findsNWidgets(2));
+      expect(find.text('Meet-up place'), findsNWidgets(2));
+      expect(find.text('Available'), findsNWidgets(2));
       expect(find.text('Chat after selection'), findsNothing);
-      _expectNoTruncatedText(tester);
+      await _assertReachable(tester, _offerChat('Northside Tech'));
 
       await _pumpPage(tester, _viewOffer(calls), width: 320, height: 693);
       _expectSameRow(tester, 'Identity verified', '1.2 mi away');
@@ -143,36 +151,22 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('320 offers retain the approved scaled vertical density', (
-      tester,
-    ) async {
+    testWidgets('compact offers retain thumbnail bounds and reachable actions across phone widths', (tester) async {
       final calls = _Calls();
-
-      await _pumpPage(tester, _offers(calls), width: 390, height: 844);
-      final referenceCard = tester.getRect(
-        find.byKey(const Key('approved-offer-card-LR')),
-      );
-      final referenceNotice = tester.getRect(
-        find.byKey(const Key('approved-secure-private-notice')),
-      );
-
-      await _pumpPage(tester, _offers(calls), width: 320, height: 693);
-      final narrowCard = tester.getRect(
-        find.byKey(const Key('approved-offer-card-LR')),
-      );
-      final narrowNotice = tester.getRect(
-        find.byKey(const Key('approved-secure-private-notice')),
-      );
-
-      expect(
-        narrowCard.height,
-        closeTo(referenceCard.height * ApprovedReplicaMetrics.narrowScale, 1),
-      );
-      expect(
-        narrowNotice.top,
-        closeTo(referenceNotice.top * ApprovedReplicaMetrics.narrowScale, 2),
-      );
-      expect(tester.takeException(), isNull);
+      for (final width in [320.0, 390.0, 430.0]) {
+        await _pumpPage(tester, _offers(calls), width: width, height: 844);
+        for (final seller in ['Northside Tech','Loop Resale']) {
+          final card = _offerCard(seller);
+          final photo = find.descendant(of: card, matching: find.byType(ListingImagePlaceholder));
+          final thumbnail = tester.getSize(photo);
+          expect(thumbnail.width, inInclusiveRange(64,84));
+          expect(thumbnail.height, thumbnail.width);
+          expect(tester.getRect(card).width, lessThanOrEqualTo(width));
+          await _assertReachable(tester, _offerChat(seller));
+        }
+        await _assertReachable(tester, const Key('approved-secure-private-notice'));
+        expect(tester.takeException(),isNull);
+      }
     });
 
     testWidgets(
@@ -276,7 +270,7 @@ void main() {
           height: 693,
           textScale: scale,
         );
-        await _assertReachable(tester, const Key('approved-view-offer-NT'));
+        await _assertReachable(tester, _offerChat('Northside Tech'));
 
         await _pumpPage(
           tester,
@@ -346,7 +340,7 @@ void main() {
     await _tapReachable(tester, const ValueKey('buyer-top-level-header-notifications'));
     await _tapReachable(tester, const Key('approved-offers-filter'));
     await _tapReachable(tester, const Key('approved-offers-apply-filter'));
-    await _tapReachable(tester, const Key('approved-view-offer-NT'));
+    await _tapReachable(tester, _offerChat('Northside Tech'));
     expect(calls.notifications, 1);
     expect(calls.filter, 1);
     expect(calls.viewOffer, 1);
@@ -388,20 +382,20 @@ void main() {
     expect(calls.sent, 'Meet in the public lobby.');
   });
 
-  testWidgets('offers dashboard uses its approved isolated accent', (
+  testWidgets('offers cards use shared action colors and page accents remain scoped', (
     tester,
   ) async {
-    const offersAccent = Color(0xff0f0b7a);
-    const detailAndChatAccent = Color(0xff1117e8);
+    const offersAccent = BuyerUiTokens.offersAction;
+    const detailAndChatAccent = BuyerUiTokens.offerChatAction;
     final calls = _Calls();
 
     await _pumpPage(tester, _offers(calls), width: 390, height: 844);
     expect(_textColor(tester, '\$0.40'), offersAccent);
-    expect(_textColor(tester, '\$420'), offersAccent);
+    expect(_textColor(tester, '\$420'), BuyerUiTokens.action);
     expect(_textColor(tester, 'Offers'), offersAccent);
     expect(
-      _filledButtonColor(tester, const Key('approved-view-offer-NT')),
-      offersAccent,
+      _filledButtonColor(tester, _offerChat('Northside Tech')),
+      BuyerUiTokens.action,
     );
 
     await _pumpPage(tester, _viewOffer(calls), width: 390, height: 844);
@@ -710,8 +704,8 @@ Future<void> _pumpPage(
   await tester.pumpAndSettle();
 }
 
-Future<void> _assertReachable(WidgetTester tester, Key key) async {
-  final finder = find.byKey(key);
+Future<void> _assertReachable(WidgetTester tester, Object key) async {
+  final finder = key is Finder ? key : find.byKey(key as Key);
   if (finder.evaluate().isEmpty) {
     await tester.scrollUntilVisible(
       finder,
@@ -725,8 +719,8 @@ Future<void> _assertReachable(WidgetTester tester, Key key) async {
   expect(tester.takeException(), isNull, reason: '$key must remain reachable');
 }
 
-Future<void> _tapReachable(WidgetTester tester, Key key) async {
-  final finder = find.byKey(key);
+Future<void> _tapReachable(WidgetTester tester, Object key) async {
+  final finder = key is Finder ? key : find.byKey(key as Key);
   if (finder.evaluate().isEmpty) {
     await tester.scrollUntilVisible(
       finder,
@@ -789,14 +783,16 @@ Color? _textColor(WidgetTester tester, String value) {
   return tester.widget<Text>(find.text(value)).style?.color;
 }
 
-Color? _filledButtonColor(WidgetTester tester, Key key) {
-  final keyed = find.byKey(key);
+Color? _filledButtonColor(WidgetTester tester, Object key) {
+  final keyed = key is Finder ? key : find.byKey(key as Key);
+  final own = tester.widget(keyed);
+  if (own is BuyerPrimaryButton) return own.colors?.first ?? BuyerUiTokens.action;
   final shared = find.descendant(
     of: keyed,
     matching: find.byType(BuyerPrimaryButton),
   );
   if (shared.evaluate().isNotEmpty) {
-    return tester.widget<BuyerPrimaryButton>(shared.first).colors?.first;
+    return tester.widget<BuyerPrimaryButton>(shared.first).colors?.first ?? BuyerUiTokens.action;
   }
   final direct = find.descendant(
     of: keyed,
@@ -807,3 +803,6 @@ Color? _filledButtonColor(WidgetTester tester, Key key) {
   );
   return button.style?.backgroundColor?.resolve(const <WidgetState>{});
 }
+
+Finder _offerCard(String seller) => find.byWidgetPredicate((widget) => widget is BuyerDealCard && widget.sellerName == seller);
+Finder _offerChat(String seller) => find.descendant(of: _offerCard(seller), matching: find.byType(BuyerPrimaryButton));

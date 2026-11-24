@@ -1,5 +1,6 @@
 // Buyer request backend tests: complete draft mapping, operation keys,
 // uncertain outcomes, repository cache and category loading. Fakes only.
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/data/phase2/marketplace/marketplace_adapter.dart';
@@ -114,6 +115,30 @@ RequestDraft draft({int minimum = 35000, int maximum = 48000}) => RequestDraft(
 
 void main() {
   group('LocalMarketplaceRepository requests', () {
+    test('background refresh keeps requests visible and preserves them on failure', () async {
+      final backend = FakeRequestsBackend()..onLoad = () async => [request()];
+      final repository = LocalMarketplaceRepository(requestsBackend: backend);
+      await repository.refreshBuyerRequests();
+      final pending = Completer<List<MarketplaceRequest>>();
+      var reads = 0;
+      backend.onLoad = () { reads++; return pending.future; };
+      final loadingStates = <bool>[];
+      repository.addListener(() => loadingStates.add(repository.buyerRequestsLoading));
+      final refresh = repository.refreshBuyerRequests(background: true);
+      await repository.refreshBuyerRequests(background: true);
+      expect(reads, 1);
+      expect(repository.buyerRequestsLoading, isFalse);
+      expect(repository.buyerRequests, hasLength(1));
+      pending.completeError(const StoreBackendException('Temporary failure'));
+      await refresh;
+      expect(loadingStates, everyElement(isFalse));
+      expect(repository.buyerRequestsError, isNull);
+      expect(repository.buyerRequests, hasLength(1));
+      backend.onLoad = () async => [];
+      await repository.refreshBuyerRequests(background: true);
+      expect(repository.buyerRequests, isEmpty);
+      repository.dispose();
+    });
     test('loads buyer requests and surfaces a safe error', () async {
       final backend = FakeRequestsBackend()..onLoad = () async => [request()];
       final repository = LocalMarketplaceRepository(requestsBackend: backend);
@@ -232,6 +257,22 @@ void main() {
       expect(input['budget_maximum_minor'], 48000);
       expect(input['category_id'], categoryId);
       expect(input['use_home_address'], true);
+      expect(input['prefer_meet_here'], false);
+    });
+
+    test('meeting preference is sent and restored for create and update', () async {
+      transport.handler = (call) {
+        final json = requestJson();
+        final input = call.params['p_input'] as Map;
+        (json['location'] as Map)['prefer_meet_here'] = input['prefer_meet_here'];
+        return MarketplaceTransportData(json);
+      };
+      final optedIn = draft().copyWith(location: const RequestLocation.homeAddress(preferMeetHere: true));
+      final result = await backend.createRequest(draft: optedIn, operationKey: 'preference-create');
+      expect(result.draft.location.preferMeetHere, true);
+      final updated = await backend.updateRequest(requestId: requestId, expectedRevision: 1,
+        draft: optedIn.copyWith(location: optedIn.location.withMeetingPreference(false)), operationKey: 'preference-update');
+      expect(updated.draft.location.preferMeetHere, false);
     });
 
     test(

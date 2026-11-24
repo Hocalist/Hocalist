@@ -32,6 +32,7 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 BuyerOfferView _view({
   String offerId = '40000000-0000-4000-8000-000000000001',
   String sellerName = 'Seller B',
+  String requestId = '30000000-0000-4000-8000-000000000001',
   String priceLabel = r'$420',
   String message = 'Can meet tomorrow.',
   String meetingLabel = 'Thu, Oct 1 · 6:30 PM',
@@ -40,7 +41,7 @@ BuyerOfferView _view({
   DateTime? requestAcceptanceExpiresAt,
 }) => BuyerOfferView(
   offerId: offerId,
-  requestId: '30000000-0000-4000-8000-000000000001',
+  requestId: requestId,
   revisionId: '41000000-0000-4000-8000-000000000001',
   offerRevision: 1,
   sellerName: sellerName,
@@ -64,6 +65,26 @@ ApprovedBuyerNavigation _navigation() => ApprovedBuyerNavigation(
 
 void main() {
   setUpAll(loadHocalistTestFonts);
+  testWidgets('negotiated offer leaves received while same seller new request stays', (t) async {
+    var selected=false;
+    await _pump(t,StatefulBuilder(builder:(context,update)=>ApprovedOffersReceivedPage(
+      onBack:(){},onNotifications:(){},onViewOffer:(){},onChat:(){},onFilter:(){},navigation:_navigation(),
+      onOpenOffer:(_) => update(()=>selected=true),
+      realOffers:[
+        _view(offerId:'first',sellerName:'Same seller',priceLabel:r'$111',status:selected?OfferStatus.selected:OfferStatus.submitted),
+        _view(offerId:'second',requestId:'other-request',sellerName:'Same seller',priceLabel:r'$222'),
+      ],
+    )));
+    expect(find.text(r'$111'),findsOneWidget);expect(find.text(r'$222'),findsOneWidget);
+    await t.tap(find.text('Chat with seller').first);await t.pumpAndSettle();
+    expect(find.text(r'$111'),findsNothing);expect(find.text(r'$222'),findsOneWidget);
+    expect(find.text('Same seller'),findsOneWidget);
+    await _pump(t,ApprovedOffersReceivedPage(onBack:(){},onNotifications:(){},onViewOffer:(){},onChat:(){},onFilter:(){},navigation:_navigation(),
+      realOffers:[_view(status:OfferStatus.selected)]));
+    expect(find.text('No new offers'),findsOneWidget);
+    expect(find.textContaining('Your negotiations are in'),findsOneWidget);
+  });
+
 
   testWidgets(
     'real budget filter includes the maximum and excludes higher offers',
@@ -189,9 +210,9 @@ void main() {
         onOpenOffer: (view) => opened = view,
       ),
     );
-    await tester.ensureVisible(find.text('View offer details').first);
+    await tester.ensureVisible(find.text('Chat with seller').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('View offer details').first);
+    await tester.tap(find.text('Chat with seller').first);
     await tester.pumpAndSettle();
     expect(opened?.offerId, '40000000-0000-4000-8000-000000000001');
   });

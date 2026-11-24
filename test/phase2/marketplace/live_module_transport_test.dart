@@ -42,6 +42,7 @@ void main() {
         'meeting_detail',
         'meeting_propose',
         'meeting_respond',
+        'meeting_accept_offer',
         'meeting_reschedule_propose',
         'meeting_cancel',
         'notification_inbox',

@@ -38,6 +38,23 @@ abstract interface class CallService {
   Future<Map<String, dynamic>> configuration(String id);
 }
 
+/// Checks the existing server gate without inviting anyone or starting media.
+/// A network failure must not be mistaken for the administrator switching off.
+Future<String?> callEntryProblem(CallService service) async {
+  const disabled = 'Calling is currently turned off. You can still message in this chat.';
+  try {
+    final result = await service.command('incoming', const {});
+    return result['enabled'] == false ? disabled : null;
+  } on CallGatewayException catch (failure) {
+    if (failure.code == 'calls_disabled') {
+      return disabled;
+    }
+    return 'Could not check calling availability. Please try again.';
+  } catch (_) {
+    return 'Could not check calling availability. Please try again.';
+  }
+}
+
 class CallGateway implements CallService {
   CallGateway(this.client)
     : identity = client.auth.currentUser?.id,

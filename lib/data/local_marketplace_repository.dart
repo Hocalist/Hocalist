@@ -1,5 +1,7 @@
 import '../domain/phase2/category_answers.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'marketplace_analytics.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -201,6 +203,16 @@ abstract interface class MarketplaceMeetingsBackend {
     String? reason,
     required String meetingId,
     required int expectedRevision,
+    required String operationKey,
+  });
+}
+
+/// Optional capability: accept the seller's stored terms atomically.
+abstract interface class MarketplaceOfferedMeetingBackend {
+  Future<MeetingView> acceptOfferedMeeting({
+    required String offerId,
+    required int expectedOfferRevision,
+    int? expectedMeetingRevision,
     required String operationKey,
   });
 }
@@ -927,6 +939,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   List<MeetingView> _meetings = const <MeetingView>[];
   bool _meetingsLoading = false;
+  bool _meetingsRefreshing = false;
   String? _meetingsError;
   int _meetingsToken = 0;
   MeetingView? _meetingDetail;
@@ -963,27 +976,33 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   /// Loads the participant meetings, newest first.
-  Future<void> refreshMeetings({String? status}) async {
+  Future<void> refreshMeetings({String? status, bool background = false}) async {
     final backend = meetingsBackend;
     if (backend == null) return;
+    if (background && _meetingsRefreshing) return;
     final token = ++_meetingsToken;
-    _meetingsLoading = true;
-    _meetingsError = null;
+    _meetingsRefreshing = true;
+    if (!background) {
+      _meetingsLoading = true;
+      _meetingsError = null;
+    }
     _meetingsStatus = status;
-    _notifyStore();
+    if (!background) _notifyStore();
     try {
       final page = await backend.loadMeetings(status: status, limit: 50);
       if (_disposed || token != _meetingsToken) return;
       _meetings = page.items;
       _meetingsCursor = page.nextCursor;
+      _meetingsError = null;
     } catch (error) {
       if (_disposed || token != _meetingsToken) return;
-      _meetingsError = error is StoreBackendException
+      if (!background) _meetingsError = error is StoreBackendException
           ? error.message
           : 'Could not load meetings. Pull to retry.';
     } finally {
       if (!_disposed && token == _meetingsToken) {
         _meetingsLoading = false;
+        _meetingsRefreshing = false;
         _notifyStore();
       }
     }
@@ -1063,6 +1082,21 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         operationKey: operationKey,
       ),
     );
+  }
+
+  Future<MeetingActionResult> acceptOfferedMeeting({
+    required String offerId,
+    required int expectedOfferRevision,
+    int? expectedMeetingRevision,
+    required String operationKey,
+  }) {
+    final backend = meetingsBackend;
+    if (backend is! MarketplaceOfferedMeetingBackend) {
+      return Future.value(const MeetingActionResult.failure('Meeting confirmation is not available yet.'));
+    }
+    return _runMeetingAction(() => (backend as MarketplaceOfferedMeetingBackend).acceptOfferedMeeting(
+      offerId: offerId, expectedOfferRevision: expectedOfferRevision,
+      expectedMeetingRevision: expectedMeetingRevision, operationKey: operationKey));
   }
 
   Future<MeetingActionResult> respondToMeeting({
@@ -2286,6 +2320,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   List<MarketplaceRequest> _buyerRequests = const <MarketplaceRequest>[];
   bool _buyerRequestsLoading = false;
+  bool _buyerRequestsRefreshing = false;
   String? _buyerRequestsError;
   int _buyerRequestsToken = 0;
   List<CatalogueCategoryOption> _requestCategories =
@@ -2314,25 +2349,31 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   /// Loads the buyer's own requests. No-op without a backend; overlapping
   /// refreshes are versioned and a disposed repository applies nothing.
-  Future<void> refreshBuyerRequests() async {
+  Future<void> refreshBuyerRequests({bool background = false}) async {
     final backend = requestsBackend;
     if (backend == null) return;
+    if (background && _buyerRequestsRefreshing) return;
     final token = ++_buyerRequestsToken;
-    _buyerRequestsLoading = true;
-    _buyerRequestsError = null;
-    _notifyStore();
+    _buyerRequestsRefreshing = true;
+    if (!background) {
+      _buyerRequestsLoading = true;
+      _buyerRequestsError = null;
+      _notifyStore();
+    }
     try {
       final requests = await backend.loadBuyerRequests();
       if (_disposed || token != _buyerRequestsToken) return;
       _buyerRequests = requests;
+      _buyerRequestsError = null;
     } catch (error) {
       if (_disposed || token != _buyerRequestsToken) return;
-      _buyerRequestsError = error is StoreBackendException
+      if (!background) _buyerRequestsError = error is StoreBackendException
           ? error.message
           : 'Could not load your requests. Pull to retry.';
     } finally {
       if (!_disposed && token == _buyerRequestsToken) {
         _buyerRequestsLoading = false;
+        _buyerRequestsRefreshing = false;
         _notifyStore();
       }
     }
@@ -2378,6 +2419,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         draft: draft,
         operationKey: operationKey,
       );
+      unawaited(MarketplaceAnalytics.instance.buyerRequestSubmitted(created.id));
       _upsertBuyerRequest(created);
       return RequestSubmissionResult.success(created);
     } on StoreBackendException catch (error) {

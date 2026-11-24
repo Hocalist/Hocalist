@@ -238,6 +238,22 @@ void main() {
       adapter = MeetingDataAdapter(transport: transport, session: session);
     });
 
+    test('accepts only stored offer terms with revision checks and retry key', () async {
+      transport.handler = (_) => MarketplaceTransportData(_meeting(status: 'accepted',
+        revision: 2, accepted: _revision(status: 'accepted'), pending: null));
+      final result = await adapter.acceptOfferedMeeting(offerId: 'offer-1',
+        expectedOfferRevision: 4, expectedMeetingRevision: null, operationKey: 'accept-1');
+      expect(result.valueOrNull!.hasAcceptedSchedule, isTrue);
+      expect(transport.calls.single.function, 'meeting_accept_offer');
+      expect(transport.calls.single.params, {
+        'p_offer': 'offer-1', 'p_expected_offer_revision': 4,
+        'p_expected_meeting_revision': null, 'p_key': 'accept-1',
+      });
+      await adapter.acceptOfferedMeeting(offerId: 'offer-1',
+        expectedOfferRevision: 4, expectedMeetingRevision: 3, operationKey: 'accept-2');
+      expect(transport.calls.last.params['p_expected_meeting_revision'], 3);
+    });
+
     test('decodes a meeting page and detail', () async {
       transport.handler = (call) => MarketplaceTransportData(<String, Object?>{
         'items': [_meeting(pending: _revision())],
@@ -395,6 +411,31 @@ void main() {
   });
 
   group('Phase2MarketplaceMeetingsBackend + repository', () {
+    test('background meetings do not replace cards with loading or transient errors', () async {
+      final backend = FakeMeetingsBackend()
+        ..onLoadPage = (_) async => MeetingPageView(items: [meetingView()], nextCursor: null);
+      final repository = LocalMarketplaceRepository(meetingsBackend: backend);
+      await repository.refreshMeetings();
+      final pending = Completer<MeetingPageView>();
+      var reads = 0;
+      backend.onLoadPage = (_) { reads++; return pending.future; };
+      final loadingStates = <bool>[];
+      repository.addListener(() => loadingStates.add(repository.meetingsLoading));
+      final refresh = repository.refreshMeetings(background: true);
+      await repository.refreshMeetings(background: true);
+      expect(reads, 1);
+      expect(repository.meetingsLoading, isFalse);
+      expect(repository.meetings, hasLength(1));
+      pending.completeError(const StoreBackendException('Temporary failure'));
+      await refresh;
+      expect(loadingStates, everyElement(isFalse));
+      expect(repository.meetingsError, isNull);
+      expect(repository.meetings, hasLength(1));
+      backend.onLoadPage = (_) async => MeetingPageView(items: [], nextCursor: null);
+      await repository.refreshMeetings(background: true);
+      expect(repository.meetings, isEmpty);
+      repository.dispose();
+    });
     test(
       'focusing a displayed meeting performs no extra read and rejects unknown ids',
       () async {

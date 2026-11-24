@@ -16,6 +16,7 @@
 library;
 
 import 'dart:async';
+import '../../data/marketplace_analytics.dart';
 import '../commercial/payout_return_stub.dart'
     if (dart.library.js_interop) '../commercial/payout_return_web.dart' as payout_return;
 import 'dart:math';
@@ -798,6 +799,9 @@ class HocalistAccountController extends ChangeNotifier {
   /// lost response can be retried safely.
   Future<void> onboardSelectedRole({required String displayName}) {
     return _runForm(() async {
+      final creatingSeller = _phase == AccountAccessPhase.onboarding &&
+          _selectedRole == HocalistRole.seller;
+      final generation = _generation;
       final trimmed = displayName.trim();
       final payload = '${_selectedRole.name}\u0000$trimmed';
       if (_onboardKey == null || _onboardPayload != payload) {
@@ -821,6 +825,11 @@ class HocalistAccountController extends ChangeNotifier {
           return;
         }
         throw _toActionException(error);
+      }
+      final created = result.valueOrNull;
+      if (creatingSeller && generation == _generation &&
+          created?.role == HocalistRole.seller) {
+        unawaited(MarketplaceAnalytics.instance.sellerProfileCreated(created!.membershipId));
       }
       _onboardKey = null;
       _onboardPayload = null;
