@@ -374,10 +374,11 @@ class SellerAccountHealthView {
   /// or `rejected`.
   final String reviewStatus;
 
+  /// Active restrictions returned by the account health read.
   final List<SellerHealthRestriction> restrictions;
   final bool loaded;
 
-  bool get hasActiveRestriction => restrictions.any((row) => row.canAppeal);
+  bool get hasActiveRestriction => restrictions.isNotEmpty;
 }
 
 /// One recorded restriction with its reason and appeal route.

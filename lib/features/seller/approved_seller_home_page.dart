@@ -657,7 +657,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
     if (error != null) return 'Account health could not be loaded';
     final value = health;
     if (value == null) return 'Not available yet';
-    if (value.hasActiveRestriction) return 'Restricted · review required';
+    if (value.hasActiveRestriction) return _restrictionHeadline(value);
     return switch (value.reviewStatus) {
       'approved' => 'Identity review approved',
       'pending' => 'Review in progress',
@@ -665,6 +665,11 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
       _ => 'No review submitted',
     };
   }
+
+  String _restrictionHeadline(SellerAccountHealthView value) =>
+      value.restrictions.any((restriction) => restriction.appealStatus == 'submitted')
+          ? 'Restricted · Appeal pending'
+          : 'Restricted · review required';
 
   IconData get _icon {
     final value = health;
@@ -941,7 +946,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'Restricted · review required',
+                    _restrictionHeadline(value!),
                     style: sellerText(
                       ApprovedReplicaScope.of(context),
                       11,
