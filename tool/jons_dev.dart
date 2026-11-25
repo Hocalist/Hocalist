@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
 import 'package:hocalist/features/seller/seller_offer_fee_guide.dart';
-import 'package:hocalist/main.dart' show HocalistTheme;
+import 'package:hocalist/main.dart' show HocalistPrototype, HocalistTheme;
 import 'package:hocalist/theme/seller_ui_foundation.dart';
 
-// This entry point never starts the marketplace application or initializes
-// Supabase or Firebase. It drives the real offer form with synthetic data.
-void main() => runApp(const JonsDevApp());
+// Start the existing marketplace preview directly, without a real account
+// session or the production entry point that initializes external services.
+void main() {
+  const feePreviewOnly = bool.fromEnvironment('HOCALIST_JONS_DEV_FEE_PREVIEW');
+  runApp(feePreviewOnly ? const JonsDevApp() : const HocalistPrototype());
+}
 
 class JonsDevApp extends StatelessWidget {
   const JonsDevApp({super.key});
