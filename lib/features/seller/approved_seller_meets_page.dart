@@ -22,6 +22,7 @@ class ApprovedSellerMeetsPage extends StatefulWidget {
     this.onRefresh,
     this.onOpenMeeting,
     this.onMeetingAction,
+    this.sampleDeal = false,
     this.onMessageMeeting,
     this.onDirectionsMeeting,
     this.hasMore = false,
@@ -39,6 +40,7 @@ class ApprovedSellerMeetsPage extends StatefulWidget {
   final Future<void> Function()? onRefresh;
   final ValueChanged<MeetingView>? onOpenMeeting;
   final void Function(MeetingView, String)? onMeetingAction;
+  final bool sampleDeal;
   final ValueChanged<MeetingView>? onMessageMeeting;
   final ValueChanged<MeetingView>? onDirectionsMeeting;
   final bool hasMore;
@@ -447,6 +449,7 @@ class _ApprovedSellerMeetsPageState extends State<ApprovedSellerMeetsPage> {
                   completed: completed(meeting),
                   past: _selectedFilter == _MeetFilter.past,
                   onAction: _selectedFilter == _MeetFilter.past ? null : widget.onMeetingAction,
+                  sampleDeal: widget.sampleDeal,
                   onOpen: widget.onOpenMeeting == null
                       ? null
                       : () => widget.onOpenMeeting!(meeting),
@@ -1273,6 +1276,7 @@ class _RealMeetingCard extends StatelessWidget {
   const _RealMeetingCard({
     required this.meeting,
     this.onAction,
+    this.sampleDeal = false,
     required this.onOpen,
     required this.onMessage,
     this.onDirections,
@@ -1283,6 +1287,7 @@ class _RealMeetingCard extends StatelessWidget {
   final bool past;
   final MeetingView meeting;
   final void Function(MeetingView, String)? onAction;
+  final bool sampleDeal;
   final VoidCallback? onOpen;
   final VoidCallback? onMessage;
   final VoidCallback? onDirections;
@@ -1495,8 +1500,8 @@ class _RealMeetingCard extends StatelessWidget {
                 if (onAction != null && actionable)
                   Wrap(spacing: 8, runSpacing: 4, children: [
                     if (awaitingSeller) TextButton(onPressed: () => onAction!(meeting, 'accept'), child: const Text('Accept')),
-                    if (meeting.pendingSchedule == null || awaitingSeller) TextButton(onPressed: () => onAction!(meeting, 'modify'), child: Text(meeting.pendingSchedule == null ? 'Reschedule' : 'Modify')),
-                    TextButton(onPressed: () => onAction!(meeting, 'cancel'), child: const Text('Cancel')),
+                    if (!sampleDeal && (meeting.pendingSchedule == null || awaitingSeller)) TextButton(onPressed: () => onAction!(meeting, 'modify'), child: Text(meeting.pendingSchedule == null ? 'Reschedule' : 'Modify')),
+                    if (!sampleDeal || awaitingSeller) TextButton(onPressed: () => onAction!(meeting, 'cancel'), child: Text(sampleDeal ? 'Decline time' : 'Cancel')),
                     IconButton(tooltip: 'Meeting details', onPressed: onOpen, icon: const Icon(Icons.chevron_right)),
                   ])
                 else SellerPrimaryButton(label: 'View meeting', onPressed: onOpen),

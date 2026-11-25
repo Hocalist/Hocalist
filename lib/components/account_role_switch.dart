@@ -5,14 +5,18 @@ import '../theme/adaptive_palette.dart';
 class AccountRoleSwitchScope extends InheritedWidget {
   const AccountRoleSwitchScope({
     required this.onSelect,
+    this.onResetSampleDeal,
     required super.child,
     super.key,
   });
   final ValueChanged<HocalistRole>? onSelect;
+  final VoidCallback? onResetSampleDeal;
   @override
   bool updateShouldNotify(AccountRoleSwitchScope oldWidget) =>
-      onSelect != oldWidget.onSelect;
+      onSelect != oldWidget.onSelect || onResetSampleDeal != oldWidget.onResetSampleDeal;
 }
+
+enum _RoleMenuAction { resetSampleDeal }
 
 /// Keeps the approved header artwork while making its role label actionable.
 class AccountRoleSwitch extends StatelessWidget {
@@ -21,9 +25,8 @@ class AccountRoleSwitch extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
-    final onSelect = context
-        .dependOnInheritedWidgetOfExactType<AccountRoleSwitchScope>()
-        ?.onSelect;
+    final scope = context.dependOnInheritedWidgetOfExactType<AccountRoleSwitchScope>();
+    final onSelect = scope?.onSelect;
     if (onSelect == null) return child;
     final accent = HocalistPalette.text(context, const Color(0xff2916ed));
     final ink = HocalistPalette.text(context, const Color(0xff0c123d));
@@ -31,7 +34,7 @@ class AccountRoleSwitch extends StatelessWidget {
         ? const Color(0xff262944)
         : const Color(0xfff1f0ff);
     final pillRadius = BorderRadius.circular(99);
-    return PopupMenuButton<HocalistRole>(
+    return PopupMenuButton<Object>(
       borderRadius: pillRadius,
       tooltip: 'Switch account',
       position: PopupMenuPosition.under,
@@ -48,11 +51,12 @@ class AccountRoleSwitch extends StatelessWidget {
         ),
       ),
       onSelected: (next) {
-        if (next != role) onSelect(next);
+        if (next is HocalistRole && next != role) onSelect(next);
+        if (next == _RoleMenuAction.resetSampleDeal) scope?.onResetSampleDeal?.call();
       },
       itemBuilder: (_) => [
         for (final value in HocalistRole.values)
-          PopupMenuItem<HocalistRole>(
+          PopupMenuItem<Object>(
             value: value,
             padding: EdgeInsets.zero,
             child: Semantics(
@@ -85,6 +89,13 @@ class AccountRoleSwitch extends StatelessWidget {
               ),
             ),
           ),
+        if (scope?.onResetSampleDeal != null) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem<Object>(
+            value: _RoleMenuAction.resetSampleDeal,
+            child: Text('Reset sample deal'),
+          ),
+        ],
       ],
       child: Ink(
         decoration: BoxDecoration(

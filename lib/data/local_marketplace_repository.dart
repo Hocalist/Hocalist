@@ -543,7 +543,7 @@ class StoreBackendException implements Exception {
       'StoreBackendException($message, ambiguous: $ambiguous, code: $code)';
 }
 
-enum LocalOfferStatus { sent, selected, meetingConfirmed, completed }
+enum LocalOfferStatus { sent, selected, meetingConfirmed, completed, declined }
 
 enum LocalListingKind { product, service }
 
@@ -736,6 +736,8 @@ class LocalOfferRecord {
     required this.message,
     required this.imageNames,
     required this.status,
+    this.meetingAt,
+    this.proposedMeetingAt,
   });
 
   factory LocalOfferRecord.fromJson(Map<String, Object?> json) {
@@ -751,6 +753,8 @@ class LocalOfferRecord {
       meetingTime: json['meetingTime']! as String,
       message: json['message']! as String,
       imageNames: (json['imageNames']! as List<Object?>).cast<String>(),
+      meetingAt: DateTime.tryParse(json['meetingAt'] as String? ?? ''),
+      proposedMeetingAt: DateTime.tryParse(json['proposedMeetingAt'] as String? ?? ''),
       status: LocalOfferStatus.values.firstWhere(
         (status) => status.name == json['status'],
         orElse: () => LocalOfferStatus.sent,
@@ -770,8 +774,17 @@ class LocalOfferRecord {
   final String message;
   final List<String> imageNames;
   final LocalOfferStatus status;
+  final DateTime? meetingAt;
+  final DateTime? proposedMeetingAt;
 
-  LocalOfferRecord copyWith({LocalOfferStatus? status}) {
+  LocalOfferRecord copyWith({
+    LocalOfferStatus? status,
+    DateTime? meetingAt,
+    String? meetingDate,
+    String? meetingTime,
+    DateTime? proposedMeetingAt,
+    bool clearProposal = false,
+  }) {
     return LocalOfferRecord(
       id: id,
       requestId: requestId,
@@ -780,17 +793,21 @@ class LocalOfferRecord {
       requestTitle: requestTitle,
       price: price,
       location: location,
-      meetingDate: meetingDate,
-      meetingTime: meetingTime,
+      meetingDate: meetingDate ?? this.meetingDate,
+      meetingTime: meetingTime ?? this.meetingTime,
       message: message,
       imageNames: imageNames,
       status: status ?? this.status,
+      meetingAt: meetingAt ?? this.meetingAt,
+      proposedMeetingAt: clearProposal ? null : proposedMeetingAt ?? this.proposedMeetingAt,
     );
   }
 
   Map<String, Object?> toJson() => {
     'id': id,
     'requestId': requestId,
+    if (meetingAt != null) 'meetingAt': meetingAt!.toIso8601String(),
+    if (proposedMeetingAt != null) 'proposedMeetingAt': proposedMeetingAt!.toIso8601String(),
     'buyerName': buyerName,
     'sellerName': sellerName,
     'requestTitle': requestTitle,
@@ -3037,6 +3054,12 @@ class LocalMarketplaceRepository extends ChangeNotifier {
 
   void submitOffer(LocalOfferRecord offer) {
     _latestOffer = offer;
+    notifyListeners();
+  }
+
+  void resetLocalDeal() {
+    _latestOffer = null;
+    _conversationEntries.clear();
     notifyListeners();
   }
 

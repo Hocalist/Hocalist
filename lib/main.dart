@@ -87,6 +87,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'data/local_marketplace_repository.dart';
+import 'data/jons_dev_sample_deal.dart';
 import 'data/phase2/discovery/discovery_adapter.dart';
 import 'data/phase2/discovery/discovery_backends.dart';
 import 'data/phase2/discovery/discovery_composition.dart';
@@ -430,11 +431,12 @@ class _CurrentChatSession implements ChatSession {
 }
 
 class HocalistPrototype extends StatefulWidget {
-  const HocalistPrototype({this.accountSession, super.key});
+  const HocalistPrototype({this.accountSession, this.sampleDeal = false, super.key});
 
   /// Real account session in real-provider mode; null keeps the explicit
   /// local prototype used by the demo tests.
   final HocalistAccountController? accountSession;
+  final bool sampleDeal;
 
   @override
   State<HocalistPrototype> createState() => _HocalistPrototypeState();
@@ -442,6 +444,36 @@ class HocalistPrototype extends StatefulWidget {
 
 class _HocalistPrototypeState extends State<HocalistPrototype>
     with WidgetsBindingObserver {
+  bool get _sampleDealEnabled => widget.sampleDeal && widget.accountSession == null;
+
+  SampleDealView? get _sampleDeal {
+    final record = _marketplace.latestOffer;
+    return _sampleDealEnabled && record?.requestId == sampleDealRequest.id && record?.meetingAt != null
+        ? SampleDealView(record!)
+        : null;
+  }
+
+  List<MeetingView> get _sampleMeetings => [if (_sampleDeal?.meeting case final meeting?) meeting];
+
+  static final _sampleLead = SellerLeadView(
+    requestId: sampleDealRequest.id,
+    name: 'Maya Chen',
+    initials: 'MC',
+    city: 'Brooksville, FL',
+    distance: '3 mi',
+    request: 'Dining table for four',
+    description: 'Looking for a solid wood dining table with four chairs. Flexible on pickup.',
+    budget: r'$175 – $250',
+    minimumMinor: 17500,
+    maximumMinor: 25000,
+    match: 92,
+    purchases: 0,
+    lastPurchase: 'No purchases yet',
+    meeting: 'Public meetup',
+    avatarColor: Color(0xfff0edff),
+    initialColor: Color(0xff1717d5),
+  );
+
   Timer? _chatRefreshTimer;
   Timer? _buyerOffersRefreshTimer;
   ChatLiveUpdates? _chatLiveUpdates;
@@ -2665,7 +2697,19 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   Future<void> _restoreSession() async {
     final data = await _storage.load();
-    if (!mounted || data == null) return;
+    if (!mounted) return;
+    if (_sampleDealEnabled &&
+        (data == null || data.sellerName != sampleDealSeller)) {
+      setState(() {
+        _loadSampleRequest();
+        _storeSampleOffer(initialSampleOffer(DateTime.now()));
+        role = UserRole.buyer;
+        page = AppPage.buyerDashboard;
+      });
+      await _saveSession();
+      return;
+    }
+    if (data == null) return;
     setState(() {
       role = data.role;
       authenticated = data.authenticated;
@@ -3969,6 +4013,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   }
 
   Future<void> _openBuyerOfferChat(BuyerOfferView view) async {
+    if (_sampleDealEnabled) {
+      if (_sampleDeal?.record.status != LocalOfferStatus.declined) go(AppPage.buyerChat);
+      return;
+    }
     if (_offerSelectionBusy) return;
     setState(() {
       _selectedBuyerOffer = view;
@@ -4044,7 +4092,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     if (_buyerDeclineBusy) return;
     final host = appNavigatorKey.currentContext;
     final user = widget.accountSession?.userId;
-    if (host == null || user == null) return;
+    final sample = _sampleDeal;
+    if (host == null || (user == null && sample == null)) return;
     final confirmed = await showModalBottomSheet<bool>(context: host,
       isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (sheet) => BuyerModalSheet(title: 'Decline this offer?',
@@ -4057,6 +4106,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onPressed: () => Navigator.pop(sheet, true)),
         ])));
     if (confirmed != true || !mounted || _buyerDeclineBusy || user != widget.accountSession?.userId) return;
+    if (sample != null) {
+      if (identical(_sampleDeal?.record, sample.record) && !sample.confirmed) {
+        _saveSampleResponse(sample.record.copyWith(status: LocalOfferStatus.declined,
+          clearProposal: true), 'Offer declined. Your request is still open.');
+      }
+      return;
+    }
     final intentId = '$user:${offer.offerId}';
     final intent = _buyerDeclineIntents.putIfAbsent(intentId, () => (
       key: LocalMarketplaceRepository.newStoreOperationKey('buyer-decline'), revision: offer.offerRevision));
@@ -4127,6 +4183,16 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   Future<void> _buyerHomeMeetingAction(Offer offer, {bool reschedule = false}) async {
     if (_homeMeetingActionBusy || role != UserRole.buyer) return;
+    if (_sampleDealEnabled) {
+      if (reschedule) {
+        await _proposeSampleMeeting();
+      } else if (_sampleDeal?.meeting case final meeting?) {
+        await _showSampleMeeting(meeting);
+      } else {
+        await _acceptSampleOffer(offer);
+      }
+      return;
+    }
     final user = widget.accountSession?.userId;
     final originalPage = page;
     final epoch = _navigationEpoch;
@@ -4626,6 +4692,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   /// intent allocates a new operation key; an uncertain outcome keeps the
   /// original key until it is reconciled.
   Future<void> _selectSelectedOffer() async {
+    if (_sampleDealEnabled) {
+      go(AppPage.buyerChat);
+      return;
+    }
     final view = _selectedBuyerOffer;
     if (view == null || !_marketplace.isBuyerOffersBacked) {
       commit(
@@ -5523,6 +5593,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   }
 
   void _submitSellerOffer(LocalOfferRecord offer) {
+    if (_sampleDealEnabled && offer.requestId == sampleDealRequest.id) {
+      setState(() => _storeSampleOffer(offer));
+      unawaited(_saveSession());
+      return;
+    }
     setState(() {
       _marketplace.submitOffer(offer);
       sellerOfferSent = true;
@@ -5531,6 +5606,130 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       buyerName = offer.buyerName;
     });
     _saveSession();
+  }
+
+  void _loadSampleRequest() {
+    authenticated = true;
+    buyerName = sampleDealRequest.buyerName;
+    sellerName = sampleDealSeller;
+    requestTitle = sampleDealRequest.title;
+    requestBudget = sampleDealRequest.budget;
+    requestPosted = true;
+  }
+
+  void _storeSampleOffer(LocalOfferRecord offer) {
+    final schedule = BuyerOfferView.formatSchedule(SampleDealView.schedule(offer.meetingAt!)).split(' · ');
+    _marketplace.submitOffer(offer.copyWith(meetingDate: schedule.first, meetingTime: schedule.last));
+    offerPrice = offer.price;
+    sellerOfferSent = true;
+    meetingConfirmed = offer.status == LocalOfferStatus.meetingConfirmed;
+    offerSelected = meetingConfirmed || offer.status == LocalOfferStatus.selected;
+  }
+
+  void _switchSampleRole(HocalistRole next) {
+    final isSeller = next == HocalistRole.seller;
+    completeAuthentication(
+      isSeller ? UserRole.seller : UserRole.buyer,
+      isSeller ? AppPage.sellerDashboard : AppPage.buyerDashboard,
+    );
+  }
+
+  void _resetSampleDeal() {
+    setState(() {
+      _marketplace.resetLocalDeal();
+      _loadSampleRequest();
+      _focusedSellerLead = _sampleLead;
+      _selectedBuyerOffer = null;
+      offerPrice = r'$225';
+      sellerOfferSent = false;
+      offerSelected = false;
+      meetingConfirmed = false;
+      dealCompleted = false;
+      dealFailed = false;
+      requestReopened = false;
+      offerRevisionPending = false;
+    });
+    completeAuthentication(UserRole.seller, AppPage.marketplace);
+    showMessage('Sample deal reset. Prepare a new offer for Maya.');
+  }
+
+  Future<void> _acceptSampleOffer(Offer offer) async {
+    final deal = _sampleDeal;
+    final host = appNavigatorKey.currentContext;
+    if (deal == null || host == null || deal.pending || deal.confirmed ||
+        deal.record.status == LocalOfferStatus.declined) return;
+    final approved = await confirmOfferedMeeting(host,
+      title: deal.record.requestTitle,
+      time: BuyerOfferView.fromOffer(offer).meetingLabel,
+      timezone: sampleDealTimezone,
+      place: deal.record.location,
+    );
+    if (!approved || !mounted || !identical(_sampleDeal?.record, deal.record)) return;
+    _saveSampleResponse(deal.record.copyWith(status: LocalOfferStatus.meetingConfirmed), 'Meeting confirmed.');
+  }
+
+  void _saveSampleResponse(LocalOfferRecord record, String message) {
+    setState(() => _storeSampleOffer(record));
+    unawaited(_saveSession());
+    showMessage(message);
+  }
+
+  Future<void> _proposeSampleMeeting() async {
+    final deal = _sampleDeal;
+    final host = appNavigatorKey.currentContext;
+    if (deal == null || host == null || deal.pending ||
+        deal.record.status == LocalOfferStatus.declined) return;
+    final today = DateUtils.dateOnly(DateTime.now());
+    final originalDay = DateUtils.dateOnly(deal.meetingAt);
+    final date = await showDatePicker(context: host,
+      initialDate: originalDay.isBefore(today) ? today : originalDay,
+      firstDate: today,
+      lastDate: DateTime(today.year + 5, today.month, today.day),
+    );
+    if (date == null || !host.mounted) return;
+    final time = await showTimePicker(context: host, initialTime: TimeOfDay.fromDateTime(deal.meetingAt));
+    if (time == null || !mounted || !identical(_sampleDeal?.record, deal.record)) return;
+    final proposed = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    _saveSampleResponse(deal.record.copyWith(proposedMeetingAt: proposed),
+      'New time proposed. Switch to Seller mode and open Meets to respond.');
+  }
+
+  void _respondToSampleMeeting(MeetingView meeting, String action) {
+    final deal = _sampleDeal;
+    if (deal == null || deal.meeting?.meetingId != meeting.meetingId) return;
+    final proposed = deal.record.proposedMeetingAt;
+    if (action == 'accept' && proposed != null) {
+      _saveSampleResponse(deal.record.copyWith(status: LocalOfferStatus.meetingConfirmed,
+        meetingAt: proposed, clearProposal: true), 'New meeting time confirmed.');
+    } else if (action == 'cancel' && proposed != null) {
+      _saveSampleResponse(deal.record.copyWith(clearProposal: true), 'Proposed time declined.');
+    }
+  }
+
+  Future<void> _showSampleMeeting(MeetingView meeting) async {
+    final host = appNavigatorKey.currentContext;
+    final schedule = meeting.pendingSchedule ?? meeting.acceptedSchedule;
+    if (host == null || schedule == null) return;
+    final reschedule = await showModalBottomSheet<bool>(
+      context: host,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => BuyerModalSheet(
+        title: meeting.hasPendingSchedule ? 'Waiting for seller' : 'Meeting confirmed',
+        subtitle: meeting.offerSummary?.title,
+        onClose: () => Navigator.pop(sheet),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(BuyerOfferView.formatSchedule(LocalSchedule(date: schedule.date,
+            startTime: schedule.startTime, timezoneId: schedule.timezoneId))),
+          if (schedule.placeLabel case final place?) Text(place),
+          if (role == UserRole.buyer && !meeting.hasPendingSchedule) ...[
+            const SizedBox(height: 16),
+            BuyerSecondaryButton(label: 'Reschedule', onPressed: () => Navigator.pop(sheet, true)),
+          ],
+        ]),
+      ),
+    );
+    if (reschedule == true && mounted) await _proposeSampleMeeting();
   }
 
   List<ApprovedConversationEntry> _conversationEntriesFor({
@@ -5712,7 +5911,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               child: BrandHomeScope(
               onHome: signedIn ? () => resetTo(role == UserRole.seller
                   ? AppPage.sellerDashboard : AppPage.buyerDashboard) : null,
-              child: AccountRoleSwitchScope(onSelect: widget.accountSession?.selectRole,
+              child: AccountRoleSwitchScope(onSelect: _sampleDealEnabled ? _switchSampleRole : widget.accountSession?.selectRole,
+                onResetSampleDeal: _sampleDealEnabled ? _resetSampleDeal : null,
                 child: _hocalistTextScale(context, child, accessibilityPreferences)),
             )),
           ),
@@ -6010,14 +6210,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onRefreshRequests: () =>
                 unawaited(_marketplace.refreshBuyerRequests()),
             onOpenRequest: _openBuyerRequest,
-            homeOffers: _buyerHomeOffers,
+            homeOffers: _sampleDealEnabled ? [if (_sampleDeal case final deal?) deal.offer] : _buyerHomeOffers,
             negotiationsLoading: _buyerHomeOffersLoading,
             negotiationsError: _buyerHomeOffersError,
             onRefreshNegotiations: () => unawaited(_refreshBuyerHomeOffers()),
             onOpenNegotiation: (offer) => unawaited(_openBuyerOfferChat(BuyerOfferView.fromOffer(offer))),
             onAcceptNegotiation: (offer) => unawaited(_buyerHomeMeetingAction(offer)),
             onNegotiationOptions: (offer) => unawaited(_buyerDealOptions(offer)),
-            loadDealSeller: _loadDealSeller,
+            loadDealSeller: _sampleDealEnabled ? null : _loadDealSeller,
             presentHomeOffer: _buyerDealView,
             onMeetingDirections: (meeting) => unawaited(_openMeetingDirections(meeting)),
             onMeetingMessage: (meeting) => unawaited(_openMeetingChat(meeting)),
@@ -6027,7 +6227,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   _marketplace.activeChatOfferId == meeting.offerId) await _openCall();
             },
             onCloseFromHome: _closeRequestFromHome,
-            realMeetings: _marketplace.isMeetingsBacked
+            realMeetings: _sampleDealEnabled ? _sampleMeetings : _marketplace.isMeetingsBacked
                 ? _marketplace.meetings
                       .where(
                         (meeting) => !_confirmedPurchaseMeetings.contains(
@@ -6044,7 +6244,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               unawaited(_refreshConfirmedBuyerMeetings());
             },
             onOpenMeeting: (meeting) =>
-                unawaited(_openMeetingById(meeting.meetingId)),
+                _sampleDealEnabled ? unawaited(_showSampleMeeting(meeting)) : unawaited(_openMeetingById(meeting.meetingId)),
             onOpenPinMeeting: (meeting) => unawaited(
               _openMeetingById(meeting.meetingId, focusPurchasePin: true),
             ),
@@ -6314,7 +6514,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onBack: back,
             onNotifications: () => go(AppPage.notifications),
             onViewOffer: _selectSelectedOffer,
-            onChat: () => commit(
+            onChat: _sampleDealEnabled ? () => go(AppPage.buyerChat) : () => commit(
               next: AppPage.buyerChat,
               message: 'Seller selected. Chatroom opened.',
               update: () {
@@ -6327,7 +6527,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 : () => showMessage('Offer filters opened.'),
             navigation: _approvedBuyerNavigation,
             latestOffer: _marketplace.latestOffer,
-            realOffers: _marketplace.isBuyerOffersBacked
+            realOffers: _sampleDealEnabled
+                ? [if (_sampleDeal case final deal?) _buyerDealView(deal.offer)]
+                : _marketplace.isBuyerOffersBacked
                 ? _marketplace.buyerOffers
                       .map(_buyerDealView)
                       .toList(growable: false)
@@ -6351,7 +6553,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onRefreshOffers: _refreshBuyerOffersIfNeeded,
             onOpenOffer: (view) => unawaited(_openBuyerOfferChat(view)),
             onDeclineOffer: (view) => unawaited(_declineBuyerOffer(view)),
-            loadSeller: _loadDealSeller,
+            loadSeller: _sampleDealEnabled ? null : _loadDealSeller,
           ),
         );
       case AppPage.sellerPublicProfile:
@@ -6517,7 +6719,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ? (meetingId) => unawaited(_openConversationDeal(meetingId))
                 : null,
             onBack: back,
-            onPrimary: _marketplace.isMeetingsBacked
+            onPrimary: _sampleDealEnabled
+                ? () async {
+                    if (_sampleDeal case final deal?) await _buyerHomeMeetingAction(deal.offer);
+                  }
+                : _marketplace.isMeetingsBacked
                 ? _buyerChatMeetingAction
                 : () => commit(
                     next: AppPage.buyerDashboard,
@@ -6531,13 +6737,19 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                       );
                     },
                   ),
-            primaryLabel: _marketplace.isMeetingsBacked
+            primaryLabel: _sampleDealEnabled
+                ? (_sampleDeal?.meeting != null ? 'View meeting' : 'Accept offer and meet')
+                : _marketplace.isMeetingsBacked
                 ? _buyerChatMeetingLabel
                 : 'Accept to meet',
             onCall: _openCall,
             onMore: () => go(AppPage.reportIssue),
             onRequestChange: () => showMessage('Request change opened.'),
-            onMeetingOptions: _buyerChatOffer == null ? null : () => unawaited(_buyerDealOptions(_buyerChatOffer!)),
+            onMeetingOptions: _sampleDealEnabled
+                ? () {
+                    if (_sampleDeal case final deal?) unawaited(_buyerDealOptions(deal.offer));
+                  }
+                : _buyerChatOffer == null ? null : () => unawaited(_buyerDealOptions(_buyerChatOffer!)),
             onChangeLocation: _openConversationMeeting,
             onAttach: _marketplace.chatAttachmentsSupported
                 ? () => unawaited(_pickAndSendChatAttachment())
@@ -6606,6 +6818,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         // reachable destination and the accepted deal opens in chat.
         return currentPageFor(_upgradedDestination(AppPage.finalizeDeal));
       case AppPage.meetingDetails:
+        if (_sampleDealEnabled) {
+          return ApprovedBuyerMeetingsPage(
+            onBack: back,
+            meetings: _sampleMeetings,
+            loading: false,
+            error: null,
+            onOpenMeeting: (meeting) => unawaited(_showSampleMeeting(meeting)),
+          );
+        }
         if (_marketplace.isMeetingsBacked &&
             _marketplace.meetingDetail == null) {
           if (role == UserRole.seller) {
@@ -7377,16 +7598,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 _focusedSellerLead = lead;
                 resetTo(AppPage.marketplace);
               },
-              onOpenRecentOffer: (offer) => unawaited(_openSellerOffer(offer)),
+              onOpenRecentOffer: (offer) => _sampleDealEnabled
+                  ? go(AppPage.sellerOfferHistory)
+                  : unawaited(_openSellerOffer(offer)),
               onBrowseRequests: () => resetTo(AppPage.marketplace),
               onOfferHistory: () => go(AppPage.sellerOfferHistory),
               sellerName: sellerName,
               realLeads: _marketplace.isLeadsBacked ? _recentSellerLeads : null,
-              sellerOffers: _marketplace.sellerOffers,
+              sellerOffers: _sampleDealEnabled ? [if (_sampleDeal case final deal?) deal.offer] : _marketplace.sellerOffers,
               leadsLoading: _marketplace.sellerLeadsLoading,
               leadsError: _marketplace.sellerLeadsError,
               onRefreshLeads: _marketplace.refreshSellerLeads,
-              offersCount: _marketplace.isSellerOffersBacked
+              offersCount: _sampleDealEnabled ? (_sampleDeal == null ? 0 : 1) : _marketplace.isSellerOffersBacked
                   ? _marketplace.sellerOffers.length
                   : null,
               offersLoading: _marketplace.sellerOffersLoading,
@@ -7437,7 +7660,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           child: AnimatedBuilder(
             animation: _marketplace,
             builder: (context, _) => ApprovedSellerLeadsPage(
-              automaticTimezone: true,
+              automaticTimezone: !_sampleDealEnabled,
               resolveBusinessPlace: _resolveBusinessPlace,
               readBusinessAddress: _offerBusinessAddress,
               onAddBusinessAddress: _addOfferBusinessAddress,
@@ -7445,6 +7668,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               onInteract: _rememberLead,
               sellerName: sellerName,
               onOfferSubmitted: _submitSellerOffer,
+              localOfferDefaults: _sampleDealEnabled ? initialSampleOffer(DateTime.now()) : null,
               onValidateLead: _marketplace.isOffersBacked
                   ? (lead) async {
                       final client = Supabase.instance.client;
@@ -7472,7 +7696,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                       return SellerLeadView.fromProjection(fresh);
                     }
                   : null,
-              leads: _marketplace.isLeadsBacked
+              leads: _sampleDealEnabled ? [_sampleLead] : _marketplace.isLeadsBacked
                   ? _marketplace.sellerLeads
                         .map(SellerLeadView.fromProjection)
                         .toList(growable: false)
@@ -7487,7 +7711,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   ? () => unawaited(_marketplace.refreshLeadCategories())
                   : null,
               offerTimezones: _marketplace.offerTimezones,
-              offeredRequestIds: _marketplace.sellerOffers
+              offeredRequestIds: _sampleDealEnabled
+                  ? {if (_sampleDeal != null) sampleDealRequest.id}
+                  : _marketplace.sellerOffers
                   .where(
                     (offer) =>
                         offer.status == OfferStatus.submitted ||
@@ -7548,7 +7774,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           child: AnimatedBuilder(
             animation: _marketplace,
             builder: (context, _) => ApprovedSellerMeetsPage(
-              meetings: _marketplace.isMeetingsBacked
+              meetings: _sampleDealEnabled ? _sampleMeetings : _marketplace.isMeetingsBacked
                   ? _marketplace.meetings
                   : null,
               loading: _marketplace.meetingsLoading,
@@ -7561,8 +7787,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                   _refreshConfirmedMeetings(),
                 ]);
               },
-              onOpenMeeting: (meeting) => _openMeetingById(meeting.meetingId),
-              onMeetingAction: _sellerMeetingAction,
+              onOpenMeeting: (meeting) => _sampleDealEnabled
+                  ? _showSampleMeeting(meeting) : _openMeetingById(meeting.meetingId),
+              onMeetingAction: _sampleDealEnabled ? _respondToSampleMeeting : _sellerMeetingAction,
+              sampleDeal: _sampleDealEnabled,
               onMessageMeeting: (meeting) =>
                   unawaited(_openMeetingChat(meeting)),
               onDirectionsMeeting: (meeting) =>
@@ -7705,7 +7933,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             offerSelected: offerSelected,
             onOpen: () => go(AppPage.sellerConversation),
             latestOffer: _marketplace.latestOffer,
-            realOffers: _marketplace.isSellerOffersBacked
+            realOffers: _sampleDealEnabled
+                ? [if (_sampleDeal case final deal?) SellerOfferView.fromOffer(deal.offer)]
+                : _marketplace.isSellerOffersBacked
                 ? _marketplace.sellerOffers
                       .map(_sellerOfferView)
                       .toList(growable: false)
@@ -7715,6 +7945,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onRefreshOffers: () =>
                 unawaited(_marketplace.refreshSellerOffers()),
             onOpenOffer: (view) {
+              if (_sampleDealEnabled) {
+                if (_sampleDeal?.pending == true) {
+                  resetTo(AppPage.sellerMeets);
+                } else {
+                  go(AppPage.sellerConversation);
+                }
+                return;
+              }
               final offer = _marketplace.sellerOffers.where((row) => row.id == view.offerId).firstOrNull;
               if (offer == null) {
                 showMessage('This offer is no longer available.');

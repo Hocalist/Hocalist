@@ -81,6 +81,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
     this.onSelectSearchLocation,
     this.onLoadSearchLocation,
     this.onOfferSubmitted,
+    this.localOfferDefaults,
     this.sellerName = 'Northside Tech',
     this.offerPresentation = const SellerOfferPresentation.approvedPrototype(),
     this.leads,
@@ -117,6 +118,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   final Set<String> offeredRequestIds;
   final Future<SellerLeadView?> Function(SellerLeadView)? onValidateLead;
   final ValueChanged<LocalOfferRecord>? onOfferSubmitted;
+  final LocalOfferRecord? localOfferDefaults;
   final String sellerName;
   final SellerOfferPresentation offerPresentation;
 
@@ -779,6 +781,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
             : lead.presetPrice(high: highPreset),
         sellerName: widget.sellerName,
         presentation: widget.offerPresentation,
+        localOfferDefaults: widget.localOfferDefaults,
         onChooseSpecificLocation: widget.onChooseSpecificLocation,
         automaticTimezone: widget.automaticTimezone,
         resolveBusinessPlace: widget.resolveBusinessPlace,
@@ -1662,6 +1665,7 @@ class SellerOfferForm extends StatefulWidget {
     this.onSubmitOffer,
     this.uploadImage,
     this.previewFeePlan,
+    this.localOfferDefaults,
   });
 
   final SellerLeadView lead;
@@ -1677,6 +1681,7 @@ class SellerOfferForm extends StatefulWidget {
   final SellerOfferSubmitter? onSubmitOffer;
   final ImageUpload? uploadImage;
   final PlanCode? previewFeePlan;
+  final LocalOfferRecord? localOfferDefaults;
 
   final SellerOfferEditFields? edit;
   @override
@@ -1834,13 +1839,20 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
     final product = widget.lead.request
         .replaceFirst('Looking for ', '')
         .replaceFirst('Need ', '');
+    final defaults = widget.localOfferDefaults;
+    final sampleTime = defaults?.meetingAt;
+    if (sampleTime != null) {
+      _meetingDate = DateUtils.dateOnly(sampleTime);
+      _meetingTime = TimeOfDay.fromDateTime(sampleTime);
+    }
     _priceController = TextEditingController(
-      text: widget.initialPrice ?? _presentation.defaultPrice,
+      text: widget.initialPrice ?? defaults?.price.substring(1) ?? _presentation.defaultPrice,
     );
     _messageController = TextEditingController(
       text: _realMode
           ? ''
-          : 'Hi $firstName, I have a like-new $product 256GB in space gray. '
+          : defaults?.message ??
+                'Hi $firstName, I have a like-new $product 256GB in space gray. '
                 'Includes original charger and box. Let me know if you have any questions!',
     );
   }
@@ -2276,6 +2288,8 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
       location: location,
       meetingDate: _formattedDate,
       meetingTime: _formattedTime,
+      meetingAt: DateTime(_meetingDate.year, _meetingDate.month, _meetingDate.day,
+        _meetingTime.hour, _meetingTime.minute),
       message: _messageController.text.trim(),
       imageNames: List<String>.unmodifiable(_productImages),
       status: LocalOfferStatus.sent,

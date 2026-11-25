@@ -9,7 +9,7 @@ import 'package:hocalist/theme/seller_ui_foundation.dart';
 // session or the production entry point that initializes external services.
 void main() {
   const feePreviewOnly = bool.fromEnvironment('HOCALIST_JONS_DEV_FEE_PREVIEW');
-  runApp(feePreviewOnly ? const JonsDevApp() : const HocalistPrototype());
+  runApp(feePreviewOnly ? const JonsDevApp() : const HocalistPrototype(sampleDeal: true));
 }
 
 class JonsDevApp extends StatelessWidget {
