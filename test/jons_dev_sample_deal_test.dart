@@ -94,6 +94,28 @@ void main() {
     expect(find.text('Confirmed'), findsOneWidget);
   });
 
+  testWidgets('Leads fee info previews every plan with an existing offer', (
+    tester,
+  ) async {
+    await openPreview(tester);
+    await choose(tester, 'Seller');
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tap(tester, find.text('Browse requests'));
+    await tap(tester, find.byTooltip('How fees work'));
+    expect(find.text('Free plan'), findsOneWidget);
+    await tap(tester, find.widgetWithText(ChoiceChip, 'Pro'));
+    expect(find.text('Pro · Offer Pull Out'), findsOneWidget);
+    await tap(tester, find.widgetWithText(ChoiceChip, 'Elite'));
+    expect(find.text('Elite fee protection'), findsOneWidget);
+    await tap(tester, find.byTooltip('Close'));
+    expect(find.text('Find Customers'), findsOneWidget);
+    await choose(tester, 'Reset sample deal');
+    await tap(tester, find.text('Prepare offer'));
+    await tap(tester, find.widgetWithText(ChoiceChip, 'Elite'));
+    expect(find.text('Elite fee protection'), findsOneWidget);
+  });
+
   testWidgets('buyer declines through the current offer options', (
     tester,
   ) async {

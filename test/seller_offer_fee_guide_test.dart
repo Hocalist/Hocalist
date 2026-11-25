@@ -6,33 +6,40 @@ import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
 import 'package:hocalist/features/seller/seller_offer_fee_guide.dart';
 import 'package:hocalist/theme/seller_ui_foundation.dart';
 
-import '../tool/jons_dev.dart' as dev;
-
 void main() {
-  testWidgets('preview and Send offer use the selected seller plan', (
+  testWidgets('the guide shows subscription-specific rules and badges', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const dev.JonsDevApp());
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SellerResponsivePage(
+      builder: (_, _) => const SingleChildScrollView(
+        child: SellerOfferFeeGuide(plan: null, preview: true),
+      ),
+    ))));
     await tester.pumpAndSettle();
 
     const reply =
         'The initial lead fee applies when the buyer replies to your offer.';
     const reserved = 'Your HocaCredits stay reserved while you negotiate.';
     expect(find.text('Free plan'), findsOneWidget);
-    expect(find.text(reply), findsOneWidget);
+    expect(find.textContaining(reply), findsOneWidget);
+    expect(find.text('Pull out before the buyer responds'), findsNothing);
     await tester.tap(find.widgetWithText(ChoiceChip, 'Pro'));
     await tester.pumpAndSettle();
     expect(find.text('Pro plan'), findsOneWidget);
-    expect(find.text(reply), findsOneWidget);
+    expect(find.textContaining(reply), findsOneWidget);
+    expect(find.text('Pro · Offer Pull Out'), findsOneWidget);
+    expect(find.text('Pull out before the buyer responds'), findsOneWidget);
     await tester.tap(find.widgetWithText(ChoiceChip, 'Elite'));
     await tester.pumpAndSettle();
     expect(find.text('Elite plan'), findsOneWidget);
-    expect(find.text(reserved), findsOneWidget);
-    expect(find.text(reply), findsNothing);
+    expect(find.textContaining(reserved), findsOneWidget);
+    expect(find.textContaining(reply), findsNothing);
+    expect(find.text('Elite fee protection'), findsOneWidget);
+    expect(find.textContaining('unless you viewed competing offers'), findsOneWidget);
 
     final help = find.byKey(const Key('sellerOfferFeeGuideHelp'));
     await tester.ensureVisible(help);
@@ -40,24 +47,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.textContaining('Viewing competing offers removes the waiver for this request'),
-      findsOneWidget,
-    );
-    final helpNavigator = tester.state<NavigatorState>(find.byType(Navigator));
-    helpNavigator.pop();
-    await tester.pumpAndSettle();
-
-    final offer = find.text('Open Send offer');
-    await tester.ensureVisible(offer);
-    await tester.tap(offer);
-    await tester.pumpAndSettle();
-    final sheet = find.byKey(const Key('sellerSendOfferBottomSheet'));
-    final guide = find.descendant(
-      of: sheet,
-      matching: find.byType(SellerOfferFeeGuide),
-    );
-    expect(tester.widget<SellerOfferFeeGuide>(guide).plan?.name, 'elite');
-    expect(
-      find.descendant(of: guide, matching: find.text(reserved)),
       findsOneWidget,
     );
   });

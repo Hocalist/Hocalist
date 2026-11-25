@@ -7687,6 +7687,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               sellerName: sellerName,
               onOfferSubmitted: _submitSellerOffer,
               localOfferDefaults: _sampleDealEnabled ? initialSampleOffer(DateTime.now()) : null,
+              previewFeePlans: _sampleDealEnabled,
               loadLeadInsights: _discoveryBackend?.loadLeadInsights,
               onComparePlans: _realAccountMode ? () {
                 _billingUpgradeRequested = true;

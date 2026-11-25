@@ -107,6 +107,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
     this.discoveryOriginLoading = false,
     this.onSaveDiscoveryOrigin,
     this.onDiscoveryOriginSaved,
+    this.previewFeePlans = false,
   });
 
   final SellerOfferPlacePicker? onChooseSpecificLocation;
@@ -122,6 +123,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   final Future<SellerLeadView?> Function(SellerLeadView)? onValidateLead;
   final Future<CustomerHistory?> Function(String)? loadLeadInsights;
   final VoidCallback? onComparePlans;
+  final bool previewFeePlans;
   final ValueChanged<LocalOfferRecord>? onOfferSubmitted;
   final LocalOfferRecord? localOfferDefaults;
   final String sellerName;
@@ -789,6 +791,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
             : lead.presetPrice(high: highPreset),
         sellerName: widget.sellerName,
         presentation: widget.offerPresentation,
+        previewFeePlans: widget.previewFeePlans,
         localOfferDefaults: widget.localOfferDefaults,
         loadLeadInsights: widget.loadLeadInsights,
         onComparePlans: widget.onComparePlans,
@@ -849,6 +852,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
                   _LeadsHeader(
                     filtersActive: _hasActiveFilter,
                     realMode: widget.usesRealLeads,
+                    previewFeePlans: widget.previewFeePlans,
                     onFilter: _openFilters,
                   ),
                   SizedBox(height: metrics.spacing(10)),
@@ -971,11 +975,13 @@ class _LeadsHeader extends StatelessWidget {
     required this.filtersActive,
     required this.onFilter,
     this.realMode = false,
+    required this.previewFeePlans,
   });
 
   final bool filtersActive;
   final VoidCallback onFilter;
   final bool realMode;
+  final bool previewFeePlans;
 
   @override
   Widget build(BuildContext context) {
@@ -983,7 +989,7 @@ class _LeadsHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _TargetingNotice(),
+        _TargetingNotice(previewFeePlans: previewFeePlans),
         Expanded(
           child: Column(
             children: [
@@ -1288,14 +1294,33 @@ class _SellerLeadsEmptyState extends StatelessWidget {
 }
 
 class _TargetingNotice extends StatelessWidget {
-  const _TargetingNotice();
+  const _TargetingNotice({required this.previewFeePlans});
+
+  final bool previewFeePlans;
+
   @override
   Widget build(BuildContext context) => IconButton(
     key: const Key('sellerLeadFeeInfo'),
     tooltip: 'How fees work',
     icon: const Icon(Icons.info_outline_rounded),
     color: HocalistPalette.text(context, SellerUiColors.primaryBright),
-    onPressed: () => showMoneyHelp(
+    onPressed: previewFeePlans ? () => showModalBottomSheet<void>(
+      context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => SellerModalSheet(
+        title: 'How it works',
+        subtitle: 'Compare offer fees with sample data.',
+        icon: Icons.info_outline_rounded,
+        onClose: () => Navigator.of(sheet).pop(),
+        child: ApprovedReplicaScope(
+          metrics: ApprovedReplicaScope.of(context),
+          child: const SellerOfferFeeGuide(plan: null, preview: true),
+        ),
+      ),
+    ) : () => showMoneyHelp(
       context,
       seller: true,
       title: 'How fees work',
@@ -1675,6 +1700,7 @@ class SellerOfferForm extends StatefulWidget {
     this.onSubmitOffer,
     this.uploadImage,
     this.previewFeePlan,
+    this.previewFeePlans = false,
     this.localOfferDefaults,
     this.loadLeadInsights,
     this.onComparePlans,
@@ -1693,6 +1719,7 @@ class SellerOfferForm extends StatefulWidget {
   final SellerOfferSubmitter? onSubmitOffer;
   final ImageUpload? uploadImage;
   final PlanCode? previewFeePlan;
+  final bool previewFeePlans;
   final LocalOfferRecord? localOfferDefaults;
   final Future<CustomerHistory?> Function(String)? loadLeadInsights;
   final VoidCallback? onComparePlans;
@@ -2819,9 +2846,11 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                         title: 'How it works',
                         subtitle: '',
                         child: SellerOfferFeeGuide(
+                          preview: !_realMode && widget.previewFeePlans,
                           plan: _realMode
                               ? _feePlan
-                              : widget.previewFeePlan ?? PlanCode.pro,
+                              : widget.previewFeePlan ??
+                                    (widget.previewFeePlans ? PlanCode.free : PlanCode.pro),
                         ),
                       ),
                       ],
