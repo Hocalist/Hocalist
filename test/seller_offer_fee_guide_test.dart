@@ -95,15 +95,15 @@ void main() {
 
     await openOffer(PlanCode.pro);
     expect(requested, isEmpty);
-    expect(find.text('Customer Insights'), findsNothing);
+    expect(find.text('About this customer'), findsNothing);
     tester.state<NavigatorState>(find.byType(Navigator)).pop();
     await tester.pumpAndSettle();
     await openOffer(PlanCode.elite);
     expect(requested, ['sample-request']);
-    final insights = find.text('Customer Insights');
+    final insights = find.text('About this customer');
     await tester.ensureVisible(insights);
     await tester.pumpAndSettle();
-    expect(find.text('8 of 12 concluded requests ended in a PIN-confirmed purchase.'), findsOneWidget);
+    expect(find.text('This buyer confirmed a purchase on 8 of 12 past requests.'), findsOneWidget);
     expect(find.text('Send Offer'), findsOneWidget);
   });
 }

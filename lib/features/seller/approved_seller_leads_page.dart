@@ -2835,12 +2835,12 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                               ConnectionState.waiting => 'Loading purchase history…',
                               _ when snapshot.hasError => 'Purchase history is unavailable.',
                               _ when history != null =>
-                                '${history.confirmedPurchases} of ${history.concludedRequests} concluded requests ended in a PIN-confirmed purchase.',
-                              _ => 'Not enough concluded requests to show purchase history.',
+                                'This buyer confirmed a purchase on ${history.confirmedPurchases} of ${history.concludedRequests} past requests.',
+                              _ => 'Not enough purchase history yet.',
                             };
                             return SellerStateNotice(
                               icon: Icons.insights_outlined,
-                              title: 'Customer Insights',
+                              title: 'About this customer',
                               body: body,
                             );
                           },
