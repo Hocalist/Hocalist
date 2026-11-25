@@ -9,7 +9,7 @@ export default function BlogArticle({ post, cover, children }: { post: BlogPost;
   const dates = articleDates(post);
   const topic = topicForPost(post);
   const editorialLinks = (post.links as (NonNullable<BlogPost['links']>[number] & {
-    heading?: string; anchor?: string; note?: string;
+    heading?: string; anchor?: string; note?: string; sectionIndex?: number; start?: number;
   })[] | undefined)?.slice(0, 2).filter(({ href }) =>
     /^\/(?:blog\/[a-z0-9-]+|how-it-works|safety|downloads?)$/.test(href) ||
     /^https:\/\/[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:[/?#][^\s<>"'\\]*)?$/i.test(href)
@@ -18,11 +18,14 @@ export default function BlogArticle({ post, cover, children }: { post: BlogPost;
     (entry) => entry.slug !== post.slug && blogPostPath(entry.slug) !== post.next.href
   );
   const placed = new Set<string>();
-  function paragraph(text: string, section: string) {
+  function paragraph(text: string, section: string, sectionIndex: number, offset: number) {
     const candidates = (editorialLinks ?? []).flatMap(link => {
-      if (placed.has(link.href) || link.heading !== section || !link.anchor) return [];
-      const index = text.indexOf(link.anchor);
-      return index < 0 ? [] : [{ ...link, index, anchor: link.anchor }];
+      if (placed.has(link.href) || !link.anchor) return [];
+      const exact = link.sectionIndex !== undefined || link.start !== undefined;
+      if (exact && (link.sectionIndex !== sectionIndex || typeof link.start !== 'number')) return [];
+      if (!exact && link.heading !== section) return [];
+      const index = exact ? link.start! - offset : text.indexOf(link.anchor);
+      return index < 0 || !text.startsWith(link.anchor, index) ? [] : [{ ...link, index, anchor: link.anchor }];
     }).sort((a, b) => a.index - b.index);
     let cursor = 0;
     const parts: ReactNode[] = [];
@@ -55,13 +58,16 @@ export default function BlogArticle({ post, cover, children }: { post: BlogPost;
         {post.sections.map(({ heading: sectionHeading, body }, sectionIndex) => (
           <section key={`${sectionIndex}-${sectionHeading}`}>
             <h2>{sectionHeading}</h2>
-            {body.split(/\r?\n[ \t]*\r?\n+|\r?\n(?=### )/).flatMap((block, index) => {
+            {articleBlocks(body).flatMap(({ block, start }, index) => {
               const text = block.trim();
               if (!text) return [];
+              const offset = start + block.length - block.trimStart().length;
               const heading = /^### +([^\r\n]+)(?:\r?\n([\s\S]*))?$/.exec(text);
-              if (!heading) return [<p key={index}>{paragraph(text, sectionHeading)}</p>];
+              if (!heading) return [<p key={index}>{paragraph(text, sectionHeading, sectionIndex, offset)}</p>];
+              const content = heading[2]?.trim();
               return [<h3 key={index}>{heading[1]}</h3>,
-                ...(heading[2]?.trim() ? [<p key={`${index}-text`}>{paragraph(heading[2].trim(), sectionHeading)}</p>] : [])];
+                ...(content ? [<p key={`${index}-text`}>{paragraph(content, sectionHeading, sectionIndex,
+                  offset + text.length - heading[2].trimStart().length)}</p>] : [])];
             })}
             {(editorialLinks ?? []).map(link => {
               if (link.heading !== sectionHeading || !link.note || placed.has(link.href)) return null;
@@ -72,7 +78,8 @@ export default function BlogArticle({ post, cover, children }: { post: BlogPost;
         ))}
         {editorialLinks === undefined
           ? <p><Link href={post.next.href}>{post.next.label} →</Link></p>
-          : editorialLinks.filter(({ href }) => !placed.has(href)).map(({ href, label }) => <p key={href}><Link href={href}>{label} →</Link></p>)}
+          : editorialLinks.filter(({ href, start, sectionIndex }) => start === undefined && sectionIndex === undefined &&
+            !placed.has(href)).map(({ href, label }) => <p key={href}><Link href={href}>{label} →</Link></p>)}
       </article>
       {related && (
         <aside className={styles.related} aria-label="Related guides">
@@ -82,6 +89,16 @@ export default function BlogArticle({ post, cover, children }: { post: BlogPost;
       )}
     </main>
   );
+}
+
+function articleBlocks(body: string) {
+  const blocks: { block: string; start: number }[] = [];
+  let start = 0;
+  for (const separator of body.matchAll(/\r?\n[ \t]*\r?\n+|\r?\n(?=### )/g)) {
+    blocks.push({ block: body.slice(start, separator.index), start });
+    start = separator.index + separator[0].length;
+  }
+  return [...blocks, { block: body.slice(start), start }];
 }
 
 function ArticleDate({ value }: { value: string }) {
