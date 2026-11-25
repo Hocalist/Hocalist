@@ -94,6 +94,17 @@ test("health queue carries seller linkage and priority", () => {
   assert.equal(report.priority, 1);
 });
 
+test("safety alarms preserve the phrases that triggered review", () => {
+  const decoded = decodeReviewQueue({
+    ...validTrust,
+    health_reviews: {items: [{...validTrust.health_reviews.items[0],
+      priority: 3, matched_phrases: ["synthetic alarm phrase", 42]}], next_cursor: null},
+  });
+  assert.ok(decoded);
+  assert.equal(decoded.health_reviews.items[0].priority, 3);
+  assert.deepEqual(decoded.health_reviews.items[0].matched_phrases, ["synthetic alarm phrase"]);
+});
+
 test("rejects malformed review rows instead of defaulting", () => {
   assert.equal(
     decodeReviewQueue({

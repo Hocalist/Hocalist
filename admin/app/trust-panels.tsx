@@ -13,6 +13,7 @@ import {
 } from "./lib/admin-trust";
 import {SectionTabs} from "./section-tabs";
 import { Stat } from "./components";
+import { SafetyPhraseRules } from "./safety-phrase-alarms";
 
 function usd(minor: number): string {
   return `$${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, "0")}`;
@@ -252,7 +253,7 @@ export function TrustPanel() {
             <img src={evidencePreview} alt="Photo attached to the selected verification review" style={{display:"block",width:"100%",maxHeight:"70vh",objectFit:"contain"}} />
           </section>}
 
-          <SectionTabs label="Trust review sections" sections={[{title:"Verification",content:<><h3>Evidence submissions</h3>
+          <SectionTabs label="Trust review sections" initialIndex={1} sections={[{title:"Verification",content:<><h3>Evidence submissions</h3>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
             <select
               aria-label="Filter verification status"
@@ -362,6 +363,7 @@ export function TrustPanel() {
           )}
 
           </>},{title:"Account health",content:<><h3>Seller-health reports</h3>
+          <SafetyPhraseRules />
           <p>Priority includes serious reports and sellers reported by at least three different buyers in six months. Only confirmed violations affect the conduct score.</p>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
             <select
@@ -394,12 +396,20 @@ export function TrustPanel() {
                     <tr key={row.case_id}>
                       <td><strong>{row.case_id}</strong>{row.seller_id && <div>Seller {row.seller_id}</div>}{row.request_id && <div>Request {row.request_id}</div>}</td>
                       <td>
+                        {row.priority === 3 && <><span className="status danger">Safety alarm</span>{" "}</>}
                         {row.priority === 2 && <strong>Urgent · </strong>}
                         {row.priority === 1 && <strong>Pattern · </strong>}
                         {(row.category ?? row.reason_code).replaceAll('_', ' ')}
                         {!!row.reporting_buyers && row.priority === 1 && <div>{row.reporting_buyers} buyers in six months</div>}
                       </td>
-                      <td><details><summary>{row.body.slice(0, 100)}{row.body.length > 100 ? '…' : ''}</summary><p>{row.body}</p></details></td>
+                      <td>
+                        <details><summary>{row.body.slice(0, 100)}{row.body.length > 100 ? '…' : ''}</summary>
+                          <p>{row.body}</p>
+                          {!!row.matched_phrases?.length && <><strong>Matched phrases</strong><ul>
+                            {row.matched_phrases.map((phrase) => <li key={phrase}>{phrase}</li>)}
+                          </ul></>}
+                        </details>
+                      </td>
                       <td>
                         {row.decision ? (
                           <span>
