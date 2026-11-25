@@ -14,7 +14,7 @@ export default function SellerPlanIdentity({plan,entitlement,priceLabel,current=
   <header className="seller-current-plan-heading"><div><p className="plan-kicker">{current?'Current plan':'Seller plan'}</p><Heading>{names[role]}</Heading><div className="plan-current-meta">{priceLabel&&<span>{priceLabel}</span>}{current&&<span className="plan-active">Active</span>}</div></div>{paid&&<BillingArtwork plan={role} crop={[590,230,205,185]} size={primary?96:112}/>}</header>
   <ul className={paid?'plan-benefits':'plan-benefits free-benefits'}>{benefits.map((benefit,i)=>{
    const index=limits?i:i+2;
-   const label=compactFreeSummary&&limits&&i===0?`${limits.weekly_target_limit} weekly customers`
+   const label=compactFreeSummary&&limits&&i===0?`${limits.weekly_target_limit} different buyers per week`
      :compactFreeSummary&&limits&&i===1?`Up to ${limits.store_listing_limit} listings`
      :compactFreeSummary&&benefit===earnedProBenefit?`Earn Pro with ${threshold} sales`:benefit;
    return <li key={benefit}><BillingArtwork plan={role} crop={paid?[76,438+index*80,70,68]:[[82,403,115,100],[275,403,115,100],[464,403,115,100],[657,403,115,100]][index] as [number,number,number,number]} size={paid?(primary?30:38):46}/><span>{label}</span></li>;

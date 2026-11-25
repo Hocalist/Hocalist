@@ -48,7 +48,7 @@ test('Free comparison card explains the full benefits and earned Pro timing',()=
  const html=renderToStaticMarkup(createElement(SellerPlanIdentity,{plan:'free',entitlement:{
   policy:{earned_pro_threshold:7},plans:[{plan_code:'free',weekly_target_limit:10,store_listing_limit:3}],
  }}));
- for(const benefit of ['Target up to 10 weekly customers','List up to 3 products or services',
+ for(const benefit of ['Target up to 10 different buyers per week','List up to 3 products or services',
   '7 PIN-confirmed sales this month unlock Pro next month','Seller storefront']){
   assert.ok(html.includes(benefit),`Free comparison card must show: ${benefit}`);
  }

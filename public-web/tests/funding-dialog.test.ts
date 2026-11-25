@@ -61,5 +61,5 @@ test('credit popup includes discounted packs and both standard funding choices w
 });
 test('downgrade review explains limits and keeps change behind provider confirmation',()=>{
  const html=renderToStaticMarkup(createElement(PlanChangeDialog,{target:'free',onClose:()=>{},onContinue:()=>{},busy:false,entitlement:{plans:[{plan_code:'free',weekly_target_limit:10,store_listing_limit:3}],store_listing:{active:8,limit:15}}}));
- for(const text of ['Switch to Free','10 weekly customer targets','3 active listings','8 active listings','unchanged until you confirm','Keep current plan','Choose cancellation']) assert.ok(html.includes(text),text);
+ for(const text of ['Switch to Free','10 different buyers per week','3 active listings','8 active listings','unchanged until you confirm','Keep current plan','Choose cancellation']) assert.ok(html.includes(text),text);
 });
