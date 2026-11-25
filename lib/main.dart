@@ -55,6 +55,7 @@ import 'features/media/private_remote_image.dart';
 import 'data/phase2/support/support_adapter.dart';
 import 'data/phase2/support/support_composition.dart';
 import 'features/support/support_cases_page.dart';
+import 'features/support/chat_report_reasons.dart';
 import 'data/phase2/outcomes/sale_composition.dart';
 import 'features/meetings/sale_confirmation_panel.dart';
 
@@ -680,13 +681,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   SupportAdapter? _supportAdapter;
   String? _supportConversationId;
   String? _supportSellerOfferId;
+  bool _supportFromChat = false;
   Widget _realSupportPage() => SupportCasesPage(
     key: ValueKey(
-      'support-${page.name}-${_supportSellerOfferId ?? _supportConversationId ?? 'general'}',
+      'support-${page.name}-${_supportConversationId ?? _supportSellerOfferId ?? 'general'}',
     ),
     initialReasonCode: page == AppPage.reportIssue ? 'safety' : 'general',
     generalHelp: page != AppPage.reportIssue,
     seller: role == UserRole.seller,
+    fromChat: page == AppPage.reportIssue && _supportFromChat,
     adapter: _supportAdapter ??= createSupportAdapter(),
     onBack: back,
     conversationId: page == AppPage.reportIssue ? _supportConversationId : null,
@@ -2842,15 +2845,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         _newRequestBudget = '';
       }
       if (destination == AppPage.reportIssue) {
+        _supportFromChat =
+            page == AppPage.buyerChat || page == AppPage.sellerConversation;
+        if (_supportFromChat && widget.accountSession == null) {
+          reportSubmitted = false;
+        }
         _supportSellerOfferId = role != UserRole.buyer ? null : switch (page) {
           AppPage.buyerChat => _marketplace.activeChatOfferId,
           AppPage.meetingDetails => _marketplace.meetingDetail?.offerId,
           _ => null,
         };
         _supportConversationId =
-            _marketplace.isChatBacked &&
-                (page == AppPage.buyerChat ||
-                    page == AppPage.sellerConversation)
+            _marketplace.isChatBacked && _supportFromChat
             ? _marketplace.activeConversationId
             : null;
       }
@@ -7258,6 +7264,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         if (widget.accountSession != null) return _realSupportPage();
         return ReportIssuePage(
           accent: accent,
+          chatViewerIsSeller: _supportFromChat ? role == UserRole.seller : null,
           submitted: reportSubmitted,
           onSubmit: () => commit(
             next: AppPage.reportIssue,

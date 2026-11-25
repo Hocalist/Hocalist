@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hocalist/data/jons_dev_sample_deal.dart';
 import 'package:hocalist/features/approved/buyer_deal_card.dart';
 import 'package:hocalist/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,31 @@ void main() {
     await tap(tester, find.byTooltip('Switch account'));
     await tap(tester, find.text(option).last);
   }
+
+  testWidgets('each chat menu opens the matching quick report in Jon’s Dev', (
+    tester,
+  ) async {
+    await openPreview(tester);
+    await tap(tester, find.byTooltip('Chat with seller'));
+    await tap(tester, find.byKey(const Key('approved-chat-more')));
+    await tap(tester, find.text('Report seller'));
+    await tap(tester, find.text('Choose a reason'));
+    await tap(tester, find.text('Offered an illegal product or service'));
+    await tap(tester, find.text('Save report'));
+    expect(find.text('Report Saved'), findsOneWidget);
+
+    await choose(tester, 'Seller');
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tap(tester, find.text('Chats').last);
+    await tap(tester, find.text(sampleDealRequest.buyerName).first);
+    await tap(tester, find.byKey(const Key('approved-chat-more')));
+    await tap(tester, find.text('Report buyer'));
+    await tap(tester, find.text('Choose a reason'));
+    await tap(tester, find.text('Requested an illegal product or service'));
+    await tap(tester, find.text('Save report'));
+    expect(find.text('Report Saved'), findsOneWidget);
+  });
 
   testWidgets('seller sends the same offer the buyer sees and confirms', (
     tester,

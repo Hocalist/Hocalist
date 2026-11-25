@@ -12942,21 +12942,31 @@ class SafetyGuidePage extends StatelessWidget {
   }
 }
 
-class ReportIssuePage extends StatelessWidget {
+class ReportIssuePage extends StatefulWidget {
   const ReportIssuePage({
     required this.accent,
     required this.submitted,
     required this.onSubmit,
+    this.chatViewerIsSeller,
     super.key,
   });
 
   final Color accent;
   final bool submitted;
   final VoidCallback onSubmit;
+  final bool? chatViewerIsSeller;
+
+  @override
+  State<ReportIssuePage> createState() => _ReportIssuePageState();
+}
+
+class _ReportIssuePageState extends State<ReportIssuePage> {
+  ChatReportReason? _reason;
+  String _details = '';
 
   @override
   Widget build(BuildContext context) {
-    if (submitted) {
+    if (widget.submitted) {
       return const _BuyerSubpageBlock(
         title: 'Report Saved',
         subtitle:
@@ -12977,8 +12987,13 @@ class ReportIssuePage extends StatelessWidget {
       );
     }
 
+    final chatSeller = widget.chatViewerIsSeller;
     return _BuyerSubpageBlock(
-      title: 'Report a Problem',
+      title: switch (chatSeller) {
+        true => 'Report buyer',
+        false => 'Report seller',
+        null => 'Report a Problem',
+      },
       subtitle: 'Describe an unsafe interaction, user, or deal concern.',
       children: [
         _BuyerSubpageSection(
@@ -12990,16 +13005,38 @@ class ReportIssuePage extends StatelessWidget {
                 children: [
                   const BuyerFieldLabel('Report reason'),
                   const SizedBox(height: 5),
-                  TextFormField(
-                    decoration: buyerInputDecoration(
-                      context,
-                      hintText: 'Choose or describe the main concern',
+                  if (chatSeller != null)
+                    AccountSecondaryButton(
+                      seller: chatSeller,
+                      label: _reason?.label ?? 'Choose a reason',
+                      onPressed: () async {
+                        final selected = await pickChatReportReason(
+                          context,
+                          seller: chatSeller,
+                          reasons: chatReportReasons(seller: chatSeller),
+                          selected: _reason,
+                        );
+                        if (mounted && selected != null) {
+                          setState(() => _reason = selected);
+                        }
+                      },
+                    )
+                  else
+                    TextFormField(
+                      decoration: buyerInputDecoration(
+                        context,
+                        hintText: 'Choose or describe the main concern',
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 12),
-                  const BuyerFieldLabel('What happened?'),
+                  BuyerFieldLabel(
+                    chatSeller != null && _reason?.requiresDetails != true
+                        ? 'Add details (optional)'
+                        : 'What happened?',
+                  ),
                   const SizedBox(height: 5),
                   TextFormField(
+                    onChanged: chatSeller == null ? null : (value) => setState(() => _details = value),
                     minLines: 3,
                     maxLines: 5,
                     decoration: buyerInputDecoration(
@@ -13025,7 +13062,11 @@ class ReportIssuePage extends StatelessWidget {
         ),
         BuyerPrimaryButton(
           label: 'Save report',
-          onPressed: onSubmit,
+          onPressed: chatSeller == null ||
+                  (_reason != null &&
+                      (!_reason!.requiresDetails || _details.trim().length >= 10))
+              ? widget.onSubmit
+              : null,
           colors: const [HocalistTheme.danger, Color(0xffd62f29)],
           leading: BuyerGlyphIcon(
             icon: Icons.outgoing_mail,
