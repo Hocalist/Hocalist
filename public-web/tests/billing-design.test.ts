@@ -53,3 +53,11 @@ test('Free comparison card explains the full benefits and earned Pro timing',()=
   assert.ok(html.includes(benefit),`Free comparison card must show: ${benefit}`);
  }
 });
+
+test('Elite comparison card shows the distinct-buyer quota and fee waiver exception',()=>{
+ const html=renderToStaticMarkup(createElement(SellerPlanIdentity,{plan:'elite',entitlement:{
+  plans:[{plan_code:'elite',weekly_target_limit:100,store_listing_limit:50}],
+ }}));
+ assert.match(html,/100 different buyers per week/);
+ assert.match(html,/Viewing competing offers removes the waiver for that request/);
+});

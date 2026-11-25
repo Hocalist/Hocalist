@@ -6,6 +6,7 @@ import {schedule} from '../outcomes/tests/fixture.mjs';
 const read=p=>readFile(new URL(p,import.meta.url),'utf8');
 const freeQuotaMigration='../../supabase/migrations/20261125190045_free_weekly_unique_buyers.sql';
 const pullOutMigration='../../supabase/migrations/20261125192441_pro_buyer_quota_and_offer_pull_out.sql';
+const eliteMigration='../../supabase/migrations/20261125193543_elite_buyer_quota_and_lead_insights.sql';
 
 async function configureCardFunding(db, seller, membership, label) {
  const setup = crypto.randomUUID();
@@ -33,6 +34,8 @@ test('commercial changes install together with payment gates disabled and verifi
   await db.exec(await read('../../supabase/migrations/20261027065137_elite_deferred_initial_fee.sql'));
   await db.exec(await read(freeQuotaMigration));
   await db.exec(await read(pullOutMigration));
+  await db.exec(await read('./248_seller_customer_tools.sql'));
+  await db.exec(await read(eliteMigration));
   assert.equal((await db.query('SELECT enabled FROM hocalist.paygo_collection_policy')).rows[0].enabled,false);
   assert.equal((await db.query('SELECT enabled FROM hocalist.standard_wallet_policy')).rows[0].enabled,false);
   await db.exec("INSERT INTO hocalist.credit_deposit_options(amount_minor,initial_fee_minor,winning_total_minor,rate_version) VALUES(2000,195,475,'test'),(4000,185,450,'test')");
@@ -45,7 +48,7 @@ test('commercial changes install together with payment gates disabled and verifi
  }finally{await db.close();}
 });
 
-test('Free and Pro count distinct weekly buyers across funding methods', async () => {
+test('Free, Pro and Elite count distinct weekly buyers across funding methods', async () => {
  const db = await createCommercialDb();
  try {
   for (const path of [
@@ -53,12 +56,12 @@ test('Free and Pro count distinct weekly buyers across funding methods', async (
    './228_target_fee_policy.sql', './229_earned_pro_policy.sql', './231_deal_chat_threads.sql',
    './235_paygo_payment_setup.sql', './236_paygo_collection.sql',
    '../../supabase/migrations/20261027065137_elite_deferred_initial_fee.sql',
-   freeQuotaMigration, pullOutMigration,
+   freeQuotaMigration, pullOutMigration, './248_seller_customer_tools.sql', eliteMigration,
   ]) await db.exec(await read(path));
 
   const seller = IDS.seller;
   const buyers = [{ user: IDS.buyer, membership: IDS.buyerMembership }];
-  for (let index = 1; index < 51; index++) {
+  for (let index = 1; index < 101; index++) {
    const buyer = { user: crypto.randomUUID(), membership: crypto.randomUUID() };
    await db.query("INSERT INTO auth.users(id, raw_user_meta_data) VALUES($1,'{}')", [buyer.user]);
    await db.query("INSERT INTO hocalist.memberships(id,user_id,role,status) VALUES($1,$2,'buyer','active')",
@@ -68,7 +71,7 @@ test('Free and Pro count distinct weekly buyers across funding methods', async (
 
   const [week] = (await db.query("SELECT date_trunc('week',now() AT TIME ZONE 'UTC')::date::text AS start")).rows;
   const batch = (await db.query(
-   "SELECT hocalist.credit_deposit_internal($1,'unique-buyer-test',40000,200,500,'test') AS id", [seller],
+   "SELECT hocalist.credit_deposit_internal($1,'unique-buyer-test',70000,200,500,'test') AS id", [seller],
   )).rows[0].id;
   const newOffer = async (buyer) => {
    const request = crypto.randomUUID();
@@ -122,8 +125,6 @@ test('Free and Pro count distinct weekly buyers across funding methods', async (
   const setPlan = (plan) => callAs(db, 'authenticated', IDS.admin,
    'SELECT hocalist.entitlement_admin_command($1,$2,$3::jsonb)',
    ['grant.set', `quota-${plan}`, JSON.stringify({user_id: seller, plan_code: plan, active: true})]);
-  await setPlan('elite');
-  assert.equal((await wallet('commercial_credit_wallet')).used, 13, 'Elite counts requests');
   await setPlan('pro');
   assert.equal((await wallet('commercial_credit_wallet')).used, 10, 'Pro counts distinct buyers');
   for (const buyer of buyers.slice(10, 50)) await reserve(prepaid, await newOffer(buyer));
@@ -136,6 +137,19 @@ test('Free and Pro count distinct weekly buyers across funding methods', async (
    const weekly = await wallet(routine);
    assert.equal(weekly.limit, 50);
    assert.equal(weekly.used, 50);
+  }
+  await setPlan('elite');
+  assert.equal((await wallet('commercial_credit_wallet')).used, 50, 'upgrading preserves the distinct-buyer count');
+  for (const buyer of buyers.slice(50, 100)) await reserve(prepaid, await newOffer(buyer));
+  const hundredFirst = await newOffer(buyers[100]);
+  await assert.rejects(reserve(prepaid, hundredFirst), /weekly_target_limit/);
+  await assert.rejects(reserve(paygo, hundredFirst), /weekly_target_limit/);
+  await reserve(prepaid, await newOffer(buyers[0]));
+  await reserve(paygo, await newOffer(buyers[1]));
+  for (const routine of ['credit_wallet', 'commercial_credit_wallet']) {
+   const weekly = await wallet(routine);
+   assert.equal(weekly.limit, 100);
+   assert.equal(weekly.used, 100);
   }
  } finally {
   await db.close();

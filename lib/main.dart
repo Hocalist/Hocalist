@@ -7671,6 +7671,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               sellerName: sellerName,
               onOfferSubmitted: _submitSellerOffer,
               localOfferDefaults: _sampleDealEnabled ? initialSampleOffer(DateTime.now()) : null,
+              loadLeadInsights: _discoveryBackend?.loadLeadInsights,
               onValidateLead: _marketplace.isOffersBacked
                   ? (lead) async {
                       final client = Supabase.instance.client;

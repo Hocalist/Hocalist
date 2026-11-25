@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hocalist/domain/phase2/commercial/commercial.dart';
+import 'package:hocalist/domain/phase2/customers.dart';
+import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
 import 'package:hocalist/features/seller/seller_offer_fee_guide.dart';
+import 'package:hocalist/theme/seller_ui_foundation.dart';
 
 import '../tool/jons_dev.dart' as dev;
 
@@ -35,7 +39,7 @@ void main() {
     await tester.tap(help);
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('viewing competing offers can affect'),
+      find.textContaining('Viewing competing offers removes the waiver for this request'),
       findsOneWidget,
     );
     final helpNavigator = tester.state<NavigatorState>(find.byType(Navigator));
@@ -56,5 +60,50 @@ void main() {
       find.descendant(of: guide, matching: find.text(reserved)),
       findsOneWidget,
     );
+  });
+
+  testWidgets('only Elite can load lead insights before sending', (tester) async {
+    final requested = <String>[];
+    Future<void> openOffer(PlanCode plan) async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) {
+        return TextButton(onPressed: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => SellerOfferForm(
+            lead: const SellerLeadView(
+              requestId: 'sample-request', name: 'Sample buyer', initials: 'SB',
+              city: 'Brooksville, FL', distance: '3 mi', request: 'Dining table',
+              description: 'A dining table for four.', budget: r'$250', match: 90,
+              purchases: 0, lastPurchase: '', meeting: 'Public place',
+              avatarColor: Color(0xfff0edff), initialColor: Color(0xff1717d5),
+            ),
+            sellerName: 'Sample seller',
+            presentation: const SellerOfferPresentation.approvedPrototype(),
+            previewFeePlan: plan,
+            loadLeadInsights: (requestId) async {
+              requested.add(requestId);
+              return const CustomerHistory(concludedRequests: 12, confirmedPurchases: 8,
+                ongoingRequests: 1, completionPercent: 66.7);
+            },
+          ),
+        ), child: const Text('Prepare offer'));
+      }))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Prepare offer'));
+      await tester.pumpAndSettle();
+    }
+
+    await openOffer(PlanCode.pro);
+    expect(requested, isEmpty);
+    expect(find.text('Customer Insights'), findsNothing);
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+    await openOffer(PlanCode.elite);
+    expect(requested, ['sample-request']);
+    final insights = find.text('Customer Insights');
+    await tester.ensureVisible(insights);
+    await tester.pumpAndSettle();
+    expect(find.text('8 of 12 concluded requests ended in a PIN-confirmed purchase.'), findsOneWidget);
+    expect(find.text('Send Offer'), findsOneWidget);
   });
 }

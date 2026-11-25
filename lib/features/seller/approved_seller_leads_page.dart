@@ -19,6 +19,7 @@ import '../../components/pull_refresh.dart';
 import '../../components/hocalist_paged_list.dart';
 
 import '../../data/local_marketplace_repository.dart';
+import '../../domain/phase2/customers.dart';
 import '../../data/phase2/commercial/commercial_wallet_backend.dart';
 import '../../data/phase2/commercial/entitlement_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
@@ -98,6 +99,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
     this.onSubmitOffer,
     this.offeredRequestIds = const <String>{},
     this.onValidateLead,
+    this.loadLeadInsights,
     this.uploadImage,
     this.leadPaging,
     this.discoveryOrigin,
@@ -117,6 +119,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   final Future<SellerDiscoveryOrigin> Function()? onLoadSearchLocation;
   final Set<String> offeredRequestIds;
   final Future<SellerLeadView?> Function(SellerLeadView)? onValidateLead;
+  final Future<CustomerHistory?> Function(String)? loadLeadInsights;
   final ValueChanged<LocalOfferRecord>? onOfferSubmitted;
   final LocalOfferRecord? localOfferDefaults;
   final String sellerName;
@@ -785,6 +788,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
         sellerName: widget.sellerName,
         presentation: widget.offerPresentation,
         localOfferDefaults: widget.localOfferDefaults,
+        loadLeadInsights: widget.loadLeadInsights,
         onChooseSpecificLocation: widget.onChooseSpecificLocation,
         automaticTimezone: widget.automaticTimezone,
         resolveBusinessPlace: widget.resolveBusinessPlace,
@@ -1669,6 +1673,7 @@ class SellerOfferForm extends StatefulWidget {
     this.uploadImage,
     this.previewFeePlan,
     this.localOfferDefaults,
+    this.loadLeadInsights,
   });
 
   final SellerLeadView lead;
@@ -1685,6 +1690,7 @@ class SellerOfferForm extends StatefulWidget {
   final ImageUpload? uploadImage;
   final PlanCode? previewFeePlan;
   final LocalOfferRecord? localOfferDefaults;
+  final Future<CustomerHistory?> Function(String)? loadLeadInsights;
 
   final SellerOfferEditFields? edit;
   @override
@@ -1694,6 +1700,13 @@ class SellerOfferForm extends StatefulWidget {
 class _SendOfferSheetState extends State<SellerOfferForm> {
   bool get _realMode => widget.onSubmitOffer != null || widget.edit != null;
   PlanCode? _feePlan;
+  Future<CustomerHistory?>? _leadInsights;
+
+  Future<CustomerHistory?>? _loadLeadInsights(PlanCode? plan) {
+    final requestId = widget.lead.requestId;
+    if (plan != PlanCode.elite || requestId == null || widget.edit != null) return null;
+    return widget.loadLeadInsights?.call(requestId);
+  }
   SellerOfferPresentation get _presentation =>
       _realMode ? _livePresentation : widget.presentation;
   SellerOfferPresentation _livePresentation =
@@ -1723,6 +1736,7 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
       setState(() {
         _feePlan = plan;
         _canPublish = plan == PlanCode.pro || plan == PlanCode.elite;
+        _leadInsights = _loadLeadInsights(plan);
       });
       if (backend == null) return;
       final wallet = await backend.loadCreditWallet();
@@ -1837,6 +1851,8 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
           if (mounted) _resolveBusiness();
         });
       }
+    } else {
+      _leadInsights = _loadLeadInsights(widget.previewFeePlan);
     }
     final firstName = widget.lead.name.split(' ').first;
     final product = widget.lead.request
@@ -2537,6 +2553,7 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                         ),
                       ),
                       SizedBox(height: metrics.spacing(10)),
+
                       if (edit == null) Padding(
                         padding: EdgeInsets.only(left: metrics.geometry(40)),
                         child: Wrap(
@@ -2809,6 +2826,27 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                       ),
                       SizedBox(height: metrics.spacing(10)),
 
+                      if (_leadInsights case final insights?) ...[
+                        FutureBuilder<CustomerHistory?>(
+                          future: insights,
+                          builder: (context, snapshot) {
+                            final history = snapshot.data;
+                            final body = switch (snapshot.connectionState) {
+                              ConnectionState.waiting => 'Loading purchase history…',
+                              _ when snapshot.hasError => 'Purchase history is unavailable.',
+                              _ when history != null =>
+                                '${history.confirmedPurchases} of ${history.concludedRequests} concluded requests ended in a PIN-confirmed purchase.',
+                              _ => 'Not enough concluded requests to show purchase history.',
+                            };
+                            return SellerStateNotice(
+                              icon: Icons.insights_outlined,
+                              title: 'Customer Insights',
+                              body: body,
+                            );
+                          },
+                        ),
+                        SizedBox(height: metrics.spacing(10)),
+                      ],
                       if (_submitError != null) ...[
                         Text(
                           _submitError!,

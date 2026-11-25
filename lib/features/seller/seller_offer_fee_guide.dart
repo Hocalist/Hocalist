@@ -122,7 +122,7 @@ class SellerOfferFeeGuide extends StatelessWidget {
                         'If the buyer replies, the initial lead fee applies. If the buyer confirms a purchase from you with their PIN, any initial fee already paid counts toward the total winning fee.',
                   if (plan == null || elite)
                     'Elite':
-                        'The initial lead fee can apply once a purchase is confirmed with any seller or the seven-day window ends. If nobody confirms a purchase, viewing competing offers can affect whether the initial fee is waived. An existing meetup can keep credits reserved longer.',
+                        'The initial lead fee can apply once a purchase is confirmed with any seller or the seven-day window ends. If nobody confirms a purchase, eligible fees are waived. Viewing competing offers removes the waiver for this request. An existing meetup can keep credits reserved longer.',
                   if (plan == PlanCode.free || plan == PlanCode.pro)
                     'Explore plan benefits':
                         'Go to More → Plans & credits to compare plans.',

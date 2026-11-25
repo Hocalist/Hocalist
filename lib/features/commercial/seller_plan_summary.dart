@@ -20,9 +20,7 @@ class SellerPlanSummary extends StatelessWidget {
     final limits = value.plans.where((p) => p.planCode == plan).firstOrNull;
     final rows = <String>[
       if (limits != null)
-        plan != PlanCode.elite
-            ? 'Target up to ${limits.weeklyTargetLimit} different buyers per week'
-            : 'Target up to ${limits.weeklyTargetLimit} weekly customers',
+        'Target up to ${limits.weeklyTargetLimit} different buyers per week',
       if (limits != null)
         'List up to ${limits.storeListingLimit} products or services',
       if (plan == PlanCode.free)
@@ -36,7 +34,7 @@ class SellerPlanSummary extends StatelessWidget {
         'More savings on targeting fees',
       ],
       if (elite) ...[
-        'Refunds when no purchase is confirmed',
+        'Eligible fee waivers when no purchase is confirmed',
         'View competing offers after buyer acceptance',
         'Customer insights',
       ],

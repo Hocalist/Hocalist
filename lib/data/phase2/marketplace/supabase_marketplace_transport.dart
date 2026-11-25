@@ -96,6 +96,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'seller_customers',
     'seller_customer_save',
     'seller_customer_insights',
+    'seller_lead_insights',
     'discovery_open_enquiry',
   };
 
