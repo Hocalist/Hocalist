@@ -65,10 +65,10 @@ class SellerOfferFeeGuide extends StatelessWidget {
           if (planName != null)
             Padding(
               padding: EdgeInsets.only(bottom: metrics.spacing(10)),
-              child: Text(
-                '$planName plan',
-                style: sellerText(metrics, 12, weight: FontWeight.w800),
-              ),
+              child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 4, children: [
+                Text('$planName plan', style: sellerText(metrics, 12, weight: FontWeight.w800)),
+                if (elite) const SellerPlanBadge(label: 'Elite fee protection'),
+              ]),
             ),
           for (final (icon, heading, description) in steps)
             Padding(

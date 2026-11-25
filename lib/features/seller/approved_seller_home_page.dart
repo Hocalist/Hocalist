@@ -288,6 +288,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 _SectionTitle(
                   title: 'Recommended leads for you',
                   subtitle: 'Buyer requests that match what you offer',
+                  benefit: SellerPlanBadge(label: 'Pro & Elite benefit', locked: widget.recommendationsLocked),
                   action: 'View all',
                   onAction: widget.onLeads,
                 ),
@@ -1467,10 +1468,12 @@ class _SectionTitle extends StatelessWidget {
     required this.action,
     required this.onAction,
     this.subtitle,
+    this.benefit,
   });
 
   final String title;
   final String? subtitle;
+  final Widget? benefit;
   final String action;
   final VoidCallback onAction;
 
@@ -1493,6 +1496,10 @@ class _SectionTitle extends StatelessWidget {
                   subtitle!,
                   style: sellerText(metrics, 10.5, color: SellerUiColors.body),
                 ),
+              if (benefit != null) ...[
+                const SizedBox(height: 4),
+                benefit!,
+              ],
             ],
           ),
         ),

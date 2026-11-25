@@ -61,6 +61,8 @@ class _HocatrendsOfferPanelState extends State<HocatrendsOfferPanel> {
       child: Material(color: Colors.transparent, child: Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      const Align(alignment: Alignment.centerLeft,
+        child: SellerPlanBadge(label: 'Pro & Elite benefit')),
       SwitchListTile.adaptive(
         key: const Key('hocatrends-offer-opt-in'),
         contentPadding: EdgeInsets.zero,

@@ -170,9 +170,17 @@ class SellerPlanSummary extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            rows[i],
-                            style: const TextStyle(fontSize: 14, height: 1.4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(rows[i], style: const TextStyle(fontSize: 14, height: 1.4)),
+                              if (plan != PlanCode.free) ...[
+                                const SizedBox(height: 5),
+                                SellerPlanBadge(label: artworkIndices[i] < 2
+                                    ? '$name benefit'
+                                    : artworkIndices[i] >= 7 ? 'Elite benefit' : 'Pro & Elite benefit'),
+                              ],
+                            ],
                           ),
                         ),
                       ],

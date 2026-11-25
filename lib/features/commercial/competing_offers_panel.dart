@@ -106,6 +106,9 @@ class _CompetingOffersPanelState extends State<CompetingOffersPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Align(alignment: Alignment.centerLeft,
+            child: SellerPlanBadge(label: 'Elite benefit')),
+          const SizedBox(height: 8),
           if (_prices != null) ...[
             const SellerSectionHeading(title: 'Competing offer prices'),
             const SizedBox(height: 8),

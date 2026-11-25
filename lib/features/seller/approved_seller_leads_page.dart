@@ -100,6 +100,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
     this.offeredRequestIds = const <String>{},
     this.onValidateLead,
     this.loadLeadInsights,
+    this.onComparePlans,
     this.uploadImage,
     this.leadPaging,
     this.discoveryOrigin,
@@ -120,6 +121,7 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   final Set<String> offeredRequestIds;
   final Future<SellerLeadView?> Function(SellerLeadView)? onValidateLead;
   final Future<CustomerHistory?> Function(String)? loadLeadInsights;
+  final VoidCallback? onComparePlans;
   final ValueChanged<LocalOfferRecord>? onOfferSubmitted;
   final LocalOfferRecord? localOfferDefaults;
   final String sellerName;
@@ -789,6 +791,7 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
         presentation: widget.offerPresentation,
         localOfferDefaults: widget.localOfferDefaults,
         loadLeadInsights: widget.loadLeadInsights,
+        onComparePlans: widget.onComparePlans,
         onChooseSpecificLocation: widget.onChooseSpecificLocation,
         automaticTimezone: widget.automaticTimezone,
         resolveBusinessPlace: widget.resolveBusinessPlace,
@@ -1674,6 +1677,7 @@ class SellerOfferForm extends StatefulWidget {
     this.previewFeePlan,
     this.localOfferDefaults,
     this.loadLeadInsights,
+    this.onComparePlans,
   });
 
   final SellerLeadView lead;
@@ -1691,6 +1695,7 @@ class SellerOfferForm extends StatefulWidget {
   final PlanCode? previewFeePlan;
   final LocalOfferRecord? localOfferDefaults;
   final Future<CustomerHistory?> Function(String)? loadLeadInsights;
+  final VoidCallback? onComparePlans;
 
   final SellerOfferEditFields? edit;
   @override
@@ -1701,6 +1706,13 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
   bool get _realMode => widget.onSubmitOffer != null || widget.edit != null;
   PlanCode? _feePlan;
   Future<CustomerHistory?>? _leadInsights;
+  PlanCode? get _insightsPlan => _realMode ? _feePlan : widget.previewFeePlan;
+
+  void _comparePlans() {
+    if (!_ownsCurrentRoute) return;
+    _close();
+    widget.onComparePlans?.call();
+  }
 
   Future<CustomerHistory?>? _loadLeadInsights(PlanCode? plan) {
     final requestId = widget.lead.requestId;
@@ -2826,24 +2838,12 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                       ),
                       SizedBox(height: metrics.spacing(10)),
 
-                      if (_leadInsights case final insights?) ...[
-                        FutureBuilder<CustomerHistory?>(
-                          future: insights,
-                          builder: (context, snapshot) {
-                            final history = snapshot.data;
-                            final body = switch (snapshot.connectionState) {
-                              ConnectionState.waiting => 'Loading purchase history…',
-                              _ when snapshot.hasError => 'Purchase history is unavailable.',
-                              _ when history != null =>
-                                'This buyer confirmed a purchase on ${history.confirmedPurchases} of ${history.concludedRequests} past requests.',
-                              _ => 'Not enough purchase history yet.',
-                            };
-                            return SellerStateNotice(
-                              icon: Icons.insights_outlined,
-                              title: 'About this customer',
-                              body: body,
-                            );
-                          },
+                      if (edit == null && widget.lead.requestId != null &&
+                          widget.loadLeadInsights != null && _insightsPlan != null) ...[
+                        _LeadInsightsNotice(
+                          unlocked: _insightsPlan == PlanCode.elite,
+                          history: _leadInsights,
+                          onComparePlans: widget.onComparePlans == null ? null : _comparePlans,
                         ),
                         SizedBox(height: metrics.spacing(10)),
                       ],
@@ -3953,6 +3953,52 @@ class _OfferMessageField extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _LeadInsightsNotice extends StatelessWidget {
+  const _LeadInsightsNotice({required this.unlocked, this.history, this.onComparePlans});
+
+  final bool unlocked;
+  final Future<CustomerHistory?>? history;
+  final VoidCallback? onComparePlans;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, unlocked ? SellerUiColors.amberSurface : SellerUiColors.lavender),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: HocalistPalette.border(context, SellerUiColors.line)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 6, children: [
+          Text('About this customer', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          SellerPlanBadge(label: unlocked ? 'Elite benefit' : 'Elite only', locked: !unlocked),
+        ]),
+        const SizedBox(height: 8),
+        if (unlocked)
+          FutureBuilder<CustomerHistory?>(
+            future: history,
+            builder: (context, snapshot) {
+              final data = snapshot.data;
+              return Text(switch (snapshot.connectionState) {
+                ConnectionState.waiting => 'Loading purchase history…',
+                _ when snapshot.hasError => 'Purchase history is unavailable.',
+                _ when data != null =>
+                  'This buyer confirmed a purchase on ${data.confirmedPurchases} of ${data.concludedRequests} past requests.',
+                _ => 'Not enough purchase history yet.',
+              });
+            },
+          )
+        else ...[
+          const Text('Upgrade to Elite to see this buyer’s purchase history.'),
+          if (onComparePlans != null)
+            TextButton(onPressed: onComparePlans, child: const Text('Compare plans')),
+        ],
+      ]),
     );
   }
 }

@@ -62,8 +62,9 @@ void main() {
     );
   });
 
-  testWidgets('only Elite can load lead insights before sending', (tester) async {
+  testWidgets('Free and Pro see the upgrade and only Elite loads lead insights', (tester) async {
     final requested = <String>[];
+    var comparisonsOpened = 0;
     Future<void> openOffer(PlanCode plan) async {
       await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) {
         return TextButton(onPressed: () => showModalBottomSheet<void>(
@@ -80,6 +81,7 @@ void main() {
             sellerName: 'Sample seller',
             presentation: const SellerOfferPresentation.approvedPrototype(),
             previewFeePlan: plan,
+            onComparePlans: () => comparisonsOpened++,
             loadLeadInsights: (requestId) async {
               requested.add(requestId);
               return const CustomerHistory(concludedRequests: 12, confirmedPurchases: 8,
@@ -93,9 +95,21 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    await openOffer(PlanCode.free);
+    expect(requested, isEmpty);
+    expect(find.text('About this customer'), findsOneWidget);
+    expect(find.text('Elite only'), findsOneWidget);
+    final compare = find.text('Compare plans');
+    await tester.ensureVisible(compare);
+    await tester.pumpAndSettle();
+    await tester.tap(compare);
+    await tester.pumpAndSettle();
+    expect(comparisonsOpened, 1);
+    expect(find.text('About this customer'), findsNothing);
     await openOffer(PlanCode.pro);
     expect(requested, isEmpty);
-    expect(find.text('About this customer'), findsNothing);
+    expect(find.text('Elite only'), findsOneWidget);
+    expect(find.text('This buyer confirmed a purchase on 8 of 12 past requests.'), findsNothing);
     tester.state<NavigatorState>(find.byType(Navigator)).pop();
     await tester.pumpAndSettle();
     await openOffer(PlanCode.elite);
@@ -103,6 +117,8 @@ void main() {
     final insights = find.text('About this customer');
     await tester.ensureVisible(insights);
     await tester.pumpAndSettle();
+    expect(find.text('Elite benefit'), findsOneWidget);
+    expect(find.text('Compare plans'), findsNothing);
     expect(find.text('This buyer confirmed a purchase on 8 of 12 past requests.'), findsOneWidget);
     expect(find.text('Send Offer'), findsOneWidget);
   });
