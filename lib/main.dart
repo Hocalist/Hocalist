@@ -7590,7 +7590,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               },
               onOpenLead: (lead) {
                 _rememberLead(lead);
-                final offer = _marketplace.sellerOffers.where((o) => o.requestId == lead.requestId).firstOrNull;
+                final offer = _marketplace.sellerOffers.where((offer) =>
+                    offer.requestId == lead.requestId &&
+                    (offer.status == OfferStatus.submitted || offer.status == OfferStatus.selected)).firstOrNull;
                 if (offer != null) {
                   unawaited(_openSellerOffer(offer));
                   return;

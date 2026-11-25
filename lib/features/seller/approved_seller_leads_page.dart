@@ -299,6 +299,9 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
   @override
   void didUpdateWidget(covariant ApprovedSellerLeadsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _justOfferedRequestIds.removeAll(
+      oldWidget.offeredRequestIds.difference(widget.offeredRequestIds),
+    );
     if (oldWidget.focusedLead != widget.focusedLead) {
       _resetFilters();
       _focusActive = true;

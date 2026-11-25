@@ -43,11 +43,11 @@ test('current subscription matches the verified billing period, not only the tie
 test('comparison plans retain their complete tier benefits and server limits',()=>{
  const entitlement={plans:[{plan_code:'pro',weekly_target_limit:50,store_listing_limit:15},{plan_code:'elite',weekly_target_limit:100,store_listing_limit:50}]};
  assert.ok(planBenefits('pro',entitlement).includes('Contacts dashboard'));
- assert.ok(planBenefits('pro',entitlement).includes('Target up to 50 weekly customers'));
+ assert.ok(planBenefits('pro',entitlement).includes('Target up to 50 different buyers per week'));
  assert.ok(planBenefits('elite',entitlement).includes('Customer insights'));
  assert.ok(planBenefits('elite',entitlement).includes('View competing offers after buyer acceptance'));
  const html=renderToStaticMarkup(createElement(PlanChangeDialog,{target:'pro:year',onClose:()=>{},onContinue:()=>{},busy:false,entitlement}));
- assert.match(html,/Switch to Pro Seller · Annual/);assert.match(html,/50.*weekly customer targets/);
+ assert.match(html,/Switch to Pro Seller · Annual/);assert.match(html,/50 different buyers per week/);
 });
 
 test('standard wallet input preserves exact credit cents and rejects out-of-band amounts',()=>{

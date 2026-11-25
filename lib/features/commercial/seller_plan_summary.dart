@@ -20,7 +20,7 @@ class SellerPlanSummary extends StatelessWidget {
     final limits = value.plans.where((p) => p.planCode == plan).firstOrNull;
     final rows = <String>[
       if (limits != null)
-        plan == PlanCode.free
+        plan != PlanCode.elite
             ? 'Target up to ${limits.weeklyTargetLimit} different buyers per week'
             : 'Target up to ${limits.weeklyTargetLimit} weekly customers',
       if (limits != null)

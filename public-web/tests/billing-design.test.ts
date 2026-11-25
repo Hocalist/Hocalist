@@ -30,7 +30,7 @@ test('card setup waits for status before declaring that it is unavailable',()=>{
 });
 test('billing design renders approved section order with server rates, limits and supplied artwork',()=>{
  const html=renderToStaticMarkup(createElement(SellerBillingOverview,{plan:'pro',entitlement:{plans:[{plan_code:'pro',weekly_target_limit:67,store_listing_limit:19}]},options:[{id:'option',amount_minor:2000,initial_fee_minor:175,winning_total_minor:460}],standard:{plan_code:'pro',initial_minor:190,winning_minor:475},priceLabel:'$120.00 / year',accessLabel:'Active subscription',onAddCredits:()=>{},onSelectPlan:()=>{}}));
- assert.match(html,/67 weekly customers/);assert.match(html,/19 products or services/);
+ assert.match(html,/67 different buyers per week/);assert.match(html,/19 products or services/);
  assert.match(html,/pro-reference.jpg/);assert.match(html,/free-reference.jpg/);
  assert.match(html,/4\.75/);assert.match(html,/1\.90/);assert.match(html,/1\.75 HC/);assert.match(html,/4\.60 HC/);
  assert.ok(html.indexOf('Current plan')<html.indexOf('Targeting fees'));

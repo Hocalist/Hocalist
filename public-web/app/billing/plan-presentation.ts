@@ -3,7 +3,7 @@ import type {BillingEntitlement} from './SellerBillingOverview';
 export function planBenefits(plan:string,entitlement?:BillingEntitlement):string[]{
  const limits=entitlement?.plans?.find(row=>row.plan_code===plan);
  const benefits=limits?[
-  plan==='free'?`Target up to ${limits.weekly_target_limit} different buyers per week`:`Target up to ${limits.weekly_target_limit} weekly customers`,
+  plan==='free'||plan==='pro'?`Target up to ${limits.weekly_target_limit} different buyers per week`:`Target up to ${limits.weekly_target_limit} weekly customers`,
   `List up to ${limits.store_listing_limit} products or services`,
  ]:[];
  const threshold=entitlement?.policy?.earned_pro_threshold??entitlement?.earned?.threshold;

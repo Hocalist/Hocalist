@@ -68,6 +68,11 @@ class MarketplaceErrorMapper {
         entityType: 'request',
       );
     }
+    if (_has(message, 'offer_withdraw_plan_required')) {
+      return const PermissionDeniedError(
+        action: 'offer_withdraw_plan_required', entityType: 'offer',
+      );
+    }
     if (_has(message, 'offer_access_denied')) {
       return const PermissionDeniedError(
         action: 'offer_access_denied',
@@ -241,6 +246,8 @@ class MarketplaceErrorMapper {
       'request_not_editable',
       'request_not_reopenable',
       'offer_not_open',
+      'offer_withdraw_buyer_responded',
+      'offer_funding_conflict',
       'listing_not_editable',
       'conversation_not_eligible',
       'chat_foundation_missing',
