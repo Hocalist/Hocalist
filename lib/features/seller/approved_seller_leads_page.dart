@@ -2,6 +2,7 @@ import 'offer_price_input.dart';
 import '../commercial/seller_offer_presentation.dart';
 export '../commercial/seller_offer_presentation.dart' show SellerOfferPresentation;
 import 'lower_offer_confirmation.dart';
+import 'seller_offer_fee_guide.dart';
 import '../commercial/offer_funding_sheet.dart';
 import '../../data/phase2/maps/places_contract.dart' show PlaceSuggestion;
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
@@ -1660,6 +1661,7 @@ class SellerOfferForm extends StatefulWidget {
     this.timezones = const <String>[],
     this.onSubmitOffer,
     this.uploadImage,
+    this.previewFeePlan,
   });
 
   final SellerLeadView lead;
@@ -1674,6 +1676,7 @@ class SellerOfferForm extends StatefulWidget {
   final List<String> timezones;
   final SellerOfferSubmitter? onSubmitOffer;
   final ImageUpload? uploadImage;
+  final PlanCode? previewFeePlan;
 
   final SellerOfferEditFields? edit;
   @override
@@ -1682,6 +1685,7 @@ class SellerOfferForm extends StatefulWidget {
 
 class _SendOfferSheetState extends State<SellerOfferForm> {
   bool get _realMode => widget.onSubmitOffer != null || widget.edit != null;
+  PlanCode? _feePlan;
   SellerOfferPresentation get _presentation =>
       _realMode ? _livePresentation : widget.presentation;
   SellerOfferPresentation _livePresentation =
@@ -1708,7 +1712,10 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
       bool current() => mounted && (identity == null || (user != null && identity() == user));
       if (!current()) return;
       final plan = entitlement?.effectivePlan;
-      setState(() => _canPublish = plan == PlanCode.pro || plan == PlanCode.elite);
+      setState(() {
+        _feePlan = plan;
+        _canPublish = plan == PlanCode.pro || plan == PlanCode.elite;
+      });
       if (backend == null) return;
       final wallet = await backend.loadCreditWallet();
       if (!current()) return;
@@ -2765,44 +2772,10 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                         number: '5',
                         title: 'How it works',
                         subtitle: '',
-                        child: Container(
-                          padding: EdgeInsets.all(metrics.spacing(10)),
-                          decoration: BoxDecoration(
-                            color: HocalistPalette.surface(
-                              context,
-                              SellerUiColors.lavender,
-                            ),
-                            borderRadius: BorderRadius.circular(
-                              metrics.geometry(9),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              const _OfferHowItWorksRow(
-                                icon: Icons.edit_note_outlined,
-                                text: 'Send your offer to the buyer.',
-                              ),
-                              _OfferHowItWorksRow(
-                                icon: Icons.phone_outlined,
-                                text: _realMode
-                                    ? 'Sending holds the total fee from one eligible credit top-up. Free and Pro pay the initial fee when the buyer replies. Elite fees stay pending until a purchase is confirmed with a PIN or the seven-day deadline. Eligible fees are waived if no purchase happens.'
-                                    : 'Free and Pro initial fees apply after the buyer replies. Elite fees stay pending until a purchase confirmed with a PIN or the seven-day deadline; eligible no-purchase fees are waived.',
-                              ),
-                              _OfferHowItWorksRow(
-                                icon: Icons.emoji_events_outlined,
-                                text: _realMode
-                                    ? 'If the buyer confirms purchasing from you with their Hocalist PIN, only the unpaid part of your total fee is charged.'
-                                    : 'If the buyer confirms the purchase with their Hocalist PIN, you’ll only pay the remaining balance needed to complete your winning bid.',
-                              ),
-                              _OfferHowItWorksRow(
-                                icon: Icons.refresh,
-                                text: _realMode
-                                    ? 'Your credit top-up keeps its original rates. Held credits are released according to the meeting and expiry rules. There is no automatic \$1 charge.'
-                                    : 'If the buyer never confirms a purchase with any seller, your initial bid is automatically reduced to just \$1.00.',
-                                showBottomGap: false,
-                              ),
-                            ],
-                          ),
+                        child: SellerOfferFeeGuide(
+                          plan: _realMode
+                              ? _feePlan
+                              : widget.previewFeePlan ?? PlanCode.pro,
                         ),
                       ),
                       ],
@@ -3925,42 +3898,6 @@ class _OfferMessageField extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _OfferHowItWorksRow extends StatelessWidget {
-  const _OfferHowItWorksRow({
-    required this.icon,
-    required this.text,
-    this.showBottomGap = true,
-  });
-
-  final IconData icon;
-  final String text;
-  final bool showBottomGap;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.of(context);
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: showBottomGap ? metrics.geometry(10) : 0,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
-            size: metrics.artSize(18),
-          ),
-          SizedBox(width: metrics.geometry(9)),
-          Expanded(
-            child: Text(text, style: sellerText(metrics, 11, height: 1.35)),
-          ),
-        ],
-      ),
     );
   }
 }

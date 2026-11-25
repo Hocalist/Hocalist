@@ -2,9 +2,19 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val hocalistJonsDev = System.getenv("HOCALIST_JONS_DEV") == "true"
+val flutterTarget = (project.findProperty("target") as String?)?.replace('\\', '/')
+val jonsDevTarget = flutterTarget?.endsWith("tool/jons_dev.dart") == true
+if (hocalistJonsDev != jonsDevTarget) {
+    throw GradleException("Use HOCALIST_JONS_DEV=true with tool/jons_dev.dart for Jon's Dev.")
+}
+if (!hocalistJonsDev) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 // Maps SDK for Android credential injection contract.
@@ -41,6 +51,9 @@ val hocalistReleaseRequested = gradle.startParameter.taskNames.any {
 if (hocalistReleaseRequested && !hocalistReleaseSigningReady) {
     throw GradleException("Hocalist release signing is not configured. Supply all HOCALIST_RELEASE_* signing variables; use a debug build for local testing.")
 }
+if (hocalistJonsDev && hocalistReleaseRequested) {
+    throw GradleException("Jon's Dev is a debug-only build.")
+}
 
 android {
     namespace = "com.hocalist.app"
@@ -61,6 +74,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["HOCALIST_MAPS_API_KEY"] = hocalistMapsApiKey
+        manifestPlaceholders["HOCALIST_APP_LABEL"] = "Hocalist"
+        manifestPlaceholders["HOCALIST_CALLBACK_SCHEME"] = "com.hocalist.app"
     }
 
     signingConfigs {
@@ -75,6 +90,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (hocalistJonsDev) {
+                applicationIdSuffix = ".jonsdev"
+                manifestPlaceholders["HOCALIST_APP_LABEL"] = "Hocalist – Jon's Dev"
+                manifestPlaceholders["HOCALIST_CALLBACK_SCHEME"] = "com.hocalist.app.jonsdev"
+                manifestPlaceholders["HOCALIST_MAPS_API_KEY"] = ""
+            }
+        }
         release {
             signingConfig = signingConfigs.findByName("hocalistRelease")
         }
