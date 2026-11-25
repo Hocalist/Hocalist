@@ -80,6 +80,20 @@ test("decodes a valid review queue with carried revisions and cursors", () => {
   assert.equal(decoded.single_report_penalty, false);
 });
 
+test("health queue carries seller linkage and priority", () => {
+  const decoded = decodeReviewQueue({
+    ...validTrust,
+    health_reviews: {items: [{...validTrust.health_reviews.items[0], category:'changed_terms',
+      seller_id:userId, request_id:submissionId, reporting_buyers:3, priority:1}], next_cursor:null},
+  });
+  assert.ok(decoded);
+  const [report] = decoded.health_reviews.items;
+  assert.equal(report.seller_id, userId);
+  assert.equal(report.request_id, submissionId);
+  assert.equal(report.reporting_buyers, 3);
+  assert.equal(report.priority, 1);
+});
+
 test("rejects malformed review rows instead of defaulting", () => {
   assert.equal(
     decodeReviewQueue({

@@ -30,6 +30,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'support_reasons',
     'support_list',
     'support_command',
+    'seller_conduct_report',
     'report_evidence_attach',
     'marketplace_catalogue',
     'marketplace_locations',

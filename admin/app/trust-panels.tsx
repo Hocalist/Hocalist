@@ -22,7 +22,7 @@ type Section = "verifications" | "health_reviews" | "restrictions";
 
 const DEFAULT_FILTERS = {
   verificationStatus: "pending",
-  healthState: "needs_review",
+  healthState: "priority",
   restrictionStatus: "active",
 };
 
@@ -362,6 +362,7 @@ export function TrustPanel() {
           )}
 
           </>},{title:"Account health",content:<><h3>Seller-health reports</h3>
+          <p>Priority includes serious reports and sellers reported by at least three different buyers in six months. Only confirmed violations affect the conduct score.</p>
           <form className="filters" onSubmit={(event) => event.preventDefault()}>
             <select
               aria-label="Filter health review state"
@@ -369,7 +370,8 @@ export function TrustPanel() {
               disabled={busy || !!retry}
               onChange={(event) => applyFilter({ healthState: event.target.value })}
             >
-              <option value="needs_review">Needs review</option>
+              <option value="priority">Priority</option>
+              <option value="needs_review">All unreviewed</option>
               <option value="reviewed">Reviewed</option>
               <option value="">All</option>
             </select>
@@ -390,13 +392,20 @@ export function TrustPanel() {
                 <tbody>
                   {data.health_reviews.items.map((row) => (
                     <tr key={row.case_id}>
-                      <td><strong>{row.case_id}</strong></td>
-                      <td>{row.reason_code}</td>
-                      <td>{row.body.slice(0, 140)}</td>
+                      <td><strong>{row.case_id}</strong>{row.seller_id && <div>Seller {row.seller_id}</div>}{row.request_id && <div>Request {row.request_id}</div>}</td>
+                      <td>
+                        {row.priority === 2 && <strong>Urgent · </strong>}
+                        {row.priority === 1 && <strong>Pattern · </strong>}
+                        {(row.category ?? row.reason_code).replaceAll('_', ' ')}
+                        {!!row.reporting_buyers && row.priority === 1 && <div>{row.reporting_buyers} buyers in six months</div>}
+                      </td>
+                      <td><details><summary>{row.body.slice(0, 100)}{row.body.length > 100 ? '…' : ''}</summary><p>{row.body}</p></details></td>
                       <td>
                         {row.decision ? (
                           <span>
                             {row.decision}: {row.decision_reason}
+                            {row.decision === 'violation_confirmed' && <button type="button" disabled={busy || !!retry}
+                              onClick={() => void execute('health.review', {case_id: row.case_id, decision: 'no_action'})}>Clear finding</button>}
                           </span>
                         ) : (
                           <>
@@ -411,9 +420,10 @@ export function TrustPanel() {
                               <option value="restriction_recommended">
                                 Restriction recommended
                               </option>
+                              {row.category && row.category !== 'price_disagreement' && <option value="violation_confirmed">Confirm violation</option>}
                             </select>{" "}
                             <button
-                              disabled={busy || !!retry}
+                              disabled={busy || !!retry || (healthDecision === 'violation_confirmed' && (!row.category || row.category === 'price_disagreement'))}
                               onClick={() =>
                                 void execute("health.review", {
                                   case_id: row.case_id,

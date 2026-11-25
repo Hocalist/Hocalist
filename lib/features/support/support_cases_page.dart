@@ -20,6 +20,7 @@ class SupportCasesPage extends StatefulWidget {
     required this.adapter,
     required this.onBack,
     this.conversationId,
+    this.sellerOfferId,
     this.initialReasonCode,
     this.generalHelp = false,
     this.seller = false,
@@ -32,6 +33,7 @@ class SupportCasesPage extends StatefulWidget {
 
   /// A user-visible reference, not a grant to read the conversation or its messages.
   final String? conversationId;
+  final String? sellerOfferId;
   @override
   State<SupportCasesPage> createState() => _SupportCasesPageState();
 }
@@ -49,8 +51,8 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
   List<String> _screenshots = [];
   int _pickerVersion = 0;
   int _generation = 0;
-  ({String reason, String body, String key})? _intent;
-  String get _reference => widget.conversationId == null
+  ({String reason, String body, String key, String? sellerOfferId})? _intent;
+  String get _reference => widget.conversationId == null || widget.sellerOfferId != null
       ? ''
       : '\n\nConversation reference: ${widget.conversationId}';
   @override
@@ -82,7 +84,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         _error = 'Support could not be loaded. Try again.';
         return;
       }
-      _reasons = reasons.valueOrNull!;
+      _reasons = widget.sellerOfferId == null ? reasons.valueOrNull! : sellerConductReasons;
       if (_reason == null &&
           _reasons.any((r) => r.code == widget.initialReasonCode)) {
         _reason = widget.initialReasonCode;
@@ -120,6 +122,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         body: '${_feedback ? 'Feedback: $_feedbackType\n' : ''}${_body.text.trim()}$_reference'
           '${_feedback && _includeDevice ? '\n\nApp context: ${kIsWeb ? 'Web' : defaultTargetPlatform.name}; ${widget.seller ? 'seller' : 'buyer'} mode.' : ''}',
         key: LocalMarketplaceRepository.newStoreOperationKey('support'),
+        sellerOfferId: _feedback ? null : widget.sellerOfferId,
       );
     }
     final intent = _intent!;
@@ -133,6 +136,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
       reason: intent.reason,
       body: intent.body,
       operationKey: intent.key,
+      sellerOfferId: intent.sellerOfferId,
     );
     if (!mounted) return;
     if (result.isSuccess && _screenshots.isNotEmpty) {

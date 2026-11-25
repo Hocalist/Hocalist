@@ -603,8 +603,8 @@ class _RealSellerHomeNotice extends StatelessWidget {
 
 /// Account health slot. When the trust projection is available it shows the
 /// manual review state and recorded restriction reasons with the appeal path;
-/// otherwise it keeps the approved honest placeholder. It never shows a
-/// computed numeric health score.
+/// otherwise it keeps the placeholder. Verification and conduct are shown
+/// together while each retains its own meaning.
 class _AccountHealthSlot extends StatefulWidget {
   const _AccountHealthSlot({
     this.health,
@@ -752,6 +752,16 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                         ? SellerNoticeTone.error
                         : SellerNoticeTone.brand,
                   ),
+                  if (value.conductScore case final score?) ...[
+                    const SizedBox(height: 10),
+                    SellerStateNotice(
+                      icon: Icons.fact_check_outlined,
+                      title: 'Conduct score · $score/100',
+                      body: value.confirmedIncidents == 0
+                          ? 'No confirmed conduct violations in the past six months.'
+                          : '${value.confirmedIncidents} confirmed ${value.confirmedIncidents == 1 ? 'incident' : 'incidents'} in the past six months. Only recorded findings affect this score.',
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   LayoutBuilder(
                     builder: (context, constraints) {
@@ -904,6 +914,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
   @override
   Widget build(BuildContext context) {
     final value = health;
+    final score = value?.conductScore;
     final completed = value == null || !value.loaded
         ? null
         : (value.emailVerified ? 1 : 0) +
@@ -911,7 +922,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
               (value.reviewStatus == 'approved' ? 1 : 0) +
               (widget.serviceAreaSaved ? 1 : 0);
     return Semantics(
-      label: completed == null
+      label: score != null ? 'Conduct score $score of 100. $completed of 4 verification steps complete.' : completed == null
           ? 'Verification progress unavailable'
           : '$completed of 4 verification steps complete',
       child: Material(
@@ -927,9 +938,22 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _AccountHealthBar(
-                steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
-              ),
+              if (score == null)
+                _AccountHealthBar(
+                  steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
+                )
+              else ...[
+                Text(value!.hasActiveRestriction ? 'Conduct score · $score/100'
+                    : '${score == 100 ? 'Good standing' : 'Needs attention'} · $score/100',
+                  style: sellerText(ApprovedReplicaScope.of(context), 11, weight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                LinearProgressIndicator(
+                  value: score / 100,
+                  backgroundColor: HocalistPalette.surface(context, SellerUiColors.line),
+                  color: value.hasActiveRestriction ? SellerUiColors.red : score == 100 ? SellerUiColors.green : SellerUiColors.amber,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ],
               if (completed != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),

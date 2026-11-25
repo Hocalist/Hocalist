@@ -27,6 +27,11 @@ export type TrustHealthReview = {
   created_at: string;
   decision: string | null;
   decision_reason: string | null;
+  category?: string;
+  seller_id?: string;
+  request_id?: string;
+  reporting_buyers?: number;
+  priority?: number;
 };
 
 export type TrustRestriction = {
@@ -142,6 +147,11 @@ export function decodeReviewQueue(value: unknown): ReviewQueue | null {
       created_at: row.created_at as string,
       decision: row.decision as string | null,
       decision_reason: row.decision_reason as string | null,
+      category: isText(row.category, 40) ? row.category as string : undefined,
+      seller_id: typeof row.seller_id === 'string' && uuid.test(row.seller_id) ? row.seller_id : undefined,
+      request_id: typeof row.request_id === 'string' && uuid.test(row.request_id) ? row.request_id : undefined,
+      reporting_buyers: typeof row.reporting_buyers === 'number' && Number.isSafeInteger(row.reporting_buyers) && row.reporting_buyers >= 0 ? row.reporting_buyers : undefined,
+      priority: row.priority === 0 || row.priority === 1 || row.priority === 2 ? row.priority : undefined,
     };
   });
   const restrictions = decodeSection<TrustRestriction>(record.restrictions, (row) => {

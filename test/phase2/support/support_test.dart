@@ -110,6 +110,35 @@ void main() {
     });
     expect((await adapter.cases()).errorOrNull?.kind.name, 'malformedResponse');
   });
+  testWidgets('a buyer reports seller conduct with the selected offer reference', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    transport.handler = (call) => call.function == 'seller_conduct_report'
+        ? const MarketplaceTransportData({'id': caseId, 'status': 'open', 'revision': 1})
+        : const MarketplaceTransportData({'items': [], 'next_cursor': null});
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SupportCasesPage(
+      adapter: adapter, onBack: () {}, conversationId: 'old-text-reference', sellerOfferId: caseId,
+    ))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select report reason'));
+    await tester.pumpAndSettle();
+    expect(find.text('We could not agree on a price'), findsOneWidget);
+    final reason = find.text('Asked me to move the deal off Hocalist');
+    await tester.ensureVisible(reason);
+    await tester.tap(reason);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('supportBody')), 'Sample conduct concern.');
+    await tester.ensureVisible(find.text('Send report'));
+    await tester.tap(find.text('Send report'));
+    await tester.pumpAndSettle();
+    final call = transport.calls.singleWhere((call) => call.function == 'seller_conduct_report');
+    expect(call.params['p_offer'], caseId);
+    expect(call.params['p_category'], 'off_platform_evasion');
+    expect(call.params['p_body'], 'Sample conduct concern.');
+    expect(find.text('Report received'), findsOneWidget);
+  });
   test('feedback screenshots keep their case and retry identity', () async {
     transport.handler = (_) => const MarketplaceTransportData({'case_id': caseId});
     const media = '10000000-0000-4000-8000-000000000002';
@@ -230,7 +259,7 @@ void main() {
         tester
             .widget<TextField>(find.byKey(const Key('supportBody')))
             .maxLength,
-        4000 - '\n\nConversation reference: $caseId'.length,
+        3700 - '\n\nConversation reference: $caseId'.length,
       );
       expect(tester.takeException(), isNull);
     },

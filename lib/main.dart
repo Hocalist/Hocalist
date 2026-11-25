@@ -679,9 +679,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   SupportAdapter? _supportAdapter;
   String? _supportConversationId;
+  String? _supportSellerOfferId;
   Widget _realSupportPage() => SupportCasesPage(
     key: ValueKey(
-      'support-${page.name}-${_supportConversationId ?? 'general'}',
+      'support-${page.name}-${_supportSellerOfferId ?? _supportConversationId ?? 'general'}',
     ),
     initialReasonCode: page == AppPage.reportIssue ? 'safety' : 'general',
     generalHelp: page != AppPage.reportIssue,
@@ -689,6 +690,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     adapter: _supportAdapter ??= createSupportAdapter(),
     onBack: back,
     conversationId: page == AppPage.reportIssue ? _supportConversationId : null,
+    sellerOfferId: page == AppPage.reportIssue ? _supportSellerOfferId : null,
   );
   static const _storage = _LocalSessionStore();
   final messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -1200,6 +1202,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           emailVerified: status.emailVerified,
           phoneVerified: status.phoneVerified,
           reviewStatus: status.reviewStatus,
+          conductScore: status.conductScore,
+          confirmedIncidents: status.confirmedIncidents,
           restrictions: status.restrictions
               .map(
                 (row) => SellerHealthRestriction(
@@ -2838,6 +2842,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         _newRequestBudget = '';
       }
       if (destination == AppPage.reportIssue) {
+        _supportSellerOfferId = role != UserRole.buyer ? null : switch (page) {
+          AppPage.buyerChat => _marketplace.activeChatOfferId,
+          AppPage.meetingDetails => _marketplace.meetingDetail?.offerId,
+          _ => null,
+        };
         _supportConversationId =
             _marketplace.isChatBacked &&
                 (page == AppPage.buyerChat ||
