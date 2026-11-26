@@ -43,7 +43,7 @@ void main() {
     await tap(tester, find.text('Choose a reason'));
     await tap(tester, find.text('Offered an illegal product or service'));
     await tap(tester, find.text('Save report'));
-    expect(find.text('Report Saved'), findsOneWidget);
+    expect(find.text('Sample report saved'), findsOneWidget);
 
     await choose(tester, 'Seller');
     await tester.pump(const Duration(seconds: 5));
@@ -55,7 +55,7 @@ void main() {
     await tap(tester, find.text('Choose a reason'));
     await tap(tester, find.text('Requested an illegal product or service'));
     await tap(tester, find.text('Save report'));
-    expect(find.text('Report Saved'), findsOneWidget);
+    expect(find.text('Sample report saved'), findsOneWidget);
   });
 
   testWidgets('seller sends the same offer the buyer sees and confirms', (

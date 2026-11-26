@@ -4,6 +4,7 @@ import '../../theme/adaptive_palette.dart';
 import '../../theme/seller_ui_foundation.dart';
 import 'approved_billing_artwork.dart';
 import 'seller_payment_panel.dart';
+import 'seller_fee_copy.dart';
 
 class SellerPlanSummary extends StatelessWidget {
   const SellerPlanSummary({required this.value, this.focusManagePlans = false, super.key});
@@ -20,7 +21,7 @@ class SellerPlanSummary extends StatelessWidget {
     final limits = value.plans.where((p) => p.planCode == plan).firstOrNull;
     final rows = <String>[
       if (limits != null)
-        'Target up to ${limits.weeklyTargetLimit} different buyers per week',
+        'Weekly targeting limit: ${limits.weeklyTargetLimit}',
       if (limits != null)
         'List up to ${limits.storeListingLimit} products or services',
       if (plan == PlanCode.free)
@@ -30,7 +31,7 @@ class SellerPlanSummary extends StatelessWidget {
         'Offer withdrawal before the buyer responds',
         'Contacts dashboard',
         'Recommended leads',
-        'Get listed on Hocatrends',
+        'Publish eligible listings to Hocatrends',
         'More savings on targeting fees',
       ],
       if (elite) ...[
@@ -210,7 +211,7 @@ class SellerPlanSummary extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Text(
-              'Viewing competing offers removes refund eligibility for that request. You will be asked before viewing.',
+              '$eliteNoPurchaseWaiver You’ll be asked before viewing.',
               style: TextStyle(fontSize: 12, color: SellerUiColors.muted),
             ),
           ),

@@ -339,7 +339,7 @@ void main() {
         selectionError: 'The selection could not be confirmed.',
       ),
     );
-    expect(find.text('Selecting…'), findsOneWidget);
+    expect(find.text('Opening…'), findsOneWidget);
     expect(find.byKey(const Key('approvedSelectSellerError')), findsOneWidget);
   });
 
@@ -364,7 +364,7 @@ void main() {
     expect(find.text(r'$0.40'), findsNothing);
     expect(find.text('From 2 sellers'), findsNothing);
     expect(find.textContaining('Newest first'), findsOneWidget);
-    expect(find.text(r'$0.15–$0.30'), findsOneWidget);
+    expect(find.text(r'$0.15–$0.30'), findsNothing);
   });
 
   testWidgets('real offer detail hides sample PIN, reward and trust facts', (
@@ -388,7 +388,7 @@ void main() {
     expect(find.text(r'$12.40'), findsNothing);
     expect(find.text('You have 7 days left'), findsNothing);
     expect(find.text('Your purchase PIN'), findsOneWidget);
-    expect(find.text(r'$0.15–$0.30'), findsOneWidget);
+    expect(find.text(r'$0.15–$0.30'), findsNothing);
     expect(find.text('Meet-up place'), findsOneWidget);
     expect(find.text('Cross County Mall'), findsOneWidget);
     expect(find.text('iPad Air 5 request'), findsOneWidget);

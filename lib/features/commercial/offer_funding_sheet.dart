@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'seller_fee_copy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../components/hocalist_loading_indicator.dart';
 import 'package:uuid/uuid.dart';
@@ -250,12 +251,12 @@ class _OfferFundingSheetState extends State<OfferFundingSheet>
             ],
             SellerStateNotice(
               icon: Icons.receipt_long_outlined,
-              title: 'Sending an offer is free',
+              title: 'When offer fees apply',
               body: elite
-                  ? 'Targeting fees stay pending until a PIN-confirmed purchase or the seven-day deadline. Eligible no-purchase fees are waived.'
+                  ? '$eliteLeadFeeTiming $eliteNoPurchaseWaiver'
                   : freeOrPro
                   ? 'The initial fee applies when the buyer replies. A confirmed purchase can add the remaining winning fee.'
-                  : 'Free and Pro initial fees apply when the buyer replies. Elite fees wait until purchase confirmation or the seven-day deadline.',
+                  : 'Free and Pro initial lead fees apply when the buyer replies. $eliteLeadFeeTiming $eliteNoPurchaseWaiver',
             ),
             gap,
             Material(

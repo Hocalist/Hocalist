@@ -365,8 +365,8 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Prepare offer').first);
         await tester.pumpAndSettle();
-        expect(find.text('Initial bid 1.85 HC'),findsOneWidget);
-        expect(find.text('Winning total 4.50 HC'),findsOneWidget);
+        expect(find.text('Initial lead fee 1.85 HC'),findsOneWidget);
+        expect(find.text('Total fee if you win 4.50 HC'),findsOneWidget);
         expect(find.text('At purchase 2.65 HC'),findsNothing);
         expect(tester.takeException(),isNull);
       });
@@ -439,7 +439,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
-          'Yonkers, NY. Exact address shared after selection.',
+          'Yonkers, NY. Review the exact location in your meetup details when it’s shared.',
         ),
         findsOneWidget,
       );

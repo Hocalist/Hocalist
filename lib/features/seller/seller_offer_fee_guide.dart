@@ -4,6 +4,7 @@ import '../../domain/phase2/commercial/commercial.dart';
 import '../../theme/adaptive_palette.dart';
 import '../../theme/seller_ui_foundation.dart';
 import '../commercial/money_help.dart';
+import '../commercial/seller_fee_copy.dart';
 
 class SellerOfferFeeGuide extends StatefulWidget {
   const SellerOfferFeeGuide({
@@ -65,7 +66,7 @@ class _SellerOfferFeeGuideState extends State<SellerOfferFeeGuide> {
         plan == null
             ? 'See the fee details for your plan’s rules.'
             : elite
-            ? 'If nobody confirms a purchase on the request, the initial fee is waived unless you viewed competing offers. If you viewed them and the buyer replied, the initial fee can apply after the seven-day window. An existing meetup can keep credits reserved longer.'
+            ? '$eliteNoPurchaseWaiver If you viewed competing offers and the buyer replied, the initial lead fee can apply after the seven-day window. An existing meetup can keep credits reserved longer.'
             : 'If the buyer replied, you only pay the initial lead fee. The remaining winning fee applies only to a confirmed purchase with you.',
       ),
       if (canPullOut)
@@ -176,7 +177,7 @@ class _SellerOfferFeeGuideState extends State<SellerOfferFeeGuide> {
                         'If the buyer replies, the initial lead fee applies. If the buyer confirms a purchase from you with their PIN, any initial fee already paid counts toward the total winning fee.',
                   if (plan == null || elite)
                     'Elite':
-                        'The initial lead fee can apply once a purchase is confirmed with any seller or the seven-day window ends. If nobody confirms a purchase, eligible fees are waived. Viewing competing offers removes the waiver for this request. An existing meetup can keep credits reserved longer.',
+                        '$eliteLeadFeeTiming $eliteNoPurchaseWaiver An existing meetup can keep credits reserved longer.',
                   if (canPullOut)
                     'Offer Pull Out':
                         'On Pro and Elite, you can withdraw before the buyer responds. The same rule applies whether you pay with HocaCredits or an eligible card.',

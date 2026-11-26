@@ -533,15 +533,20 @@ class _ApprovedHocatrendsPageState extends State<ApprovedHocatrendsPage>
   }
 
   _ApprovedTrendData _trendDataFor(HocatrendsTopic topic) {
+    final sellerCount = topic.availableSellers ?? topic.competingSellers;
     return _ApprovedTrendData(
       rank: topic.rank,
       title: topic.label,
       competition: topic.competition,
       percent: topic.percent,
+      showsListingShare: topic.listingId != null,
       availableSellers: topic.availableSellers,
       sellerCopy: topic.listingId == null
-          ? '${topic.availableSellers ?? topic.competingSellers} ${(topic.availableSellers ?? topic.competingSellers) == 1 ? 'seller is' : 'sellers are'} offering deals for ${topic.label} buyers.'
-          : [if (topic.storePriceLabel case final price?) price, topic.activityCopy].join(' · '),
+          ? '$sellerCount ${sellerCount == 1 ? 'seller is' : 'sellers are'} offering deals for ${topic.label} buyers.'
+          : [
+              if (topic.storePriceLabel case final price?) price,
+              '$sellerCount ${sellerCount == 1 ? 'seller' : 'sellers'} listing this',
+            ].join(' · '),
       image: 'transparent/trend-up.png',
       rankColor: switch (topic.rank) {
         1 => const Color(0xffffb900),
@@ -711,7 +716,7 @@ class _ApprovedSavingsNotice extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Shop from seller Stores',
+                'Browse seller listings',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: HocalistPalette.text(context, _pageText(context)),
                   fontSize: metrics.fontSize(12),
@@ -933,7 +938,7 @@ class _ApprovedCompetitiveHeader extends StatelessWidget {
       builder: (sheetContext) => BuyerModalSheet(
         title: 'How Hocatrends works',
         subtitle:
-            'Explore public Store listings and contact a seller directly.',
+            'Browse public listings and message sellers about a product or service.',
         icon: Icons.trending_up_rounded,
         onClose: () => Navigator.of(sheetContext).pop(),
         child: const Column(
@@ -1330,8 +1335,16 @@ class _ApprovedTrendDetails extends StatelessWidget {
             ),
           ],
         ),
-        SizedBox(height: metrics.geometry(2)),
-        Row(
+        if (item.showsListingShare) ...[
+          SizedBox(height: metrics.geometry(2)),
+          Text(
+            'Share of Hocatrends listings',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: HocalistPalette.text(context, _pageMuted(context)),
+              fontSize: metrics.fontSize(9.5),
+            ),
+          ),
+          Row(
           children: [
             Expanded(
               child: ClipRRect(
@@ -1361,7 +1374,8 @@ class _ApprovedTrendDetails extends StatelessWidget {
               ),
             ),
           ],
-        ),
+          ),
+        ],
         SizedBox(height: metrics.geometry(1)),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1403,6 +1417,7 @@ class _ApprovedTrendData {
     required this.image,
     required this.rankColor,
     this.medium = false,
+    this.showsListingShare = false,
   });
 
   final int? availableSellers;
@@ -1414,6 +1429,7 @@ class _ApprovedTrendData {
   final String image;
   final Color rankColor;
   final bool medium;
+  final bool showsListingShare;
 }
 
 const _trendCategories = [
@@ -3653,7 +3669,7 @@ const _approvedActivities = [
   _ApprovedActivityData(
     category: 'Payouts',
     icon: 'activity-wallet.png',
-    title: 'Rewards will be paid on May 20',
+    title: 'Sample reward payout',
     time: '2 days ago',
     value: '\$24.80',
     valueColor: _approvedAction,
@@ -3682,7 +3698,7 @@ const _approvedActivities = [
   _ApprovedActivityData(
     category: 'Payouts',
     icon: 'activity-wallet.png',
-    title: 'Rewards will be paid on May 13',
+    title: 'Sample reward payout',
     time: '6 days ago',
     value: '\$19.40',
     valueColor: _approvedAction,

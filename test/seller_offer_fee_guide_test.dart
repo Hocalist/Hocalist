@@ -39,14 +39,17 @@ void main() {
     expect(find.textContaining(reserved), findsOneWidget);
     expect(find.textContaining(reply), findsNothing);
     expect(find.text('Elite fee protection'), findsOneWidget);
-    expect(find.textContaining('unless you viewed competing offers'), findsOneWidget);
+    expect(find.textContaining('If nobody confirms a purchase'), findsOneWidget);
 
     final help = find.byKey(const Key('sellerOfferFeeGuideHelp'));
     await tester.ensureVisible(help);
     await tester.tap(help);
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('Viewing competing offers removes the waiver for this request'),
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.textContaining('Viewing competing offers removes the waiver for that request'),
+      ),
       findsOneWidget,
     );
   });

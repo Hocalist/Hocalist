@@ -132,8 +132,8 @@ class _SellerSubscriptionPanelState extends State<SellerSubscriptionPanel> {
       body: review
           ? 'Your billing record needs review. Paid access is not confirmed.'
           : status['plan'] == 'free'
-          ? 'No active paid subscription. Credit batches and weekly targeting capacity are separate from your plan.'
-          : 'Stripe TEST subscription confirmed. Credit batches and weekly targeting capacity are separate from your plan.',
+          ? 'Your Free plan sets your weekly targeting limit. HocaCredits pay eligible offer fees.'
+          : 'Your subscription is active. Your plan sets your weekly targeting limit. HocaCredits pay eligible offer fees.',
       detail: status['cancel_at_period_end'] == true
           ? const Text(
               'Cancellation is scheduled at the end of the paid period.',

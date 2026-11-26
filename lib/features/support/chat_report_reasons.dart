@@ -36,7 +36,7 @@ const _pin = ChatReportReason(
   safety: true,
 );
 const _bypass = ChatReportReason(
-  'Asked me to bypass Hocalist’s rules',
+  'Pressured me to bypass Hocalist’s purchase confirmation',
   'off_platform_evasion',
   safety: true,
 );

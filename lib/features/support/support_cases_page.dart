@@ -180,9 +180,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
     setState(() {
       _sending = false;
       if (result.isFailure) {
-        _formError = widget.generalHelp
-            ? 'The question was not confirmed. Retry sends the same question safely.'
-            : 'The report was not confirmed. Retry sends the same report safely.';
+        _formError = 'We couldn’t verify whether it was sent. Retry to check the same submission.';
       } else {
         _ack = result.valueOrNull;
         _intent = null;
@@ -280,8 +278,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                   ),
                   SizedBox(height: metrics.spacing(4)),
                   Text(
-                    'The reference is included with your report. Messages and '
-                    'photos are not attached automatically.',
+                    'We include the conversation reference. For a safety concern, '
+                    'tell us what happened and which message to review. Chat '
+                    'messages and photos aren’t attached.',
                     style: BuyerTypography.style(
                       context,
                       metrics,
@@ -334,8 +333,8 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                   ? 'Retry discarded'
                   : _intent != null
                   ? (widget.generalHelp
-                        ? 'Question not confirmed'
-                        : 'Report not confirmed')
+                        ? 'Couldn’t verify your message'
+                        : 'Couldn’t verify your report')
                   : (widget.generalHelp
                         ? 'Check your question'
                         : 'Check your report'),

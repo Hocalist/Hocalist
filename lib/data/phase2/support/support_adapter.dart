@@ -33,7 +33,7 @@ const sellerConductReasons = [
   SupportReason('changed_terms', 'Seller changed the agreed price or terms'),
   SupportReason('missed_meetup', 'Seller missed a confirmed meetup'),
   SupportReason('illegal_listing', 'Suspected illegal product or service'),
-  SupportReason('off_platform_evasion', 'Asked me to move the deal off Hocalist'),
+  SupportReason('off_platform_evasion', 'Pressured me to bypass Hocalist’s purchase confirmation'),
   SupportReason('fraud', 'Suspected scam or fraud'),
   SupportReason('threats_or_harassment', 'Threats, harassment or abusive conduct'),
   SupportReason('pin_abuse', 'Misuse of the purchase PIN'),

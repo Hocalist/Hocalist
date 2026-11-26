@@ -253,7 +253,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final sellerChoice = find.bySemanticsLabel(
-      'I am selling. Target real customers and beat the competition. Browse requests.',
+      'I am selling. Browse buyer requests and send offers.',
     );
     await tester.ensureVisible(sellerChoice);
     await tester.tap(sellerChoice);
@@ -412,13 +412,13 @@ void main() {
         find.byKey(const Key('sellerSendOfferBottomSheet')),
         findsOneWidget,
       );
-      expect(find.text('Send your offer'), findsOneWidget);
+      expect(find.byKey(const Key('sellerSendOfferHeading')), findsOneWidget);
       expect(find.text('Your Pro Plan'), findsOneWidget);
-      expect(find.text(r'Initial bid $1.90'), findsOneWidget);
-      expect(find.text(r'Winning Bid $4.75'), findsOneWidget);
+      expect(find.text(r'Initial lead fee $1.90'), findsOneWidget);
+      expect(find.text(r'Total fee if you win $4.75'), findsOneWidget);
       expect(find.textContaining('Buyer’s budget:'), findsOneWidget);
       expect(find.byKey(const Key('sellerHigherOffersAllowed')), findsNothing);
-      expect(find.text('Send your offer to the buyer.'), findsOneWidget);
+      expect(find.byKey(const Key('sellerSendOfferSubmit')), findsOneWidget);
       expect(
         find.byKey(const Key('sellerOfferCurrencyPrefix')),
         findsOneWidget,
@@ -771,8 +771,8 @@ void main() {
         .getTopLeft(find.byKey(const Key('sellerSendOfferCancel')))
         .dy;
     expect(cancelTop - submitBottom, greaterThanOrEqualTo(10));
-    final compactBidText = tester.widget<Text>(find.text(r'Initial bid $1.90'));
-    final compactHeading = tester.widget<Text>(find.text('Send your offer'));
+    final compactBidText = tester.widget<Text>(find.text(r'Initial lead fee $1.90'));
+    final compactHeading = tester.widget<Text>(find.byKey(const Key('sellerSendOfferHeading')));
     expect(
       compactBidText.style!.fontSize,
       lessThan(compactHeading.style!.fontSize!),
@@ -1122,7 +1122,7 @@ void main() {
       textScale: 1.6,
     );
 
-    final roleText = tester.widget<Text>(find.text('Verified Seller'));
+    final roleText = tester.widget<Text>(find.text('Sample chat'));
     expect(roleText.maxLines, 1);
     expect(roleText.softWrap, isFalse);
     expect(roleText.overflow, TextOverflow.ellipsis);

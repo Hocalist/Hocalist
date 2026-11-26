@@ -125,7 +125,7 @@ void main() {
     await tester.tap(find.text('Select report reason'));
     await tester.pumpAndSettle();
     expect(find.text('We could not agree on a price'), findsOneWidget);
-    final reason = find.text('Asked me to move the deal off Hocalist');
+    final reason = find.text('Pressured me to bypass Hocalist’s purchase confirmation');
     await tester.ensureVisible(reason);
     await tester.tap(reason);
     await tester.pumpAndSettle();
@@ -327,7 +327,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('supportAcknowledged')), findsNothing);
       expect(find.text('Retry report'), findsOneWidget);
-      expect(find.text('Report not confirmed'), findsOneWidget);
+      expect(find.text('Couldn’t verify your report'), findsOneWidget);
       expect(find.text('Support could not be loaded'), findsNothing);
       expect(find.text('No reports submitted yet.'), findsOneWidget);
       await tester.ensureVisible(find.text('Retry report'));

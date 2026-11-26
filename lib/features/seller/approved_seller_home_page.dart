@@ -209,8 +209,8 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 SizedBox(height: metrics.spacing(14)),
                 _SectionTitle(
                   title: 'Recommended leads for you',
-                  subtitle: 'Buyers looking for what you offer',
-                  action: 'View all',
+                  subtitle: 'Suggested requests based on your seller setup',
+                  action: 'Browse leads',
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -287,9 +287,9 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 SizedBox(height: metrics.spacing(14)),
                 _SectionTitle(
                   title: 'Recommended leads for you',
-                  subtitle: 'Buyer requests that match what you offer',
+                  subtitle: 'Suggested requests based on your seller setup',
                   benefit: SellerPlanBadge(label: 'Pro & Elite benefit', locked: widget.recommendationsLocked),
-                  action: 'View all',
+                  action: 'Browse leads',
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -722,7 +722,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                         error ??
                         (loading
                             ? 'Your verification and review status will appear here.'
-                            : 'Account review is not connected in this build.'),
+                            : 'Account review is currently unavailable.'),
                     tone: error != null
                         ? SellerNoticeTone.error
                         : SellerNoticeTone.brand,

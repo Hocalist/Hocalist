@@ -3328,7 +3328,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         }
         unawaited(_loadConversationDeals(force: true));
         showMessage(
-          'Seller confirmed. Review the meeting details from the offer.',
+          'Seller chosen for purchase. Review the meetup details.',
         );
         await _openConversationMeeting(offerId: sourceOffer.id);
       } else {
@@ -4715,7 +4715,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     if (view == null || !_marketplace.isBuyerOffersBacked) {
       commit(
         next: AppPage.buyerChat,
-        message: 'Seller selected. Chatroom opened.',
+        message: 'Deal chat opened.',
         update: () {
           offerSelected = true;
           _marketplace.updateOfferStatus(LocalOfferStatus.selected);
@@ -4786,7 +4786,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       _saveSession();
       commit(
         next: AppPage.buyerChat,
-        message: 'Seller selected. Chatroom opened.',
+        message: 'Deal chat opened.',
         update: () {},
       );
       return;
@@ -6531,7 +6531,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onViewOffer: _selectSelectedOffer,
             onChat: _sampleDealEnabled ? () => go(AppPage.buyerChat) : () => commit(
               next: AppPage.buyerChat,
-              message: 'Seller selected. Chatroom opened.',
+              message: 'Deal chat opened.',
               update: () {
                 offerSelected = true;
                 _marketplace.updateOfferStatus(LocalOfferStatus.selected);
@@ -6643,7 +6643,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               ? _selectSelectedOffer
               : () => commit(
                   next: AppPage.buyerChat,
-                  message: 'Seller selected. Chatroom opened.',
+                  message: 'Deal chat opened.',
                   update: () {
                     offerSelected = true;
                     _marketplace.updateOfferStatus(LocalOfferStatus.selected);
@@ -7268,7 +7268,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           submitted: reportSubmitted,
           onSubmit: () => commit(
             next: AppPage.reportIssue,
-            message: 'Report saved in this device session.',
+            message: 'Sample report saved on this device.',
             update: () => reportSubmitted = true,
             resetHistory: true,
           ),

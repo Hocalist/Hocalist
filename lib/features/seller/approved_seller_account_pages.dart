@@ -25,6 +25,7 @@ import '../media/private_remote_image.dart';
 import '../commercial/seller_subscription_panel.dart';
 import '../commercial/seller_payment_panel.dart';
 import '../commercial/credit_wallet_panel.dart';
+import '../commercial/seller_fee_copy.dart';
 
 enum SellerProfilePhotoAction { camera, gallery, remove }
 
@@ -454,7 +455,7 @@ class ApprovedSellerEditProfilePage extends StatelessWidget {
                               readOnly: _realValues,
                               helperText: _realValues
                                   ? 'Update this in Profile details below.'
-                                  : 'Your exact meetup location remains private until confirmed in chat.',
+                                  : 'Review the exact address before you share it in your meetup details.',
                             ),
                             SizedBox(height: metrics.spacing(14)),
                             _SellerProfileField(
@@ -658,14 +659,13 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
                     'Targeting fees are recorded in HocaCredits. '
                     'Each successful deposit creates its own batch with frozen '
                     'rates. Hocalist spends from the oldest batch that can cover '
-                    'the full fee for one customer. Pay as you go uses an '
+                    'the full fee for one offer. Pay as you go uses an '
                     'authorised card and any eligible returned credits. '
                     'Sending an offer does not charge the initial fee. '
                     'For Free and Pro, the buyer\'s reply triggers it for that deal. '
-                    'Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline; eligible no-purchase fees are waived, '
-                    'and a confirmed purchase charges only the difference up to that '
-                    'batch\'s winning total. One targeted customer uses one '
-                    'weekly slot; credits and weekly slots are separate. '
+                    '$eliteLeadFeeTiming $eliteNoPurchaseWaiver '
+                    'The total fee if you win includes any initial lead fee already paid. '
+                    'Your plan sets your weekly targeting limit. '
                     'Unused batch remainders stay in your balance. '
                     'See Plans & credits for your batch history and weekly usage.',
               ),
@@ -1877,7 +1877,7 @@ class _ApprovedSellerNotificationPreferencesPageState
                 icon: Icons.health_and_safety_outlined,
                 title: 'Account & safety alerts',
                 body: _realMode
-                    ? 'Security, verification, and important safety notices. Always on.'
+                    ? 'Critical updates stay in your Hocalist inbox. Phone alerts depend on this device’s settings.'
                     : 'Security, verification, and important safety notices.',
                 value: _realMode ? true : safety,
                 enabled: !_realMode,

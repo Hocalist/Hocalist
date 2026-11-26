@@ -1253,7 +1253,7 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
     ),
     _ApprovedBenefit(
       'benefit-tag.png',
-      'Receive the best offers',
+      'Compare offers from sellers',
       'Sellers compete for your business so you get better deals.',
     ),
     _ApprovedBenefit(
@@ -1281,7 +1281,7 @@ class _ApprovedBuyerBenefitsPageState extends State<ApprovedBuyerBenefitsPage> {
     ),
     _ApprovedBenefit(
       'benefit-payment-shield.png',
-      'We protect your choices & reward you for it',
+      'Choose who to meet and how to pay',
       'Choose who to talk to, meet safely, and complete item payment on your terms outside the app.',
     ),
     _ApprovedBenefit(
@@ -1694,7 +1694,7 @@ class _ApprovedFairnessBanner extends StatelessWidget {
                 ),
                 SizedBox(height: metrics.geometry(1)),
                 Text(
-                  'We\'re here to give you more value every time you buy.',
+                  'Find products and services by posting what you need.',
                   style: _text(context, size: 9.5, color: _muted),
                 ),
               ],
@@ -1834,8 +1834,8 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
   static const _benefits = [
     _ApprovedHomeBenefit(
       'home-benefit-reward.png',
-      'Buyers Earn Commissions From Sellers Targeting',
-      'You get rewards every time you buy through the app.',
+      'Earn rewards on eligible purchases',
+      'Earn rewards after PIN confirmation and collection of the eligible seller fee.',
     ),
     _ApprovedHomeBenefit(
       'home-benefit-target.png',
@@ -1873,7 +1873,7 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
     _ApprovedFaq(
       'faq-buyer.png',
       'What Incentive do I get as a buyer?',
-      'Buyers can earn rewards when sellers target and win their business through the app.',
+      'Buyers can earn rewards after an eligible purchase is confirmed with the PIN and the seller fee is collected.',
     ),
     _ApprovedFaq(
       'faq-target.png',
@@ -1913,7 +1913,7 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
                         SizedBox(height: metrics.geometry(16)),
                         _ApprovedImageAction(
                           semanticLabel:
-                              'I am buying. Get paid to buy and get the best offers. Post a request.',
+                              'I am buying. Post a request and compare offers from sellers.',
                           asset: 'home-buyer-card.png',
                           aspectRatio: 786 / 460,
                           onTap: widget.onBuyer,
@@ -1921,7 +1921,7 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
                         SizedBox(height: metrics.geometry(14)),
                         _ApprovedImageAction(
                           semanticLabel:
-                              'I am selling. Target real customers and beat the competition. Browse requests.',
+                              'I am selling. Browse buyer requests and send offers.',
                           asset: 'home-seller-card.png',
                           aspectRatio: 786 / 303,
                           onTap: widget.onSeller,
@@ -2348,7 +2348,7 @@ class _ApprovedStartBanner extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(4)),
               Text(
-                'Join thousands of buyers earning rewards every day on Hocalist.',
+                'Post a request and compare offers from sellers.',
                 style: _text(context, size: 12, color: _navy),
               ),
             ],
@@ -3341,7 +3341,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                         else
                           _ApprovedActivityPanel(onTap: onRecentActivity),
                         SizedBox(height: metrics.geometry(12)),
-                        _ApprovedKeepEarningBanner(realMode: usesRealData),
+                        const _ApprovedKeepEarningBanner(),
                       ],
                     ),
                   ),
@@ -3480,7 +3480,7 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
         children: [
           _ApprovedDetailHeading(
             title: 'Rewards',
-            subtitle: 'Track earned rewards and your next payout.',
+            subtitle: 'Track your earned rewards and withdrawal requests.',
             onBack: onBack,
           ),
           SizedBox(height: metrics.spacing(16)),
@@ -3565,7 +3565,7 @@ class ApprovedBuyerRewardsDetailPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Next payout',
+                        'Withdrawal minimum',
                         style: _text(
                           context,
                           size: 14,
@@ -4241,8 +4241,7 @@ class _ApprovedBuyerRewardsRealSectionsState
           tone: BuyerNoticeTone.warning,
           title: 'Withdrawal terms are not configured yet',
           body:
-              'The next payout cannot be calculated until the withdrawal '
-              'policy is published.',
+              'Your withdrawal minimum is currently unavailable.',
         ),
       );
     }
@@ -4255,7 +4254,7 @@ class _ApprovedBuyerRewardsRealSectionsState
               children: [
                 Expanded(
                   child: Text(
-                    'Next payout',
+                    'Withdrawal minimum',
                     style: _text(
                       context,
                       size: 14,
@@ -4286,10 +4285,8 @@ class _ApprovedBuyerRewardsRealSectionsState
     return _nextPayoutUnavailable(
       title: 'Payout progress is unavailable',
       body: _walletFailed
-          ? 'The rewards ledger could not be read, so payout progress cannot '
-                'be calculated yet.'
-          : 'Payout progress will appear once the rewards ledger is enabled '
-                'for this build.',
+          ? 'We couldn’t load your rewards balance. Try again.'
+          : 'Your withdrawal progress is currently unavailable.',
     );
   }
 
@@ -4387,7 +4384,7 @@ class _ApprovedBuyerRewardsRealSectionsState
       payoutEnabled: payoutEnabled,
       subtitle: payoutEnabled
           ? 'Choose where eligible rewards will be sent.'
-          : 'Payout execution is not enabled yet. Provider setup is still pending.',
+          : 'Withdrawals are currently unavailable.',
     );
   }
 
@@ -4438,7 +4435,7 @@ class _ApprovedBuyerRewardsRealSectionsState
             children: [
               Expanded(
                 child: Text(
-                  'Next payout',
+                  'Withdrawal minimum',
                   style: _text(
                     context,
                     size: 14,
@@ -4448,7 +4445,7 @@ class _ApprovedBuyerRewardsRealSectionsState
                 ),
               ),
               Text(
-                ready ? 'Ready to withdraw' : 'Minimum ${_usd(minimum)}',
+                ready ? 'Minimum reached' : 'Minimum ${_usd(minimum)}',
                 key: const ValueKey('approved-rewards-next-payout-state'),
                 style: _text(
                   context,
@@ -4466,7 +4463,7 @@ class _ApprovedBuyerRewardsRealSectionsState
               container: true,
               child: LinearProgressIndicator(
                 key: const ValueKey('approved-rewards-next-payout-progress'),
-                semanticsLabel: 'Next payout progress',
+                semanticsLabel: 'Progress toward the withdrawal minimum',
                 value: progress,
                 minHeight: 9,
                 backgroundColor: _lavender,
@@ -4610,13 +4607,11 @@ class _ApprovedBuyerRewardsRealSectionsState
         icon: Icons.receipt_long_outlined,
         title: 'Payout history is not available yet',
         body: wallet == null
-            ? 'The payout history read is not connected in this build. '
-                  'Nothing is estimated locally.'
+            ? 'Payout history is currently unavailable.'
             : !wallet.withdrawal.configured
             ? 'Withdrawal terms are not published, so payout requests cannot '
                   'be recorded.'
-            : 'The payout history read is not connected in this build. '
-                  'Nothing is estimated locally.',
+            : 'Payout history is currently unavailable.',
         key: const ValueKey('approved-rewards-history-unavailable'),
       );
     }
@@ -4961,7 +4956,7 @@ class _ApprovedBuyerWithdrawalPageState
           ),
           SizedBox(height: metrics.spacing(10)),
           Text(
-            'Pending rewards are not included. Fees, eligibility, and timing will be supplied by the rewards backend.',
+            'Only available rewards can be withdrawn.',
             style: _text(context, size: 10.5, color: _muted, height: 1.4),
           ),
           SizedBox(height: metrics.spacing(16)),
@@ -6817,7 +6812,7 @@ class _ApprovedBuyerDealHistoryRealSectionsState
       if (mounted && _expandedId == entry.id) {
         setState(() {
           _detailBusy = false;
-          _detailError = 'Deal details are not connected in this build.';
+          _detailError = 'Deal details are currently unavailable.';
         });
       }
       return;
@@ -9154,7 +9149,7 @@ class _ApprovedDashboardHero extends StatelessWidget {
             ),
             SizedBox(height: metrics.geometry(4)),
             Text(
-              'You\'re earning rewards while sellers compete for your business.',
+              'Post what you need and compare offers from sellers.',
               textAlign: stacked ? TextAlign.center : TextAlign.left,
               style: _text(context, size: 11.5, color: _muted, height: 1.3),
             ),
@@ -9410,7 +9405,7 @@ class _ApprovedPendingCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            realMode ? 'Rewards on hold  ⓘ' : 'Pending rewards  ⓘ',
+            realMode ? 'Rewards on hold  ⓘ' : 'Sample estimates  ⓘ',
             style: _text(
               context,
               size: 10.5,
@@ -9469,7 +9464,7 @@ class _ApprovedPendingCard extends StatelessWidget {
               ),
             ),
             Text(
-              '\$0.20 until next payout',
+              '\$0.20 to minimum',
               style: _text(context, size: 10, color: _muted),
             ),
           ],
@@ -10539,7 +10534,7 @@ class _ApprovedActivityPanel extends StatelessWidget {
     ),
     _ApprovedActivity(
       'activity-reward.png',
-      'Rewards will be paid on May 20',
+      'Sample reward payout',
       '2 days ago',
       '\$24.80',
       _blue,
@@ -10748,11 +10743,11 @@ class _ApprovedRealActivityPanel extends StatelessWidget {
 }
 
 class _ApprovedKeepEarningBanner extends StatelessWidget {
-  const _ApprovedKeepEarningBanner({this.realMode = false});
+  const _ApprovedKeepEarningBanner();
 
-  /// The referral promise is prototype-only. Real accounts keep the approved
-  /// banner composition with honest reward copy.
-  final bool realMode;
+  static const _heading = 'How rewards work';
+  static const _description =
+      'Eligible rewards follow PIN confirmation and seller fee collection.';
 
   @override
   Widget build(BuildContext context) {
@@ -10782,9 +10777,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  realMode
-                      ? 'Keep earning rewards'
-                      : 'Keep earning more rewards',
+                  _heading,
                   maxLines: 1,
                   overflow: TextOverflow.visible,
                   style: _text(
@@ -10796,9 +10789,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
                 ),
                 SizedBox(height: metrics.geometry(4)),
                 Text(
-                  realMode
-                      ? 'Confirm each purchase with your PIN\nto earn rewards.'
-                      : 'Refer friends, complete purchases,\nand unlock bigger rewards.',
+                  _description,
                   key: const ValueKey('approved-keep-earning-description'),
                   style: _text(context, size: 9, color: _muted, height: 1.3),
                 ),
@@ -10826,9 +10817,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        realMode
-                            ? 'Keep earning rewards'
-                            : 'Keep earning more rewards',
+                        _heading,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: _text(
@@ -10840,9 +10829,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
                       ),
                       SizedBox(height: metrics.geometry(4)),
                       Text(
-                        realMode
-                            ? 'Confirm each purchase with your PIN to earn rewards.'
-                            : 'Refer friends, complete purchases, and unlock bigger rewards.',
+                        _description,
                         key: const ValueKey(
                           'approved-keep-earning-description-adaptive',
                         ),
@@ -10907,9 +10894,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      realMode
-                          ? 'Keep earning rewards'
-                          : 'Keep earning more rewards',
+                      _heading,
                       style: _text(
                         context,
                         size: 11,
@@ -10919,9 +10904,7 @@ class _ApprovedKeepEarningBanner extends StatelessWidget {
                     ),
                     SizedBox(height: metrics.geometry(4)),
                     Text(
-                      realMode
-                          ? 'Confirm each purchase with your PIN to earn rewards.'
-                          : 'Refer friends, complete purchases, and unlock bigger rewards.',
+                      _description,
                       key: const ValueKey('approved-keep-earning-description'),
                       style: _text(
                         context,

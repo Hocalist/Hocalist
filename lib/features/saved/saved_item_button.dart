@@ -65,7 +65,7 @@ class _SavedItemButtonState extends State<SavedItemButton> {
       });
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Change not confirmed. Retry to check safely.');
+        setState(() => _error = 'We couldn’t verify whether the change was saved. Retry to check the same change.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -90,7 +90,7 @@ class _SavedItemButtonState extends State<SavedItemButton> {
             key: const Key('savedItemError'),
             icon: Icons.sync_problem_rounded,
             tone: BuyerNoticeTone.warning,
-            title: 'Saved change not confirmed',
+            title: 'Couldn’t verify your saved items',
             body: _error,
           ),
           SizedBox(height: metrics.spacing(8)),
