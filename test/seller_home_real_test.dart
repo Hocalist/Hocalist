@@ -86,6 +86,45 @@ void main() {
       final icons=FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf')); await icons.load();
     }
   });
+  for (final reduced in [false, true]) {
+    testWidgets('Browse requests stays right aligned with two optional shimmer passes ($reduced)', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      var opened = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(size: const Size(320, 900), disableAnimations: reduced),
+          child: Scaffold(body: ApprovedSellerHomePage(
+            onLeads: () {},
+            onBrowseRequests: () => opened++,
+            realLeads: const [],
+          )),
+        ),
+      ));
+      final banner = find.byKey(const Key('seller-find-buyers'));
+      final button = find.descendant(of: banner, matching: find.text('Browse requests'));
+      final paint = find.descendant(of: banner, matching: find.byWidgetPredicate(
+        (widget) => widget is CustomPaint && widget.foregroundPainter != null,
+      ));
+      expect(find.descendant(of: banner, matching: find.byType(Image)), findsNothing);
+      expect(tester.getRect(banner).right - tester.getRect(button).right, lessThan(34));
+      expect(paint, reduced ? findsNothing : findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 460));
+      expect(tester.hasRunningAnimations, !reduced);
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pump(const Duration(milliseconds: 10840));
+      expect(tester.hasRunningAnimations, !reduced);
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(const Duration(seconds: 15));
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      expect(opened, 1);
+    });
+  }
   for (final width in [320.0,390.0,528.0]) {
     testWidgets('greeting keeps wave attached to the final name word at $width',(tester)async{
       await pumpHome(tester,width:width,sellerName:'Po SellerTesting2');

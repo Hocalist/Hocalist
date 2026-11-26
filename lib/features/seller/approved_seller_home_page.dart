@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../components/pull_refresh.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import '../../domain/phase2/discovery.dart';
 import '../../domain/phase2/requests.dart';
 import '../../domain/phase2/offers.dart';
 import '../../theme/seller_ui_foundation.dart';
+import '../../theme/accessibility_visuals.dart';
 import 'approved_seller_leads_page.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../media/private_remote_image.dart';
@@ -1413,10 +1416,69 @@ class _SellerMetricCard extends StatelessWidget {
   }
 }
 
-class _FindBuyersBanner extends StatelessWidget {
+class _FindBuyersBanner extends StatefulWidget {
   const _FindBuyersBanner({required this.onTap});
 
   final VoidCallback onTap;
+
+  @override
+  State<_FindBuyersBanner> createState() => _FindBuyersBannerState();
+}
+
+class _FindBuyersBannerState extends State<_FindBuyersBanner>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final _shine = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 650),
+  );
+  Timer? _entrance;
+  Timer? _followUp;
+  bool _scheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (HocalistMotion.reduced(context)) {
+      _entrance?.cancel();
+      _followUp?.cancel();
+      _shine.reset();
+    } else if (!_scheduled) {
+      _scheduled = true;
+      _entrance = Timer(const Duration(milliseconds: 350), _playShine);
+      _followUp = Timer(const Duration(seconds: 12), _playShine);
+    }
+  }
+
+  void _playShine() {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (mounted &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+        ModalRoute.isCurrentOf(context) != false &&
+        TickerMode.of(context) &&
+        !HocalistMotion.reduced(context)) {
+      _shine.forward(from: 0);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _shine.reset();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _entrance?.cancel();
+    _followUp?.cancel();
+    _shine.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1424,6 +1486,7 @@ class _FindBuyersBanner extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Container(
+          key: const Key('seller-find-buyers'),
           constraints: BoxConstraints(minHeight: metrics.geometry(84)),
           padding: EdgeInsets.fromLTRB(
             metrics.geometry(17),
@@ -1470,28 +1533,28 @@ class _FindBuyersBanner extends StatelessWidget {
                   ],
                 ),
               ),
+              SizedBox(width: metrics.geometry(8)),
               SizedBox(
                 width: metrics.artSize(112),
-                child: SellerPrimaryButton(
-                  label: 'Browse requests',
-                  onPressed: onTap,
-                  fontSize: 10,
-                  compact: true,
-                  trailing: Icon(
-                    Icons.chevron_right,
-                    size: metrics.geometry(12),
-                    color: HocalistPalette.text(context, SellerUiColors.white),
+                child: CustomPaint(
+                  foregroundPainter: HocalistMotion.reduced(context)
+                      ? null
+                      : _BrowseButtonShimmer(
+                          _shine,
+                          hocalistAccessibilityVisualsOf(context)
+                              .radiusOr(metrics.geometry(13)),
+                        ),
+                  child: SellerPrimaryButton(
+                    label: 'Browse requests',
+                    onPressed: widget.onTap,
+                    fontSize: 10,
+                    compact: true,
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: metrics.geometry(12),
+                      color: HocalistPalette.text(context, SellerUiColors.white),
+                    ),
                   ),
-                ),
-              ),
-              SizedBox(width: metrics.geometry(5)),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(Theme.of(context).brightness == Brightness.dark ? 16 : 0),
-                child: Image.asset(
-                SellerAssets.homeFindBuyers,
-                width: metrics.artSize(76),
-                fit: BoxFit.contain,
-                excludeFromSemantics: true,
                 ),
               ),
             ],
@@ -1500,6 +1563,33 @@ class _FindBuyersBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BrowseButtonShimmer extends CustomPainter {
+  _BrowseButtonShimmer(this.progress, this.radius) : super(repaint: progress);
+
+  final Animation<double> progress;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress.value <= 0 || progress.value >= 1) return;
+    final bounds = Offset.zero & size;
+    final band = size.width * .24;
+    final center = (size.width + 2 * band) * progress.value - band;
+    final paint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Colors.transparent, Color(0x42FFFFFF), Colors.transparent],
+      ).createShader(Rect.fromLTWH(center - band, 0, band * 2, size.height));
+    canvas.save();
+    canvas.clipRRect(RRect.fromRectAndRadius(bounds, Radius.circular(radius)));
+    canvas.drawRect(bounds, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_BrowseButtonShimmer oldDelegate) =>
+      oldDelegate.radius != radius || oldDelegate.progress != progress;
 }
 
 class _SectionTitle extends StatelessWidget {
