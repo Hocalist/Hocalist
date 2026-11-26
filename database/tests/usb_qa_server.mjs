@@ -91,6 +91,7 @@ for (const file of [
   '../runtime_repairs/221_category_questions.sql',
   '../../supabase/migrations/20261126092555_marketplace_runtime_integration.sql',
   '../../supabase/migrations/20261126210128_limit_active_deals_per_pair.sql',
+  '../../supabase/migrations/20261126213410_deal_price_proposals.sql',
 ]) await db.exec(await readSql(file));
 await seedUsbQaCatalogue(db);
 // Match the deployed read projection without replaying the historical migration

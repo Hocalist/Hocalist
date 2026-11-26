@@ -55,6 +55,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'marketplace_my_offers',
     'marketplace_offer',
     'chat_deals',
+    'chat_deal_price',
     'marketplace_store_summary',
     'marketplace_my_store_listings',
     'marketplace_restore_store_listing',

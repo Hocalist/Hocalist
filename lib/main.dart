@@ -47,6 +47,7 @@ import 'features/account/analytics_consent_setting.dart';
 import 'components/page_swipe_navigation.dart';
 import 'features/meetings/meeting_cancel_confirmation.dart';
 import 'features/chat/chat_meetup_proposal_notice.dart';
+import 'features/chat/chat_price_editor.dart';
 import 'features/meetings/buyer_meetup_manage.dart';
 import 'package:flutter/semantics.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1873,6 +1874,109 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     ];
   }
 
+  Offer? _activeChatPriceOffer(String offerId) {
+    if (_marketplace.activeChatEnquiryId != null ||
+        _conversationDealsFor != _marketplace.activeConversationId ||
+        _conversationDeals?.any((row) => row.offerId == offerId) != true) {
+      return null;
+    }
+    return _conversationOfferRecords.where((offer) =>
+        offer.id == offerId && !offer.requestClosed &&
+        offer.status == OfferStatus.selected && offer.acceptedRevision != null &&
+        offer.conversationId == _marketplace.activeConversationId).firstOrNull;
+  }
+
+  List<ChatPriceProposal> get _chatPriceProposals {
+    final viewer = widget.accountSession?.userId;
+    if (viewer == null || _activeBlockState?.canMessage == false) return const [];
+    return [
+      for (final offer in _conversationOfferRecords)
+        if (_activeChatPriceOffer(offer.id) != null &&
+            offer.latestRevision.status == OfferRevisionStatus.proposed)
+          (
+            offerId: offer.id,
+            revisionId: offer.latestRevision.id,
+            title: offer.requestTitle ?? 'this deal',
+            currentPrice: BuyerOfferView.formatOfferPrice(offer.acceptedRevision!.terms.price),
+            proposedPrice: BuyerOfferView.formatOfferPrice(offer.latestRevision.terms.price),
+            incoming: offer.latestRevision.proposedByUserId != viewer,
+          ),
+    ];
+  }
+
+  Future<String?> _saveChatPrice({
+    required Offer offer,
+    required String key,
+    int? priceMinor,
+    String? proposalId,
+    bool? accept,
+  }) async {
+    final viewer = widget.accountSession?.userId;
+    final repository = _marketplace;
+    final epoch = _navigationEpoch;
+    bool current() => mounted && identical(repository, _marketplace) &&
+        widget.accountSession?.userId == viewer && epoch == _navigationEpoch &&
+        repository.activeConversationId == offer.conversationId &&
+        (page == AppPage.buyerChat || page == AppPage.sellerConversation);
+    if (!current()) return 'Reopen this conversation to continue.';
+    final result = await createMarketplaceDataAdapter(client: Supabase.instance.client)
+        .changeDealPrice(offerId: offer.id, expectedRevision: offer.stamp.revision,
+          key: key, priceMinor: priceMinor, proposalId: proposalId, accept: accept);
+    if (current()) await _loadConversationDeals(force: true);
+    final error = result.errorOrNull;
+    if (error == null) return null;
+    if (error is ConflictError) {
+      return error.conflictCode.startsWith('price_')
+          ? error.debugMessage
+          : 'This deal changed. Reopen the proposal to review the latest price.';
+    }
+    return switch (error.kind) {
+      RepositoryFailureKind.permissionDenied => 'You cannot change this price.',
+      RepositoryFailureKind.validation => 'Check the proposed price and try again.',
+      _ => 'The price change could not be confirmed. Retry to check safely.',
+    };
+  }
+
+  Future<void> _openChatPriceEditor(String offerId) async {
+    final offer = _activeChatPriceOffer(offerId);
+    final current = offer?.acceptedRevision?.terms.price;
+    final host = appNavigatorKey.currentContext;
+    if (host == null || offer == null || current == null ||
+        offer.latestRevision.status == OfferRevisionStatus.proposed) return;
+    final sent = await showDialog<bool>(
+      context: host,
+      barrierDismissible: false,
+      animationStyle: HocalistMotion.dialogStyle(host),
+      builder: (_) => ChatPriceEditor(
+        seller: role == UserRole.seller,
+        title: offer.requestTitle ?? 'This deal',
+        currentPrice: BuyerOfferView.formatOfferPrice(current),
+        currentMinor: current.minorUnits,
+        submit: (minor, key) => _saveChatPrice(offer: offer, priceMinor: minor, key: key),
+      ),
+    );
+    if (sent == true && mounted) {
+      showMessage('Price proposal sent. Waiting for the other person to respond.');
+    }
+  }
+
+  Future<String?> _respondToChatPrice(ChatPriceProposal proposal, bool accept) async {
+    final offer = _activeChatPriceOffer(proposal.offerId);
+    if (offer == null || offer.latestRevision.id != proposal.revisionId ||
+        offer.latestRevision.status != OfferRevisionStatus.proposed ||
+        offer.latestRevision.proposedByUserId == widget.accountSession?.userId) {
+      return 'This price proposal changed or was already answered.';
+    }
+    final error = await _saveChatPrice(
+      offer: offer, proposalId: proposal.revisionId, accept: accept,
+      key: 'respond-chat-price-${proposal.revisionId}-$accept',
+    );
+    if (error == null && mounted) {
+      showMessage(accept ? 'New price confirmed.' : 'Price change declined. The current price stays in place.');
+    }
+    return error;
+  }
+
   void _adoptConversationMeeting(MeetingView meeting) {
     if (!mounted ||
         meeting.conversationId != _marketplace.activeConversationId ||
@@ -3697,7 +3801,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       barrierDismissible: false,
       builder: (_) => ApprovedSellerRescheduleDialog(
         offeredPlaceLabel: schedule.placeAddress ?? schedule.placeLabel,
-        editDateImmediately: buyerChange != null,
+        editDateImmediately: buyerChange != null || target != null,
         onChangeLocation: buyerChange != null ? null : () async {
           final place = await _chooseOfferPlace(
             appNavigatorKey.currentState!.context,
@@ -6768,6 +6872,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onSelectRealDeal: _selectConversationDeal,
             meetupProposals: _chatMeetupProposals,
             onRespondToMeetup: _respondToChatMeetup,
+            priceProposals: _chatPriceProposals,
+            onRespondToPrice: _respondToChatPrice,
+            onProposePrice: _openChatPriceEditor,
             onSuggestMeetup: _suggestChatMeetup,
             onTakePhoto: _marketplace.chatAttachmentsSupported
                 ? () => unawaited(_pickAndSendChatAttachment(source: ImageSource.camera))
@@ -8048,6 +8155,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 onSelectRealDeal: _selectConversationDeal,
                 meetupProposals: _chatMeetupProposals,
                 onRespondToMeetup: _respondToChatMeetup,
+                priceProposals: _chatPriceProposals,
+                onRespondToPrice: _respondToChatPrice,
+                onProposePrice: _openChatPriceEditor,
                 onSuggestMeetup: _suggestChatMeetup,
                 onTakePhoto: _marketplace.chatAttachmentsSupported
                     ? () => unawaited(_pickAndSendChatAttachment(source: ImageSource.camera))

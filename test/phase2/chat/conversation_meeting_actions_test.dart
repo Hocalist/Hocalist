@@ -103,11 +103,16 @@ void main() {
       String? opened;
       bool pending = true;
       bool multiple = false;
+      String? priceOffer;
+      bool pricePending = false;
+      bool? priceResponse;
       late VoidCallback addDeals;
+      late VoidCallback addPriceProposal;
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: StatefulBuilder(builder: (context, update) {
             addDeals = () => update(() => multiple = true);
+            addPriceProposal = () => update(() => pricePending = true);
             return ApprovedConversationBody(
             onBack: () {},
             onPrimary: () {},
@@ -121,11 +126,11 @@ void main() {
             viewerIsSeller: seller,
             realEntries: const [],
             realDeals: [
-              const ApprovedDealView(meetingId: 'first', title: 'Camera tripod',
+              const ApprovedDealView(meetingId: 'first', offerId: 'offer-first', title: 'Camera tripod',
                   priceLabel: r'$35', statusLabel: 'Meeting set'),
               if (multiple) ...[
-                const ApprovedDealView(meetingId: 'other', title: 'LED light',
-                  priceLabel: r'$20', statusLabel: 'Your response needed'),
+                const ApprovedDealView(meetingId: 'other', offerId: 'offer-other', title: 'LED light',
+                  priceLabel: r'$20', statusLabel: 'Your response needed', canSuggestMeetup: true),
                 const ApprovedDealView(meetingId: 'third', title: 'Camera bag',
                   priceLabel: r'$15', statusLabel: 'Meeting set'),
               ],
@@ -143,6 +148,19 @@ void main() {
               decisions.add((proposal.meetingId, accept));
               update(() => pending = false);
               return MeetingActionResult.success(proposal);
+            },
+            onSuggestMeetup: (_) {},
+            onProposePrice: (id) => priceOffer = id,
+            priceProposals: [
+              if (pricePending)
+                (offerId: 'offer-other', revisionId: 'price-other', title: 'LED light',
+                  currentPrice: r'$20', proposedPrice: r'$18', incoming: true),
+            ],
+            onRespondToPrice: (proposal, accept) async {
+              expect(proposal.offerId, 'offer-other');
+              priceResponse = accept;
+              update(() => pricePending = false);
+              return null;
             },
           );
           }),
@@ -195,6 +213,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(decisions, [('other', !seller)]);
       expect(find.text('Meetup change proposed'), findsNothing);
+      await tester.tap(find.byKey(const Key('approved-chat-more')));
+      await tester.pumpAndSettle();
+      expect(find.text('Ask for a change'), findsNothing);
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('approved-chat-attach')));
+      await tester.pumpAndSettle();
+      expect(find.text('Reschedule meetup'), findsOneWidget);
+      final priceAction = find.text(seller ? 'Update price' : 'Request a price change');
+      await tester.ensureVisible(priceAction);
+      await tester.tap(priceAction);
+      await tester.pumpAndSettle();
+      expect(priceOffer, 'offer-other');
+      addPriceProposal();
+      await tester.pumpAndSettle();
+      expect(find.text('Price change proposed'), findsOneWidget);
+      expect(find.text(r'Proposed price: $18'), findsOneWidget);
+      await tester.tap(find.text(seller ? 'Accept' : 'Decline'));
+      await tester.pumpAndSettle();
+      expect(priceResponse, seller);
       expect(tester.takeException(), isNull);
     });
   }

@@ -81,6 +81,32 @@ test('marketplace fixture supports health, history, Any condition and buyer meet
   const buyerMeetings = await rpc(buyer, 'meeting_list', { p_status: null, p_limit: 50, p_cursor: null });
   assert.equal(buyerMeetings.items.find(row => row.id === meeting.id).accepted_schedule.schedule_date, tomorrow);
 
+  const price = (token, input, expected) => rpc(token, 'chat_deal_price',
+    { p_offer: meeting.offer_id, ...input }, expected);
+  const original = await rpc(buyer, 'marketplace_offer', { p_offer: meeting.offer_id });
+  const sellerInput = { p_expected_revision: original.revision, p_key: 'seller-price', p_price_minor: 3800 };
+  const sellerProposal = await price(seller, sellerInput);
+  assert.deepEqual(await price(seller, sellerInput), sellerProposal);
+  assert.equal(sellerProposal.accepted_revision_id, original.accepted_revision_id);
+  const awaitingSellerPrice = await rpc(buyer, 'marketplace_offer', { p_offer: meeting.offer_id });
+  const decline = { p_expected_revision: awaitingSellerPrice.revision, p_key: 'decline-price',
+    p_proposal: awaitingSellerPrice.revisions.at(-1).id, p_accept: false };
+  assert.match((await price(seller, decline, 400)).message, /offer_access_denied/);
+  assert.match((await price(buyer, { p_expected_revision: decline.p_expected_revision,
+    p_key: 'double-proposal', p_price_minor: 3100 }, 400)).message, /price_proposal_pending/);
+  const declinedPrice = await price(buyer, decline);
+  assert.equal(declinedPrice.accepted_revision_id, original.accepted_revision_id);
+  assert.equal(declinedPrice.revisions.at(-1).status, 'rejected');
+  const buyerProposal = await price(buyer, { p_expected_revision: declinedPrice.revision,
+    p_key: 'buyer-price', p_price_minor: 3200 });
+  const buyerPriceId = buyerProposal.revisions.at(-1).id;
+  const acceptedPrice = await price(seller, { p_expected_revision: buyerProposal.revision,
+    p_key: 'accept-price', p_proposal: buyerPriceId, p_accept: true });
+  assert.equal(acceptedPrice.accepted_revision_id, buyerPriceId);
+  const revisedMeeting = await rpc(buyer, 'meeting_detail', { p_meeting: meeting.id });
+  assert.equal(revisedMeeting.offer_summary.price_minor, 3200);
+  assert.deepEqual(revisedMeeting.accepted_schedule, accepted.accepted_schedule);
+
   // Keep the tripod and create three more requests for the same pair.
   await rpc(buyer, 'marketplace_command', { p_operation: 'request.close', p_key: 'close-any-condition',
     p_input: { request_id: request.id, expected_revision: request.revision } });

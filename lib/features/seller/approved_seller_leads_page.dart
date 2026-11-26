@@ -4037,7 +4037,7 @@ class SellerLeadView {
   }
 
   factory SellerLeadView.fromOffer(Offer offer) {
-    final terms = offer.latestRevision.terms;
+    final terms = (offer.acceptedRevision ?? offer.latestRevision).terms;
     return SellerLeadView(requestId: offer.requestId, request: offer.requestTitle ?? 'Buyer request',
       name: 'Buyer', initials: 'B', city: '', distance: '', description: '',
       budget: 'Offer \$${(terms.price.minorUnits / 100).toStringAsFixed(2)}',

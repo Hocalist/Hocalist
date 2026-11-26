@@ -7,6 +7,23 @@ import '../../theme/buyer_ui_foundation.dart';
 typedef ChatMeetupProposal = ({MeetingView meeting, String title});
 typedef ChatMeetupResponse =
     Future<MeetingActionResult?> Function(MeetingView meeting, bool accept);
+typedef ChatPriceProposal = ({
+  String offerId,
+  String revisionId,
+  String title,
+  String currentPrice,
+  String proposedPrice,
+  bool incoming,
+});
+typedef ChatPriceResponse =
+    Future<String?> Function(ChatPriceProposal proposal, bool accept);
+typedef _Review = ({
+  Object id,
+  String label,
+  String title,
+  WidgetBuilder details,
+  Future<({bool saved, String? error})> Function(bool) respond,
+});
 
 class ChatMeetupProposalNotice extends StatefulWidget {
   const ChatMeetupProposalNotice({
@@ -14,11 +31,15 @@ class ChatMeetupProposalNotice extends StatefulWidget {
     required this.proposals,
     required this.respond,
     required this.viewerIsSeller,
+    this.priceProposals = const [],
+    this.respondToPrice,
   });
 
   final List<ChatMeetupProposal> proposals;
   final ChatMeetupResponse respond;
   final bool viewerIsSeller;
+  final List<ChatPriceProposal> priceProposals;
+  final ChatPriceResponse? respondToPrice;
 
   @override
   State<ChatMeetupProposalNotice> createState() =>
@@ -26,32 +47,71 @@ class ChatMeetupProposalNotice extends StatefulWidget {
 }
 
 class _ChatMeetupProposalNoticeState extends State<ChatMeetupProposalNotice> {
-  final _shown = <(String, int)>{};
+  final _shown = <Object>{};
   bool _dialogOpen = false;
 
-  (String, int) _identity(ChatMeetupProposal proposal) =>
-      (proposal.meeting.meetingId, proposal.meeting.pendingSchedule!.sequence);
+  String get _counterpart => widget.viewerIsSeller ? 'buyer' : 'seller';
 
-  Future<void> _review(ChatMeetupProposal proposal) async {
+  Iterable<_Review> get _reviews sync* {
+    for (final proposal in widget.proposals) {
+      final meeting = proposal.meeting;
+      yield (
+        id: (meeting.meetingId, meeting.pendingSchedule!.sequence),
+        label: 'Review meetup proposal · ${proposal.title}',
+        title: meeting.hasAcceptedSchedule
+            ? 'Meetup change proposed'
+            : 'Meetup proposed',
+        details: (_) =>
+            _MeetupComparison(proposal: proposal, counterpart: _counterpart),
+        respond: (accept) async {
+          final result = await widget.respond(meeting, accept);
+          return (saved: result?.isSuccess == true, error: result?.error);
+        },
+      );
+    }
+    final respondToPrice = widget.respondToPrice;
+    if (respondToPrice == null) return;
+    for (final price in widget.priceProposals.where((row) => row.incoming)) {
+      yield (
+        id: price.revisionId,
+        label: 'Review price proposal · ${price.title}',
+        title: 'Price change proposed',
+        details: (_) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'The $_counterpart proposed a price change for ${price.title}.',
+            ),
+            const SizedBox(height: 12),
+            Text('Current price: ${price.currentPrice}'),
+            Text('Proposed price: ${price.proposedPrice}'),
+            const SizedBox(height: 12),
+            const Text('The current price stays in place unless you accept.'),
+          ],
+        ),
+        respond: (accept) async {
+          final error = await respondToPrice(price, accept);
+          return (saved: error == null, error: error);
+        },
+      );
+    }
+  }
+
+  Future<void> _review(_Review proposal) async {
     if (!mounted ||
         _dialogOpen ||
         ModalRoute.of(context)?.isCurrent == false ||
-        !widget.proposals.any(
-          (current) => _identity(current) == _identity(proposal),
-        )) {
+        !_reviews.any((current) => current.id == proposal.id)) {
       return;
     }
     _dialogOpen = true;
-    _shown.add(_identity(proposal));
+    _shown.add(proposal.id);
     try {
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => _ProposalDialog(
-          proposal: proposal,
-          respond: widget.respond,
-          counterpart: widget.viewerIsSeller ? 'buyer' : 'seller',
-        ),
+        builder: (_) => _ProposalDialog(proposal: proposal),
       );
     } finally {
       _dialogOpen = false;
@@ -62,22 +122,21 @@ class _ChatMeetupProposalNoticeState extends State<ChatMeetupProposalNotice> {
   @override
   Widget build(BuildContext context) {
     final current = ModalRoute.isCurrentOf(context) ?? true;
-    final unseen = widget.proposals
-        .where((p) => !_shown.contains(_identity(p)))
-        .lastOrNull;
+    final proposals = _reviews.toList();
+    final unseen = proposals.where((p) => !_shown.contains(p.id)).firstOrNull;
     if (current && !_dialogOpen && unseen != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_shown.contains(_identity(unseen))) _review(unseen);
+        if (!_shown.contains(unseen.id)) _review(unseen);
       });
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final proposal in widget.proposals)
+        for (final proposal in proposals)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: BuyerSecondaryButton(
-              label: 'Review meetup proposal · ${proposal.title}',
+              label: proposal.label,
               onPressed: () => _review(proposal),
               compact: true,
             ),
@@ -88,15 +147,9 @@ class _ChatMeetupProposalNoticeState extends State<ChatMeetupProposalNotice> {
 }
 
 class _ProposalDialog extends StatefulWidget {
-  const _ProposalDialog({
-    required this.proposal,
-    required this.counterpart,
-    required this.respond,
-  });
+  const _ProposalDialog({required this.proposal});
 
-  final ChatMeetupProposal proposal;
-  final String counterpart;
-  final ChatMeetupResponse respond;
+  final _Review proposal;
 
   @override
   State<_ProposalDialog> createState() => _ProposalDialogState();
@@ -114,14 +167,13 @@ class _ProposalDialogState extends State<_ProposalDialog> {
     });
     String? error;
     try {
-      final result = await widget.respond(widget.proposal.meeting, accept);
+      final result = await widget.proposal.respond(accept);
       if (!mounted) return;
-      if (result?.isSuccess == true) {
+      if (result.saved) {
         Navigator.of(context).pop();
         return;
       }
-      if (result != null)
-        error = result.error ?? 'Could not save your response.';
+      error = result.error;
     } catch (_) {
       error = 'Could not save your response. Try again.';
     }
@@ -131,6 +183,48 @@ class _ProposalDialogState extends State<_ProposalDialog> {
         _error = error;
       });
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_busy,
+      child: AlertDialog(
+        scrollable: true,
+        title: Text(widget.proposal.title),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            widget.proposal.details(context),
+            if (_busy) const LinearProgressIndicator(),
+            if (_error != null)
+              Semantics(liveRegion: true, child: Text(_error!)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: _busy ? null : () => Navigator.of(context).pop(),
+            child: const Text('Later'),
+          ),
+          TextButton(
+            onPressed: _busy ? null : () => _submit(false),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: _busy ? null : () => _submit(true),
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeetupComparison extends StatelessWidget {
+  const _MeetupComparison({required this.proposal, required this.counterpart});
+
+  final ChatMeetupProposal proposal;
+  final String counterpart;
 
   String _details(BuildContext context, MeetingScheduleView schedule) {
     final locale = MaterialLocalizations.of(context);
@@ -157,64 +251,38 @@ class _ProposalDialogState extends State<_ProposalDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final meeting = widget.proposal.meeting;
+    final meeting = proposal.meeting;
     final agreed = meeting.acceptedSchedule;
-    return PopScope(
-      canPop: !_busy,
-      child: AlertDialog(
-        scrollable: true,
-        title: Text(
-          agreed == null ? 'Meetup proposed' : 'Meetup change proposed',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          agreed == null
+              ? 'The $counterpart proposed a meetup for ${proposal.title}.'
+              : 'The $counterpart proposed a meetup change for ${proposal.title}.',
         ),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              agreed == null
-                  ? 'The ${widget.counterpart} proposed a meetup for ${widget.proposal.title}.'
-                  : 'The ${widget.counterpart} proposed a meetup change for ${widget.proposal.title}.',
-            ),
-            if (agreed != null) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Current meetup',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(_details(context, agreed)),
-            ],
-            const SizedBox(height: 12),
-            const Text(
-              'Proposed meetup',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(_details(context, meeting.pendingSchedule!)),
-            const SizedBox(height: 12),
-            Text(
-              agreed == null
-                  ? 'Accept to confirm this meetup.'
-                  : 'Your current meetup stays confirmed unless you accept this change.',
-            ),
-            if (_busy) const LinearProgressIndicator(),
-            if (_error != null)
-              Semantics(liveRegion: true, child: Text(_error!)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: _busy ? null : () => Navigator.of(context).pop(),
-            child: const Text('Later'),
+        if (agreed != null) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'Current meetup',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-          TextButton(
-            onPressed: _busy ? null : () => _submit(false),
-            child: const Text('Decline'),
-          ),
-          FilledButton(
-            onPressed: _busy ? null : () => _submit(true),
-            child: const Text('Accept'),
-          ),
+          Text(_details(context, agreed)),
         ],
-      ),
+        const SizedBox(height: 12),
+        const Text(
+          'Proposed meetup',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Text(_details(context, meeting.pendingSchedule!)),
+        const SizedBox(height: 12),
+        Text(
+          agreed == null
+              ? 'Accept to confirm this meetup.'
+              : 'Your current meetup stays confirmed unless you accept this change.',
+        ),
+      ],
     );
   }
 }

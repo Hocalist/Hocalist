@@ -169,7 +169,7 @@ class BuyerOfferView {
 
   factory BuyerOfferView.fromOffer(Offer offer, {bool agreedTerms = false,
       MeetingView? meeting, RequestCoordinates? origin}) {
-    final revision = agreedTerms
+    final revision = agreedTerms || offer.status != OfferStatus.submitted
         ? offer.acceptedRevision ?? offer.latestRevision
         : offer.latestRevision;
     final terms = revision.terms;
@@ -200,7 +200,7 @@ class BuyerOfferView {
       sellerName: name,
       sellerProfileId: offer.sellerProfileId,
       initials: _initialsFor(name),
-      priceLabel: BuyerOfferView._formatMoney(terms.price),
+      priceLabel: BuyerOfferView.formatOfferPrice(terms.price),
       message: terms.message.trim(),
       meetingLabel: formatSchedule(schedule),
       availabilityLabel: formatSchedule(schedule),
@@ -269,7 +269,7 @@ class BuyerOfferView {
     );
   }
 
-  static String _formatMoney(Money money) {
+  static String formatOfferPrice(Money money) {
     final units = money.minorUnits / 100;
     final text = units.truncateToDouble() == units
         ? units.toStringAsFixed(0)
@@ -1155,7 +1155,7 @@ class ApprovedDealView {
     return ApprovedDealView(
       offerId: offer.id,
       title: offer.requestTitle ?? 'Selected offer',
-      priceLabel: BuyerOfferView._formatMoney(terms.price),
+      priceLabel: BuyerOfferView.formatOfferPrice(terms.price),
       statusLabel: offer.requestClosed && offer.status != OfferStatus.completed ? 'Request closed' : historical
           ? (offer.status == OfferStatus.completed ? 'Purchase completed' : 'Deal closed')
           : offer.purchaseSelected
@@ -1239,6 +1239,9 @@ class ApprovedBuyerChatPage extends StatelessWidget {
     this.onSelectRealDeal,
     this.meetupProposals = const [],
     this.onRespondToMeetup,
+    this.priceProposals = const [],
+    this.onRespondToPrice,
+    this.onProposePrice,
     this.onSuggestMeetup,
     this.onTakePhoto,
     this.messagesLoading = false,
@@ -1312,6 +1315,9 @@ class ApprovedBuyerChatPage extends StatelessWidget {
   final ValueChanged<String>? onSelectRealDeal;
   final List<ChatMeetupProposal> meetupProposals;
   final ChatMeetupResponse? onRespondToMeetup;
+  final List<ChatPriceProposal> priceProposals;
+  final ChatPriceResponse? onRespondToPrice;
+  final ValueChanged<String>? onProposePrice;
   final ValueChanged<String>? onSuggestMeetup;
   final VoidCallback? onTakePhoto;
   final bool messagesLoading;
@@ -1393,6 +1399,9 @@ class ApprovedBuyerChatPage extends StatelessWidget {
         onSelectRealDeal: onSelectRealDeal,
         meetupProposals: meetupProposals,
         onRespondToMeetup: onRespondToMeetup,
+        priceProposals: priceProposals,
+        onRespondToPrice: onRespondToPrice,
+        onProposePrice: onProposePrice,
         onSuggestMeetup: onSuggestMeetup,
         onTakePhoto: onTakePhoto,
         messagesLoading: messagesLoading,
@@ -1471,6 +1480,9 @@ class ApprovedConversationBody extends StatefulWidget {
     this.onSelectRealDeal,
     this.meetupProposals = const [],
     this.onRespondToMeetup,
+    this.priceProposals = const [],
+    this.onRespondToPrice,
+    this.onProposePrice,
     this.onSuggestMeetup,
     this.onTakePhoto,
     this.messagesLoading = false,
@@ -1558,6 +1570,9 @@ class ApprovedConversationBody extends StatefulWidget {
   final ValueChanged<String>? onSelectRealDeal;
   final List<ChatMeetupProposal> meetupProposals;
   final ChatMeetupResponse? onRespondToMeetup;
+  final List<ChatPriceProposal> priceProposals;
+  final ChatPriceResponse? onRespondToPrice;
+  final ValueChanged<String>? onProposePrice;
   final ValueChanged<String>? onSuggestMeetup;
   final VoidCallback? onTakePhoto;
   final bool messagesLoading;
@@ -1768,127 +1783,6 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     )?.showSnackBar(SnackBar(content: Text(text)));
   }
 
-  Future<void> _askForChange() async {
-    if (!widget.usesRealEntries) {
-      widget.onRequestChange();
-      return;
-    }
-    final submit = widget.onSubmitMessage;
-    if (submit == null) {
-      _message('Chat is unavailable. Please try again.');
-      return;
-    }
-    const prefix = 'Change request: ';
-    final pending = widget.initialDraft;
-    if (pending != null && pending.isNotEmpty && !pending.startsWith(prefix)) {
-      _message(
-        'Retry your unconfirmed chat message before asking for a change.',
-      );
-      return;
-    }
-    final controller = TextEditingController(
-      text: pending == null ? '' : pending.substring(prefix.length),
-    );
-    var sending = false;
-    var frozen = controller.text.trim().isNotEmpty;
-    String? error;
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        sheetAnimationStyle: HocalistMotion.sheetStyle(context),
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, update) => BuyerModalSheet(
-            title: 'Ask for a change',
-            icon: Icons.edit_note_outlined,
-            onClose: () {
-              if (!sending) Navigator.pop(dialogContext);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Tell the other person what you would like changed. This sends a chat message; the offer and meeting stay as they are until updated separately.',
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('real-change-request-text'),
-                  controller: controller,
-                  maxLength: 950,
-                  minLines: 2,
-                  maxLines: 4,
-                  readOnly: sending || frozen,
-                  decoration: const InputDecoration(
-                    hintText: 'What should change?',
-                  ),
-                ),
-                if (error != null)
-                  Text(
-                    error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                BuyerPrimaryButton(
-                  key: const Key('real-change-request-send'),
-                  onPressed: sending
-                      ? null
-                      : () async {
-                          final body = controller.text.trim();
-                          if (body.length < 5) {
-                            update(
-                              () => error =
-                                  'Describe the change in at least 5 characters.',
-                            );
-                            return;
-                          }
-                          final message = 'Change request: $body';
-                          update(() {
-                            sending = true;
-                            frozen = true;
-                            error = null;
-                          });
-                          bool acknowledged;
-                          try {
-                            acknowledged = await submit(message);
-                          } catch (_) {
-                            acknowledged = false;
-                          }
-                          if (!dialogContext.mounted) return;
-                          if (acknowledged) {
-                            Navigator.pop(dialogContext);
-                            _message(
-                              'Change request sent in chat. Offer terms are unchanged.',
-                            );
-                          } else {
-                            update(() {
-                              sending = false;
-                              error =
-                                  'The message was not confirmed. Retry the same request, or close and check the chat.';
-                            });
-                          }
-                        },
-                  label: sending
-                      ? 'Sending…'
-                      : frozen
-                      ? 'Retry request'
-                      : 'Send request',
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    } finally {
-      // Dialog's closing animation can still reference the input this frame.
-      WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-    }
-  }
-
   Future<void> _showConversationMenu() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -1935,17 +1829,6 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                   _showSearchDialog();
                 },
               ),
-              if (widget.usesRealEntries)
-                _ApprovedMenuAction(
-                  icon: Icons.edit_note_outlined,
-                  title: 'Ask for a change',
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _askForChange();
-                    });
-                  },
-                ),
               _ApprovedMenuAction(
                 icon: _effectiveMuted
                     ? Icons.notifications_active_outlined
@@ -2064,6 +1947,10 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
       final canSuggest = deal?.canSuggestMeetup == true &&
           widget.onSuggestMeetup != null;
       final canShare = deal?.canShareMeetup == true && deal?.scheduleLabel != null;
+      final pricePending = widget.priceProposals.any((proposal) => proposal.offerId == deal?.offerId);
+      final canProposePrice = deal?.offerId != null &&
+          widget.realDeals?.any((row) => row.id == deal?.id) == true &&
+          widget.onProposePrice != null && !pricePending;
       final action = await showModalBottomSheet<int>(
         context: context,
         sheetAnimationStyle: HocalistMotion.sheetStyle(context),
@@ -2071,7 +1958,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
         backgroundColor: Colors.transparent,
         builder: (sheet) => _ApprovedChatSheetFrame(
           title: 'Chat actions',
-          subtitle: 'Share a photo or arrange your meetup.',
+          subtitle: 'Share a photo, discuss the price, or arrange your meetup.',
           icon: Icons.add_circle_outline,
           onClose: () => Navigator.pop(sheet),
           child: Column(
@@ -2087,8 +1974,12 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                   title: 'Share meetup details', subtitle: 'Add the confirmed details to your message draft.',
                   onTap: canShare ? () => Navigator.pop(sheet, 2) : null),
                 _ApprovedMenuAction(icon: Icons.event_outlined,
-                  title: 'Suggest a new time', subtitle: 'Send a meetup proposal for approval.',
+                  title: 'Reschedule meetup', subtitle: 'Propose a new date or time for approval.',
                   onTap: canSuggest ? () => Navigator.pop(sheet, 3) : null),
+                _ApprovedMenuAction(icon: Icons.sell_outlined,
+                  title: widget.viewerIsSeller ? 'Update price' : 'Request a price change',
+                  subtitle: pricePending ? 'A price proposal is awaiting a response.' : 'Propose a price for the other person to review.',
+                  onTap: canProposePrice ? () => Navigator.pop(sheet, 4) : null),
               ],
             ],
           ),
@@ -2107,6 +1998,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
             text: value, selection: TextSelection.collapsed(offset: value.length),
           );
         case 3: widget.onSuggestMeetup?.call(deal!.id);
+        case 4: widget.onProposePrice?.call(deal!.offerId!);
       }
       return;
     }
@@ -2781,7 +2673,18 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                   proposals: widget.meetupProposals,
                                   respond: widget.onRespondToMeetup!,
                                   viewerIsSeller: widget.viewerIsSeller,
+                                  priceProposals: widget.priceProposals,
+                                  respondToPrice: widget.onRespondToPrice,
                                 ),
+                              for (final proposal in widget.priceProposals)
+                                if (!proposal.incoming && proposal.offerId == compactDeal?.offerId)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'Price proposal ${proposal.proposedPrice} · waiting for ${widget.viewerIsSeller ? 'buyer' : 'seller'}',
+                                      style: _text(context, size: 12, color: _muted),
+                                    ),
+                                  ),
                               if (widget.usesRealEntries &&
                                   widget.blockState != null &&
                                   (widget.blockState!.isBlockedByMe ||

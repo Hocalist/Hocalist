@@ -143,6 +143,15 @@ class MarketplaceErrorMapper {
             'You already have 3 active deals with this seller. Finish or close one before starting another.',
       );
     }
+    for (final (code, detail) in const [
+      ('price_proposal_pending', 'A price proposal is already waiting for a response.'),
+      ('price_proposal_resolved', 'This price proposal has already been answered.'),
+      ('price_deal_closed', 'The price can only be changed on an active deal.'),
+    ]) {
+      if (_has(message, code)) {
+        return ConflictError(conflictCode: code, debugMessage: detail);
+      }
+    }
     if (_has(message, 'targeting_fee_unconfigured')) {
       return const ConflictError(
         conflictCode: 'targeting_fee_unconfigured',

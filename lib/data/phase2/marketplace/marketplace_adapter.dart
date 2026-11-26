@@ -897,6 +897,22 @@ class MarketplaceDataAdapter
     'p_conversation': conversationId,
   }, decodeOfferJson);
 
+  Future<RepositoryResult<Offer>> changeDealPrice({
+    required String offerId,
+    required int expectedRevision,
+    required String key,
+    int? priceMinor,
+    String? proposalId,
+    bool? accept,
+  }) => _read('chat_deal_price', {
+    'p_offer': offerId,
+    'p_expected_revision': expectedRevision,
+    'p_key': key,
+    'p_price_minor': priceMinor,
+    'p_proposal': proposalId,
+    'p_accept': accept,
+  }, decodeOfferJson);
+
   @override
   Future<RepositoryResult<Offer>> submitOffer(SubmitOfferCommand command) {
     final publication = command.terms.storePublication;
