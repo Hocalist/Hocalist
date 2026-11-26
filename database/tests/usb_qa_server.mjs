@@ -17,6 +17,7 @@ const sessions = new Map();
 const refreshSessions = new Map();
 const requestIds = { offer: randomUUID(), close: randomUUID() };
 const buyerDemo = process.env.HOCALIST_USB_QA_BUYER_DEMO === '1';
+const demoMeetupAvatarId = randomUUID();
 const demoSellers = [
   { user: IDS.seller, profile: IDS.sellerMembership, name: 'Maya QA', price: 27500,
     sales: 24, image: randomUUID(), file: 'maya-ipad.jpg', place: 'Riverside Park', day: 1 },
@@ -230,10 +231,19 @@ async function handle(request, response) {
   const { email, user } = signedIn;
   if (endpoint.pathname === '/auth/v1/user') return json(response, 200, claims(email, user));
   if (demoImageRead) {
-    const seller = demoSellers.find((row) => row.image === endpoint.searchParams.get('id'));
-    if (user.id !== IDS.buyer || !seller) return json(response, 404, { message: 'QA image unavailable' });
-    const bytes = await readFile(new URL('./fixtures/buyer-offers/' + seller.file, import.meta.url));
-    response.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store' });
+    const id = endpoint.searchParams.get('id');
+    const seller = demoSellers.find((row) => row.image === id);
+    const avatar = id === demoMeetupAvatarId;
+    if (user.id !== IDS.buyer || (!seller && !avatar)) {
+      return json(response, 404, { message: 'QA image unavailable' });
+    }
+    const path = avatar
+      ? '../../assets/approved_offers_chat/john-avatar.png'
+      : './fixtures/buyer-offers/' + seller.file;
+    const bytes = await readFile(new URL(path, import.meta.url));
+    response.writeHead(200, {
+      'content-type': avatar ? 'image/png' : 'image/jpeg', 'cache-control': 'no-store',
+    });
     response.end(bytes);
     return;
   }
@@ -250,6 +260,7 @@ async function handle(request, response) {
       const [{ plan }] = (await db.query("SELECT hocalist.entitlement_resolve_internal($1)->>'effective_plan' AS plan", [seller.user])).rows;
       return json(response, 200, {
         available: true, plan_code: plan, badges: ['Admin reviewed'], completed_sales: seller.sales,
+        avatar_media_id: seller.user === IDS.seller ? demoMeetupAvatarId : null,
       });
     }
     const parts = Object.keys(body);

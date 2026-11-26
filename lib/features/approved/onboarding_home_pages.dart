@@ -3200,6 +3200,9 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                           _BuyerTodayMeetup(
                             meeting: today,
                             requestTitle: requests?.where((r) => r.requestId == today.requestId).firstOrNull?.title,
+                            offer: homeOffers.where((offer) => offer.id == today.offerId &&
+                                offer.requestId == today.requestId).firstOrNull,
+                            loadSeller: loadDealSeller,
                             onTap: () => onOpenMeeting!(today),
                           ),
                         ],
@@ -9914,10 +9917,18 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
   }
 }
 class _BuyerTodayMeetup extends StatelessWidget {
-  const _BuyerTodayMeetup({required this.meeting, required this.onTap, this.requestTitle});
+  const _BuyerTodayMeetup({
+    required this.meeting,
+    required this.onTap,
+    this.requestTitle,
+    this.offer,
+    this.loadSeller,
+  });
 
   final MeetingView meeting;
   final String? requestTitle;
+  final Offer? offer;
+  final BuyerDealSellerLoader? loadSeller;
   final VoidCallback onTap;
 
   @override
@@ -9930,6 +9941,7 @@ class _BuyerTodayMeetup extends StatelessWidget {
       label: schedule.placeLabel, address: schedule.placeAddress,
     );
     return Container(
+      key: const Key('buyer-today-meetup'),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
       decoration: BoxDecoration(
         color: HocalistPalette.surface(context, _lavender),
@@ -9946,6 +9958,14 @@ class _BuyerTodayMeetup extends StatelessWidget {
         const SizedBox(height: 3),
         Text([if (requestTitle != null) requestTitle!, place].join(' · '),
           style: _text(context, size: 11, color: _muted)),
+        const SizedBox(height: 8),
+        BuyerDealSellerHeader(
+          name: offer?.sellerDisplayName ?? 'Your seller',
+          profileId: offer?.sellerProfileId,
+          load: loadSeller,
+          showSales: false,
+          compact: true,
+        ),
         TextButton(onPressed: onTap, child: const Text('View meetup')),
       ]),
     );
