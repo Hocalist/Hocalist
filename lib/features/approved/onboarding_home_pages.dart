@@ -3386,9 +3386,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                             onOpen: onOpenMeeting,
                             homeOffers: homeOffers,
                             loadSeller: loadDealSeller,
-                            onDirections: onMeetingDirections,
                             onMessage: onMeetingMessage,
-                            onCall: onMeetingCall,
+                            onManage: onManageTodayMeetup,
                           )
                         else
                           _ApprovedUpcomingMeetingsPanel(
@@ -10223,87 +10222,277 @@ class _BuyerNegotiationsPanel extends StatelessWidget {
   }
 }
 
-class _BuyerHomeMeetingSummary extends StatelessWidget {
-  const _BuyerHomeMeetingSummary({required this.meeting, this.offer, this.onDirections, this.onMessage, this.onCall, this.loadSeller});
+class _BuyerHomeMeetingSummary extends StatefulWidget {
+  const _BuyerHomeMeetingSummary({
+    required this.meeting,
+    this.offer,
+    this.onMessage,
+    this.onManage,
+    this.loadSeller,
+    super.key,
+  });
+
   final MeetingView meeting;
   final Offer? offer;
-  final ValueChanged<MeetingView>? onDirections, onMessage, onCall;
+  final ValueChanged<MeetingView>? onMessage;
+  final void Function(MeetingView, String, BuyerMeetupChange)? onManage;
   final BuyerDealSellerLoader? loadSeller;
+
+  @override
+  State<_BuyerHomeMeetingSummary> createState() =>
+      _BuyerHomeMeetingSummaryState();
+}
+
+class _BuyerHomeMeetingSummaryState extends State<_BuyerHomeMeetingSummary> {
+  bool _manageOpen = false;
+  final _panelKey = GlobalKey();
+
+  void _toggleManage() {
+    setState(() => _manageOpen = !_manageOpen);
+    if (!_manageOpen) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final panel = _panelKey.currentContext;
+      if (!mounted || !_manageOpen || panel == null) return;
+      Scrollable.ensureVisible(
+        panel,
+        duration: const Duration(milliseconds: 180),
+        alignment: .72,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final meeting = widget.meeting;
+    final offer = widget.offer;
     final schedule = meeting.acceptedSchedule ?? meeting.pendingSchedule;
     final terms = (offer?.acceptedRevision ?? offer?.latestRevision)?.terms;
     final image = terms?.imageMediaIds.firstOrNull;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(borderRadius: BorderRadius.circular(12), child: image == null
-          ? const ListingImagePlaceholder(size: 74)
-          : PrivateRemoteImage(id: image, size: 74)),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (schedule != null) Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(16)),
-            child: Text(BuyerOfferView.formatSchedule(LocalSchedule(date: schedule.date,
-              startTime: schedule.startTime, timezoneId: schedule.timezoneId)),
-              style: _text(context, size: 10, color: Colors.white, weight: FontWeight.w700))),
-          const SizedBox(height: 5),
-          Text(meeting.offerSummary?.title ?? offer?.requestTitle ?? 'Meeting', maxLines: 2,
-            overflow: TextOverflow.ellipsis, style: _text(context, size: 14, weight: FontWeight.w800, color: _navy)),
-          const SizedBox(height: 6),
-          Wrap(spacing: 14, runSpacing: 6, children: [
-            if (meeting.offerSummary?.priceLabel ?? (offer == null ? null : BuyerOfferView.fromOffer(offer!, agreedTerms: true).priceLabel) case final price?)
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Agreed price', style: _text(context, size: 10, color: _muted)),
-                Text(price, style: _text(context, size: 18, weight: FontWeight.w800, color: _blue)),
-              ]),
-            if (schedule != null) Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Meet-up', style: _text(context, size: 10, color: _muted)),
-              Text(BuyerOfferView.formatPlaceLabel(address: schedule.placeAddress, label: schedule.placeLabel),
-                maxLines: 2, overflow: TextOverflow.ellipsis, style: _text(context, size: 11, color: _navy)),
-            ]),
-          ]),
-        ])),
-      ]),
-      if (meeting.hasPendingSchedule) Padding(padding: const EdgeInsets.only(top: 6),
-        child: Text(meeting.hasAcceptedSchedule ? 'Change awaiting agreement · original details shown' : 'Awaiting agreement',
-          style: _text(context, size: 11, color: _muted))),
-      const Divider(height: 20),
-      LayoutBuilder(builder: (context, constraints) {
-        final seller = BuyerDealSellerHeader(name: offer?.sellerDisplayName ?? 'Your seller',
-          profileId: offer?.sellerProfileId, load: loadSeller, showSales: false, compact: true);
-        final actions = Row(children: [
-          if (onDirections != null) Expanded(child: _MeetingQuickAction('Maps', 'meeting-map', () => onDirections!(meeting))),
-          if (onCall != null) Expanded(child: _MeetingQuickAction('Call', 'chat-call', () => onCall!(meeting))),
-          if (onMessage != null) Expanded(child: _MeetingQuickAction('Message', 'nav-chats', () => onMessage!(meeting))),
-        ]);
-        final label = TextPainter(text: TextSpan(text: 'Message', style: dealText(context, 10, bold: true)),
-          textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
-        final actionsFit = (constraints.maxWidth - 8) * .6 >= (label.width + 12) * 3;
-        if (constraints.maxWidth >= 290 && actionsFit) {
-          return Row(children: [Expanded(flex: 2, child: seller), const SizedBox(width: 8), Expanded(flex: 3, child: actions)]);
-        }
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [seller, const SizedBox(height: 8), actions]);
-      }),
-    ]);
+    final sellerName = offer?.sellerDisplayName ?? 'Your seller';
+    final message = widget.onMessage;
+    final manage = meeting.hasAcceptedSchedule ? widget.onManage : null;
+    final price =
+        meeting.offerSummary?.priceLabel ??
+        (offer == null
+            ? null
+            : BuyerOfferView.fromOffer(offer, agreedTerms: true).priceLabel);
+    final soft = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
+    final border = HocalistPalette.border(context, BuyerUiTokens.border);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BuyerDealSellerHeader(
+          name: sellerName,
+          profileId: offer?.sellerProfileId,
+          load: widget.loadSeller,
+          showSales: false,
+          compact: true,
+          sellerLabelBelow: true,
+          trailing: message == null
+              ? null
+              : IconButton(
+                  key: const ValueKey('buyer-upcoming-meetup-message'),
+                  tooltip: 'Chat with seller',
+                  onPressed: () => message(meeting),
+                  icon: dealArtwork('nav-chats', size: 24),
+                ),
+        ),
+        Divider(height: 16, color: border),
+        Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: image == null
+                  ? const ListingImagePlaceholder(size: 74)
+                  : PrivateRemoteImage(
+                      id: image,
+                      size: 74,
+                      showWholeImage: true,
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meeting.offerSummary?.title ??
+                        offer?.requestTitle ??
+                        'Meeting',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: dealText(context, 14, bold: true),
+                  ),
+                  if (price != null) ...[
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: soft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const BuyerAssetIcon(
+                            asset: 'assets/post_request/field-title-tag.png',
+                            slotSize: 16,
+                          ),
+                          Text(
+                            price,
+                            style: dealText(
+                              context,
+                              20,
+                              bold: true,
+                              color: BuyerUiTokens.action,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (schedule != null) ...[
+          const SizedBox(height: 9),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            decoration: BoxDecoration(
+              color: soft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final time = _UpcomingMeetingFact(
+                  asset: 'offers-calendar',
+                  label: 'Meet-up',
+                  value: BuyerOfferView.formatSchedule(
+                    LocalSchedule(
+                      date: schedule.date,
+                      startTime: schedule.startTime,
+                      timezoneId: schedule.timezoneId,
+                      occurrence: schedule.occurrence,
+                    ),
+                  ),
+                );
+                final place = _UpcomingMeetingFact(
+                  asset: 'detail-location',
+                  label: 'Meet-up place',
+                  value: BuyerOfferView.formatPlaceLabel(
+                    address: schedule.placeAddress,
+                    label: schedule.placeLabel,
+                  ),
+                );
+                if (constraints.maxWidth < 220 ||
+                    MediaQuery.textScalerOf(context).scale(14) >= 20) {
+                  return Column(
+                    children: [time, const SizedBox(height: 6), place],
+                  );
+                }
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(flex: 4, child: time),
+                      VerticalDivider(width: 12, thickness: 1, color: border),
+                      Expanded(flex: 5, child: place),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        if (meeting.hasPendingSchedule)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              meeting.hasAcceptedSchedule
+                  ? 'Change awaiting agreement · original details shown'
+                  : 'Awaiting agreement',
+              style: _text(context, size: 11, color: _muted),
+            ),
+          ),
+        if (manage != null) ...[
+          const SizedBox(height: 9),
+          OutlinedButton(
+            key: const ValueKey('buyer-upcoming-meetup-manage'),
+            onPressed: _toggleManage,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 46),
+              backgroundColor: soft,
+              side: BorderSide(color: HocalistPalette.border(context, _blue)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            child: Text(
+              'Manage',
+              style: dealText(
+                context,
+                14,
+                bold: true,
+                color: BuyerUiTokens.action,
+              ),
+            ),
+          ),
+          if (_manageOpen) ...[
+            const SizedBox(height: 7),
+            BuyerMeetupManagePanel(
+              key: _panelKey,
+              canReschedule: !meeting.hasPendingSchedule,
+              onClose: _toggleManage,
+              onContinue: (change) {
+                _toggleManage();
+                manage(meeting, sellerName, change);
+              },
+            ),
+          ],
+        ],
+      ],
+    );
   }
 }
 
-class _MeetingQuickAction extends StatelessWidget {
-  const _MeetingQuickAction(this.label, this.asset, this.onTap);
-  final String label;
+class _UpcomingMeetingFact extends StatelessWidget {
+  const _UpcomingMeetingFact({
+    required this.asset,
+    required this.label,
+    required this.value,
+  });
+
   final String asset;
-  final VoidCallback onTap;
+  final String label;
+  final String value;
+
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(horizontal: 3),
-    child: Material(color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
-      borderRadius: BorderRadius.circular(12), child: InkWell(onTap: onTap,
-        borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-          child: Column(children: [
-            BuyerAssetIcon(asset: 'assets/approved_offers_chat/$asset.png', slotSize: 20,
-                color: HocalistPalette.text(context, BuyerUiTokens.requestText)),
-            const SizedBox(height: 3),
-            Text(label, maxLines: 1, softWrap: false, style: dealText(context, 10, bold: true, color: BuyerUiTokens.action))])))));
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      dealArtwork(asset, size: 15),
+      const SizedBox(width: 5),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: dealText(context, 10, color: BuyerUiTokens.muted),
+            ),
+            Text(value, style: dealText(context, 11)),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 class _ApprovedRealMeetingsPanel extends StatelessWidget {
@@ -10318,9 +10507,8 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
     this.onReport,
     this.homeOffers = const [],
     this.loadSeller,
-    this.onDirections,
     this.onMessage,
-    this.onCall,
+    this.onManage,
   });
 
   final List<MeetingView> meetings;
@@ -10333,7 +10521,8 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
   final Future<bool> Function(MeetingView)? onReport;
   final List<Offer> homeOffers;
   final BuyerDealSellerLoader? loadSeller;
-  final ValueChanged<MeetingView>? onDirections, onMessage, onCall;
+  final ValueChanged<MeetingView>? onMessage;
+  final void Function(MeetingView, String, BuyerMeetupChange)? onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -10383,10 +10572,14 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
               margin: EdgeInsets.only(
                 bottom: past || meeting == rows.last ? 0 : metrics.geometry(12),
               ),
-              decoration: past ? null : _panelDecoration(context),
+              decoration: past ? null : onManage == null
+                  ? _panelDecoration(context)
+                  : _panelDecoration(context).copyWith(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
               child: InkWell(
               key: ValueKey('buyerMeeting-${meeting.meetingId}'),
-              borderRadius: BorderRadius.circular(metrics.geometry(14)),
+              borderRadius: BorderRadius.circular(onManage == null ? metrics.geometry(14) : 18),
               onTap: onOpen == null ? null : () => onOpen!(meeting),
               child: Padding(
                 padding: metrics.geometryInsets(
@@ -10395,14 +10588,14 @@ class _ApprovedRealMeetingsPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!past && onMessage != null) ...[
+                    if (!past && (onMessage != null || onManage != null)) ...[
                       _BuyerHomeMeetingSummary(
+                        key: ValueKey('buyer-upcoming-summary-${meeting.meetingId}'),
                         loadSeller: loadSeller,
                         meeting: meeting,
                         offer: homeOffers.where((o) => o.id == meeting.offerId).firstOrNull,
-                        onDirections: onDirections,
                         onMessage: onMessage,
-                        onCall: onCall,
+                        onManage: onManage,
                       ),
                     ] else ...[
                     Text(

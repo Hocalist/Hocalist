@@ -38,13 +38,14 @@ Widget dealArtwork(String name, {double size = 20}) => BuyerAssetIcon(
 class BuyerDealSellerHeader extends StatelessWidget {
   const BuyerDealSellerHeader({super.key, required this.name, this.profileId,
     this.load, this.onProfile, this.trailing, this.showSales = true, this.compact = false,
-    this.prominent = false, this.dense = false, this.stackedIdentity = false});
+    this.prominent = false, this.dense = false, this.stackedIdentity = false,
+    this.sellerLabelBelow = false});
   final String name;
   final String? profileId;
   final BuyerDealSellerLoader? load;
   final VoidCallback? onProfile;
   final Widget? trailing;
-  final bool showSales, compact, prominent, dense, stackedIdentity;
+  final bool showSales, compact, prominent, dense, stackedIdentity, sellerLabelBelow;
 
   @override
   Widget build(BuildContext context) => FutureBuilder<BuyerDealSeller>(
@@ -54,7 +55,7 @@ class BuyerDealSellerHeader extends StatelessWidget {
       final initials = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty)
         .take(2).map((s) => s[0]).join().toUpperCase();
       final large = prominent && !compact;
-      final avatarSize = stackedIdentity ? 40.0 : compact ? 32.0 : dense ? 36.0 : large ? 56.0 : 44.0;
+      final avatarSize = stackedIdentity ? 40.0 : sellerLabelBelow ? 36.0 : compact ? 32.0 : dense ? 36.0 : large ? 56.0 : 44.0;
       final avatar = ClipOval(
         child: seller?.avatarId != null
             ? PrivateRemoteImage(id: seller!.avatarId!, size: avatarSize)
@@ -95,11 +96,12 @@ class BuyerDealSellerHeader extends StatelessWidget {
           child: avatar)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (compact) Text('Seller', style: dealText(context, 9, color: BuyerUiTokens.muted)),
+          if (compact && !sellerLabelBelow) Text('Seller', style: dealText(context, 9, color: BuyerUiTokens.muted)),
           Row(children: [
             Flexible(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: dealText(context, compact ? 11 : 14, bold: true))),
+              style: dealText(context, compact && !sellerLabelBelow ? 11 : 14, bold: true))),
           ]),
+          if (sellerLabelBelow) Text('Seller', style: dealText(context, 10, color: BuyerUiTokens.muted)),
           if (!compact && seller?.verified == true) Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
             dealArtwork('detail-verified', size: 14),
             Text('Verified seller', style: dealText(context, 11, weight: FontWeight.w700, color: BuyerUiTokens.action)),

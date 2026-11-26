@@ -5,6 +5,8 @@ import 'package:hocalist/domain/phase2/common.dart';
 import 'package:hocalist/domain/phase2/money.dart';
 import 'package:hocalist/domain/phase2/notifications.dart';
 import 'package:hocalist/domain/phase2/requests.dart';
+import 'package:hocalist/domain/phase2/schedule.dart';
+import 'package:hocalist/data/phase2/meetings/meeting_adapter.dart';
 import 'package:hocalist/data/phase2/meetings/meeting_codecs.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 
@@ -77,6 +79,8 @@ ApprovedBuyerHomePage _page({
   List<MeetingView>? realMeetings,
   ValueChanged<MeetingView>? onOpenMeeting,
   ValueChanged<MeetingView>? onOpenPinMeeting,
+  ValueChanged<MeetingView>? onMeetingMessage,
+  void Function(MeetingView, String, BuyerMeetupChange)? onManageMeetup,
   List<ApprovedActivityView>? realActivity,
   bool activityLoading = false,
   String? activityError,
@@ -105,6 +109,8 @@ ApprovedBuyerHomePage _page({
   realMeetings: realMeetings,
   onOpenMeeting: onOpenMeeting,
   onOpenPinMeeting: onOpenPinMeeting,
+  onMeetingMessage: onMeetingMessage,
+  onManageTodayMeetup: onManageMeetup,
   realActivity: realActivity,
   activityLoading: activityLoading,
   activityError: activityError,
@@ -112,6 +118,93 @@ ApprovedBuyerHomePage _page({
 );
 
 void main() {
+  testWidgets(
+    'Buyer Home upcoming card opens chat and manages the same meetup',
+    (tester) async {
+      final schedule = MeetingScheduleView(
+        sequence: 1,
+        date: LocalDate(year: 2098, month: 5, day: 10),
+        startTime: LocalTime(hour: 13, minute: 30),
+        timezoneId: 'UTC',
+        offsetMinutes: 0,
+        instant: DateTime.utc(2098, 5, 10, 13, 30),
+        placeChoice: 'custom',
+        placeLabel: 'City library',
+        proposedByUserId: 'seller',
+        status: 'accepted',
+        createdAt: DateTime.utc(2026),
+      );
+      final meeting = MeetingView(
+        meetingId: 'upcoming',
+        conversationId: 'chat',
+        requestId: 'request',
+        offerId: 'offer',
+        buyerUserId: 'buyer',
+        sellerUserId: 'seller',
+        status: 'accepted',
+        revision: 1,
+        meetingExpiresAt: DateTime.utc(2098, 5, 11),
+        acceptedSchedule: schedule,
+        revisions: [schedule],
+        offerSummary: const MeetingOfferSummary(
+          title: 'Camera Tripod',
+          priceMinor: 3500,
+          currencyCode: 'USD',
+          revisionId: 'revision',
+        ),
+      );
+      final messages = <MeetingView>[];
+      final changes = <BuyerMeetupChange>[];
+      await _pump(
+        tester,
+        _page(
+          realRequests: const [],
+          realMeetings: [meeting],
+          onMeetingMessage: messages.add,
+          onManageMeetup: (target, _, change) {
+            expect(target, same(meeting));
+            changes.add(change);
+          },
+        ),
+        width: 320,
+      );
+
+      Future<void> tap(Finder finder) async {
+        await tester.ensureVisible(finder);
+        await tester.pumpAndSettle();
+        await tester.tap(finder);
+        await tester.pumpAndSettle();
+      }
+
+      final chat = find.byKey(const ValueKey('buyer-upcoming-meetup-message'));
+      final manage = find.byKey(const ValueKey('buyer-upcoming-meetup-manage'));
+      expect(
+        tester.getTopLeft(chat).dy,
+        lessThan(tester.getTopLeft(find.text('Camera Tripod')).dy),
+      );
+      expect(find.text('Maps'), findsNothing);
+      expect(find.text('Call'), findsNothing);
+      await tap(chat);
+      expect(messages, [meeting]);
+      for (final (label, action) in [
+        ('Reschedule meetup', BuyerMeetupAction.reschedule),
+        ('Cancel meetup', BuyerMeetupAction.cancel),
+      ]) {
+        await tap(manage);
+        expect(find.text('Reschedule meetup'), findsOneWidget);
+        expect(find.text('Cancel meetup'), findsOneWidget);
+        await tap(find.text(label));
+        await tap(find.text('Schedule changed'));
+        await tap(find.text('Continue'));
+        expect(changes.last.action, action);
+        expect(changes.last.reason, 'schedule_changed');
+        expect(find.text('Manage meetup'), findsNothing);
+      }
+      expect(changes, hasLength(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('home orders requests by creation date regardless of deadline', (
     tester,
   ) async {
