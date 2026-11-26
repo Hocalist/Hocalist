@@ -66,6 +66,8 @@ void main() {
     expect(category('iPad Air'), 'phone');
     expect(category('Someone to mount a TV', product: false), 'mount');
     expect(category('Ceramic figurines'), 'custom');
+    expect(category('mahogany office desks'), 'table');
+    expect(category('ocuch'), 'couch');
   });
 
   test(

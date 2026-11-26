@@ -333,7 +333,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   String _maximum = '';
   String? _categoryId;
   List<CategoryAnswer> _categoryAnswers = const [];
+  final _answersByCategory = <String, List<CategoryAnswer>>{};
   bool _categoryChosenManually = false;
+  String? _titleMatchAtManualChoice;
   Timer? _categoryTimer;
   final _questionKey = GlobalKey<CategoryQuestionEditorState>();
   String? _addressLine1;
@@ -493,13 +495,11 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   void _scheduleCategoryMatch(String title) {
     _categoryTimer?.cancel();
     if (!widget.usesRealSubmission || widget.categoriesLoading ||
-        widget.categoriesError != null || _categoryChosenManually ||
-        _categoryAnswers.isNotEmpty) {
+        widget.categoriesError != null) {
       return;
     }
     _categoryTimer = Timer(const Duration(milliseconds: 300), () {
-      if (!mounted || _step != _ApprovedRequestStep.details ||
-          _categoryChosenManually || _categoryAnswers.isNotEmpty) {
+      if (!mounted || _step != _ApprovedRequestStep.details) {
         return;
       }
       _applyCategoryMatch(title);
@@ -507,18 +507,29 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   bool _applyCategoryMatch(String title) {
-    if (_categoryChosenManually || _categoryAnswers.isNotEmpty) return false;
-    final matched = matchRequestCategory(
+    final matchedId = _matchedCategoryId(title);
+    if (_categoryChosenManually &&
+        (matchedId == null || matchedId == _titleMatchAtManualChoice)) {
+      return false;
+    }
+    if (_categoryId == matchedId && !_categoryChosenManually) return false;
+    setState(() {
+      _categoryChosenManually = false;
+      _useCategory(matchedId);
+    });
+    return true;
+  }
+
+  String? _matchedCategoryId(String title) => matchRequestCategory(
       title,
       widget.categories,
       product: _kind == ApprovedRequestKind.product,
-    );
-    if (_categoryId == matched?.id) return false;
-    setState(() {
-      _categoryId = matched?.id;
-      _submitError = null;
-    });
-    return true;
+    )?.id;
+
+  void _useCategory(String? id) {
+    _categoryId = id;
+    _categoryAnswers = _answersByCategory[id] ?? const [];
+    _submitError = null;
   }
 
   void _onTitleChanged(String title) {
@@ -530,11 +541,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     _categoryTimer?.cancel();
     setState(() {
       _categoryChosenManually = true;
-      if (_categoryId != id) {
-        _categoryId = id;
-        _categoryAnswers = const [];
-      }
-      _submitError = null;
+      _titleMatchAtManualChoice = _matchedCategoryId(widget.requestTitle);
+      _useCategory(id);
     });
   }
 
@@ -547,7 +555,10 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       categoryId: id,
       answers: _categoryAnswers,
       compactRequestFields: true,
-      onChanged: (answers) => setState(() => _categoryAnswers = answers),
+      onChanged: (answers) => setState(() {
+        _answersByCategory[id] = answers;
+        _categoryAnswers = answers;
+      }),
     );
   }
 
@@ -983,6 +994,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                     _kind = value;
                     _categoryId = null;
                     _categoryChosenManually = false;
+                    _titleMatchAtManualChoice = null;
                     _categoryAnswers = const [];
                     _submitError = null;
                   });
