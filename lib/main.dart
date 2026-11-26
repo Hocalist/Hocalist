@@ -3614,7 +3614,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     );
   }
 
-  Future<void> _manageBuyerMeetup(MeetingView meeting, String sellerName) async {
+  Future<void> _manageBuyerMeetup(
+    MeetingView meeting, String sellerName, BuyerMeetupChange change,
+  ) async {
     final host = appNavigatorKey.currentContext;
     final schedule = meeting.acceptedSchedule;
     if (host == null || schedule == null || role != UserRole.buyer) return;
@@ -3622,11 +3624,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final user = widget.accountSession?.userId;
     bool isCurrent() => mounted && host.mounted && role == UserRole.buyer &&
         widget.accountSession?.userId == user && identical(repository, _marketplace);
-    final action = await showBuyerMeetupOptions(host, canReschedule: !meeting.hasPendingSchedule);
-    if (action == null || !isCurrent()) return;
-    final change = await chooseBuyerMeetupReason(host, action);
-    if (change == null || !isCurrent()) return;
-    if (action == BuyerMeetupAction.reschedule) {
+    if (change.action == BuyerMeetupAction.reschedule) {
       await _rescheduleMeeting(target: meeting, buyerChange: change);
       return;
     }
@@ -6191,7 +6189,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onOpenPinMeeting: (meeting) => unawaited(
               _openMeetingById(meeting.meetingId, focusPurchasePin: true),
             ),
-            onManageTodayMeetup: (meeting, seller) => unawaited(_manageBuyerMeetup(meeting, seller)),
+            onManageTodayMeetup: (meeting, seller, change) =>
+                unawaited(_manageBuyerMeetup(meeting, seller, change)),
             onShowTodayPurchasePin: (meeting) => unawaited(_showTodayPurchasePin(meeting)),
             realActivity: _marketplace.isNotificationsBacked
                 ? _marketplace.notifications

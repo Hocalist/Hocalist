@@ -64,10 +64,24 @@ class BuyerDealSellerHeader extends StatelessWidget {
       );
       if (stackedIdentity) {
         return Column(mainAxisSize: MainAxisSize.min, children: [
-          avatar,
+          Container(
+            foregroundDecoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xff201e33) : Colors.white,
+                width: 2,
+              ),
+            ),
+            child: avatar,
+          ),
           const SizedBox(height: 3),
           Text(name, textAlign: TextAlign.center, maxLines: 2,
-            overflow: TextOverflow.ellipsis, style: dealText(context, 11, bold: true)),
+            overflow: TextOverflow.ellipsis, style: TextStyle(
+              fontFamily: 'Roboto', fontSize: 12, height: 1.35, fontWeight: FontWeight.w700,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xfffaf8ff) : const Color(0xff19152f),
+            )),
         ]);
       }
       final salesStyle = dealText(context, large && !dense ? 11 : 10, bold: true);

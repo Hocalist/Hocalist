@@ -3,6 +3,8 @@ import 'buyer_deal_card.dart';
 import '../../domain/phase2/schedule.dart';
 import 'offers_chat_pages.dart' show BuyerOfferView;
 import '../meetings/sale_confirmation_panel.dart' show PurchasePinCard;
+import '../meetings/buyer_meetup_manage.dart' show BuyerMeetupManagePanel;
+import '../../data/phase2/meetings/meeting_adapter.dart' show BuyerMeetupChange;
 import '../../components/pull_refresh.dart';
 import '../../components/hocalist_section_tabs.dart';
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
@@ -2981,7 +2983,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   final ValueChanged<MeetingView>? onOpenMeeting;
   final ValueChanged<MeetingView>? onOpenPinMeeting;
   final ValueChanged<MeetingView>? onShowTodayPurchasePin;
-  final void Function(MeetingView, String)? onManageTodayMeetup;
+  final void Function(MeetingView, String, BuyerMeetupChange)? onManageTodayMeetup;
   final List<Offer> homeOffers;
   final bool homeOffersReady;
   final Set<String> unreadOfferIds;
@@ -3204,13 +3206,14 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                         if (today != null && (onOpenMeeting != null || onShowTodayPurchasePin != null)) ...[
                           SizedBox(height: metrics.geometry(8)),
                           _BuyerTodayMeetup(
+                            key: ValueKey(today.meetingId),
                             meeting: today,
                             requestTitle: requests?.where((r) => r.requestId == today.requestId).firstOrNull?.title,
                             offer: todayOffer,
                             loadSeller: loadDealSeller,
                             onPin: () => (onShowTodayPurchasePin ?? onOpenPinMeeting ?? onOpenMeeting)?.call(today),
-                            onManage: onManageTodayMeetup == null ? null : () =>
-                              onManageTodayMeetup!(today, todayOffer?.sellerDisplayName ?? 'Your seller'),
+                            onManage: onManageTodayMeetup == null ? null : (change) =>
+                              onManageTodayMeetup!(today, todayOffer?.sellerDisplayName ?? 'Your seller', change),
                             onDirections: onMeetingDirections == null ? null : () => onMeetingDirections!(today),
                             onCall: onMeetingCall == null ? null : () => onMeetingCall!(today),
                             onChat: onMeetingMessage == null ? null : () => onMeetingMessage!(today),
@@ -9926,7 +9929,7 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
     );
   }
 }
-class _BuyerTodayMeetup extends StatelessWidget {
+class _BuyerTodayMeetup extends StatefulWidget {
   const _BuyerTodayMeetup({
     required this.meeting,
     required this.onPin,
@@ -9937,6 +9940,7 @@ class _BuyerTodayMeetup extends StatelessWidget {
     this.requestTitle,
     this.offer,
     this.loadSeller,
+    super.key,
   });
 
   final MeetingView meeting;
@@ -9944,68 +9948,164 @@ class _BuyerTodayMeetup extends StatelessWidget {
   final Offer? offer;
   final BuyerDealSellerLoader? loadSeller;
   final VoidCallback onPin;
-  final VoidCallback? onManage, onDirections, onCall, onChat;
+  final ValueChanged<BuyerMeetupChange>? onManage;
+  final VoidCallback? onDirections, onCall, onChat;
+
+  @override
+  State<_BuyerTodayMeetup> createState() => _BuyerTodayMeetupState();
+}
+
+class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
+  bool _manageOpen = false;
+  final _panelKey = GlobalKey();
+
+  void _closeManage() {
+    if (_manageOpen) setState(() => _manageOpen = false);
+  }
+
+  void _toggleManage() {
+    setState(() => _manageOpen = !_manageOpen);
+    if (!_manageOpen) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final panel = _panelKey.currentContext;
+      if (!mounted || !_manageOpen || panel == null) return;
+      Scrollable.ensureVisible(panel, duration: const Duration(milliseconds: 180), alignment: .72);
+    });
+  }
+
+  static TextStyle _cardText(double size, Color color, {
+    FontWeight weight = FontWeight.w400, double height = 1.35,
+  }) => TextStyle(
+    fontFamily: 'Roboto', fontSize: size, color: color,
+    fontWeight: weight, height: height,
+  );
 
   @override
   Widget build(BuildContext context) {
+    final meeting = widget.meeting;
+    final offer = widget.offer;
     final schedule = meeting.acceptedSchedule!;
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
       TimeOfDay(hour: schedule.startTime.hour, minute: schedule.startTime.minute),
     );
-    final place = BuyerOfferView.formatPlaceLabel(
-      label: schedule.placeLabel, address: schedule.placeAddress,
+    final place = schedule.placeLabel?.trim().isNotEmpty == true
+        ? schedule.placeLabel!.trim()
+        : BuyerOfferView.formatPlaceLabel(address: schedule.placeAddress);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff19152f);
+    final muted = dark ? const Color(0xffc2bada) : const Color(0xff625b76);
+    final purple = dark ? const Color(0xffc8bbff) : const Color(0xff3d24b7);
+    final surface = dark ? const Color(0xff201e33) : Colors.white;
+    final primary = dark ? const Color(0xff5035ad) : const Color(0xff4027bc);
+    final outline = dark ? const Color(0xff8e77c9) : const Color(0xffa99bd8);
+    Widget action(String label, IconData icon, VoidCallback run, {
+      required Color background, required Color foreground,
+      BorderSide? border, double fontSize = 12,
+    }) => TextButton(
+      onPressed: run,
+      style: TextButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        side: border,
+        textStyle: _cardText(fontSize, foreground, weight: FontWeight.w600, height: 1.2),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, size: 15),
+        const SizedBox(width: 5),
+        Flexible(child: Text(label, textAlign: TextAlign.center)),
+      ]),
     );
+    final quickActions = <Widget>[
+      if (widget.onDirections != null)
+        action('Maps', Icons.map_outlined, () { _closeManage(); widget.onDirections!(); },
+          background: surface, foreground: purple),
+      if (widget.onCall != null)
+        action('Call', Icons.phone_outlined, () { _closeManage(); widget.onCall!(); },
+          background: surface, foreground: purple),
+      if (widget.onChat != null)
+        action('Chat', Icons.chat_bubble_outline_rounded, () { _closeManage(); widget.onChat!(); },
+          background: surface, foreground: purple),
+    ];
     return Container(
       key: const Key('buyer-today-meetup'),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: HocalistPalette.surface(context, _lavender),
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: dark
+              ? const [Color(0xff322452), Color(0xff282041)]
+              : const [Color(0xfff1edff), Color(0xffe9e2fe)],
+        ),
+        border: Border.all(color: dark ? const Color(0xff38324f) : const Color(0xffe7e1f4)),
+        borderRadius: BorderRadius.circular(17),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Today · $time', style: _text(context, size: 11, color: _blue)),
-            const SizedBox(height: 4),
-            Text('Your meetup is today', style: _text(context, size: 15, weight: FontWeight.w800, color: _navy)),
-          ])),
-          const SizedBox(width: 8),
-          Flexible(child: BuyerDealSellerHeader(
-            name: offer?.sellerDisplayName ?? 'Your seller',
-            profileId: offer?.sellerProfileId,
-            load: loadSeller,
-            stackedIdentity: true,
-          )),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 62),
+          child: Row(children: [
+            Expanded(child: Column(mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.event_outlined, size: 14, color: purple),
+                  const SizedBox(width: 5),
+                  Flexible(child: Text('Today · $time',
+                    style: _cardText(12, purple, weight: FontWeight.w700))),
+                ]),
+                const SizedBox(height: 5),
+                Text('Your meetup is today', style: _cardText(20, ink, weight: FontWeight.w700, height: 1.15)
+                    .copyWith(letterSpacing: -.4)),
+              ],
+            )),
+            const SizedBox(width: 9),
+            SizedBox(width: 72, child: BuyerDealSellerHeader(
+              name: offer?.sellerDisplayName ?? 'Your seller',
+              profileId: offer?.sellerProfileId,
+              load: widget.loadSeller,
+              stackedIdentity: true,
+            )),
+          ]),
+        ),
+        if (widget.requestTitle != null) ...[
+          const SizedBox(height: 5),
+          Text(widget.requestTitle!, style: _cardText(14, ink, weight: FontWeight.w600)),
+        ],
+        const SizedBox(height: 5),
+        Row(children: [
+          Icon(Icons.location_on_outlined, size: 14, color: muted),
+          const SizedBox(width: 5),
+          Expanded(child: Text(place, style: _cardText(12, muted))),
         ]),
-        const SizedBox(height: 3),
-        if (requestTitle != null)
-          Text(requestTitle!, style: _text(context, size: 12, weight: FontWeight.w700, color: _navy)),
-        Text(place, style: _text(context, size: 11, color: _muted)),
-        if (onDirections != null || onCall != null || onChat != null) ...[
-          const SizedBox(height: 7),
+        if (quickActions.isNotEmpty) ...[
+          const SizedBox(height: 11),
           Row(children: [
-            if (onDirections != null)
-              Expanded(child: _MeetingQuickAction('Maps', 'meeting-map', onDirections!)),
-            if (onCall != null)
-              Expanded(child: _MeetingQuickAction('Call', 'chat-call', onCall!)),
-            if (onChat != null)
-              Expanded(child: _MeetingQuickAction('Chat', 'nav-chats', onChat!)),
+            for (var index = 0; index < quickActions.length; index++) ...[
+              if (index > 0) const SizedBox(width: 7),
+              Expanded(child: quickActions[index]),
+            ],
           ]),
         ],
         const SizedBox(height: 8),
         LayoutBuilder(builder: (context, constraints) {
-          final pin = BuyerPrimaryButton(label: 'Show purchase PIN', onPressed: onPin, minimumHeight: 44);
-          if (onManage == null) return pin;
-          final manage = BuyerSecondaryButton(label: 'Manage', onPressed: onManage, minimumHeight: 44);
-          if (constraints.maxWidth < 260 || MediaQuery.textScalerOf(context).scale(1) > 1.35) {
+          final pin = action('Show purchase PIN', Icons.key_outlined, () { _closeManage(); widget.onPin(); },
+            background: primary, foreground: Colors.white, fontSize: 13);
+          if (widget.onManage == null) return pin;
+          final manage = action('Manage', Icons.tune, _toggleManage,
+            background: Colors.transparent, foreground: purple,
+            border: BorderSide(color: outline), fontSize: 13);
+          if (MediaQuery.textScalerOf(context).scale(1) > 1.35) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               pin, const SizedBox(height: 6), manage,
             ]);
           }
           return Row(children: [
-            Expanded(flex: 5, child: pin),
+            Expanded(flex: 7, child: pin),
             const SizedBox(width: 7),
-            Expanded(flex: 3, child: manage),
+            Expanded(flex: 4, child: manage),
           ]);
         }),
         if (meeting.pendingSchedule case final pending?)
@@ -10015,9 +10115,21 @@ class _BuyerTodayMeetup extends StatelessWidget {
               pending.proposedByUserId == meeting.buyerUserId
                   ? 'Waiting for seller confirmation. Your original meetup is still scheduled.'
                   : 'The seller proposed a change. Your original meetup is still scheduled.',
-              style: _text(context, size: 11, weight: FontWeight.w700, color: _blue),
+              style: _cardText(12, purple, weight: FontWeight.w600),
             ),
           ),
+        if (_manageOpen && widget.onManage != null) ...[
+          const SizedBox(height: 8),
+          BuyerMeetupManagePanel(
+            key: _panelKey,
+            canReschedule: !meeting.hasPendingSchedule,
+            onClose: _closeManage,
+            onContinue: (change) {
+              _closeManage();
+              widget.onManage?.call(change);
+            },
+          ),
+        ],
       ]),
     );
   }
