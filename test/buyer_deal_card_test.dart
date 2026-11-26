@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/buyer_deal_card.dart';
+import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'package:hocalist/main.dart' show HocalistTheme;
 import 'test_fonts.dart';
@@ -23,16 +24,21 @@ void main() {
   Future<void> pump(WidgetTester t, double width, double scale, TargetPlatform platform,
       {VoidCallback? chat, VoidCallback? decline, VoidCallback? accept, VoidCallback? options,
       VisualDensity density = VisualDensity.standard, String message = 'Includes the original charger. Payment at the meeting.',
-      List<String> photos = const ['test-product']}) async {
+      List<String> photos = const ['test-product'], bool comparison = false,
+      PlanCode? plan, bool verified = true}) async {
     t.view.devicePixelRatio = 1;
     t.view.physicalSize = Size(width, 1300);
     await t.pumpWidget(MaterialApp(theme: HocalistTheme.light.copyWith(platform: platform, visualDensity: density),
       home: MediaQuery(data: MediaQueryData(size: Size(width, 1300), textScaler: TextScaler.linear(scale)),
         child: Scaffold(body: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(12),
           child: RepaintBoundary(key: const Key('deal-proof'), child: BuyerDealCard(
-            sellerName: 'Jonathan Sanchez', sellerProfileId: 'seller', loadSeller: (_) => seller,
+            sellerName: 'Jonathan Sanchez', sellerProfileId: 'seller',
+            loadSeller: (_) => comparison
+                ? SynchronousFuture(BuyerDealSeller(verified: verified, plan: plan, sales: 42))
+                : seller,
             title: 'iPad Air 5th Gen (64GB)', price: r'$650',
             meeting: 'Mon, Nov 23 · 3:00 PM', place: 'Business address',
+            availability: 'Sun, Nov 22', comparison: comparison,
             message: message,
             photos: photos,
             readImage: (_) => SynchronousFuture(File('assets/approved_offers_chat/chat-ipad.png').readAsBytesSync()),
@@ -40,6 +46,23 @@ void main() {
           ))))))));
     await t.pumpAndSettle();
   }
+  testWidgets('offer comparison shows separate terms and verified paid sellers', (t) async {
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    for (final plan in PlanCode.values) {
+      await pump(t, 320, 1.6, TargetPlatform.android, comparison: true, plan: plan);
+      expect(find.text('Mon, Nov 23 · 3:00 PM'), findsOneWidget);
+      expect(find.text('Business address'), findsOneWidget);
+      expect(find.text('Sun, Nov 22'), findsOneWidget);
+      expect(find.bySemanticsLabel('Open photo preview'), findsOneWidget);
+      expect(find.text('Verified seller'), plan == PlanCode.free ? findsNothing : findsOneWidget);
+      expect(find.text('42 confirmed sales'), plan == PlanCode.free ? findsNothing : findsOneWidget);
+      expect(t.takeException(), isNull);
+    }
+    await pump(t, 320, 1.6, TargetPlatform.android, comparison: true, plan: PlanCode.elite, verified: false);
+    expect(find.text('Elite'), findsOneWidget);
+    expect(find.text('Verified seller'), findsNothing);
+  });
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     for (final width in [320.0, 360.0, 390.0, 430.0]) {
       for (final scale in [1.0, 1.15, 1.3, 1.6]) {

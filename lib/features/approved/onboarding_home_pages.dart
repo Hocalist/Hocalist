@@ -2916,6 +2916,9 @@ class ApprovedBuyerHomePage extends StatelessWidget {
     this.onOpenMeeting,
     this.onOpenPinMeeting,
     this.homeOffers = const [],
+    this.homeOffersReady = false,
+    this.unreadOfferIds = const {},
+    this.onDismissRequestTip,
     this.negotiationsLoading = false,
     this.negotiationsError,
     this.onRefreshNegotiations,
@@ -2976,6 +2979,9 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   final ValueChanged<MeetingView>? onOpenMeeting;
   final ValueChanged<MeetingView>? onOpenPinMeeting;
   final List<Offer> homeOffers;
+  final bool homeOffersReady;
+  final Set<String> unreadOfferIds;
+  final VoidCallback? onDismissRequestTip;
   final bool negotiationsLoading;
   final String? negotiationsError;
   final VoidCallback? onRefreshNegotiations;
@@ -3033,6 +3039,23 @@ class ApprovedBuyerHomePage extends StatelessWidget {
       realActivity != null ||
       loadRealRewards != null;
 
+  MeetingView? _todayMeeting(DateTime now) {
+    MeetingView? first;
+    for (final meeting in realMeetings ?? const <MeetingView>[]) {
+      final schedule = meeting.acceptedSchedule;
+      if (schedule == null || !meeting.isUpcomingAt(now)) continue;
+      final local = now.toUtc().add(Duration(minutes: schedule.offsetMinutes));
+      if (local.year != schedule.date.year ||
+          local.month != schedule.date.month || local.day != schedule.date.day) {
+        continue;
+      }
+      if (first == null || schedule.instant.isBefore(first.acceptedSchedule!.instant)) {
+        first = meeting;
+      }
+    }
+    return first;
+  }
+
   @override
   Widget build(BuildContext context) {
     final firstName = name.trim().isEmpty
@@ -3045,9 +3068,44 @@ class ApprovedBuyerHomePage extends StatelessWidget {
           availableWidth: viewport.maxWidth,
           textScaler: MediaQuery.textScalerOf(context),
         );
+        final submitted = <String, List<Offer>>{};
+        for (final offer in homeOffers) {
+          if (offer.status == OfferStatus.submitted) {
+            (submitted[offer.requestId] ??= []).add(offer);
+          }
+        }
+        int unreadFor(String id) =>
+            submitted[id]?.where((offer) => unreadOfferIds.contains(offer.id)).length ?? 0;
+        String requestMeta(BuyerRequestView request) {
+          if (request.isActive && homeOffersReady && negotiationsError == null) {
+            final offers = submitted[request.requestId] ?? const <Offer>[];
+            if (offers.isEmpty && request.purchaseOfferId == null &&
+                !homeOffers.any((offer) => offer.requestId == request.requestId &&
+                    offer.status == OfferStatus.selected)) {
+              return 'Waiting for offers';
+            }
+            if (offers.isNotEmpty) {
+              final unread = unreadFor(request.requestId);
+              final count = unread > 0 ? unread : offers.length;
+              final latest = offers.reduce((a, b) =>
+                  b.stamp.updatedAt.isAfter(a.stamp.updatedAt) ? b : a);
+              return '$count${unread > 0 ? ' new' : ''} ${count == 1 ? 'offer' : 'offers'}'
+                  ' · Latest offer ${BuyerOfferView.fromOffer(latest).priceLabel}';
+            }
+          }
+          return [
+            request.statusLabel,
+            request.budgetLabel,
+            if (request.windowLabel != null) request.windowLabel!,
+          ].join(' · ');
+        }
+        final today = _todayMeeting(DateTime.now());
         final requests = realRequests == null
             ? null
             : (List<BuyerRequestView>.of(realRequests!)..sort((a, b) {
+                final aHasNew = unreadFor(a.requestId) > 0;
+                final bHasNew = unreadFor(b.requestId) > 0;
+                if (aHasNew != bHasNew) return aHasNew ? -1 : 1;
                 final createdOrder = (b.createdAt ?? DateTime(1970)).compareTo(
                   a.createdAt ?? DateTime(1970),
                 );
@@ -3137,6 +3195,14 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                           ),
                         SizedBox(height: metrics.geometry(10)),
                         _ApprovedPostRequest(onTap: onCreate),
+                        if (today != null && onOpenMeeting != null) ...[
+                          SizedBox(height: metrics.geometry(8)),
+                          _BuyerTodayMeetup(
+                            meeting: today,
+                            requestTitle: requests?.where((r) => r.requestId == today.requestId).firstOrNull?.title,
+                            onTap: () => onOpenMeeting!(today),
+                          ),
+                        ],
                         if (requestPosted || usesRealRequests) ...[
                           SizedBox(height: metrics.geometry(10)),
                           Row(
@@ -3178,10 +3244,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                                   Navigator.pop(sheetContext);
                                                   _openRequestPin(context, request);
                                                 },
-                                                metaLabel: [
-                                                  request.statusLabel,
-                                                  request.budgetLabel,
-                                                ].join(' · '),
+                                                metaLabel: requestMeta(request),
+                                                hasNewOffers: unreadFor(request.requestId) > 0,
                                                 onDetails: () {
                                                   Navigator.pop(sheetContext);
                                                   onOpenRequest?.call(request);
@@ -3233,12 +3297,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                   onClose: request.isActive && onCloseFromHome != null ? () => onCloseFromHome!(request) : null,
                                   showOffers: request.canViewOffers,
                                   onPin: () => _openRequestPin(context, request),
-                                  metaLabel: [
-                                    request.statusLabel,
-                                    request.budgetLabel,
-                                    if (request.windowLabel != null)
-                                      request.windowLabel!,
-                                  ].join(' · '),
+                                  metaLabel: requestMeta(request),
+                                  hasNewOffers: unreadFor(request.requestId) > 0,
                                   onDetails: () => onOpenRequest?.call(request),
                                   onOffers: () {
                                     final open = onOpenOffers;
@@ -3257,6 +3317,17 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                               onDetails: onRequestDetails,
                               onOffers: onOffers,
                             ),
+                          if (requests?.isNotEmpty == true && onDismissRequestTip != null)
+                            Row(children: [
+                              const Icon(Icons.info_outline, size: 16),
+                              const SizedBox(width: 6),
+                              const Expanded(child: Text('Hold for options. Swipe left for the PIN.')),
+                              IconButton(
+                                tooltip: 'Dismiss request tip',
+                                onPressed: onDismissRequestTip,
+                                icon: const Icon(Icons.close, size: 17),
+                              ),
+                            ]),
                         ],
                         SizedBox(height: metrics.geometry(8)),
                         _BuyerNegotiationsPanel(
@@ -9696,6 +9767,7 @@ class _ApprovedActiveRequest extends StatefulWidget {
     this.onClose,
     this.onPin,
     this.metaLabel,
+    this.hasNewOffers = false,
     super.key,
   });
 
@@ -9706,6 +9778,7 @@ class _ApprovedActiveRequest extends StatefulWidget {
   final VoidCallback? onClose;
   final VoidCallback? onPin;
   final String? metaLabel;
+  final bool hasNewOffers;
 
   @override
   State<_ApprovedActiveRequest> createState() => _ApprovedActiveRequestState();
@@ -9814,7 +9887,11 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
                               widget.metaLabel ??
                                   'Posted on May 13    2 offers received',
                               maxLines: metrics.screenshotLocked ? 1 : null,
-                              style: _text(context, size: 9.5, color: _muted),
+                              style: _text(
+                                context, size: 9.5,
+                                color: widget.hasNewOffers ? _blue : _muted,
+                                weight: widget.hasNewOffers ? FontWeight.w700 : FontWeight.w400,
+                              ),
                             ),
                           ],
                         ),
@@ -9836,6 +9913,45 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
     );
   }
 }
+class _BuyerTodayMeetup extends StatelessWidget {
+  const _BuyerTodayMeetup({required this.meeting, required this.onTap, this.requestTitle});
+
+  final MeetingView meeting;
+  final String? requestTitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final schedule = meeting.acceptedSchedule!;
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay(hour: schedule.startTime.hour, minute: schedule.startTime.minute),
+    );
+    final place = BuyerOfferView.formatPlaceLabel(
+      label: schedule.placeLabel, address: schedule.placeAddress,
+    );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, _lavender),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.event_available_outlined, size: 16, color: HocalistPalette.text(context, _blue)),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Today · $time', style: _text(context, size: 11, color: _blue))),
+        ]),
+        const SizedBox(height: 4),
+        Text('Your meetup is today', style: _text(context, size: 15, weight: FontWeight.w800, color: _navy)),
+        const SizedBox(height: 3),
+        Text([if (requestTitle != null) requestTitle!, place].join(' · '),
+          style: _text(context, size: 11, color: _muted)),
+        TextButton(onPressed: onTap, child: const Text('View meetup')),
+      ]),
+    );
+  }
+}
+
 class _BuyerHomeSectionLink extends StatelessWidget {
   const _BuyerHomeSectionLink({required this.onPressed});
   final VoidCallback? onPressed;

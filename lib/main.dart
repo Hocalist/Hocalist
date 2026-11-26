@@ -1055,6 +1055,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     );
     _configureChatRefresh();
     unawaited(_loadLeadHistory());
+    unawaited(_loadBuyerGestureTip());
     if (_marketplace.isSellerOffersBacked) unawaited(_marketplace.refreshSellerOffers());
     _reopenFlow = ReopenFlowCoordinator(
       reopen: ({required requestId, required expectedRevision}) =>
@@ -4015,6 +4016,21 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   }
 
   List<Offer> _buyerHomeOffers = const [];
+  bool _buyerHomeOffersReady = false;
+  bool _showBuyerGestureTip = false;
+
+  Future<void> _loadBuyerGestureTip({bool dismiss = false}) async {
+    final user = widget.accountSession?.userId;
+    if (user == null) return;
+    if (dismiss) setState(() => _showBuyerGestureTip = false);
+    final preferences = await SharedPreferences.getInstance();
+    final key = 'buyer.requestGestureTip.dismissed.$user';
+    if (dismiss) {
+      await preferences.setBool(key, true);
+    } else if (mounted && user == widget.accountSession?.userId) {
+      setState(() => _showBuyerGestureTip = !(preferences.getBool(key) ?? false));
+    }
+  }
   final Map<String, Future<BuyerDealSeller>> _dealSellerReads = {};
 
   BuyerOfferView _buyerDealView(Offer offer) => BuyerOfferView.fromOffer(
@@ -4030,7 +4046,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       try {
         final values = await Future.wait<Object?>([
           ProfilePresentationBackend(Supabase.instance.client).publicSeller(profileId),
-          if (_reviewBackend != null) _reviewBackend!.loadReputation(profileId),
+          if (_reviewBackend != null)
+            _reviewBackend!.loadReputation(profileId).then<PublicSellerReputation?>(
+              (value) => value, onError: (Object _) => null,
+            ),
         ]);
         if (widget.accountSession?.userId != user) throw StateError('Account changed');
         final profile = values.first as Map<String, dynamic>;
@@ -4039,9 +4058,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         return BuyerDealSeller(
           avatarId: profile['avatar_media_id'] as String?,
           verified: (profile['badges'] as List? ?? []).contains('Admin reviewed'),
+          plan: switch (profile['plan_code'] ?? profile['plan']) {
+            'pro' => PlanCode.pro,
+            'elite' => PlanCode.elite,
+            'free' => PlanCode.free,
+            _ => null,
+          },
           rating: reputation?.available == true ? reputation!.averageRating : null,
           reviewCount: reputation?.available == true ? reputation!.ratingCount : null,
-          sales: (profile['completed_sales'] as num?)?.toInt() ??
+            sales: (profile['completed_sales'] as num?)?.toInt() ??
             (reputation?.available == true ? reputation!.completedDeals : null),
         );
       } catch (_) {
@@ -4254,7 +4279,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       }
       rows.sort((a, b) => b.stamp.updatedAt.compareTo(a.stamp.updatedAt));
       if (!mounted || generation != _buyerHomeOffersGeneration || user != widget.accountSession?.userId) return;
-      setState(() { _buyerHomeOffers = rows; _buyerHomeOffersError = null; });
+      setState(() {
+        _buyerHomeOffers = rows;
+        _buyerHomeOffersReady = true;
+        _buyerHomeOffersError = null;
+      });
     } catch (_) {
       if (mounted && generation == _buyerHomeOffersGeneration && user == widget.accountSession?.userId) {
         if (!background) setState(() { _buyerHomeOffersError = 'Please retry to load your offers.'; });
@@ -5207,6 +5236,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       }
     }
     go(AppPage.offersReceived);
+    final repository = _marketplace;
+    unawaited(() async {
+      for (final item in repository.notifications.where((item) =>
+          item.isUnread && item.kind == 'new_offer' &&
+          item.payload?['request_id'] == view.requestId).toList()) {
+        if (!mounted || !identical(repository, _marketplace)) return;
+        await repository.markNotificationRead(item.id);
+      }
+    }());
   }
 
   /// The authoritative request shown by the detail route in real mode.
@@ -6026,6 +6064,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 unawaited(_marketplace.refreshBuyerRequests()),
             onOpenRequest: _openBuyerRequest,
             homeOffers: _buyerHomeOffers,
+            homeOffersReady: _buyerHomeOffersReady,
+            unreadOfferIds: {
+              for (final item in _marketplace.notifications)
+                if (item.isUnread && item.kind == 'new_offer' && item.sourceId != null)
+                  item.sourceId!,
+            },
+            onDismissRequestTip: _showBuyerGestureTip
+                ? () => unawaited(_loadBuyerGestureTip(dismiss: true))
+                : null,
             negotiationsLoading: _buyerHomeOffersLoading,
             negotiationsError: _buyerHomeOffersError,
             onRefreshNegotiations: () => unawaited(_refreshBuyerHomeOffers()),
@@ -6326,6 +6373,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         return AnimatedBuilder(
           animation: _marketplace,
           builder: (context, _) => ApprovedOffersReceivedPage(
+            comparisonRequestTitle: _currentBuyerRequest?.draft.title,
             onBack: back,
             onNotifications: () => go(AppPage.notifications),
             onViewOffer: _selectSelectedOffer,

@@ -16,6 +16,13 @@ const identities = new Map([
 const sessions = new Map();
 const refreshSessions = new Map();
 const requestIds = { offer: randomUUID(), close: randomUUID() };
+const buyerDemo = process.env.HOCALIST_USB_QA_BUYER_DEMO === '1';
+const demoSellers = [
+  { user: IDS.seller, profile: IDS.sellerMembership, name: 'Maya QA', price: 27500,
+    sales: 24, image: randomUUID(), file: 'maya-ipad.jpg', place: 'Riverside Park', day: 1 },
+  { user: IDS.seller2, profile: IDS.seller2Membership, name: 'Alex QA', price: 29000,
+    sales: 86, image: randomUUID(), file: 'alex-ipad.jpg', place: 'Downtown Library', day: 2 },
+];
 const readSql = (file) => readFile(new URL(file, import.meta.url), 'utf8');
 const db = await createCommercialDb();
 
@@ -93,13 +100,17 @@ await db.query("SELECT hocalist.credit_deposit_internal($1,'usb-qa-credit',5000,
 const command = async (identity, operation, key, values) => (await callAs(db, 'authenticated', identity,
   'SELECT hocalist.marketplace_command($1,$2,$3::jsonb) AS result',
   [operation, key, values]))[0].result;
-const date = (await db.query("SELECT ((now() AT TIME ZONE 'America/New_York')::date+1)::text AS day")).rows[0].day;
+const { day: date, time: demoTime } = (await db.query(`
+  SELECT ((now() AT TIME ZONE 'America/New_York')::date +
+    CASE WHEN $1::boolean AND (now() AT TIME ZONE 'America/New_York')::time < '23:59'::time THEN 0 ELSE 1 END)::text AS day,
+    CASE WHEN $1::boolean THEN '23:59' ELSE '15:00' END AS time
+`, [buyerDemo])).rows[0];
 await command(IDS.buyer, 'request.close', 'usb-qa-seed-previous-close-test',
   { request_id: requestIds.close, expected_revision: 1 });
 const offer = await command(IDS.seller, 'offer.submit', 'usb-qa-seed-previous-offer', {
   request_id: requestIds.offer, price_minor: 3500, currency_code: 'USD',
   message: 'Tripod available for the synthetic QA meetup.',
-  schedule_date: date, schedule_time: '15:00', schedule_timezone: 'America/New_York',
+  schedule_date: date, schedule_time: demoTime, schedule_timezone: 'America/New_York',
   place_choice: 'specific_place', place_label: 'USB QA Library',
   place_address: '123 Synthetic Test Rd, Orlando, FL',
   place_latitude: 28.54, place_longitude: -81.38, image_media_ids: [],
@@ -110,6 +121,37 @@ const opened = await command(IDS.buyer, 'conversation.open_offer', 'usb-qa-seed-
   { offer_id: selected.id });
 await callAs(db, 'authenticated', IDS.buyer, 'SELECT hocalist.chat_deal_send($1,$2,$3,$4)',
   [opened.conversation_id, selected.id, 'usb-qa-seed-previous-chat', 'USB QA message']);
+
+if (buyerDemo) {
+  const [{ revision }] = (await db.query('SELECT revision FROM hocalist.offers WHERE id=$1', [selected.id])).rows;
+  await callAs(db, 'authenticated', IDS.buyer,
+    'SELECT hocalist.meeting_accept_offer($1,$2,NULL,$3)',
+    [selected.id, revision, 'usb-qa-demo-confirmed-meeting']);
+  const product = randomUUID();
+  const service = randomUUID();
+  for (const [id, kind, title, condition, serviceType] of [
+    [product, 'product', 'iPad Air 5, 256 GB', 'used', null],
+    [service, 'service', 'House cleaning', null, 'one_time'],
+  ]) {
+    await db.query(
+      "INSERT INTO hocalist.requests(id,buyer_user_id,buyer_profile_id,kind,title,condition,service_type,status,city,location_timezone) VALUES($1,$2,$3,$4,$5,$6,$7,'active','Orlando, FL','America/New_York')",
+      [id, IDS.buyer, IDS.buyerMembership, kind, title, condition, serviceType],
+    );
+  }
+  await db.query("INSERT INTO hocalist.seller_entitlements(user_id,plan_code,source) VALUES($1,'elite','admin')", [IDS.seller2]);
+  await db.query("SELECT hocalist.credit_deposit_internal($1,'usb-qa-elite-credit',5000,190,475,'test')", [IDS.seller2]);
+  for (const seller of demoSellers) {
+    await db.query('UPDATE hocalist.role_profiles SET display_name=$1 WHERE membership_id=$2', [seller.name, seller.profile]);
+    const [{ day }] = (await db.query("SELECT ((now() AT TIME ZONE 'America/New_York')::date+$1::int)::text AS day", [seller.day])).rows;
+    await command(seller.user, 'offer.submit', 'usb-qa-demo-offer-' + seller.day, {
+      request_id: product, price_minor: seller.price, currency_code: 'USD',
+      message: seller.day === 1 ? 'Protective case included' : 'USB-C cable included',
+      schedule_date: day, schedule_time: '15:00', schedule_timezone: 'America/New_York',
+      place_choice: 'specific_place', place_label: seller.place,
+      place_latitude: 28.54, place_longitude: -81.38, image_media_ids: [seller.image],
+    });
+  }
+}
 
 const identifier = /^[a-z_][a-z0-9_]*$/;
 const safeIdentifier = (value) => {
@@ -164,7 +206,9 @@ async function handle(request, response) {
     const wallet = (await callAs(db, 'authenticated', IDS.buyer, 'SELECT hocalist.commercial_reward_wallet() AS result'))[0].result;
     return json(response, 200, { database: 'usb-qa', requests, offers, meetings, purchaseCount, rewards, wallet });
   }
-  if (request.headers.apikey !== clientKey) return json(response, 401, { message: 'Invalid QA API key' });
+  const demoImageRead = buyerDemo && endpoint.pathname === '/functions/v1/hocalist-media' &&
+    endpoint.searchParams.get('action') === 'read' && request.method === 'POST';
+  if (!demoImageRead && request.headers.apikey !== clientKey) return json(response, 401, { message: 'Invalid QA API key' });
   const token = request.headers.authorization?.replace(/^Bearer /i, '');
   const signedIn = sessions.get(token);
   const body = await readBody(request);
@@ -185,6 +229,14 @@ async function handle(request, response) {
   if (!signedIn) return json(response, 401, { message: 'Sign in to USB QA first' });
   const { email, user } = signedIn;
   if (endpoint.pathname === '/auth/v1/user') return json(response, 200, claims(email, user));
+  if (demoImageRead) {
+    const seller = demoSellers.find((row) => row.image === endpoint.searchParams.get('id'));
+    if (user.id !== IDS.buyer || !seller) return json(response, 404, { message: 'QA image unavailable' });
+    const bytes = await readFile(new URL('./fixtures/buyer-offers/' + seller.file, import.meta.url));
+    response.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store' });
+    response.end(bytes);
+    return;
+  }
   if (!endpoint.pathname.startsWith('/rest/v1/')) return json(response, 404, { message: 'External providers disabled for USB QA' });
   const verb = endpoint.pathname.slice('/rest/v1/'.length);
   const profile = request.headers['content-profile'] ?? request.headers['accept-profile'];
@@ -192,6 +244,14 @@ async function handle(request, response) {
 
   if (verb.startsWith('rpc/')) {
     const name = verb.slice(4);
+    if (buyerDemo && name === 'seller_profile_public') {
+      const seller = demoSellers.find((row) => row.profile === body.p_profile);
+      if (user.id !== IDS.buyer || !seller) return json(response, 200, { available: false });
+      const [{ plan }] = (await db.query("SELECT hocalist.entitlement_resolve_internal($1)->>'effective_plan' AS plan", [seller.user])).rows;
+      return json(response, 200, {
+        available: true, plan_code: plan, badges: ['Admin reviewed'], completed_sales: seller.sales,
+      });
+    }
     const parts = Object.keys(body);
     const bindings = parts.map((part, i) => safeIdentifier(part) + ' => $' + (i + 1));
     const values = parts.map((part) => body[part]);

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../accounts/fresh_session_token.dart';
+import '../providers/provider_runtime.dart' show hocalistSupabaseUrl;
 
 typedef ImageUpload = Future<String> Function(Uint8List bytes, String key);
 
@@ -93,7 +94,7 @@ class ImageGateway {
     }
     final response = await _post(
       Uri.parse(
-        'https://icqwbzswokoulatomgql.supabase.co/functions/v1/hocalist-media',
+        '$hocalistSupabaseUrl/functions/v1/hocalist-media',
       ).replace(queryParameters: {'action': 'read', 'id': id}),
       headers: {'Authorization': 'Bearer $token'},
     ).timeout(const Duration(seconds: 20));
@@ -117,7 +118,7 @@ class ImageGateway {
     if (bytes.length > 4 * 1024 * 1024) throw StateError('image_too_large');
     final response = await _post(
       Uri.parse(
-        'https://icqwbzswokoulatomgql.supabase.co/functions/v1/hocalist-media?action=upload',
+        '$hocalistSupabaseUrl/functions/v1/hocalist-media?action=upload',
       ),
       headers: {
         'Authorization': 'Bearer $token',

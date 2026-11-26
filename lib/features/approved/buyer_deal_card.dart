@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../theme/adaptive_palette.dart';
 import '../../theme/buyer_ui_foundation.dart';
+import '../../domain/phase2/commercial/commercial.dart' show PlanCode;
 import '../media/private_remote_image.dart';
 import '../media/listing_image_placeholder.dart';
 import 'approved_replica_metrics.dart';
@@ -10,11 +11,12 @@ import 'approved_replica_metrics.dart';
 /// fabricated rating, verified badge or sales count.
 class BuyerDealSeller {
   const BuyerDealSeller({this.avatarId, this.verified = false,
-    this.rating, this.reviewCount, this.sales});
+    this.rating, this.reviewCount, this.sales, this.plan});
   final String? avatarId;
   final bool verified;
   final double? rating;
   final int? reviewCount, sales;
+  final PlanCode? plan;
 }
 
 typedef BuyerDealSellerLoader = Future<BuyerDealSeller> Function(String profileId);
@@ -108,10 +110,13 @@ class BuyerDealCard extends StatefulWidget {
     required this.price, required this.meeting, required this.place,
     required this.message, required this.onChat, this.onDecline, this.onAccept,
     this.onOptions, this.onProfile, this.sellerProfileId, this.loadSeller,
-    this.photos = const [], this.busy = false, this.readImage, this.distanceLabel});
+    this.photos = const [], this.busy = false, this.readImage, this.distanceLabel,
+    this.comparison = false, this.availability});
   final String sellerName, title, price, meeting, place, message;
   final String? sellerProfileId;
   final String? distanceLabel;
+  final String? availability;
+  final bool comparison;
   final BuyerDealSellerLoader? loadSeller;
   final List<String> photos;
   final VoidCallback? onChat, onDecline, onAccept, onOptions, onProfile;
@@ -128,7 +133,8 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
     final width = constraints.maxWidth;
     final metrics = _dealMetrics(context);
     final receivedOffer = widget.onAccept == null;
-    final hasDetails = widget.photos.length > 1;
+    final hasDetails = widget.photos.length > 1 ||
+        (widget.comparison && widget.message.trim().length > 75);
     final photoSize = (width * .22).clamp(64.0, 84.0);
     final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final stackActions = width < 330 && scale > 1.2 || scale >= 1.5;
@@ -148,6 +154,9 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
         boxShadow: receivedOffer ? [BoxShadow(color: BuyerUiTokens.action.withValues(alpha: .06),
           blurRadius: 12, offset: const Offset(0, 4))] : null),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (widget.comparison)
+          _BuyerOfferComparison(offer: widget, photoSize: photoSize)
+        else ...[
         BuyerDealSellerHeader(name: widget.sellerName, profileId: widget.sellerProfileId,
           load: widget.loadSeller, onProfile: widget.onProfile, prominent: receivedOffer, dense: true,
           trailing: widget.onAccept == null ? null : IconButton(
@@ -205,6 +214,7 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
               ],
             ]);
           })),
+        ],
         const SizedBox(height: 8),
         if (widget.onAccept != null) primary
         else if (widget.onDecline != null)
@@ -230,12 +240,119 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
             ]))),
         ],
         if (expanded && hasDetails) ...[
+          if (widget.comparison && widget.message.trim().length > 75)
+            Text(widget.message.trim(), style: dealText(context, 12)),
           if (widget.photos.length > 1) Padding(padding: const EdgeInsets.only(top: 10),
             child: Wrap(spacing: 8, runSpacing: 8, children: widget.photos.skip(1).map((id) =>
               ClipRRect(borderRadius: BorderRadius.circular(10), child: PrivateRemoteImage(id: id, size: 76, read: widget.readImage))).toList())),
         ],
       ]));
   });
+}
+
+class _BuyerOfferComparison extends StatelessWidget {
+  const _BuyerOfferComparison({required this.offer, required this.photoSize});
+
+  final BuyerDealCard offer;
+  final double photoSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final profileId = offer.sellerProfileId;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: offer.photos.isEmpty
+                ? ListingImagePlaceholder(size: photoSize)
+                : PrivateRemoteImage(
+                    id: offer.photos.first,
+                    size: photoSize,
+                    showWholeImage: true,
+                    read: offer.readImage,
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(offer.price, style: dealText(context, 20, bold: true,
+                color: BuyerUiTokens.action)),
+              Semantics(
+                button: offer.onProfile != null,
+                child: InkWell(
+                  onTap: offer.onProfile,
+                  child: Text(offer.sellerName, style: dealText(context, 14, bold: true)),
+                ),
+              ),
+              if (profileId != null)
+                FutureBuilder<BuyerDealSeller>(
+                  future: offer.loadSeller?.call(profileId),
+                  builder: (context, snapshot) {
+                    final seller = snapshot.data;
+                    final plan = seller?.plan;
+                    if (seller == null || (plan != PlanCode.pro && plan != PlanCode.elite)) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(plan == PlanCode.elite ? 'Elite' : 'Pro',
+                              style: dealText(context, 11, bold: true, color: BuyerUiTokens.action)),
+                            if (seller.verified) ...[
+                              dealArtwork('detail-verified', size: 13),
+                              Text('Verified seller', style: dealText(context, 11, bold: true)),
+                            ],
+                          ],
+                        ),
+                        if (seller.sales case final sales?)
+                          Text('$sales confirmed ${sales == 1 ? 'sale' : 'sales'}',
+                            style: dealText(context, 11, color: BuyerUiTokens.muted)),
+                      ],
+                    );
+                  },
+                ),
+              if (offer.message.trim().isNotEmpty)
+                Text(offer.message.trim(), maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: dealText(context, 11, color: BuyerUiTokens.muted)),
+            ],
+          )),
+        ]),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          decoration: BoxDecoration(
+            color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(children: [
+            _offerFact(context, 'offers-calendar', 'Proposed meetup', offer.meeting),
+            _offerFact(context, 'detail-location', 'Meetup place', offer.place),
+            _offerFact(context, 'detail-clock', 'Seller available', offer.availability ?? 'Not specified'),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _offerFact(BuildContext context, String asset, String label, String value) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        dealArtwork(asset, size: 15),
+        const SizedBox(width: 4),
+        Expanded(child: Text(label, style: dealText(context, 11, color: BuyerUiTokens.muted))),
+        const SizedBox(width: 6),
+        Expanded(child: Text(value, textAlign: TextAlign.end,
+          style: dealText(context, 11, bold: true))),
+      ]),
+    );
 }
 
 class _DealFact extends StatelessWidget {

@@ -161,6 +161,7 @@ class BuyerOfferView {
     this.requestAcceptanceExpiresAt,
     this.requestTitle = 'Your request',
     this.distanceLabel,
+    this.availabilityLabel,
   });
 
   factory BuyerOfferView.fromOffer(Offer offer, {bool agreedTerms = false,
@@ -199,6 +200,7 @@ class BuyerOfferView {
       priceLabel: BuyerOfferView._formatMoney(terms.price),
       message: terms.message.trim(),
       meetingLabel: formatSchedule(schedule),
+      availabilityLabel: formatOfferDate(terms.schedule.date),
       placeLabel: formatPlaceLabel(address: agreed?.placeAddress, label: agreed?.placeLabel, fallback: BuyerOfferView._formatPlace(terms.place)),
       distanceLabel: distance,
       status: offer.status,
@@ -221,7 +223,7 @@ class BuyerOfferView {
   final String message;
   final String meetingLabel;
   final String placeLabel;
-  final String? distanceLabel;
+  final String? distanceLabel, availabilityLabel;
   final OfferStatus status;
   final String? conversationId;
   final List<String> imageMediaIds;
@@ -271,11 +273,11 @@ class BuyerOfferView {
     return '\$$text';
   }
 
-  static String formatSchedule(LocalSchedule schedule) {
+  static String formatOfferDate(LocalDate localDate) {
     final date = DateTime(
-      schedule.date.year,
-      schedule.date.month,
-      schedule.date.day,
+      localDate.year,
+      localDate.month,
+      localDate.day,
     );
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const months = [
@@ -292,13 +294,15 @@ class BuyerOfferView {
       'Nov',
       'Dec',
     ];
+    return '${weekdays[date.weekday - 1]}, ${months[localDate.month - 1]} ${localDate.day}';
+  }
+
+  static String formatSchedule(LocalSchedule schedule) {
     final hour = schedule.startTime.hour;
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour % 12 == 0 ? 12 : hour % 12;
     final minute = schedule.startTime.minute.toString().padLeft(2, '0');
-    return '${weekdays[date.weekday - 1]}, '
-        '${months[schedule.date.month - 1]} ${schedule.date.day} · '
-        '$displayHour:$minute $period';
+    return '${formatOfferDate(schedule.date)} · $displayHour:$minute $period';
   }
 
   /// Use only the meeting location returned for this participant. Public
@@ -411,6 +415,7 @@ class ChatThreadView {
 /// private widgets in the existing app shell.
 class ApprovedOffersReceivedPage extends StatefulWidget {
   const ApprovedOffersReceivedPage({
+    this.comparisonRequestTitle,
     required this.onBack,
     required this.onNotifications,
     required this.onViewOffer,
@@ -433,6 +438,8 @@ class ApprovedOffersReceivedPage extends StatefulWidget {
     this.selectionError,
     super.key,
   });
+
+  final String? comparisonRequestTitle;
 
   final VoidCallback onBack;
   final VoidCallback onNotifications;
@@ -598,6 +605,8 @@ class _ApprovedOffersReceivedPageState
           sellerProfileId: visible[index].sellerProfileId,
           loadSeller: widget.loadSeller,
           onProfile: widget.onViewSeller == null ? null : () => widget.onViewSeller!(visible[index]),
+          comparison: true,
+          availability: visible[index].availabilityLabel,
           photos: visible[index].imageMediaIds,
           sellerName: visible[index].sellerName,
           title: visible[index].requestTitle,
@@ -688,7 +697,7 @@ class _ApprovedOffersReceivedPageState
             children: [
               BuyerTopLevelHeader(onNotifications: widget.onNotifications),
               const SizedBox(height: 6),
-              const _OffersHero(),
+              _OffersHero(requestTitle: widget.comparisonRequestTitle),
               const SizedBox(height: 8),
               _OffersRewardsCard(realMode: widget.usesRealOffers),
               const SizedBox(height: 10),
@@ -3120,7 +3129,8 @@ class _ApprovedRasterAssetState extends State<_ApprovedRasterAsset> {
 }
 
 class _OffersHero extends StatelessWidget {
-  const _OffersHero();
+  const _OffersHero({this.requestTitle});
+  final String? requestTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -3140,7 +3150,7 @@ class _OffersHero extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Compare offers and choose the best seller for you.',
+              requestTitle ?? 'Compare offers and choose the best seller for you.',
               style: _text(
                 context,
                 size: narrow ? 10 : 13,
@@ -3150,6 +3160,7 @@ class _OffersHero extends StatelessWidget {
             ),
           ],
         );
+        if (requestTitle != null) return copy;
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
