@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../commercial/money_help.dart';
+import '../chat/chat_meetup_proposal_notice.dart';
 import '../../theme/approved_interface_icons.dart';
 import '../../theme/preserved_raster_glyph.dart';
 import '../../theme/control_foundation.dart';
@@ -1140,6 +1141,8 @@ class ApprovedDealView {
     this.completed = false,
     this.meetingAccepted = false,
     this.unreadCount = 0,
+    this.canSuggestMeetup = false,
+    this.canShareMeetup = false,
   }) : assert(meetingId != null || offerId != null);
 
   final String? meetingId;
@@ -1169,6 +1172,7 @@ class ApprovedDealView {
       zoneLabel: terms.schedule.timezoneId,
       placeLabel: BuyerOfferView._formatPlace(terms.place),
       purchaseSelected: offer.purchaseSelected,
+      canSuggestMeetup: !historical && !offer.requestClosed && offer.purchaseSelected,
     );
   }
   final String title;
@@ -1184,6 +1188,8 @@ class ApprovedDealView {
   final bool completed;
   final bool meetingAccepted;
   final int unreadCount;
+  final bool canSuggestMeetup;
+  final bool canShareMeetup;
 
   ApprovedDealView withUnreadCount(int count) => ApprovedDealView(
     meetingId: meetingId, offerId: offerId, title: title,
@@ -1192,6 +1198,7 @@ class ApprovedDealView {
     pendingLabel: pendingLabel, purchaseSelected: purchaseSelected,
     actionLabel: actionLabel, completed: completed,
     meetingAccepted: meetingAccepted, unreadCount: count,
+    canSuggestMeetup: canSuggestMeetup, canShareMeetup: canShareMeetup,
   );
 }
 
@@ -1230,6 +1237,10 @@ class ApprovedBuyerChatPage extends StatelessWidget {
     this.selectedEnquiryId,
     this.onSelectEnquiry,
     this.onSelectRealDeal,
+    this.meetupProposals = const [],
+    this.onRespondToMeetup,
+    this.onSuggestMeetup,
+    this.onTakePhoto,
     this.messagesLoading = false,
     this.messagesError,
     this.onRefreshMessages,
@@ -1299,6 +1310,10 @@ class ApprovedBuyerChatPage extends StatelessWidget {
   final String? selectedEnquiryId;
   final ValueChanged<String>? onSelectEnquiry;
   final ValueChanged<String>? onSelectRealDeal;
+  final List<ChatMeetupProposal> meetupProposals;
+  final ChatMeetupResponse? onRespondToMeetup;
+  final ValueChanged<String>? onSuggestMeetup;
+  final VoidCallback? onTakePhoto;
   final bool messagesLoading;
   final String? messagesError;
   final VoidCallback? onRefreshMessages;
@@ -1376,6 +1391,10 @@ class ApprovedBuyerChatPage extends StatelessWidget {
         selectedEnquiryId: selectedEnquiryId,
         onSelectEnquiry: onSelectEnquiry,
         onSelectRealDeal: onSelectRealDeal,
+        meetupProposals: meetupProposals,
+        onRespondToMeetup: onRespondToMeetup,
+        onSuggestMeetup: onSuggestMeetup,
+        onTakePhoto: onTakePhoto,
         messagesLoading: messagesLoading,
         messagesError: messagesError,
         onRefreshMessages: onRefreshMessages,
@@ -1450,6 +1469,10 @@ class ApprovedConversationBody extends StatefulWidget {
     this.selectedEnquiryId,
     this.onSelectEnquiry,
     this.onSelectRealDeal,
+    this.meetupProposals = const [],
+    this.onRespondToMeetup,
+    this.onSuggestMeetup,
+    this.onTakePhoto,
     this.messagesLoading = false,
     this.messagesError,
     this.onRefreshMessages,
@@ -1533,6 +1556,10 @@ class ApprovedConversationBody extends StatefulWidget {
   final String? selectedEnquiryId;
   final ValueChanged<String>? onSelectEnquiry;
   final ValueChanged<String>? onSelectRealDeal;
+  final List<ChatMeetupProposal> meetupProposals;
+  final ChatMeetupResponse? onRespondToMeetup;
+  final ValueChanged<String>? onSuggestMeetup;
+  final VoidCallback? onTakePhoto;
   final bool messagesLoading;
   final String? messagesError;
   final VoidCallback? onRefreshMessages;
@@ -2025,12 +2052,62 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
   Future<void> _showAttachmentPicker() async {
     if (!_canMessage) return;
     if (widget.usesRealEntries) {
-      if (widget.attachmentsEnabled) {
-        // The host owns picking, uploading and the authoritative send result.
-        widget.onAttach();
+      if (widget.onRespondToMeetup == null) {
+        if (widget.attachmentsEnabled) {
+          widget.onAttach();
+        } else {
+          _message('Attachments are not connected yet.');
+        }
         return;
       }
-      _message('Attachments are not connected yet.');
+      final deal = _selectedRealDeal;
+      final canSuggest = deal?.canSuggestMeetup == true &&
+          widget.onSuggestMeetup != null;
+      final canShare = deal?.canShareMeetup == true && deal?.scheduleLabel != null;
+      final action = await showModalBottomSheet<int>(
+        context: context,
+        sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheet) => _ApprovedChatSheetFrame(
+          title: 'Chat actions',
+          subtitle: 'Share a photo or arrange your meetup.',
+          icon: Icons.add_circle_outline,
+          onClose: () => Navigator.pop(sheet),
+          child: Column(
+            children: [
+              _ApprovedMenuAction(icon: Icons.photo_library_outlined,
+                title: 'Choose photos', subtitle: 'Select a photo from your device.',
+                onTap: widget.attachmentsEnabled ? () => Navigator.pop(sheet, 0) : null),
+              _ApprovedMenuAction(icon: Icons.photo_camera_outlined,
+                title: 'Take photo', subtitle: 'Open your camera.',
+                onTap: widget.onTakePhoto != null ? () => Navigator.pop(sheet, 1) : null),
+              if (deal != null) ...[
+                _ApprovedMenuAction(icon: Icons.location_on_outlined,
+                  title: 'Share meetup details', subtitle: 'Add the confirmed details to your message draft.',
+                  onTap: canShare ? () => Navigator.pop(sheet, 2) : null),
+                _ApprovedMenuAction(icon: Icons.event_outlined,
+                  title: 'Suggest a new time', subtitle: 'Send a meetup proposal for approval.',
+                  onTap: canSuggest ? () => Navigator.pop(sheet, 3) : null),
+              ],
+            ],
+          ),
+        ),
+      );
+      if (!mounted || !_canMessage || action == null || _selectedRealDeal?.id != deal?.id) return;
+      switch (action) {
+        case 0: widget.onAttach();
+        case 1: widget.onTakePhoto?.call();
+        case 2:
+          final details = [deal!.scheduleLabel, deal.zoneLabel, deal.placeLabel]
+              .whereType<String>().where((part) => part.isNotEmpty).join(' · ');
+          final draft = _controller.text.trimRight();
+          final value = draft.isEmpty ? details : '$draft\n$details';
+          _controller.value = TextEditingValue(
+            text: value, selection: TextSelection.collapsed(offset: value.length),
+          );
+        case 3: widget.onSuggestMeetup?.call(deal!.id);
+      }
       return;
     }
     final attachment = await showModalBottomSheet<_ApprovedChatAttachment>(
@@ -2343,7 +2420,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     );
   }
 
-  Future<void> _showConversationDeals() async {
+  Future<void> _showConversationDeals({bool selectOnly = false}) async {
     if (widget.usesRealEntries) {
       await showModalBottomSheet<void>(
         context: context,
@@ -2361,6 +2438,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
           error: widget.realDealsError,
           truncated: widget.realDealsTruncated,
           previousDeals: widget.previousDeals,
+          selectOnly: selectOnly,
           onRefresh: widget.onRefreshRealDeals,
           onProposeMeeting: () {
             Navigator.pop(sheetContext);
@@ -2371,6 +2449,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
             Navigator.pop(sheetContext);
             _setDealView(null, true);
             widget.onSelectRealDeal?.call(meetingId);
+            if (selectOnly && widget.onSelectRealDeal != null) return;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) unawaited(_showRealDealDetails(meetingId));
             });
@@ -2400,6 +2479,12 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
 
   @override
   Widget build(BuildContext context) {
+    final compactDeal = widget.usesRealEntries && widget.onRespondToMeetup != null
+        ? _selectedRealDeal
+        : null;
+    final dealCount = {
+      for (final deal in [...?widget.realDeals, ...?widget.previousDeals]) deal.id,
+    }.length;
     final content = IconButtonTheme(
       data: IconButtonThemeData(
         style: ButtonStyle(
@@ -2488,7 +2573,23 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                     child: _EnquiryContextPanel(enquiries: widget.enquiries,
                                       selectedId: widget.selectedEnquiryId, onSelect: widget.onSelectEnquiry)),
                               ],
-                              if (widget.selectedEnquiryId == null) ...[
+                              if (compactDeal != null) ...[
+                                const SizedBox(height: 8),
+                                _CurrentChatDeal(
+                                  deal: compactDeal,
+                                  count: dealCount,
+                                  onChoose: () => _showConversationDeals(selectOnly: true),
+                                  onExplore: () {
+                                    final open = widget.onOpenRealDeal;
+                                    if (open != null) {
+                                      open(compactDeal.id);
+                                    } else {
+                                      unawaited(_showRealDealDetails(compactDeal.id));
+                                    }
+                                  },
+                                  onLongPress: widget.onMeetingOptions,
+                                ),
+                              ] else if (widget.selectedEnquiryId == null) ...[
                               const SizedBox(height: 8),
                               Row(
                                 children: [
@@ -2609,7 +2710,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                               ],
                               Divider(height: 20, thickness: 1,
                                 color: HocalistPalette.border(context, const Color(0xffd8d9e5)).withValues(alpha: .45)),
-                              if (widget.usesRealEntries && _selectedRealDeal != null)
+                              if (compactDeal == null && widget.usesRealEntries && _selectedRealDeal != null)
                                 Semantics(
                                   key: const Key('chat-selected-deal'),
                                   label: 'Selected deal: ${_selectedRealDeal!.title}',
@@ -2631,7 +2732,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                     ],
                                   ),
                                 ),
-                              if (widget.usesRealEntries && !widget.viewerIsSeller &&
+                              if (compactDeal == null && widget.usesRealEntries && !widget.viewerIsSeller &&
                                   _showPastDeals != true && _selectedRealDeal != null &&
                                   !_selectedRealDeal!.completed &&
                                   (widget.realDeals?.any((deal) => deal.id == _selectedRealDeal!.id) ?? false)) ...[
@@ -2642,6 +2743,12 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                   onLongPress: widget.onMeetingOptions),
                                 const SizedBox(height: 12),
                               ],
+                              if (widget.onRespondToMeetup != null)
+                                ChatMeetupProposalNotice(
+                                  proposals: widget.meetupProposals,
+                                  respond: widget.onRespondToMeetup!,
+                                  viewerIsSeller: widget.viewerIsSeller,
+                                ),
                               if (widget.usesRealEntries &&
                                   widget.blockState != null &&
                                   (widget.blockState!.isBlockedByMe ||
@@ -5125,6 +5232,110 @@ class _NewDealCard extends StatelessWidget {
   }
 }
 
+class _CurrentChatDeal extends StatelessWidget {
+  const _CurrentChatDeal({
+    required this.deal,
+    required this.count,
+    required this.onChoose,
+    required this.onExplore,
+    this.onLongPress,
+  });
+
+  final ApprovedDealView deal;
+  final int count;
+  final VoidCallback onChoose;
+  final VoidCallback onExplore;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final border = BorderSide(color: HocalistPalette.border(context, _line));
+    final actionColor = HocalistPalette.text(context, _blue);
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: TextButton(
+              key: ValueKey('deal-details-${deal.id}'),
+              onPressed: onExplore,
+              onLongPress: onLongPress,
+              style: TextButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                minimumSize: const Size(0, 58),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                side: border,
+                backgroundColor: HocalistPalette.surface(context, const Color(0xfff8f8fd)),
+                foregroundColor: actionColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.sell_outlined, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Semantics(
+                      key: const Key('chat-selected-deal'),
+                      label: 'Selected deal: ${deal.title}',
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(deal.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: _text(context, size: 12, weight: FontWeight.w800)),
+                          Text('${deal.priceLabel} · ${deal.statusLabel}',
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: _text(context, size: 11, color: _muted)),
+                          if (deal.unreadCount > 0)
+                            Text('${deal.unreadCount} unread',
+                              style: _text(context, size: 11, color: _blue)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text('Explore deal',
+                      style: _text(context, size: 11, weight: FontWeight.w800, color: _blue)),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, size: 16),
+                ],
+              ),
+            ),
+          ),
+          if (count > 1) ...[
+            const SizedBox(width: 7),
+            Tooltip(
+              message: 'Choose from $count deals',
+              child: TextButton(
+                key: const Key('chat-deal-count'),
+                onPressed: onChoose,
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(52, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: HocalistPalette.surface(context, _lavender),
+                  foregroundColor: actionColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                  side: border,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('$count'),
+                    const Icon(Icons.expand_more, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _RealActiveDealsPanel extends StatelessWidget {
   const _RealActiveDealsPanel({
     required this.deals,
@@ -5541,6 +5752,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
     required this.error,
     required this.truncated,
     required this.previousDeals,
+    this.selectOnly = false,
     required this.onRefresh,
     required this.onProposeMeeting,
     required this.onClose,
@@ -5554,6 +5766,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
   final String? error;
   final bool truncated;
   final List<ApprovedDealView>? previousDeals;
+  final bool selectOnly;
   final VoidCallback? onRefresh;
   final VoidCallback onProposeMeeting;
   final VoidCallback onClose;
@@ -5575,6 +5788,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (!selectOnly) ...[
           Text('Show in chat', style: _text(context, size: 12,
             weight: FontWeight.w800)),
           const SizedBox(height: 8),
@@ -5590,6 +5804,7 @@ class _ApprovedRealDealsSheet extends StatelessWidget {
               selected: pastSelected == true, onSelected: (_) => onChooseGroup(true)),
           ]),
           const SizedBox(height: 16),
+          ],
           if (list == null) ...[
             if (loading)
               const BuyerProgressStrip(label: 'Loading active deals…')
@@ -6671,7 +6886,7 @@ class _ApprovedMenuAction extends StatelessWidget {
   }) : assert(asset != null || icon != null);
 
   final String title;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String? asset;
   final IconData? icon;
   final String? subtitle;

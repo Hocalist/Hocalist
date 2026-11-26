@@ -46,6 +46,7 @@ import 'package:flutter/material.dart';
 import 'features/account/analytics_consent_setting.dart';
 import 'components/page_swipe_navigation.dart';
 import 'features/meetings/meeting_cancel_confirmation.dart';
+import 'features/chat/chat_meetup_proposal_notice.dart';
 import 'features/meetings/buyer_meetup_manage.dart';
 import 'package:flutter/semantics.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1853,6 +1854,25 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       ? (_conversationDeals?.any((deal) => deal.meetingAccepted) ?? false)
       : meetingConfirmed;
 
+  List<ChatMeetupProposal> get _chatMeetupProposals {
+    final viewer = widget.accountSession?.userId;
+    if (viewer == null || _conversationDealsError != null ||
+        _marketplace.activeChatEnquiryId != null ||
+        _conversationDealsFor != _marketplace.activeConversationId) {
+      return const [];
+    }
+    final active = {for (final deal in _conversationDeals ?? <ApprovedDealView>[]) deal.id: deal};
+    return [
+      for (final meeting in _conversationMeetingRecords)
+        if (active.containsKey(meeting.meetingId) &&
+            (viewer == meeting.buyerUserId || viewer == meeting.sellerUserId) &&
+            meeting.purchaseSelected && !meeting.isCancelled &&
+            meeting.pendingSchedule?.proposedByUserId ==
+                (viewer == meeting.buyerUserId ? meeting.sellerUserId : meeting.buyerUserId))
+          (meeting: meeting, title: active[meeting.meetingId]!.title),
+    ];
+  }
+
   void _adoptConversationMeeting(MeetingView meeting) {
     if (!mounted ||
         meeting.conversationId != _marketplace.activeConversationId ||
@@ -1862,6 +1882,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     setState(() {
       ++_conversationDealsGeneration;
       _conversationDealsLoading = false;
+      _conversationDealsRefreshing = false;
       _conversationMeetingRecords = [
         meeting,
         ..._conversationMeetingRecords.where(
@@ -1903,6 +1924,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             pendingStatus,
             BuyerNoticeTone.warning,
           )
+        : meeting.latestProposalDeclined
+        ? (accepted != null ? 'Change declined · original meetup kept' : 'Meetup proposal declined', BuyerNoticeTone.warning)
         : accepted != null
         ? ('Meeting set', BuyerNoticeTone.success)
         : ('Offer accepted', BuyerNoticeTone.brand);
@@ -1917,12 +1940,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           ? null
           : '${schedule.date} ${schedule.startTime}',
       zoneLabel: schedule?.timezoneId,
-      placeLabel: schedule?.placeLabel,
+      placeLabel: schedule?.placeAddress ?? schedule?.placeLabel,
       pendingLabel: pending == null || pending == accepted
           ? null
-          : 'New time proposed: ${pending.date} ${pending.startTime}',
+          : 'Meetup change proposed: ${pending.date} ${pending.startTime}',
       purchaseSelected: meeting.purchaseSelected,
       completed: completed,
+      canSuggestMeetup: meeting.purchaseSelected && !closed && !completed &&
+          !meeting.isCancelled && pending == null,
+      canShareMeetup: accepted != null && !closed && !completed && !meeting.isCancelled,
       meetingAccepted:
           accepted != null &&
           !meeting.hasPendingSchedule &&
@@ -3650,6 +3676,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   Future<void> _rescheduleMeeting({MeetingView? target, BuyerMeetupChange? buyerChange}) async {
     final repository = _marketplace;
     final user = widget.accountSession?.userId;
+    final epoch = _navigationEpoch;
+    bool current() => mounted && identical(repository, _marketplace) &&
+        user == widget.accountSession?.userId && epoch == _navigationEpoch;
     final meeting = target ?? repository.meetingDetail;
     final schedule = meeting?.pendingSchedule ?? meeting?.acceptedSchedule ?? meeting?.revisions.lastOrNull;
     if (meeting == null ||
@@ -3662,7 +3691,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final dialogContext = appNavigatorKey.currentContext;
     if (dialogContext == null) return;
     SellerOfferPlace? changedPlace;
-    await showDialog<bool>(
+    final sent = await showDialog<bool>(
       context: dialogContext,
       animationStyle: HocalistMotion.dialogStyle(dialogContext),
       barrierDismissible: false,
@@ -3673,7 +3702,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           final place = await _chooseOfferPlace(
             appNavigatorKey.currentState!.context,
           );
-          if (!mounted || place == null) return null;
+          if (!current() || place == null) return null;
           changedPlace = place;
           return place.address;
         },
@@ -3690,7 +3719,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           minute: schedule.startTime.minute,
         ),
         timezoneId: schedule.timezoneId,
-        onSubmit: (date, time, occurrence, key) {
+        onSubmit: (date, time, occurrence, key) async {
+          if (!current() || (target != null && buyerChange == null &&
+              repository.activeConversationId != meeting.conversationId)) {
+            return const MeetingActionResult.failure('Please reopen the meetup.');
+          }
           final input = MeetingScheduleInput(
             offerId: meeting.offerId,
             schedule: LocalSchedule(
@@ -3714,65 +3747,113 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ? schedule.longitude
                 : changedPlace!.longitude,
           );
+          final MeetingActionResult result;
           if (buyerChange != null) {
-            if (!mounted || !identical(repository, _marketplace) ||
-                user != widget.accountSession?.userId || role != UserRole.buyer) {
-              return Future.value(const MeetingActionResult.failure('Please reopen the meetup.'));
+            if (role != UserRole.buyer) {
+              return const MeetingActionResult.failure('Please reopen the meetup.');
             }
-            return repository.manageBuyerMeetup(
+            result = await repository.manageBuyerMeetup(
               meeting: meeting, operationKey: key, change: buyerChange, input: input,
             );
-          }
-          if (!meeting.hasAcceptedSchedule && !meeting.hasPendingSchedule) {
-            return _marketplace.proposeMeeting(
+          } else if (!meeting.hasAcceptedSchedule && !meeting.hasPendingSchedule) {
+            result = await repository.proposeMeeting(
               conversationId: meeting.conversationId,
               input: input,
               operationKey: key,
             );
+          } else {
+            result = await repository.proposeMeetingReschedule(
+              meetingId: meeting.meetingId,
+              expectedRevision: meeting.revision,
+              operationKey: key,
+              input: input,
+            );
           }
-          return _marketplace.proposeMeetingReschedule(
-            meetingId: meeting.meetingId,
-            expectedRevision: meeting.revision,
-            operationKey: key,
-            input: input,
-          );
+          if (result.meeting case final proposed? when current()) {
+            _adoptConversationMeeting(proposed);
+          }
+          return result;
         },
       ),
     );
-    if (mounted) setState(() {});
+    if (!current()) return;
+    setState(() {});
+    if (sent == true && target != null && buyerChange == null) {
+      showMessage('Meetup change sent. Waiting for the other person to respond.');
+    }
   }
 
   /// Accepts or declines the newest pending schedule. The operation key is
   /// allocated once per intent and reused until the outcome is definite, so a
   /// retry after a lost response replays the committed result; a changed
   /// decision before a resolved outcome allocates a fresh key.
-  Future<void> _respondToMeeting({required bool accept}) async {
-    final meeting = _marketplace.meetingDetail;
-    if (meeting == null || _meetingBusy) return;
+  Future<MeetingActionResult?> _respondToChatMeetup(
+    MeetingView meeting, bool accept,
+  ) async {
+    final result = await _respondToMeeting(accept: accept, chatMeeting: meeting);
+    if (mounted && result?.isSuccess == true &&
+        (page == AppPage.buyerChat || page == AppPage.sellerConversation) &&
+        meeting.conversationId == _marketplace.activeConversationId) {
+      showMessage(accept
+          ? 'Meetup confirmed.'
+          : meeting.hasAcceptedSchedule
+          ? 'Change declined. Your original meetup is still confirmed.'
+          : 'Meetup proposal declined.');
+    }
+    return result;
+  }
+
+  Future<MeetingActionResult?> _respondToMeeting({
+    required bool accept,
+    MeetingView? chatMeeting,
+  }) async {
+    final repository = _marketplace;
+    final meeting = chatMeeting ?? repository.meetingDetail;
+    if (meeting == null) return null;
+    if (_meetingBusy) {
+      return const MeetingActionResult.failure('Another meetup action is in progress.');
+    }
     final schedule = meeting.pendingSchedule;
     final viewer = widget.accountSession?.userId;
+    final responseEpoch = _navigationEpoch;
+    bool current() {
+      if (!mounted || responseEpoch != _navigationEpoch ||
+          !identical(repository, _marketplace) ||
+          viewer != widget.accountSession?.userId) return false;
+      if (chatMeeting == null) {
+        return repository.meetingDetail?.meetingId == meeting.meetingId &&
+            repository.meetingDetail?.revision == meeting.revision;
+      }
+      return (page == AppPage.buyerChat || page == AppPage.sellerConversation) &&
+          repository.activeConversationId == meeting.conversationId &&
+          _chatMeetupProposals.any((proposal) =>
+              proposal.meeting.meetingId == meeting.meetingId &&
+              proposal.meeting.revision == meeting.revision);
+    }
+    const changed = MeetingActionResult.failure(
+      'This proposal changed or was already answered. Close this window to see the latest meetup.',
+    );
+    if (chatMeeting != null && !current()) return changed;
     if (accept && role == UserRole.buyer && schedule != null) {
-      final responseEpoch = _navigationEpoch;
       _meetingBusy = true;
       try {
-      if (!await _ensureBuyerMeetingRequest(meeting.requestId) || !mounted ||
-          responseEpoch != _navigationEpoch || viewer != widget.accountSession?.userId ||
-          _marketplace.meetingDetail?.meetingId != meeting.meetingId ||
-          _marketplace.meetingDetail?.revision != meeting.revision) return;
+      if (!await _ensureBuyerMeetingRequest(meeting.requestId)) {
+        return const MeetingActionResult.failure('Could not verify the buyer request. Try again.');
+      }
+      if (!current()) return changed;
       final preferred = preferredPlaceToReview(
         request: _marketplace.buyerRequests.where((r) => r.id == meeting.requestId).firstOrNull,
         requestId: meeting.requestId, buyerUserId: viewer,
         proposedAddress: schedule.placeAddress, latitude: schedule.latitude, longitude: schedule.longitude);
       if (preferred != null) {
         final host = appNavigatorKey.currentContext;
-        if (host == null) return;
+        if (host == null) return null;
         final agreed = await confirmOfferedMeeting(host, title: 'Confirm the proposed meeting',
           time: '${schedule.date} · ${schedule.startTime}', timezone: schedule.timezoneId,
           place: schedule.placeAddress ?? schedule.placeLabel ?? 'Meeting place not provided',
           preferredPlace: preferred);
-        if (!agreed || !mounted || responseEpoch != _navigationEpoch || viewer != widget.accountSession?.userId ||
-            _marketplace.meetingDetail?.meetingId != meeting.meetingId ||
-            _marketplace.meetingDetail?.revision != meeting.revision) return;
+        if (!agreed) return null;
+        if (!current()) return changed;
       }
       } finally { _meetingBusy = false; }
     }
@@ -3784,7 +3865,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         () => _meetingError =
             'Retry the unconfirmed decision before changing it.',
       );
-      return;
+      return const MeetingActionResult.failure(
+        'Retry the unconfirmed decision before changing it.',
+      );
     }
     final key = (pending != null && pending.accept == accept)
         ? pending.key
@@ -3802,13 +3885,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       _meetingBusy = true;
       _meetingError = null;
     });
-    final result = await _marketplace.respondToMeeting(
+    final result = await repository.respondToMeeting(
       meetingId: meeting.meetingId,
       accept: accept,
       expectedRevision: revision,
       operationKey: key,
     );
-    if (!mounted) return;
+    if (!mounted || !identical(repository, _marketplace) ||
+        viewer != widget.accountSession?.userId) return result;
     setState(() {
       _meetingBusy = false;
       if (result.isSuccess) {
@@ -3822,6 +3906,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             : result.error;
       }
     });
+    if (chatMeeting != null && repository.activeConversationId == meeting.conversationId) {
+      if (result.meeting case final saved?) _adoptConversationMeeting(saved);
+      unawaited(_loadConversationDeals(force: true, background: true));
+    }
+    return result;
   }
 
   Future<void> _cancelMeeting() async {
@@ -4490,7 +4579,22 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
   /// Picks one chat photo, uploads it to the authorized `chat` purpose and
   /// sends it through the attachment path. Only reachable while the repository
   /// reports `chatAttachmentsSupported`; the outcome message stays singular.
-  Future<void> _pickAndSendChatAttachment() async {
+  Future<void> _suggestChatMeetup(String dealId) async {
+    final deal = _conversationDeals?.where((row) => row.id == dealId).firstOrNull;
+    if (deal == null || !deal.canSuggestMeetup || _meetingBusy) return;
+    final meeting = _conversationMeetingRecords.where((row) =>
+        row.conversationId == _marketplace.activeConversationId &&
+        row.meetingId == deal.meetingId).firstOrNull;
+    if (meeting != null) {
+      await _rescheduleMeeting(target: meeting);
+    } else if (deal.meetingId == null && deal.offerId != null) {
+      await _openConversationMeeting(offerId: deal.offerId);
+    }
+  }
+
+  Future<void> _pickAndSendChatAttachment({
+    ImageSource source = ImageSource.gallery,
+  }) async {
     if (!_marketplace.chatAttachmentsSupported || _chatSending) return;
     if (_marketplace.hasUnconfirmedChatAttachment) {
       showMessage('Retry or discard the earlier photo first.');
@@ -4511,7 +4615,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final XFile? picked;
     try {
       picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 1600,
         maxHeight: 1600,
         imageQuality: 85,
@@ -6662,6 +6766,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 _selectedConversationDeal?.offerId ??
                 _selectedConversationDeal?.id,
             onSelectRealDeal: _selectConversationDeal,
+            meetupProposals: _chatMeetupProposals,
+            onRespondToMeetup: _respondToChatMeetup,
+            onSuggestMeetup: _suggestChatMeetup,
+            onTakePhoto: _marketplace.chatAttachmentsSupported
+                ? () => unawaited(_pickAndSendChatAttachment(source: ImageSource.camera))
+                : null,
             previousDeals: _withDealUnreadCounts(_previousConversationDeals),
             realDealsLoading: _conversationDealsLoading,
             realDealsError: _conversationDealsError,
@@ -7936,6 +8046,12 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                     _selectedConversationDeal?.offerId ??
                     _selectedConversationDeal?.id,
                 onSelectRealDeal: _selectConversationDeal,
+                meetupProposals: _chatMeetupProposals,
+                onRespondToMeetup: _respondToChatMeetup,
+                onSuggestMeetup: _suggestChatMeetup,
+                onTakePhoto: _marketplace.chatAttachmentsSupported
+                    ? () => unawaited(_pickAndSendChatAttachment(source: ImageSource.camera))
+                    : null,
                 previousDeals: _withDealUnreadCounts(_previousConversationDeals),
                 realDealsLoading: _conversationDealsLoading,
                 realDealsError: _conversationDealsError,
