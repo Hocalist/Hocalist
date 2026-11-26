@@ -2,17 +2,17 @@
 const releaseRoot = 'https://github.com/Hocalist/Hocalist/releases/download/marketplace-preview-2026-11-26';
 
 export const marketplacePreviewRelease = {
-  date: '26 November 2026',
+  date: '26 November 2026 · Revision 2',
   version: '1.0.0',
-  sourceCommit: 'acc04f4aec204b1c28e71b9c400c6df005e83268',
+  sourceCommit: '04e88deae50afaa153f7c75c2bd842ba15b8041b',
   arm64: {
     assetUrl: `${releaseRoot}/Hocalist-Marketplace-Preview-2026-11-26-arm64.apk`,
-    bytes: 77390388,
-    sha256: 'e522f42f7049c5edef5b8652c9d762572aa5a70747cfa3eb77e3c7e106ac093a',
+    bytes: 77683886,
+    sha256: '08a11dd7e36dab79eac6241a38e928599b75967dc451072a4cd76e351d1525ff',
   },
   arm32: {
     assetUrl: `${releaseRoot}/Hocalist-Marketplace-Preview-2026-11-26-arm32.apk`,
-    bytes: 70197496,
-    sha256: '5f7ec7fe43dfe36ee47761a858b0abfc89ef537e9cb67727c54875a54126a4cb',
+    bytes: 70507378,
+    sha256: '99908e266d880467ce970399ae9db5b5463b439f767f3e63e9942db97b49db84',
   },
 } as const;
