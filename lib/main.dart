@@ -599,7 +599,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         AppPage.sellerDashboard, AppPage.sellerOfferHistory,
       }.contains(page)) {
         await repository.refreshSellerOffers(background: true);
-
+        if (current() && page == AppPage.sellerDashboard && repository.isMeetingsBacked) {
+          await repository.refreshMeetings(background: true);
+          if (current()) await _refreshConfirmedMeetings();
+        }
       }
     } finally { _liveConversationRefreshRunning = false; }
   }
@@ -1234,13 +1237,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   Future<void> _refreshConfirmedMeetings() async {
     if (role != UserRole.seller) return;
+    final repository = _marketplace;
+    final user = widget.accountSession?.userId;
     final backend =
         _discoveryBackend ??
         createConfiguredDiscoveryBackend(enabled: kCommercialReadsEnabled);
     if (backend == null) return;
     try {
       final ids = await backend.loadConfirmedMeetingIds();
-      if (mounted) setState(() => _confirmedMeetingIds = ids);
+      if (mounted && role == UserRole.seller && identical(repository, _marketplace) &&
+          user == widget.accountSession?.userId) {
+        setState(() => _confirmedMeetingIds = ids);
+      }
     } on StoreBackendException {
       // A missing outcome projection keeps the completed tab honestly empty.
     }
@@ -3035,6 +3043,10 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       if (destination == AppPage.sellerDashboard && _realAccountMode) {
         unawaited(_refreshAccountHealth());
         if (!_recommendedLeadsLoading) unawaited(_refreshRecommendedLeads());
+        unawaited(_refreshConfirmedMeetings());
+        if (_marketplace.isChatBacked) {
+          unawaited(_marketplace.refreshChatInbox(background: true));
+        }
       }
       if (destination == AppPage.buyerChats ||
           destination == AppPage.sellerChat) {
@@ -3202,9 +3214,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
   }
 
-  Future<void> _openMeetingDirections([MeetingView? meeting]) async {
+  Future<void> _openMeetingDirections([MeetingView? meeting, bool confirmedOnly = false]) async {
     final selectedMeeting = meeting ?? _marketplace.meetingDetail;
-    final schedule = role == UserRole.seller
+    final schedule = role == UserRole.seller && !confirmedOnly
         ? selectedMeeting?.pendingSchedule ?? selectedMeeting?.acceptedSchedule
         : selectedMeeting?.acceptedSchedule;
     if (!hasConfirmedMeetingDestination(
@@ -3711,36 +3723,98 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
   }
 
-  Future<void> _showTodayPurchasePin(MeetingView meeting) async {
+  Future<void> _showTodayPurchasePin(MeetingView meeting, {bool seller = false}) async {
     final repository = _marketplace;
     final user = widget.accountSession?.userId;
+    final epoch = _navigationEpoch;
+    final expectedRole = seller ? UserRole.seller : UserRole.buyer;
+    bool currentSession() => mounted && identical(repository, _marketplace) &&
+        user != null && user == widget.accountSession?.userId && role == expectedRole &&
+        epoch == _navigationEpoch;
     final current = await repository.loadMeeting(meeting.meetingId);
     final host = appNavigatorKey.currentContext;
-    if (!mounted || host == null || !identical(repository, _marketplace) ||
-        user != widget.accountSession?.userId || role != UserRole.buyer) return;
-    if (current == null || current.isCancelled) {
+    if (!currentSession() || host == null) return;
+    if (current == null || current.isCancelled ||
+        (seller ? current.sellerUserId : current.buyerUserId) != user) {
       showMessage('This meetup is no longer available.');
       return;
     }
+    Widget confirmation() => SaleConfirmationPanel(
+      adapter: createSaleConfirmationAdapter(),
+      meetingId: current.meetingId,
+      isBuyer: !seller,
+      purchaseSelected: current.purchaseSelected,
+      meetingAccepted: current.hasAcceptedSchedule && !current.hasPendingSchedule,
+      revealPinOnOpen: !seller,
+      onPurchaseConfirmed: () {
+        if (!currentSession()) return;
+        if (seller) {
+          setState(() => _confirmedMeetingIds = {
+            ...?_confirmedMeetingIds, current.meetingId,
+          });
+          unawaited(_refreshConfirmedMeetings());
+        } else {
+          unawaited(_refreshConfirmedBuyerMeetings());
+        }
+      },
+    );
     await showModalBottomSheet<void>(
       context: host,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheet) => BuyerModalSheet(
+      builder: (sheet) => seller
+          ? SellerModalSheet(
+              title: 'Type buyer’s PIN',
+              subtitle: current.offerSummary?.title ?? '',
+              icon: Icons.password_rounded,
+              onClose: () => Navigator.pop(sheet),
+              child: confirmation(),
+            )
+          : BuyerModalSheet(
         title: 'Purchase PIN',
         icon: Icons.password_rounded,
         onClose: () => Navigator.pop(sheet),
-        child: SaleConfirmationPanel(
-          adapter: createSaleConfirmationAdapter(),
-          meetingId: current.meetingId,
-          isBuyer: true,
-          purchaseSelected: current.purchaseSelected,
-          meetingAccepted: current.hasAcceptedSchedule && !current.hasPendingSchedule,
-          revealPinOnOpen: true,
-          onPurchaseConfirmed: () => unawaited(_refreshConfirmedBuyerMeetings()),
+        child: confirmation(),
+      ),
+    );
+  }
+
+  Widget? _sellerTodayMeetup() {
+    final user = widget.accountSession?.userId;
+    if (user == null || !_marketplace.isMeetingsBacked) return null;
+    final meeting = todayConfirmedMeetup(
+      _marketplace.meetings.where((m) => m.sellerUserId == user &&
+          _confirmedMeetingIds?.contains(m.meetingId) != true),
+      DateTime.now(),
+    );
+    if (meeting == null) return null;
+    final thread = _marketplace.chatInbox
+        .where((summary) => summary.conversation.id == meeting.conversationId)
+        .firstOrNull;
+    final buyer = thread?.counterpartDisplayName?.trim();
+    return TodayMeetupCard(
+      key: ValueKey(meeting.meetingId),
+      meeting: meeting,
+      seller: true,
+      requestTitle: meeting.offerSummary?.title,
+      counterpartName: buyer?.isNotEmpty == true ? buyer! : 'Your buyer',
+      counterpartProfileId: thread?.counterpartProfileId,
+      loadCounterpart: (profileId) => _dealSellerReads.putIfAbsent(
+        'buyer:$user:$profileId',
+        () async => BuyerDealSeller(
+          avatarId: (await _profileAvatarBackend?.loadMemberAvatar(profileId))?.imageMediaId,
         ),
       ),
+      onPin: () => unawaited(_showTodayPurchasePin(meeting, seller: true)),
+      onOpenManage: () => unawaited(_openMeetingById(meeting.meetingId)),
+      onDirections: () => unawaited(_openMeetingDirections(meeting, true)),
+      onChat: () => unawaited(_openMeetingChat(meeting)),
+      onCall: () async {
+        await _openMeetingChat(meeting);
+        if (mounted && _marketplace.activeConversationId == meeting.conversationId &&
+            _marketplace.activeChatOfferId == meeting.offerId) await _openCall();
+      },
     );
   }
 
@@ -7743,9 +7817,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               key:ValueKey('seller-home-${widget.accountSession?.userId ?? 'demo'}'),
               avatarMediaId:_profileAvatarMediaId,
               loadSummary:_realAccountMode ? _loadSellerHomeSummary : null,
+              todayMeetup: _sellerTodayMeetup(),
               onRefresh: () async {
                 await Future.wait([_marketplace.refreshSellerLeads(), _marketplace.refreshSellerOffers(),
-                  _refreshRecommendedLeads(),_refreshAccountHealth()]);
+                  _refreshRecommendedLeads(),_refreshAccountHealth(),
+                  if (_marketplace.isMeetingsBacked) _marketplace.refreshMeetings(),
+                  if (_marketplace.isChatBacked) _marketplace.refreshChatInbox(),
+                  _refreshConfirmedMeetings()]);
               },
               onSetupBusiness:()=>go(AppPage.editProfile),
               onLeads: () {

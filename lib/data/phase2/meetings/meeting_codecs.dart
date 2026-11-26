@@ -49,6 +49,21 @@ class MeetingScheduleView {
   bool get isPending => status == 'proposed';
 }
 
+MeetingView? todayConfirmedMeetup(Iterable<MeetingView> meetings, DateTime now) {
+  MeetingView? first;
+  for (final meeting in meetings) {
+    final schedule = meeting.acceptedSchedule;
+    if (schedule == null || !meeting.isUpcomingAt(now)) continue;
+    final local = now.toUtc().add(Duration(minutes: schedule.offsetMinutes));
+    if (local.year != schedule.date.year || local.month != schedule.date.month ||
+        local.day != schedule.date.day) continue;
+    if (first == null || schedule.instant.isBefore(first.acceptedSchedule!.instant)) {
+      first = meeting;
+    }
+  }
+  return first;
+}
+
 /// One meeting with its accepted and pending schedules.
 class MeetingView {
   MeetingView({

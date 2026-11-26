@@ -3054,23 +3054,6 @@ class ApprovedBuyerHomePage extends StatelessWidget {
       realActivity != null ||
       loadRealRewards != null;
 
-  MeetingView? _todayMeeting(DateTime now) {
-    MeetingView? first;
-    for (final meeting in realMeetings ?? const <MeetingView>[]) {
-      final schedule = meeting.acceptedSchedule;
-      if (schedule == null || !meeting.isUpcomingAt(now)) continue;
-      final local = now.toUtc().add(Duration(minutes: schedule.offsetMinutes));
-      if (local.year != schedule.date.year ||
-          local.month != schedule.date.month || local.day != schedule.date.day) {
-        continue;
-      }
-      if (first == null || schedule.instant.isBefore(first.acceptedSchedule!.instant)) {
-        first = meeting;
-      }
-    }
-    return first;
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -3111,7 +3094,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
             if (request.windowLabel != null) request.windowLabel!,
           ].join(' · ');
         }
-        final today = _todayMeeting(DateTime.now());
+        final today = todayConfirmedMeetup(realMeetings ?? const [], DateTime.now());
         final todayOffer = today == null ? null : homeOffers.where((offer) =>
           offer.id == today.offerId && offer.requestId == today.requestId).firstOrNull;
         final requests = realRequests == null
@@ -3214,12 +3197,13 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                         _ApprovedPostRequest(onTap: onCreate),
                         if (today != null && (onOpenMeeting != null || onShowTodayPurchasePin != null)) ...[
                           SizedBox(height: metrics.geometry(8)),
-                          _BuyerTodayMeetup(
+                          TodayMeetupCard(
                             key: ValueKey(today.meetingId),
                             meeting: today,
                             requestTitle: requests?.where((r) => r.requestId == today.requestId).firstOrNull?.title,
-                            offer: todayOffer,
-                            loadSeller: loadDealSeller,
+                            counterpartName: todayOffer?.sellerDisplayName ?? 'Your seller',
+                            counterpartProfileId: todayOffer?.sellerProfileId,
+                            loadCounterpart: loadDealSeller,
                             onPin: () => (onShowTodayPurchasePin ?? onOpenPinMeeting ?? onOpenMeeting)?.call(today),
                             onManage: onManageTodayMeetup == null ? null : (change) =>
                               onManageTodayMeetup!(today, todayOffer?.sellerDisplayName ?? 'Your seller', change),
@@ -10348,33 +10332,39 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
     );
   }
 }
-class _BuyerTodayMeetup extends StatefulWidget {
-  const _BuyerTodayMeetup({
+class TodayMeetupCard extends StatefulWidget {
+  const TodayMeetupCard({
     required this.meeting,
     required this.onPin,
     this.onManage,
+    this.onOpenManage,
     this.onDirections,
     this.onCall,
     this.onChat,
     this.requestTitle,
-    this.offer,
-    this.loadSeller,
+    required this.counterpartName,
+    this.counterpartProfileId,
+    this.loadCounterpart,
+    this.seller = false,
     super.key,
   });
 
   final MeetingView meeting;
   final String? requestTitle;
-  final Offer? offer;
-  final BuyerDealSellerLoader? loadSeller;
+  final String counterpartName;
+  final String? counterpartProfileId;
+  final BuyerDealSellerLoader? loadCounterpart;
+  final bool seller;
   final VoidCallback onPin;
   final ValueChanged<BuyerMeetupChange>? onManage;
+  final VoidCallback? onOpenManage;
   final VoidCallback? onDirections, onCall, onChat;
 
   @override
-  State<_BuyerTodayMeetup> createState() => _BuyerTodayMeetupState();
+  State<TodayMeetupCard> createState() => _TodayMeetupCardState();
 }
 
-class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
+class _TodayMeetupCardState extends State<TodayMeetupCard> {
   bool _manageOpen = false;
   final _panelKey = GlobalKey();
 
@@ -10399,7 +10389,6 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
   @override
   Widget build(BuildContext context) {
     final meeting = widget.meeting;
-    final offer = widget.offer;
     final schedule = meeting.acceptedSchedule!;
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
       TimeOfDay(hour: schedule.startTime.hour, minute: schedule.startTime.minute),
@@ -10432,7 +10421,7 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
           background: surface, foreground: purple),
     ];
     return Container(
-      key: const Key('buyer-today-meetup'),
+      key: Key(widget.seller ? 'seller-today-meetup' : 'buyer-today-meetup'),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -10463,9 +10452,9 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
             )),
             const SizedBox(width: 9),
             SizedBox(width: 72, child: BuyerDealSellerHeader(
-              name: offer?.sellerDisplayName ?? 'Your seller',
-              profileId: offer?.sellerProfileId,
-              load: widget.loadSeller,
+              name: widget.counterpartName,
+              profileId: widget.counterpartProfileId,
+              load: widget.loadCounterpart,
               stackedIdentity: true,
             )),
           ]),
@@ -10491,10 +10480,11 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
         ],
         const SizedBox(height: 8),
         LayoutBuilder(builder: (context, constraints) {
-          final pin = action('Show purchase PIN', Icons.key_outlined, () { _closeManage(); widget.onPin(); },
+          final pin = action(widget.seller ? 'Type buyer’s PIN' : 'Show purchase PIN',
+            Icons.key_outlined, () { _closeManage(); widget.onPin(); },
             background: primary, foreground: Colors.white, fontSize: 13);
-          if (widget.onManage == null) return pin;
-          final manage = action('Manage', Icons.tune, _toggleManage,
+          if (widget.onManage == null && widget.onOpenManage == null) return pin;
+          final manage = action('Manage', Icons.tune, widget.onOpenManage ?? _toggleManage,
             background: Colors.transparent, foreground: purple,
             border: BorderSide(color: outline), fontSize: 13);
           if (MediaQuery.textScalerOf(context).scale(1) > 1.35) {
@@ -10512,9 +10502,7 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              pending.proposedByUserId == meeting.buyerUserId
-                  ? 'Waiting for seller confirmation. Your original meetup is still scheduled.'
-                  : 'The seller proposed a change. Your original meetup is still scheduled.',
+              _proposalStatus(pending.proposedByUserId == meeting.buyerUserId),
               style: _cardText(12, purple, weight: FontWeight.w600),
             ),
           ),
@@ -10532,6 +10520,13 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
         ],
       ]),
     );
+  }
+
+  String _proposalStatus(bool proposedByBuyer) {
+    final other = widget.seller ? 'buyer' : 'seller';
+    return proposedByBuyer != widget.seller
+        ? 'Waiting for $other confirmation. Your original meetup is still scheduled.'
+        : 'The $other proposed a change. Your original meetup is still scheduled.';
   }
 }
 

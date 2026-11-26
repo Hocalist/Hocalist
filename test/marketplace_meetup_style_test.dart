@@ -4,6 +4,7 @@ import 'package:hocalist/main.dart' show HocalistTheme;
 import 'package:hocalist/domain/phase2/schedule.dart';
 import 'package:hocalist/data/phase2/meetings/meeting_codecs.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
+import 'package:hocalist/features/seller/approved_seller_home_page.dart';
 import 'package:hocalist/theme/marketplace_ui_foundation.dart';
 import 'test_fonts.dart';
 final now = DateTime.now().toUtc();
@@ -19,6 +20,34 @@ final meeting=MeetingView(meetingId:'meeting',conversationId:'chat',requestId:'r
 
 void main(){
  setUpAll(loadHocalistTestFonts);
+ testWidgets('Seller Home uses the same meetup card with a buyer PIN action', (tester) async {
+  var opened = false;
+  await tester.pumpWidget(MaterialApp(
+   theme: HocalistTheme.light,
+   home: Scaffold(body: ApprovedSellerHomePage(
+    onLeads: () {},
+    onBrowseRequests: () {},
+    todayMeetup: TodayMeetupCard(
+     meeting: meeting,
+     seller: true,
+     counterpartName: 'Buyer A',
+     requestTitle: 'Camera tripod',
+     onPin: () => opened = true,
+     onOpenManage: () {},
+    ),
+   )),
+  ));
+  await tester.pumpAndSettle();
+  final card = find.byKey(const Key('seller-today-meetup'));
+  final pin = find.descendant(
+   of: card, matching: find.widgetWithText(MarketplaceButton, 'Type buyer’s PIN'),
+  );
+  await tester.ensureVisible(pin);
+  await tester.tap(pin);
+  expect(opened, isTrue);
+  expect(find.descendant(of: card, matching: find.text('Buyer A')), findsOneWidget);
+  expect(find.text('Show purchase PIN'), findsNothing);
+ });
  for(final platform in [TargetPlatform.android,TargetPlatform.iOS]){
  for(final width in [320.0,360.0,390.0,430.0]){
  for(final scale in [1.0,1.15,1.3,1.6]){

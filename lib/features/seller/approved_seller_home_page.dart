@@ -45,6 +45,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.onRefreshAccountHealth,
     this.onOpenVerification,
     this.onAppealRestriction,
+    this.todayMeetup,
     super.key,
   });
 
@@ -88,6 +89,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   final VoidCallback? onRefreshAccountHealth;
   final VoidCallback? onOpenVerification;
   final ValueChanged<SellerHealthRestriction>? onAppealRestriction;
+  final Widget? todayMeetup;
 
   bool get usesRealLeads => realLeads != null;
 
@@ -197,6 +199,10 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
               ),
               SizedBox(height: metrics.spacing(13)),
               _FindBuyersBanner(onTap: widget.onBrowseRequests),
+              if (widget.todayMeetup != null) ...[
+                SizedBox(height: metrics.spacing(8)),
+                widget.todayMeetup!,
+              ],
               SizedBox(height: metrics.spacing(14)),
               if (realLeads == null) ...[
                 _SectionTitle(

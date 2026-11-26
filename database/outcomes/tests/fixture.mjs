@@ -117,8 +117,8 @@ async function seed(db) {
   `);
 }
 
-async function acceptedDeal(db) {
-  const request = (await command(db, A, 'request.create', 'req-1', {
+async function acceptedDeal(db, suffix = '1') {
+  const request = (await command(db, A, 'request.create', 'req-' + suffix, {
     kind: 'product',
     title: 'iPad Air, 5th gen or newer',
     description: 'Good condition',
@@ -131,7 +131,7 @@ async function acceptedDeal(db) {
     use_home_address: true,
     category_id: CATEGORY,
   }))[0].result;
-  const offer = (await command(db, B, 'offer.submit', 'offer-1', {
+  const offer = (await command(db, B, 'offer.submit', 'offer-' + suffix, {
     request_id: request.id,
     price_minor: 42000,
     currency_code: 'USD',
@@ -139,12 +139,12 @@ async function acceptedDeal(db) {
     image_media_ids: [],
     ...schedule(),
   }))[0].result;
-  await command(db, A, 'offer.select', 'select-1', {
+  await command(db, A, 'offer.select', 'select-' + suffix, {
     offer_id: offer.id,
     revision_id: offer.revisions[0].id,
     expected_offer_revision: offer.revision,
   });
-  const opened = (await command(db, A, 'conversation.open_offer', 'open-1', {
+  const opened = (await command(db, A, 'conversation.open_offer', 'open-' + suffix, {
     offer_id: offer.id,
   }))[0].result;
   return { requestId: request.id, offerId: offer.id, conversationId: opened.conversation_id, acceptedRevisionId: offer.revisions[0].id };
