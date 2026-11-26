@@ -2915,6 +2915,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
     this.onRefreshMeetings,
     this.onOpenMeeting,
     this.onOpenPinMeeting,
+    this.onShowTodayPurchasePin,
+    this.onManageTodayMeetup,
     this.homeOffers = const [],
     this.homeOffersReady = false,
     this.unreadOfferIds = const {},
@@ -2978,6 +2980,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   final VoidCallback? onRefreshMeetings;
   final ValueChanged<MeetingView>? onOpenMeeting;
   final ValueChanged<MeetingView>? onOpenPinMeeting;
+  final ValueChanged<MeetingView>? onShowTodayPurchasePin;
+  final void Function(MeetingView, String)? onManageTodayMeetup;
   final List<Offer> homeOffers;
   final bool homeOffersReady;
   final Set<String> unreadOfferIds;
@@ -3100,6 +3104,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
           ].join(' · ');
         }
         final today = _todayMeeting(DateTime.now());
+        final todayOffer = today == null ? null : homeOffers.where((offer) =>
+          offer.id == today.offerId && offer.requestId == today.requestId).firstOrNull;
         final requests = realRequests == null
             ? null
             : (List<BuyerRequestView>.of(realRequests!)..sort((a, b) {
@@ -3195,15 +3201,19 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                           ),
                         SizedBox(height: metrics.geometry(10)),
                         _ApprovedPostRequest(onTap: onCreate),
-                        if (today != null && onOpenMeeting != null) ...[
+                        if (today != null && (onOpenMeeting != null || onShowTodayPurchasePin != null)) ...[
                           SizedBox(height: metrics.geometry(8)),
                           _BuyerTodayMeetup(
                             meeting: today,
                             requestTitle: requests?.where((r) => r.requestId == today.requestId).firstOrNull?.title,
-                            offer: homeOffers.where((offer) => offer.id == today.offerId &&
-                                offer.requestId == today.requestId).firstOrNull,
+                            offer: todayOffer,
                             loadSeller: loadDealSeller,
-                            onTap: () => onOpenMeeting!(today),
+                            onPin: () => (onShowTodayPurchasePin ?? onOpenPinMeeting ?? onOpenMeeting)?.call(today),
+                            onManage: onManageTodayMeetup == null ? null : () =>
+                              onManageTodayMeetup!(today, todayOffer?.sellerDisplayName ?? 'Your seller'),
+                            onDirections: onMeetingDirections == null ? null : () => onMeetingDirections!(today),
+                            onCall: onMeetingCall == null ? null : () => onMeetingCall!(today),
+                            onChat: onMeetingMessage == null ? null : () => onMeetingMessage!(today),
                           ),
                         ],
                         if (requestPosted || usesRealRequests) ...[
@@ -9919,7 +9929,11 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
 class _BuyerTodayMeetup extends StatelessWidget {
   const _BuyerTodayMeetup({
     required this.meeting,
-    required this.onTap,
+    required this.onPin,
+    this.onManage,
+    this.onDirections,
+    this.onCall,
+    this.onChat,
     this.requestTitle,
     this.offer,
     this.loadSeller,
@@ -9929,7 +9943,8 @@ class _BuyerTodayMeetup extends StatelessWidget {
   final String? requestTitle;
   final Offer? offer;
   final BuyerDealSellerLoader? loadSeller;
-  final VoidCallback onTap;
+  final VoidCallback onPin;
+  final VoidCallback? onManage, onDirections, onCall, onChat;
 
   @override
   Widget build(BuildContext context) {
@@ -9942,31 +9957,67 @@ class _BuyerTodayMeetup extends StatelessWidget {
     );
     return Container(
       key: const Key('buyer-today-meetup'),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: HocalistPalette.surface(context, _lavender),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.event_available_outlined, size: 16, color: HocalistPalette.text(context, _blue)),
-          const SizedBox(width: 6),
-          Expanded(child: Text('Today · $time', style: _text(context, size: 11, color: _blue))),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Today · $time', style: _text(context, size: 11, color: _blue)),
+            const SizedBox(height: 4),
+            Text('Your meetup is today', style: _text(context, size: 15, weight: FontWeight.w800, color: _navy)),
+          ])),
+          const SizedBox(width: 8),
+          Flexible(child: BuyerDealSellerHeader(
+            name: offer?.sellerDisplayName ?? 'Your seller',
+            profileId: offer?.sellerProfileId,
+            load: loadSeller,
+            stackedIdentity: true,
+          )),
         ]),
-        const SizedBox(height: 4),
-        Text('Your meetup is today', style: _text(context, size: 15, weight: FontWeight.w800, color: _navy)),
         const SizedBox(height: 3),
-        Text([if (requestTitle != null) requestTitle!, place].join(' · '),
-          style: _text(context, size: 11, color: _muted)),
+        if (requestTitle != null)
+          Text(requestTitle!, style: _text(context, size: 12, weight: FontWeight.w700, color: _navy)),
+        Text(place, style: _text(context, size: 11, color: _muted)),
+        if (onDirections != null || onCall != null || onChat != null) ...[
+          const SizedBox(height: 7),
+          Row(children: [
+            if (onDirections != null)
+              Expanded(child: _MeetingQuickAction('Maps', 'meeting-map', onDirections!)),
+            if (onCall != null)
+              Expanded(child: _MeetingQuickAction('Call', 'chat-call', onCall!)),
+            if (onChat != null)
+              Expanded(child: _MeetingQuickAction('Chat', 'nav-chats', onChat!)),
+          ]),
+        ],
         const SizedBox(height: 8),
-        BuyerDealSellerHeader(
-          name: offer?.sellerDisplayName ?? 'Your seller',
-          profileId: offer?.sellerProfileId,
-          load: loadSeller,
-          showSales: false,
-          compact: true,
-        ),
-        TextButton(onPressed: onTap, child: const Text('View meetup')),
+        LayoutBuilder(builder: (context, constraints) {
+          final pin = BuyerPrimaryButton(label: 'Show purchase PIN', onPressed: onPin, minimumHeight: 44);
+          if (onManage == null) return pin;
+          final manage = BuyerSecondaryButton(label: 'Manage', onPressed: onManage, minimumHeight: 44);
+          if (constraints.maxWidth < 260 || MediaQuery.textScalerOf(context).scale(1) > 1.35) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              pin, const SizedBox(height: 6), manage,
+            ]);
+          }
+          return Row(children: [
+            Expanded(flex: 5, child: pin),
+            const SizedBox(width: 7),
+            Expanded(flex: 3, child: manage),
+          ]);
+        }),
+        if (meeting.pendingSchedule case final pending?)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              pending.proposedByUserId == meeting.buyerUserId
+                  ? 'Waiting for seller confirmation. Your original meetup is still scheduled.'
+                  : 'The seller proposed a change. Your original meetup is still scheduled.',
+              style: _text(context, size: 11, weight: FontWeight.w700, color: _blue),
+            ),
+          ),
       ]),
     );
   }

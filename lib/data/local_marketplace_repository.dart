@@ -170,6 +170,16 @@ class BuyerPurchaseSelectionResult {
 ///
 /// PIN issuance and verification are deliberately absent: that transition
 /// stays gated on the owner's PIN policy decision.
+abstract interface class BuyerMeetupManagementBackend {
+  Future<MeetingView> manageBuyerMeetup({
+    required String meetingId,
+    required int expectedRevision,
+    required String operationKey,
+    required BuyerMeetupChange change,
+    MeetingScheduleInput? input,
+  });
+}
+
 abstract interface class MarketplaceMeetingsBackend {
   Future<MeetingPageView> loadMeetings({
     String? status,
@@ -1147,6 +1157,26 @@ class LocalMarketplaceRepository extends ChangeNotifier {
         operationKey: operationKey,
       ),
     );
+  }
+
+  Future<MeetingActionResult> manageBuyerMeetup({
+    required MeetingView meeting,
+    required String operationKey,
+    required BuyerMeetupChange change,
+    MeetingScheduleInput? input,
+  }) {
+    final backend = meetingsBackend;
+    if (backend is! BuyerMeetupManagementBackend) {
+      return Future.value(MeetingActionResult.failure('Meetup management is unavailable.'));
+    }
+    final management = backend as BuyerMeetupManagementBackend;
+    return _runMeetingAction(() => management.manageBuyerMeetup(
+      meetingId: meeting.meetingId,
+      expectedRevision: meeting.revision,
+      operationKey: operationKey,
+      change: change,
+      input: input,
+    ));
   }
 
   Future<MeetingActionResult> _runMeetingAction(

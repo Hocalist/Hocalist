@@ -21,6 +21,7 @@ class SaleConfirmationPanel extends StatefulWidget {
     this.meetingAccepted = true,
     this.onPurchaseConfirmed,
     this.onRefreshMeeting,
+    this.revealPinOnOpen = false,
     super.key,
   });
   final SaleConfirmationAdapter adapter;
@@ -32,6 +33,7 @@ class SaleConfirmationPanel extends StatefulWidget {
   /// designation data and the legacy behavior is kept.
   final bool? purchaseSelected;
   final bool meetingAccepted;
+  final bool revealPinOnOpen;
   final VoidCallback? onPurchaseConfirmed;
   final Future<void> Function()? onRefreshMeeting;
   @override
@@ -53,7 +55,8 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    run('status');
+    run(widget.revealPinOnOpen && widget.isBuyer &&
+        widget.purchaseSelected == true && widget.meetingAccepted ? 'display' : 'status');
     statusPoll = Timer.periodic(
       const Duration(seconds: 8),
       (_) => _pollCompletion(),

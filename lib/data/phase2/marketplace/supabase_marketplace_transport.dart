@@ -42,6 +42,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'meeting_accept_offer',
     'meeting_reschedule_propose',
     'meeting_cancel',
+    'meeting_buyer_manage',
     'notification_inbox',
     'notification_mark_read',
     'notification_mark_all_read',

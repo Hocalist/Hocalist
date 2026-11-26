@@ -76,6 +76,7 @@ for (const file of [
   '../runtime_repairs/meeting_reschedule_single_notification.sql',
   '../../supabase/migrations/20261121120000_accept_offered_meeting.sql',
   '../../supabase/migrations/20261121140000_confirmed_meeting_notification.sql',
+  '../runtime_repairs/buyer_meetup_management.sql',
   '../runtime_repairs/249_multi_seller_buyer_rewards.sql',
   '../runtime_repairs/274_buyer_catalogue_choices.sql',
   '../runtime_repairs/221_category_questions.sql',

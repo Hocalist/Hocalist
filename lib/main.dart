@@ -46,6 +46,7 @@ import 'package:flutter/material.dart';
 import 'features/account/analytics_consent_setting.dart';
 import 'components/page_swipe_navigation.dart';
 import 'features/meetings/meeting_cancel_confirmation.dart';
+import 'features/meetings/buyer_meetup_manage.dart';
 import 'package:flutter/semantics.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -3580,8 +3581,78 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
   }
 
-  Future<void> _rescheduleMeeting() async {
-    final meeting = _marketplace.meetingDetail;
+  Future<void> _showTodayPurchasePin(MeetingView meeting) async {
+    final repository = _marketplace;
+    final user = widget.accountSession?.userId;
+    final current = await repository.loadMeeting(meeting.meetingId);
+    final host = appNavigatorKey.currentContext;
+    if (!mounted || host == null || !identical(repository, _marketplace) ||
+        user != widget.accountSession?.userId || role != UserRole.buyer) return;
+    if (current == null || current.isCancelled) {
+      showMessage('This meetup is no longer available.');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: host,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => BuyerModalSheet(
+        title: 'Purchase PIN',
+        icon: Icons.password_rounded,
+        onClose: () => Navigator.pop(sheet),
+        child: SaleConfirmationPanel(
+          adapter: createSaleConfirmationAdapter(),
+          meetingId: current.meetingId,
+          isBuyer: true,
+          purchaseSelected: current.purchaseSelected,
+          meetingAccepted: current.hasAcceptedSchedule && !current.hasPendingSchedule,
+          revealPinOnOpen: true,
+          onPurchaseConfirmed: () => unawaited(_refreshConfirmedBuyerMeetings()),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _manageBuyerMeetup(MeetingView meeting, String sellerName) async {
+    final host = appNavigatorKey.currentContext;
+    final schedule = meeting.acceptedSchedule;
+    if (host == null || schedule == null || role != UserRole.buyer) return;
+    final repository = _marketplace;
+    final user = widget.accountSession?.userId;
+    bool isCurrent() => mounted && host.mounted && role == UserRole.buyer &&
+        widget.accountSession?.userId == user && identical(repository, _marketplace);
+    final action = await showBuyerMeetupOptions(host, canReschedule: !meeting.hasPendingSchedule);
+    if (action == null || !isCurrent()) return;
+    final change = await chooseBuyerMeetupReason(host, action);
+    if (change == null || !isCurrent()) return;
+    if (action == BuyerMeetupAction.reschedule) {
+      await _rescheduleMeeting(target: meeting, buyerChange: change);
+      return;
+    }
+    final dateAndTime = BuyerOfferView.formatSchedule(LocalSchedule(
+      date: schedule.date,
+      startTime: schedule.startTime,
+      timezoneId: schedule.timezoneId,
+      occurrence: schedule.occurrence,
+    ));
+    final place = BuyerOfferView.formatPlaceLabel(
+      label: schedule.placeLabel, address: schedule.placeAddress,
+    );
+    final confirmed = await confirmBuyerMeetupCancellation(
+      host,
+      summary: '$sellerName · $dateAndTime · $place',
+      cancel: (key) => isCurrent()
+          ? repository.manageBuyerMeetup(meeting: meeting, operationKey: key, change: change)
+          : Future.value(const MeetingActionResult.failure('Please reopen the meetup.')),
+    );
+    if (confirmed == true && isCurrent()) showMessage('Meetup canceled. Your buying request is still open.');
+  }
+
+  Future<void> _rescheduleMeeting({MeetingView? target, BuyerMeetupChange? buyerChange}) async {
+    final repository = _marketplace;
+    final user = widget.accountSession?.userId;
+    final meeting = target ?? repository.meetingDetail;
     final schedule = meeting?.pendingSchedule ?? meeting?.acceptedSchedule ?? meeting?.revisions.lastOrNull;
     if (meeting == null ||
         schedule == null ||
@@ -3599,7 +3670,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       barrierDismissible: false,
       builder: (_) => ApprovedSellerRescheduleDialog(
         offeredPlaceLabel: schedule.placeAddress ?? schedule.placeLabel,
-        onChangeLocation: () async {
+        editDateImmediately: buyerChange != null,
+        onChangeLocation: buyerChange != null ? null : () async {
           final place = await _chooseOfferPlace(
             appNavigatorKey.currentState!.context,
           );
@@ -3644,6 +3716,15 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                 ? schedule.longitude
                 : changedPlace!.longitude,
           );
+          if (buyerChange != null) {
+            if (!mounted || !identical(repository, _marketplace) ||
+                user != widget.accountSession?.userId || role != UserRole.buyer) {
+              return Future.value(const MeetingActionResult.failure('Please reopen the meetup.'));
+            }
+            return repository.manageBuyerMeetup(
+              meeting: meeting, operationKey: key, change: buyerChange, input: input,
+            );
+          }
           if (!meeting.hasAcceptedSchedule && !meeting.hasPendingSchedule) {
             return _marketplace.proposeMeeting(
               conversationId: meeting.conversationId,
@@ -6110,6 +6191,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onOpenPinMeeting: (meeting) => unawaited(
               _openMeetingById(meeting.meetingId, focusPurchasePin: true),
             ),
+            onManageTodayMeetup: (meeting, seller) => unawaited(_manageBuyerMeetup(meeting, seller)),
+            onShowTodayPurchasePin: (meeting) => unawaited(_showTodayPurchasePin(meeting)),
             realActivity: _marketplace.isNotificationsBacked
                 ? _marketplace.notifications
                       .map(
