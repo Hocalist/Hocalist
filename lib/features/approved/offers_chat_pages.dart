@@ -1,3 +1,4 @@
+import '../../theme/marketplace_ui_foundation.dart';
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
@@ -3179,13 +3180,14 @@ class _OffersHero extends StatelessWidget {
         final narrow = constraints.maxWidth < 330;
         final request = requestTitle;
         if (request != null) {
-          final ink = HocalistPalette.text(context, BuyerUiTokens.text);
-          final sub = HocalistPalette.text(context, BuyerUiTokens.muted);
+          final palette = MarketplaceColors.of(context);
+          final ink = palette.ink;
+          final sub = palette.muted;
           final count = offerCount;
-          final detailStyle = dealText(context, 12, color: sub).copyWith(height: 1.4);
+          final detailStyle = MarketplaceTypography.text(context, 12, sub);
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Compare offers', style: dealText(context, 21, color: ink, weight: FontWeight.w700).copyWith(height: 1.18, letterSpacing: -.65)),
+              Text('Compare offers', style: MarketplaceTypography.text(context, 21, ink, weight: FontWeight.w700, height: 1.18).copyWith(letterSpacing: -.65)),
               const SizedBox(height: 3),
               Text(request, style: detailStyle),
             ])),
@@ -3253,14 +3255,15 @@ class _PotentialBuyerRewardRowState extends State<_PotentialBuyerRewardRow> {
 
   @override
   Widget build(BuildContext context) {
-    final paper = HocalistPalette.surface(context, BuyerUiTokens.surface);
-    final ink = HocalistPalette.text(context, BuyerUiTokens.text);
-    final sub = HocalistPalette.text(context, BuyerUiTokens.muted);
-    final border = HocalistPalette.border(context, BuyerUiTokens.border);
-    final brand = HocalistPalette.text(context, BuyerUiTokens.action);
-    final soft = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
-    final headingStyle = dealText(context, 13, color: ink, weight: FontWeight.w700);
-    final detailStyle = dealText(context, 12, color: sub).copyWith(height: 1.4);
+    final palette = MarketplaceColors.of(context);
+    final paper = palette.paper;
+    final ink = palette.ink;
+    final sub = palette.muted;
+    final border = palette.border;
+    final brand = palette.brand;
+    final soft = palette.soft;
+    final headingStyle = MarketplaceTypography.text(context, 13, ink, weight: FontWeight.w700, height: null);
+    final detailStyle = MarketplaceTypography.text(context, 12, sub);
     final radius = BorderRadius.circular(12);
     return Material(
       color: paper,

@@ -1,3 +1,4 @@
+import '../../theme/marketplace_ui_foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../theme/adaptive_palette.dart';
@@ -78,10 +79,7 @@ class BuyerDealSellerHeader extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(name, textAlign: TextAlign.center, maxLines: 2,
-            overflow: TextOverflow.ellipsis, style: dealText(context, 12, weight: FontWeight.w700,
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xfffaf8ff) : const Color(0xff19152f),
-            )),
+            overflow: TextOverflow.ellipsis, style: MarketplaceTypography.text(context, 12, MarketplaceColors.of(context, surface: MarketplaceSurface.meetup).ink, height: 1.35, weight: FontWeight.w700)),
         ]);
       }
       final salesStyle = dealText(context, large && !dense ? 11 : 10, bold: true);
@@ -291,7 +289,7 @@ class _BuyerOfferComparison extends StatelessWidget {
   static const _portraitSize = 40.0;
 
   TextStyle _text(BuildContext context, double size, Color color, {FontWeight weight = FontWeight.w400, double height = 1.4}) =>
-      dealText(context, size, color: color, weight: weight).copyWith(height: height);
+      MarketplaceTypography.text(context, size, color, weight: weight, height: height);
 
   Widget _itemPhoto(String? id) => ClipRRect(
     borderRadius: BorderRadius.circular(9),
@@ -306,13 +304,15 @@ class _BuyerOfferComparison extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final paper = HocalistPalette.surface(context, BuyerUiTokens.surface);
-    final page = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
-    final ink = HocalistPalette.text(context, BuyerUiTokens.text);
-    final sub = HocalistPalette.text(context, BuyerUiTokens.muted);
-    final border = HocalistPalette.border(context, BuyerUiTokens.border);
-    final brand = HocalistPalette.text(context, BuyerUiTokens.action);
-    final soft = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
+    final palette = MarketplaceColors.of(context);
+    final paper = palette.paper;
+    final page = palette.page;
+    final ink = palette.ink;
+    final sub = palette.muted;
+    final border = palette.border;
+    final brand = palette.brand;
+    final soft = palette.soft;
+    final accent = palette.primary;
     final green = dark ? const Color(0xffb1edcd) : const Color(0xff196346);
     final profileId = offer.sellerProfileId;
     final initials = offer.sellerName.trim().split(RegExp(r'\s+'))
@@ -320,16 +320,11 @@ class _BuyerOfferComparison extends StatelessWidget {
         .map((part) => part.characters.first.toUpperCase()).join();
 
     Widget button(String label, VoidCallback? onPressed, {bool primary = false}) =>
-        primary
-            ? BuyerPrimaryButton(
-                label: label, onPressed: offer.busy ? null : onPressed,
-                compact: true, fontSize: 12, minimumHeight: 44,
-                leading: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-              )
-            : BuyerSecondaryButton(
-                label: label, onPressed: offer.busy ? null : onPressed,
-                compact: true, fontSize: 12, minimumHeight: 44,
-              );
+        MarketplaceButton(label: label, onPressed: offer.busy ? null : onPressed,
+          background: primary ? accent : paper,
+          foreground: primary ? Colors.white : brand,
+          border: BorderSide(color: primary ? accent : brand),
+          icon: primary ? Icons.chat_bubble_outline_rounded : null);
 
     return Container(
       clipBehavior: Clip.antiAlias,

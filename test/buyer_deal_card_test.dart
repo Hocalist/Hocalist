@@ -10,6 +10,7 @@ import 'package:hocalist/features/media/private_remote_image.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'package:hocalist/theme/accessibility_visuals.dart';
+import 'package:hocalist/theme/marketplace_ui_foundation.dart';
 import 'package:hocalist/main.dart' show HocalistTheme;
 import 'test_fonts.dart';
 import 'visual_proof_capture.dart';
@@ -70,8 +71,8 @@ void main() {
     addTearDown(t.view.resetPhysicalSize);
     addTearDown(t.view.resetDevicePixelRatio);
     final theme = HocalistTheme.light.copyWith(
-      textTheme: HocalistTheme.light.textTheme.apply(fontFamily: 'Nunito'),
-      extensions: [const HocalistAccessibilityVisuals(fontFamily: 'Nunito',
+      textTheme: HocalistTheme.light.textTheme.apply(fontFamily: 'Lexend'),
+      extensions: [const HocalistAccessibilityVisuals(fontFamily: 'Lexend',
         buttonRadius: 3, buttonBackground: Colors.black,
         buttonForeground: Colors.white, buttonBorderWidth: 2)],
     );
@@ -79,14 +80,25 @@ void main() {
       for (final scale in [1.0, 1.15, 1.3, 1.6]) {
         await pump(t, width, scale, TargetPlatform.android,
           comparison: true, plan: PlanCode.pro, photos: [], theme: theme);
-        expect(t.widget<Text>(find.text('Jonathan Sanchez')).style?.fontFamily, 'Nunito');
-        final button = find.descendant(of: find.byType(BuyerPrimaryButton), matching: find.byType(DecoratedBox));
-        expect((t.widget<DecoratedBox>(button.first).decoration as BoxDecoration).color, Colors.black);
-        final icon = find.descendant(of: find.byType(BuyerPrimaryButton), matching: find.byType(Icon)).first;
-        expect(IconTheme.of(t.element(icon)).color, Colors.white);
+        expect(t.widget<Text>(find.text('Jonathan Sanchez')).style?.fontFamily, 'Lexend');
+        final button = find.descendant(of: find.byType(MarketplaceButton).first, matching: find.byType(TextButton));
+        final style = t.widget<TextButton>(button).style!;
+        expect(style.backgroundColor!.resolve({}), Colors.black);
+        expect(style.foregroundColor!.resolve({}), Colors.white);
         expect(t.takeException(), isNull, reason: 'width=$width scale=$scale');
       }
     }
+  });
+  testWidgets('marketplace default preserves reviewed font, palette and action shape', (t) async {
+    addTearDown(t.view.resetPhysicalSize); addTearDown(t.view.resetDevicePixelRatio);
+    await pump(t,390,1,TargetPlatform.android,comparison:true,plan:PlanCode.pro);
+    expect(t.widget<Text>(find.text('Jonathan Sanchez')).style?.fontFamily,'Roboto');
+    expect(t.widget<Text>(find.text(r'$650')).style?.color,const Color(0xff3920ba));
+    final primary=find.descendant(of:find.byType(MarketplaceButton).first,matching:find.byType(TextButton));
+    final style=t.widget<TextButton>(primary).style!;
+    expect(style.backgroundColor!.resolve({}),const Color(0xff3220b9));
+    expect((style.shape!.resolve({})! as RoundedRectangleBorder).borderRadius,BorderRadius.circular(10));
+    expect(t.getSize(primary).height,44);
   });
   testWidgets('offer photos use the approved crop for wide and tall uploads', (t) async {
     addTearDown(t.view.resetPhysicalSize);

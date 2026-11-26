@@ -1,3 +1,4 @@
+import '../../theme/marketplace_ui_foundation.dart';
 import '../media/listing_image_placeholder.dart';
 import 'buyer_deal_card.dart';
 import '../../domain/phase2/schedule.dart';
@@ -10010,7 +10011,7 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
 
   TextStyle _cardText(double size, Color color, {
     FontWeight weight = FontWeight.w400, double height = 1.35,
-  }) => dealText(context, size, color: color, weight: weight).copyWith(height: height);
+  }) => MarketplaceTypography.text(context, size, color, weight: weight, height: height);
 
   @override
   Widget build(BuildContext context) {
@@ -10020,26 +10021,22 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
       TimeOfDay(hour: schedule.startTime.hour, minute: schedule.startTime.minute),
     );
-    final place = BuyerOfferView.formatPlaceLabel(
-      address: schedule.placeAddress, label: schedule.placeLabel,
-    );
+    final place = BuyerOfferView.formatPlaceLabel(address: schedule.placeAddress, label: schedule.placeLabel);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = HocalistPalette.text(context, BuyerUiTokens.text);
-    final muted = HocalistPalette.text(context, BuyerUiTokens.muted);
-    final purple = HocalistPalette.text(context, BuyerUiTokens.action);
-    final surface = HocalistPalette.surface(context, BuyerUiTokens.surface);
-    final primary = BuyerUiTokens.action;
+    final palette = MarketplaceColors.of(context, surface: MarketplaceSurface.meetup);
+    final ink = palette.ink;
+    final muted = palette.muted;
+    final purple = palette.brand;
+    final surface = palette.paper;
+    final primary = palette.primary;
     final outline = dark ? const Color(0xff8e77c9) : const Color(0xffa99bd8);
     Widget action(String label, IconData icon, VoidCallback run, {
       required Color background, required Color foreground,
       BorderSide? border, double fontSize = 12,
-    }) => border != null
-        ? BuyerSecondaryButton(label: label, onPressed: run,
-            compact: true, fontSize: fontSize, minimumHeight: 44)
-        : BuyerPrimaryButton(label: label, onPressed: run,
-            compact: true, fontSize: fontSize, minimumHeight: 44,
-            colors: [background, background], foreground: foreground,
-            leading: Icon(icon, size: 15));
+    }) => MarketplaceButton(label: label, onPressed: run,
+      background: background, foreground: foreground, border: border,
+      fontSize: fontSize, lineHeight: 1.2, icon: icon,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4));
     final quickActions = <Widget>[
       if (widget.onDirections != null)
         action('Maps', Icons.map_outlined, () { _closeManage(); widget.onDirections!(); },
