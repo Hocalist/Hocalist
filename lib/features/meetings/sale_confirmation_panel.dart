@@ -22,6 +22,7 @@ class SaleConfirmationPanel extends StatefulWidget {
     this.onPurchaseConfirmed,
     this.onRefreshMeeting,
     this.revealPinOnOpen = false,
+    this.compactBuyer = false,
     super.key,
   });
   final SaleConfirmationAdapter adapter;
@@ -34,6 +35,7 @@ class SaleConfirmationPanel extends StatefulWidget {
   final bool? purchaseSelected;
   final bool meetingAccepted;
   final bool revealPinOnOpen;
+  final bool compactBuyer;
   final VoidCallback? onPurchaseConfirmed;
   final Future<void> Function()? onRefreshMeeting;
   @override
@@ -237,6 +239,111 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
+    if (widget.isBuyer && widget.compactBuyer) {
+      final visiblePin = result?.pin;
+      final canReveal = !done && !awaitingChoice && widget.meetingAccepted;
+      final normalPin =
+          status == null || status == 'ready' || status == 'unconfirmed';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!canReveal || !normalPin)
+            _ConfirmationNotice(
+              isBuyer: true,
+              tone: tone,
+              title: switch (status) {
+                'confirmed' => 'Purchase confirmed',
+                'completed_elsewhere' => 'Purchased from another seller',
+                _ => 'Confirm purchase',
+              },
+              message: message,
+            ),
+          if (canReveal)
+            Container(
+              key: const Key('saleConfirmationPinCard'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: HocalistPalette.surface(
+                  context,
+                  BuyerUiTokens.softSurface,
+                ),
+                border: Border.all(
+                  color: HocalistPalette.border(context, BuyerUiTokens.border),
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.vpn_key_outlined,
+                        size: 18,
+                        color: HocalistPalette.text(
+                          context,
+                          BuyerUiTokens.action,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          'Your purchase PIN',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Share this PIN only after you’ve inspected the item and paid the seller.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      visiblePin ?? '•••••',
+                      semanticsLabel: visiblePin == null ? 'PIN hidden' : null,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(letterSpacing: 5),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  BuyerPrimaryButton(
+                    key: const Key('saleConfirmationAction'),
+                    label: visiblePin == null
+                        ? 'Show my purchase PIN'
+                        : 'Hide purchase PIN',
+                    onPressed: busy
+                        ? null
+                        : visiblePin == null
+                        ? () => run('display')
+                        : () {
+                            generation++;
+                            expiry?.cancel();
+                            setState(() => result = null);
+                          },
+                  ),
+                ],
+              ),
+            ),
+          if (error != null)
+            _ConfirmationNotice(
+              isBuyer: true,
+              tone: _ConfirmationTone.error,
+              title: 'Confirmation was not completed',
+              message: error!,
+            ),
+          if (busy)
+            const BuyerProgressStrip(label: 'Checking purchase status…'),
+          PullRefreshAction(
+            key: const Key('saleConfirmationRefresh'),
+            onRefresh: busy ? null : () => run('status', refreshMeeting: true),
+          ),
+        ],
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(vertical: metrics.spacing(16)),
       child: Column(

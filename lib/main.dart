@@ -6827,7 +6827,17 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                     : () => unawaited(_openMeetingById(confirmationMeetingId)),
               );
             }
+            final currentMeeting = _marketplace.meetingDetail;
+            final buyerMeetingLayout = role == UserRole.buyer && currentMeeting != null;
+            final meetingOffer = buyerMeetingLayout
+                ? [..._conversationOfferRecords, ..._marketplace.buyerOffers, ..._buyerHomeOffers]
+                    .where((offer) => offer.id == currentMeeting.offerId).firstOrNull
+                : null;
             final meetingDetails = ApprovedMeetingDetailsPage(
+              buyerMeetupLayout: buyerMeetingLayout,
+              sellerDisplayName: meetingOffer?.sellerDisplayName,
+              sellerProfileId: meetingOffer?.sellerProfileId,
+              loadSeller: buyerMeetingLayout ? _loadDealSeller : null,
               focusPurchasePin: role == UserRole.buyer && _focusedPinMeetingId != null &&
                   _focusedPinMeetingId == _marketplace.meetingDetail?.meetingId,
               competingOffers: role == UserRole.seller &&
@@ -6896,6 +6906,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
                         await _marketplace.loadMeeting(id);
                       },
                       isBuyer: role == UserRole.buyer,
+                      compactBuyer: buyerMeetingLayout,
                       purchaseSelected:
                           _marketplace.meetingDetail!.purchaseSelected,
                       meetingAccepted:

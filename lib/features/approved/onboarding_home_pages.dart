@@ -5763,6 +5763,10 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
     this.onChoosePurchaseSeller,
     this.purchaseConfirmed = false,
     this.competingOffers,
+    this.buyerMeetupLayout = false,
+    this.sellerDisplayName,
+    this.sellerProfileId,
+    this.loadSeller,
     super.key,
   });
 
@@ -5786,6 +5790,10 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
   final VoidCallback? onChoosePurchaseSeller;
   final bool purchaseConfirmed;
   final Widget? competingOffers;
+  final bool buyerMeetupLayout;
+  final String? sellerDisplayName;
+  final String? sellerProfileId;
+  final BuyerDealSellerLoader? loadSeller;
 
   @override
   State<ApprovedMeetingDetailsPage> createState() =>
@@ -5795,6 +5803,7 @@ class ApprovedMeetingDetailsPage extends StatefulWidget {
 class _ApprovedMeetingDetailsPageState
     extends State<ApprovedMeetingDetailsPage> {
   bool _showDealHistory = false;
+  bool _showMeetupManagement = false;
   MeetingView? get _meeting => widget.meeting;
 
   MeetingScheduleView? get _schedule =>
@@ -5822,7 +5831,8 @@ class _ApprovedMeetingDetailsPageState
       ? 'Meeting cancelled'
       : _meeting != null && !_meeting!.purchaseSelected
       ? 'Awaiting buyer confirmation'
-      : _meeting?.latestProposalDeclined == true && _meeting!.hasAcceptedSchedule
+      : _meeting?.latestProposalDeclined == true &&
+            _meeting!.hasAcceptedSchedule
       ? _meeting!.declinedProposalMessage
       : _needsNewProposal
       ? 'Meeting time declined'
@@ -5837,14 +5847,20 @@ class _ApprovedMeetingDetailsPageState
     final meeting = _meeting!;
     final proposer = meeting.pendingSchedule?.proposedByUserId;
     if (proposer != widget.viewerUserId) return 'Your response needed';
-    return proposer == meeting.buyerUserId ? 'Waiting for seller' : 'Waiting for buyer';
+    return proposer == meeting.buyerUserId
+        ? 'Waiting for seller'
+        : 'Waiting for buyer';
   }
 
-  Color get _statusColor => widget.purchaseConfirmed ? _green
-      : _meeting?.isCancelled == true || _meeting?.latestProposalDeclined == true
+  Color get _statusColor => widget.purchaseConfirmed
+      ? _green
+      : _meeting?.isCancelled == true ||
+            _meeting?.latestProposalDeclined == true
       ? Theme.of(context).colorScheme.error
-      : _meeting?.hasPendingSchedule == true || _meeting?.purchaseSelected == false
-      ? const Color(0xff946000) : _green;
+      : _meeting?.hasPendingSchedule == true ||
+            _meeting?.purchaseSelected == false
+      ? const Color(0xff946000)
+      : _green;
 
   String get _placeLabel {
     final schedule = _schedule;
@@ -5887,6 +5903,241 @@ class _ApprovedMeetingDetailsPageState
     final minute = schedule.startTime.minute.toString().padLeft(2, '0');
     return '${months[schedule.date.month - 1]} ${schedule.date.day} • '
         '$displayHour:$minute $period · ${schedule.timezoneId}';
+  }
+
+  String _readableMeetingTime(MeetingScheduleView schedule) {
+    final zone = switch (schedule.timezoneId) {
+      'America/New_York' => 'ET',
+      'America/Chicago' => 'CT',
+      'America/Denver' => 'MT',
+      'America/Los_Angeles' => 'PT',
+      final id => id.replaceAll('_', ' '),
+    };
+    return '${BuyerOfferView.formatSchedule(LocalSchedule(date: schedule.date, startTime: schedule.startTime, timezoneId: schedule.timezoneId, occurrence: schedule.occurrence))} $zone';
+  }
+
+  Widget _buyerMeetupSummary(BuildContext context) {
+    final profile = widget.sellerProfileId;
+    final name = widget.sellerDisplayName?.trim();
+    final badge =
+        _meeting!.purchaseSelected &&
+            _meeting!.hasAcceptedSchedule &&
+            !_meeting!.isCancelled &&
+            !_meeting!.latestProposalDeclined
+        ? 'Meeting confirmed'
+        : _statusLabel;
+    final badgeColor = badge == 'Meeting confirmed' ? _green : _statusColor;
+    return _ApprovedDetailSurface(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              FutureBuilder<BuyerDealSeller>(
+                future: profile == null
+                    ? null
+                    : widget.loadSeller?.call(profile),
+                builder: (context, snapshot) {
+                  final image = snapshot.data?.avatarId;
+                  return ClipOval(
+                    child: image != null
+                        ? PrivateRemoteImage(id: image, size: 42)
+                        : CircleAvatar(
+                            radius: 21,
+                            backgroundColor: HocalistPalette.surface(
+                              context,
+                              BuyerUiTokens.softSurface,
+                            ),
+                            foregroundColor: HocalistPalette.text(
+                              context,
+                              _navy,
+                            ),
+                            child: const Icon(Icons.person_outline, size: 22),
+                          ),
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _title,
+                      style: _text(
+                        context,
+                        size: 14,
+                        weight: FontWeight.w800,
+                        color: _navy,
+                      ),
+                    ),
+                    Text(
+                      name == null || name.isEmpty
+                          ? 'Seller'
+                          : '$name · Seller',
+                      style: _text(context, size: 11, color: _muted),
+                    ),
+                  ],
+                ),
+              ),
+              if (_price.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 105),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: HocalistPalette.surface(
+                      context,
+                      BuyerUiTokens.softSurface,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _price,
+                    style: _text(
+                      context,
+                      size: 17,
+                      color: _blue,
+                      weight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 7),
+          Container(
+            key: const ValueKey('buyer-meetup-status-below-photo'),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: HocalistPalette.surface(
+                context,
+                badgeColor.withValues(alpha: .12),
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              badge,
+              style: _text(
+                context,
+                size: 10,
+                weight: FontWeight.w700,
+                color: badgeColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buyerMeetupFacts(BuildContext context) {
+    final schedule = _schedule;
+    final pending = _meeting!.pendingSchedule;
+    final hasPending =
+        pending != null && !widget.purchaseConfirmed && !_meeting!.isCancelled;
+    Widget fact(
+      IconData icon,
+      String label,
+      String value, {
+      Widget? trailing,
+    }) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: HocalistPalette.text(context, _blue)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: _text(context, size: 11, color: _muted)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: _text(
+                  context,
+                  size: 13,
+                  weight: FontWeight.w700,
+                  color: _navy,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 44,
+            child: Align(alignment: Alignment.bottomRight, child: trailing),
+          ),
+        ],
+      ],
+    );
+    return _ApprovedDetailSurface(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          fact(
+            Icons.calendar_today_outlined,
+            _meeting!.hasAcceptedSchedule
+                ? 'Date and time'
+                : 'Proposed date and time',
+            schedule == null
+                ? 'Time not confirmed'
+                : _readableMeetingTime(schedule),
+          ),
+          const SizedBox(height: 11),
+          IntrinsicHeight(
+            child: fact(
+              Icons.location_on_outlined,
+              'Pickup location',
+              _placeLabel,
+              trailing:
+                  widget.onDirections != null &&
+                      _meeting!.hasAcceptedSchedule &&
+                      !_meeting!.isCancelled &&
+                      !widget.purchaseConfirmed
+                  ? OutlinedButton(
+                      key: const ValueKey('approved-meeting-directions'),
+                      onPressed: widget.busy || !_hasDirections
+                          ? null
+                          : widget.onDirections,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(44, 44),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Tooltip(
+                        message: 'Open pickup location in Maps',
+                        child: Icon(Icons.map_outlined, size: 20),
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          if (hasPending) ...[
+            const SizedBox(height: 8),
+            BuyerStateNotice(
+              icon: Icons.schedule_outlined,
+              title: _meeting!.hasAcceptedSchedule
+                  ? 'New time requested'
+                  : _pendingStatus,
+              body:
+                  '${_meeting!.hasAcceptedSchedule ? "Your original meetup is still scheduled until ${pending.proposedByUserId == widget.viewerUserId ? 'the seller agrees' : 'you agree'}.\n" : ''}'
+                  '${_readableMeetingTime(pending)} · ${pending.placeAddress ?? pending.placeLabel ?? 'Location not confirmed'}',
+              tone: BuyerNoticeTone.warning,
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _meetingAction({
@@ -5946,6 +6197,92 @@ class _ApprovedMeetingDetailsPageState
     final viewport = MediaQuery.sizeOf(context);
     final compactViewport = viewport.width <= 340 || viewport.height <= 700;
     final realMode = _meeting != null;
+    final redesignedBuyer = realMode && widget.buyerMeetupLayout;
+    final dealHistory = realMode
+        ? <Widget>[
+            const SizedBox(height: 12),
+            _ApprovedDetailSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextButton(
+                    key: const ValueKey('meeting-deal-history'),
+                    onPressed: () =>
+                        setState(() => _showDealHistory = !_showDealHistory),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Deal history',
+                            style: _text(
+                              context,
+                              size: 14,
+                              weight: FontWeight.w700,
+                              color: _navy,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          _showDealHistory
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: metrics.geometry(20),
+                          color: _blue,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_showDealHistory) ...[
+                    if (_meeting!.purchaseSelectedAt != null)
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'Buyer confirmed the seller',
+                          style: _text(context, size: 12, color: _navy),
+                        ),
+                      ),
+                    for (final revision in _meeting!.revisions)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${revision.sequence == 1 ? "Meeting proposal" : "Meeting change"} · ${switch (revision.status) {
+                                'accepted' => 'Accepted',
+                                'rejected' => 'Declined',
+                                'proposed' => 'Waiting for acceptance',
+                                'superseded' => 'Replaced by a later proposal',
+                                _ => 'No longer active',
+                              }}',
+                              style: _text(
+                                context,
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: _navy,
+                              ),
+                            ),
+                            Text(
+                              '${revision.date} · ${revision.startTime} · ${revision.timezoneId}',
+                              style: _text(context, size: 11, color: _muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (widget.purchaseConfirmed)
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'Purchase completed',
+                          style: _text(context, size: 12, color: _navy),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ]
+        : const <Widget>[];
     final canDecline =
         realMode &&
         _meeting!.purchaseSelected &&
@@ -5967,130 +6304,150 @@ class _ApprovedMeetingDetailsPageState
         children: [
           _ApprovedDetailHeading(
             title: 'Meeting details',
-            subtitle: 'Confirm the place and time both sides will see.',
+            subtitle: redesignedBuyer
+                ? ''
+                : 'Confirm the place and time both sides will see.',
             onBack: widget.onBack,
           ),
           SizedBox(height: metrics.spacing(compactViewport ? 8 : 16)),
-          if (widget.focusPurchasePin && realMode && !_meeting!.isCancelled) ...[
-            if (_meeting!.purchaseSelected && _meeting!.hasAcceptedSchedule && widget.saleConfirmation != null)
+          if (widget.focusPurchasePin &&
+              realMode &&
+              !_meeting!.isCancelled &&
+              !(redesignedBuyer && widget.purchaseConfirmed)) ...[
+            if (_meeting!.purchaseSelected &&
+                _meeting!.hasAcceptedSchedule &&
+                widget.saleConfirmation != null)
               widget.saleConfirmation!
             else
               const PurchasePinCard(isBuyer: true),
             SizedBox(height: metrics.spacing(8)),
           ],
-          _ApprovedDetailSurface(
-            padding: EdgeInsets.all(compactViewport ? 10 : 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: metrics.artSize(compactViewport ? 56 : 68),
-                  height: metrics.artSize(compactViewport ? 62 : 76),
-                  padding: metrics.geometryInsets(const EdgeInsets.all(5)),
-                  decoration: BoxDecoration(
-                    color: HocalistPalette.surface(
-                      context,
-                      const Color(0xfff8f8ff),
-                    ),
-                    borderRadius: BorderRadius.circular(metrics.geometry(12)),
-                  ),
-                  child: realMode
-                      ? const BuyerAssetIcon(
-                          asset: 'assets/approved_offers_chat/chat-time.png',
-                          slotSize: 24,
-                        )
-                      : Image.asset(
-                          'assets/approved_offers_chat/chat-ipad.png',
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                        ),
-                ),
-                SizedBox(width: metrics.geometry(12)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        realMode ? _title : 'iPad Air 5th Gen 64GB',
-                        style: _text(
-                          context,
-                          size: 15,
-                          weight: FontWeight.w800,
-                          color: _navy,
-                        ),
+          if (redesignedBuyer)
+            _buyerMeetupSummary(context)
+          else
+            _ApprovedDetailSurface(
+              padding: EdgeInsets.all(compactViewport ? 10 : 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: metrics.artSize(compactViewport ? 56 : 68),
+                    height: metrics.artSize(compactViewport ? 62 : 76),
+                    padding: metrics.geometryInsets(const EdgeInsets.all(5)),
+                    decoration: BoxDecoration(
+                      color: HocalistPalette.surface(
+                        context,
+                        const Color(0xfff8f8ff),
                       ),
-                      if (!realMode || _price.isNotEmpty) ...[
-                        SizedBox(height: metrics.geometry(4)),
+                      borderRadius: BorderRadius.circular(metrics.geometry(12)),
+                    ),
+                    child: realMode
+                        ? const BuyerAssetIcon(
+                            asset: 'assets/approved_offers_chat/chat-time.png',
+                            slotSize: 24,
+                          )
+                        : Image.asset(
+                            'assets/approved_offers_chat/chat-ipad.png',
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.high,
+                          ),
+                  ),
+                  SizedBox(width: metrics.geometry(12)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          realMode ? _price : '\$650',
+                          realMode ? _title : 'iPad Air 5th Gen 64GB',
                           style: _text(
                             context,
-                            size: 20,
+                            size: 15,
                             weight: FontWeight.w800,
-                            color: _blue,
+                            color: _navy,
+                          ),
+                        ),
+                        if (!realMode || _price.isNotEmpty) ...[
+                          SizedBox(height: metrics.geometry(4)),
+                          Text(
+                            realMode ? _price : '\$650',
+                            style: _text(
+                              context,
+                              size: 20,
+                              weight: FontWeight.w800,
+                              color: _blue,
+                            ),
+                          ),
+                        ],
+                        SizedBox(height: metrics.geometry(6)),
+                        Container(
+                          padding: metrics.geometryInsets(
+                            const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                          ),
+                          decoration: BoxDecoration(
+                            color: HocalistPalette.surface(
+                              context,
+                              _statusColor.withValues(alpha: .10),
+                            ),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            realMode ? _statusLabel : 'Offer accepted',
+                            style: _text(
+                              context,
+                              size: 10,
+                              weight: FontWeight.w700,
+                              color: _statusColor,
+                            ),
                           ),
                         ),
                       ],
-                      SizedBox(height: metrics.geometry(6)),
-                      Container(
-                        padding: metrics.geometryInsets(
-                          const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                        ),
-                        decoration: BoxDecoration(
-                          color: HocalistPalette.surface(
-                            context,
-                              _statusColor.withValues(alpha: .10),
-                          ),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          realMode ? _statusLabel : 'Offer accepted',
-                          style: _text(
-                            context,
-                            size: 10,
-                            weight: FontWeight.w700,
-                            color: _statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           SizedBox(height: metrics.spacing(compactViewport ? 8 : 12)),
-          _ApprovedDetailSurface(
-            padding: EdgeInsets.all(compactViewport ? 10 : 14),
-            child: Column(
-              children: [
-                _ApprovedMeetingField(
-                  key: const ValueKey('approved-meeting-location-field'),
-                  asset: 'chat-location.png',
-                  label: 'Pickup location',
-                  initialValue: realMode ? _placeLabel : 'Yonkers, NY',
-                  readOnly: realMode,
-                ),
-                SizedBox(height: metrics.geometry(compactViewport ? 8 : 12)),
-                _ApprovedMeetingField(
-                  key: const ValueKey('approved-meeting-time-field'),
-                  asset: 'chat-time.png',
-                  label: _meeting?.hasAcceptedSchedule == true ? 'Confirmed date and time' : 'Proposed date and time',
-                  initialValue: realMode ? _timeLabel : 'Today • 5:00 PM',
-                  readOnly: realMode,
-                ),
-                SizedBox(height: metrics.geometry(compactViewport ? 8 : 12)),
-              ],
+          if (redesignedBuyer)
+            _buyerMeetupFacts(context)
+          else
+            _ApprovedDetailSurface(
+              padding: EdgeInsets.all(compactViewport ? 10 : 14),
+              child: Column(
+                children: [
+                  _ApprovedMeetingField(
+                    key: const ValueKey('approved-meeting-location-field'),
+                    asset: 'chat-location.png',
+                    label: 'Pickup location',
+                    initialValue: realMode ? _placeLabel : 'Yonkers, NY',
+                    readOnly: realMode,
+                  ),
+                  SizedBox(height: metrics.geometry(compactViewport ? 8 : 12)),
+                  _ApprovedMeetingField(
+                    key: const ValueKey('approved-meeting-time-field'),
+                    asset: 'chat-time.png',
+                    label: _meeting?.hasAcceptedSchedule == true
+                        ? 'Confirmed date and time'
+                        : 'Proposed date and time',
+                    initialValue: realMode ? _timeLabel : 'Today • 5:00 PM',
+                    readOnly: realMode,
+                  ),
+                  SizedBox(height: metrics.geometry(compactViewport ? 8 : 12)),
+                ],
+              ),
             ),
-          ),
-          if (realMode && _meeting!.hasPendingSchedule && !widget.purchaseConfirmed && !_meeting!.isCancelled)
+          if (!redesignedBuyer &&
+              realMode &&
+              _meeting!.hasPendingSchedule &&
+              !widget.purchaseConfirmed &&
+              !_meeting!.isCancelled)
             BuyerStateNotice(
               icon: Icons.schedule_outlined,
               title: _pendingStatus,
-              body: '${_meeting!.hasAcceptedSchedule ? "Proposed change" : "Meeting proposal"}: '
+              body:
+                  '${_meeting!.hasAcceptedSchedule ? "Proposed change" : "Meeting proposal"}: '
                   '${_meeting!.pendingSchedule!.date} · ${_meeting!.pendingSchedule!.startTime} · ${_meeting!.pendingSchedule!.timezoneId}\n'
                   '${_meeting!.pendingSchedule!.placeAddress ?? _meeting!.pendingSchedule!.placeLabel ?? "Location not confirmed"}'
                   '${_meeting!.hasAcceptedSchedule ? "\nYour confirmed meeting stays unchanged until this change is accepted." : "\nThe meeting is set only after the other person accepts."}',
@@ -6113,72 +6470,30 @@ class _ApprovedMeetingDetailsPageState
               onPressed: widget.busy ? null : widget.onChoosePurchaseSeller,
             ),
           ],
-          if (!widget.focusPurchasePin && widget.saleConfirmation != null &&
+          if (redesignedBuyer) const SizedBox(height: 10),
+          if (redesignedBuyer && widget.purchaseConfirmed)
+            BuyerStateNotice(
+              key: const ValueKey('buyer-meetup-purchase-complete'),
+              icon: Icons.check_circle_outline,
+              title: _meeting!.purchaseSelected
+                  ? 'Purchase confirmed'
+                  : 'Purchased from another seller',
+              body: _meeting!.purchaseSelected
+                  ? 'Your purchase with this seller is recorded.'
+                  : 'This meetup did not record the purchase.',
+              tone: BuyerNoticeTone.success,
+            )
+          else if (!widget.focusPurchasePin &&
+              widget.saleConfirmation != null &&
               (!realMode ||
-                  _meeting!.purchaseSelected && _meeting!.hasAcceptedSchedule && !_meeting!.isCancelled))
+                  _meeting!.purchaseSelected &&
+                      _meeting!.hasAcceptedSchedule &&
+                      !_meeting!.isCancelled))
             widget.saleConfirmation!,
           if (realMode) ...[
             if (!widget.purchaseConfirmed && widget.competingOffers != null)
               _ApprovedDetailSurface(child: widget.competingOffers!),
-            const SizedBox(height: 12),
-            _ApprovedDetailSurface(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextButton(
-                    key: const ValueKey('meeting-deal-history'),
-                    onPressed: () =>
-                        setState(() => _showDealHistory = !_showDealHistory),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text('Deal history', style: _text(context,
-                          size: 14, weight: FontWeight.w700, color: _navy))),
-                        Icon(
-                          _showDealHistory
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          size: metrics.geometry(20), color: _blue,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_showDealHistory) ...[
-                    if (_meeting!.purchaseSelectedAt != null)
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('Buyer confirmed the seller', style: _text(context, size: 12, color: _navy)),
-                      ),
-                    for (final revision in _meeting!.revisions)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${revision.sequence == 1 ? "Meeting proposal" : "Meeting change"} · ${switch (revision.status) {
-                                'accepted' => 'Accepted',
-                                'rejected' => 'Declined',
-                                'proposed' => 'Waiting for acceptance',
-                                'superseded' => 'Replaced by a later proposal',
-                                _ => 'No longer active',
-                              }}', style: _text(context, size: 12, weight: FontWeight.w700, color: _navy),
-                            ),
-                            Text(
-                              '${revision.date} · ${revision.startTime} · ${revision.timezoneId}',
-                              style: _text(context, size: 11, color: _muted),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (widget.purchaseConfirmed)
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('Purchase completed', style: _text(context, size: 12, color: _navy)),
-                      ),
-                  ],
-                ],
-              ),
-            ),
+            if (!redesignedBuyer) ...dealHistory,
           ],
           if (widget.error != null) ...[
             SizedBox(height: metrics.spacing(8)),
@@ -6207,7 +6522,9 @@ class _ApprovedMeetingDetailsPageState
           else if (!realMode || canDecline)
             BuyerPrimaryButton(
               key: const ValueKey('approved-confirm-meeting-button'),
-              label: _meeting?.hasAcceptedSchedule == true ? 'Accept change' : 'Accept meeting',
+              label: _meeting?.hasAcceptedSchedule == true
+                  ? 'Accept change'
+                  : 'Accept meeting',
               onPressed: widget.onConfirm,
               minimumHeight: 44,
             ),
@@ -6216,7 +6533,9 @@ class _ApprovedMeetingDetailsPageState
             BuyerSecondaryButton(
               key: const ValueKey('approved-decline-meeting-button'),
               onPressed: widget.busy ? null : widget.onDecline,
-              label: _meeting?.hasAcceptedSchedule == true ? 'Decline change' : 'Decline proposal',
+              label: _meeting?.hasAcceptedSchedule == true
+                  ? 'Decline change'
+                  : 'Decline proposal',
               minimumHeight: 44,
             ),
           ],
@@ -6235,7 +6554,8 @@ class _ApprovedMeetingDetailsPageState
               _meeting!.purchaseSelected &&
               !_meeting!.isCancelled &&
               (canCancel ||
-                  (_meeting!.hasAcceptedSchedule &&
+                  (!redesignedBuyer &&
+                      _meeting!.hasAcceptedSchedule &&
                       widget.onDirections != null) ||
                   ((_meeting!.status == 'accepted' || _needsNewProposal) &&
                       widget.onReschedule != null))) ...[
@@ -6244,48 +6564,77 @@ class _ApprovedMeetingDetailsPageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Manage meeting',
-                    style: _text(
-                      context,
-                      size: 14,
-                      weight: FontWeight.w800,
-                      color: _navy,
+                  if (redesignedBuyer)
+                    TextButton(
+                      key: const ValueKey('buyer-meetup-manage-toggle'),
+                      style: TextButton.styleFrom(
+                        alignment: AlignmentDirectional.centerStart,
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 44),
+                      ),
+                      onPressed: () => setState(
+                        () => _showMeetupManagement = !_showMeetupManagement,
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(child: Text('Manage meeting')),
+                          Icon(
+                            _showMeetupManagement
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      'Manage meeting',
+                      style: _text(
+                        context,
+                        size: 14,
+                        weight: FontWeight.w800,
+                        color: _navy,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_meeting!.hasAcceptedSchedule &&
-                      widget.onDirections != null)
-                    _meetingAction(
-                      key: const ValueKey('approved-meeting-directions'),
-                      icon: Icons.map_outlined,
-                      label: 'View directions in Hocalist',
-                      onTap: widget.busy || !_hasDirections
-                          ? null
-                          : widget.onDirections,
-                    ),
-                  if ((_meeting!.status == 'accepted' || _needsNewProposal) &&
-                      widget.onReschedule != null)
-                    _meetingAction(
-                      key: const ValueKey('approved-reschedule-meeting-button'),
-                      icon: Icons.event_repeat_outlined,
-                      label: _needsNewProposal
-                          ? 'Propose another time'
-                          : 'Reschedule meeting',
-                      onTap: widget.busy ? null : widget.onReschedule,
-                    ),
-                  if (canCancel)
-                    _meetingAction(
-                      key: const ValueKey('approved-cancel-meeting-button'),
-                      icon: Icons.event_busy_outlined,
-                      label: 'Cancel meeting',
-                      destructive: true,
-                      onTap: widget.busy ? null : widget.onCancel,
-                    ),
+                  if (!redesignedBuyer || _showMeetupManagement) ...[
+                    const SizedBox(height: 8),
+                    if (!redesignedBuyer &&
+                        _meeting!.hasAcceptedSchedule &&
+                        widget.onDirections != null)
+                      _meetingAction(
+                        key: const ValueKey('approved-meeting-directions'),
+                        icon: Icons.map_outlined,
+                        label: 'View directions in Hocalist',
+                        onTap: widget.busy || !_hasDirections
+                            ? null
+                            : widget.onDirections,
+                      ),
+                    if ((_meeting!.status == 'accepted' || _needsNewProposal) &&
+                        widget.onReschedule != null)
+                      _meetingAction(
+                        key: const ValueKey(
+                          'approved-reschedule-meeting-button',
+                        ),
+                        icon: Icons.event_repeat_outlined,
+                        label: _needsNewProposal
+                            ? 'Propose another time'
+                            : 'Reschedule meeting',
+                        onTap: widget.busy ? null : widget.onReschedule,
+                      ),
+                    if (canCancel)
+                      _meetingAction(
+                        key: const ValueKey('approved-cancel-meeting-button'),
+                        icon: Icons.event_busy_outlined,
+                        label: 'Cancel meeting',
+                        destructive: true,
+                        onTap: widget.busy ? null : widget.onCancel,
+                      ),
+                  ],
                 ],
               ),
             ),
           ],
+          if (redesignedBuyer) ...dealHistory,
           SizedBox(height: metrics.spacing(compactViewport ? 8 : 12)),
           Container(
             key: const ValueKey('meeting-safety-caution'),
@@ -6293,7 +6642,16 @@ class _ApprovedMeetingDetailsPageState
               EdgeInsets.all(compactViewport ? 10 : 13),
             ),
             decoration: BoxDecoration(
-              color: HocalistPalette.surface(context, const Color(0xffeef9f2)),
+              color: redesignedBuyer
+                  ? null
+                  : HocalistPalette.surface(context, const Color(0xffeef9f2)),
+              border: redesignedBuyer
+                  ? Border(
+                      top: BorderSide(
+                        color: HocalistPalette.border(context, _line),
+                      ),
+                    )
+                  : null,
               borderRadius: BorderRadius.circular(metrics.geometry(14)),
             ),
             child: Row(
@@ -6301,19 +6659,44 @@ class _ApprovedMeetingDetailsPageState
               children: [
                 BuyerAssetIcon(
                   asset: 'assets/approved_offers_chat/chat-deal-shield.png',
-                  slotSize: metrics.artSize(34),
+                  slotSize: metrics.artSize(redesignedBuyer ? 18 : 34),
                 ),
                 SizedBox(width: metrics.geometry(10)),
                 Expanded(
-                  child: Text(
-                    'Meet in a public place, inspect the item, and pay the seller offline only when you are satisfied.',
-                    style: _text(
-                      context,
-                      size: 11,
-                      color: _muted,
-                      height: 1.35,
-                    ),
-                  ),
+                  child: redesignedBuyer
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Meet safely',
+                              style: _text(
+                                context,
+                                size: 12,
+                                weight: FontWeight.w800,
+                                color: _navy,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Choose a busy, well-lit public place and tell someone where you’re going. Inspect the item before paying the seller offline. If you feel unsafe, leave.',
+                              style: _text(
+                                context,
+                                size: 11,
+                                color: _muted,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          'Meet in a public place, inspect the item, and pay the seller offline only when you are satisfied.',
+                          style: _text(
+                            context,
+                            size: 11,
+                            color: _muted,
+                            height: 1.35,
+                          ),
+                        ),
                 ),
               ],
             ),
