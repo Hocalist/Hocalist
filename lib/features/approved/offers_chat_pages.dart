@@ -162,6 +162,7 @@ class BuyerOfferView {
     this.requestTitle = 'Your request',
     this.distanceLabel,
     this.availabilityLabel,
+    this.comparisonPlaceLabel,
   });
 
   factory BuyerOfferView.fromOffer(Offer offer, {bool agreedTerms = false,
@@ -202,6 +203,7 @@ class BuyerOfferView {
       meetingLabel: formatSchedule(schedule),
       availabilityLabel: formatOfferDate(terms.schedule.date),
       placeLabel: formatPlaceLabel(address: agreed?.placeAddress, label: agreed?.placeLabel, fallback: BuyerOfferView._formatPlace(terms.place)),
+      comparisonPlaceLabel: agreed?.placeLabel ?? terms.place.label,
       distanceLabel: distance,
       status: offer.status,
       conversationId: offer.conversationId,
@@ -223,7 +225,7 @@ class BuyerOfferView {
   final String message;
   final String meetingLabel;
   final String placeLabel;
-  final String? distanceLabel, availabilityLabel;
+  final String? distanceLabel, availabilityLabel, comparisonPlaceLabel;
   final OfferStatus status;
   final String? conversationId;
   final List<String> imageMediaIds;
@@ -613,7 +615,9 @@ class _ApprovedOffersReceivedPageState
           price: visible[index].priceLabel,
           message: visible[index].message,
           meeting: visible[index].meetingLabel,
-          place: visible[index].placeLabel,
+          place: visible[index].comparisonPlaceLabel?.trim().isNotEmpty == true
+              ? visible[index].comparisonPlaceLabel!.trim()
+              : visible[index].placeLabel,
           distanceLabel: visible[index].distanceLabel,
           onDecline: widget.onDeclineOffer == null ||
             !{OfferStatus.submitted, OfferStatus.selected}.contains(visible[index].status)
@@ -697,7 +701,12 @@ class _ApprovedOffersReceivedPageState
             children: [
               BuyerTopLevelHeader(onNotifications: widget.onNotifications),
               const SizedBox(height: 6),
-              _OffersHero(requestTitle: widget.comparisonRequestTitle),
+              _OffersHero(
+                requestTitle: widget.comparisonRequestTitle,
+                offerCount: widget.usesRealOffers && !widget.offersLoading && widget.offersError == null
+                    ? offers.whereType<BuyerDealCard>().length
+                    : null,
+              ),
               const SizedBox(height: 8),
               _OffersRewardsCard(realMode: widget.usesRealOffers),
               const SizedBox(height: 10),
@@ -3129,14 +3138,37 @@ class _ApprovedRasterAssetState extends State<_ApprovedRasterAsset> {
 }
 
 class _OffersHero extends StatelessWidget {
-  const _OffersHero({this.requestTitle});
+  const _OffersHero({this.requestTitle, this.offerCount});
   final String? requestTitle;
+  final int? offerCount;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 330;
+        final request = requestTitle;
+        if (request != null) {
+          final dark = Theme.of(context).brightness == Brightness.dark;
+          final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff17152e);
+          final sub = dark ? const Color(0xffb7b2ce) : const Color(0xff625e78);
+          final count = offerCount;
+          final detailStyle = TextStyle(fontFamily: 'Roboto', fontSize: 12, color: sub, height: 1.4);
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Compare offers', style: TextStyle(
+                fontFamily: 'Roboto', fontSize: 21, color: ink, fontWeight: FontWeight.w700,
+                height: 1.18, letterSpacing: -.65,
+              )),
+              const SizedBox(height: 3),
+              Text(request, style: detailStyle),
+            ])),
+            if (count != null) ...[
+              const SizedBox(width: 7),
+              Text(count == 1 ? '1 offer' : '$count offers', style: detailStyle),
+            ],
+          ]);
+        }
         final copy = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3150,7 +3182,7 @@ class _OffersHero extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              requestTitle ?? 'Compare offers and choose the best seller for you.',
+              'Compare offers and choose the best seller for you.',
               style: _text(
                 context,
                 size: narrow ? 10 : 13,
@@ -3160,7 +3192,6 @@ class _OffersHero extends StatelessWidget {
             ),
           ],
         );
-        if (requestTitle != null) return copy;
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [

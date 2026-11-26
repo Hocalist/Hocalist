@@ -18,6 +18,7 @@ const refreshSessions = new Map();
 const requestIds = { offer: randomUUID(), close: randomUUID() };
 const buyerDemo = process.env.HOCALIST_USB_QA_BUYER_DEMO === '1';
 const demoMeetupAvatarId = randomUUID();
+const demoEliteAvatarId = randomUUID();
 const demoSellers = [
   { user: IDS.seller, profile: IDS.sellerMembership, name: 'Maya QA', price: 27500,
     sales: 24, image: randomUUID(), file: 'maya-ipad.jpg', place: 'Riverside Park', day: 1 },
@@ -76,6 +77,7 @@ for (const file of [
   '../runtime_repairs/meeting_reschedule_single_notification.sql',
   '../../supabase/migrations/20261121120000_accept_offered_meeting.sql',
   '../../supabase/migrations/20261121140000_confirmed_meeting_notification.sql',
+  '../../supabase/migrations/20261120111441_buyer_offer_decline.sql',
   '../runtime_repairs/buyer_meetup_management.sql',
   '../runtime_repairs/249_multi_seller_buyer_rewards.sql',
   '../runtime_repairs/274_buyer_catalogue_choices.sql',
@@ -234,16 +236,16 @@ async function handle(request, response) {
   if (demoImageRead) {
     const id = endpoint.searchParams.get('id');
     const seller = demoSellers.find((row) => row.image === id);
-    const avatar = id === demoMeetupAvatarId;
-    if (user.id !== IDS.buyer || (!seller && !avatar)) {
+    const avatarPath = id === demoMeetupAvatarId
+      ? '../../assets/approved_offers_chat/john-avatar.png'
+      : id === demoEliteAvatarId ? '../../assets/approved_seller/home-seller-avatar.png' : null;
+    if (user.id !== IDS.buyer || (!seller && !avatarPath)) {
       return json(response, 404, { message: 'QA image unavailable' });
     }
-    const path = avatar
-      ? '../../assets/approved_offers_chat/john-avatar.png'
-      : './fixtures/buyer-offers/' + seller.file;
+    const path = avatarPath ?? './fixtures/buyer-offers/' + seller.file;
     const bytes = await readFile(new URL(path, import.meta.url));
     response.writeHead(200, {
-      'content-type': avatar ? 'image/png' : 'image/jpeg', 'cache-control': 'no-store',
+      'content-type': avatarPath ? 'image/png' : 'image/jpeg', 'cache-control': 'no-store',
     });
     response.end(bytes);
     return;
@@ -261,7 +263,7 @@ async function handle(request, response) {
       const [{ plan }] = (await db.query("SELECT hocalist.entitlement_resolve_internal($1)->>'effective_plan' AS plan", [seller.user])).rows;
       return json(response, 200, {
         available: true, plan_code: plan, badges: ['Admin reviewed'], completed_sales: seller.sales,
-        avatar_media_id: seller.user === IDS.seller ? demoMeetupAvatarId : null,
+        avatar_media_id: seller.user === IDS.seller ? demoMeetupAvatarId : demoEliteAvatarId,
       });
     }
     const parts = Object.keys(body);

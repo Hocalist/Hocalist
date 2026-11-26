@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/buyer_deal_card.dart';
+import 'package:hocalist/features/media/private_remote_image.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'package:hocalist/main.dart' show HocalistTheme;
@@ -25,7 +26,8 @@ void main() {
       {VoidCallback? chat, VoidCallback? decline, VoidCallback? accept, VoidCallback? options,
       VisualDensity density = VisualDensity.standard, String message = 'Includes the original charger. Payment at the meeting.',
       List<String> photos = const ['test-product'], bool comparison = false,
-      PlanCode? plan, bool verified = true}) async {
+      PlanCode? plan, bool verified = true,
+      Future<Uint8List> Function(String)? readPhoto}) async {
     t.view.devicePixelRatio = 1;
     t.view.physicalSize = Size(width, 1300);
     await t.pumpWidget(MaterialApp(theme: HocalistTheme.light.copyWith(platform: platform, visualDensity: density),
@@ -41,7 +43,7 @@ void main() {
             availability: 'Sun, Nov 22', comparison: comparison,
             message: message,
             photos: photos,
-            readImage: (_) => SynchronousFuture(File('assets/approved_offers_chat/chat-ipad.png').readAsBytesSync()),
+            readImage: readPhoto ?? (_) => SynchronousFuture(File('assets/approved_offers_chat/chat-ipad.png').readAsBytesSync()),
             onChat: chat ?? () {}, onDecline: decline ?? () {}, onAccept: accept, onOptions: options,
           ))))))));
     await t.pumpAndSettle();
@@ -62,6 +64,35 @@ void main() {
     await pump(t, 320, 1.6, TargetPlatform.android, comparison: true, plan: PlanCode.elite, verified: false);
     expect(find.text('Elite'), findsOneWidget);
     expect(find.text('Verified seller'), findsNothing);
+  });
+  testWidgets('offer photos use the approved crop for wide and tall uploads', (t) async {
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    const message = 'This message stays with the conversation.';
+    await pump(t, 320, 1.0, TargetPlatform.android,
+      comparison: true, plan: PlanCode.pro, message: message,
+      photos: ['wide', 'tall'],
+      readPhoto: (id) => SynchronousFuture(File(id == 'wide'
+        ? 'assets/approved_offers_chat/offer-thumbnail.png'
+        : 'assets/approved_offers_chat/actual-view-offer-426.png').readAsBytesSync()),
+    );
+    expect(find.text(message), findsNothing);
+    final chat = find.text('Chat with seller');
+    final decline = find.text('Decline offer');
+    expect(t.getCenter(chat).dy, closeTo(t.getCenter(decline).dy, 0.5));
+    await t.tap(find.text('More photos'));
+    await t.pumpAndSettle();
+    for (final id in ['wide', 'tall']) {
+      final photo = find.byWidgetPredicate((widget) => widget is PrivateRemoteImage && widget.id == id);
+      expect(t.getSize(photo), const Size(76, 82));
+      final thumb = t.widget<Image>(find.descendant(of: photo, matching: find.byType(Image)));
+      expect(thumb.fit, BoxFit.cover);
+    }
+    await t.tap(find.bySemanticsLabel('Open photo preview').first);
+    await t.pumpAndSettle();
+    final original = find.byWidgetPredicate((widget) => widget is Image && widget.semanticLabel == 'Full photo');
+    expect(t.widget<Image>(original).fit, BoxFit.contain);
+    expect(t.takeException(), isNull);
   });
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     for (final width in [320.0, 360.0, 390.0, 430.0]) {

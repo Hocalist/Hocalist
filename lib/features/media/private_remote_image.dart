@@ -9,12 +9,14 @@ class PrivateRemoteImage extends StatefulWidget {
   const PrivateRemoteImage({
     required this.id,
     this.size = 100,
+    this.height,
     this.read,
     this.showWholeImage = false,
     super.key,
   });
   final String id;
   final double size;
+  final double? height;
   final Future<Uint8List> Function(String id)? read;
   final bool showWholeImage;
   @override
@@ -71,7 +73,7 @@ class _PrivateRemoteImageState extends State<PrivateRemoteImage> {
   @override
   Widget build(BuildContext context) => SizedBox(
     width: widget.size,
-    height: widget.size,
+    height: widget.height ?? widget.size,
     child: FutureBuilder<Uint8List>(
       future: loading,
       builder: (context, snapshot) {

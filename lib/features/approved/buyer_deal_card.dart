@@ -155,11 +155,16 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
   bool expanded = false;
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+    if (widget.comparison) {
+      return _BuyerOfferComparison(
+        offer: widget, expanded: expanded,
+        onTogglePhotos: () => setState(() => expanded = !expanded),
+      );
+    }
     final width = constraints.maxWidth;
     final metrics = _dealMetrics(context);
     final receivedOffer = widget.onAccept == null;
-    final hasDetails = widget.photos.length > 1 ||
-        (widget.comparison && widget.message.trim().length > 75);
+    final hasDetails = widget.photos.length > 1;
     final photoSize = (width * .22).clamp(64.0, 84.0);
     final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final stackActions = width < 330 && scale > 1.2 || scale >= 1.5;
@@ -179,9 +184,6 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
         boxShadow: receivedOffer ? [BoxShadow(color: BuyerUiTokens.action.withValues(alpha: .06),
           blurRadius: 12, offset: const Offset(0, 4))] : null),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (widget.comparison)
-          _BuyerOfferComparison(offer: widget, photoSize: photoSize)
-        else ...[
         BuyerDealSellerHeader(name: widget.sellerName, profileId: widget.sellerProfileId,
           load: widget.loadSeller, onProfile: widget.onProfile, prominent: receivedOffer, dense: true,
           trailing: widget.onAccept == null ? null : IconButton(
@@ -239,7 +241,6 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
               ],
             ]);
           })),
-        ],
         const SizedBox(height: 8),
         if (widget.onAccept != null) primary
         else if (widget.onDecline != null)
@@ -265,8 +266,6 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
             ]))),
         ],
         if (expanded && hasDetails) ...[
-          if (widget.comparison && widget.message.trim().length > 75)
-            Text(widget.message.trim(), style: dealText(context, 12)),
           if (widget.photos.length > 1) Padding(padding: const EdgeInsets.only(top: 10),
             child: Wrap(spacing: 8, runSpacing: 8, children: widget.photos.skip(1).map((id) =>
               ClipRRect(borderRadius: BorderRadius.circular(10), child: PrivateRemoteImage(id: id, size: 76, read: widget.readImage))).toList())),
@@ -276,110 +275,197 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
 }
 
 class _BuyerOfferComparison extends StatelessWidget {
-  const _BuyerOfferComparison({required this.offer, required this.photoSize});
+  const _BuyerOfferComparison({
+    required this.offer,
+    required this.expanded,
+    required this.onTogglePhotos,
+  });
 
   final BuyerDealCard offer;
-  final double photoSize;
+  final bool expanded;
+  final VoidCallback onTogglePhotos;
+
+  static const _photoWidth = 76.0;
+  static const _photoHeight = 82.0;
+  static const _portraitSize = 40.0;
+
+  TextStyle _text(double size, Color color, {FontWeight weight = FontWeight.w400, double height = 1.4}) =>
+      TextStyle(fontFamily: 'Roboto', fontSize: size, color: color, fontWeight: weight, height: height);
+
+  Widget _itemPhoto(String? id) => ClipRRect(
+    borderRadius: BorderRadius.circular(9),
+    child: id == null
+        ? const ListingImagePlaceholder(size: _photoWidth, height: _photoHeight)
+        : PrivateRemoteImage(
+            id: id, size: _photoWidth, height: _photoHeight,
+            showWholeImage: true, read: offer.readImage,
+          ),
+  );
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final paper = dark ? const Color(0xff19192a) : Colors.white;
+    final page = dark ? const Color(0xff111120) : const Color(0xfff7f7fc);
+    final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff17152e);
+    final sub = dark ? const Color(0xffb7b2ce) : const Color(0xff625e78);
+    final border = dark ? const Color(0xff35314e) : const Color(0xffe9e6f4);
+    final brand = dark ? const Color(0xffc5b5ff) : const Color(0xff3920ba);
+    final soft = dark ? const Color(0xff332652) : const Color(0xffeee9ff);
+    final accent = dark ? const Color(0xff472d9c) : const Color(0xff3220b9);
+    final green = dark ? const Color(0xffb1edcd) : const Color(0xff196346);
     final profileId = offer.sellerProfileId;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: offer.photos.isEmpty
-                ? ListingImagePlaceholder(size: photoSize)
-                : PrivateRemoteImage(
-                    id: offer.photos.first,
-                    size: photoSize,
-                    showWholeImage: true,
-                    read: offer.readImage,
-                  ),
+    final initials = offer.sellerName.trim().split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty).take(2)
+        .map((part) => part.characters.first.toUpperCase()).join();
+
+    Widget button(String label, VoidCallback? onPressed, {bool primary = false}) =>
+        TextButton(
+          onPressed: offer.busy ? null : onPressed,
+          style: TextButton.styleFrom(
+            foregroundColor: primary ? Colors.white : brand,
+            backgroundColor: primary ? accent : paper,
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.all(5),
+            visualDensity: VisualDensity.standard,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            side: BorderSide(color: primary ? accent : brand),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            textStyle: _text(12, primary ? Colors.white : brand, weight: FontWeight.w600),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(offer.price, style: dealText(context, 20, bold: true,
-                color: BuyerUiTokens.action)),
-              Semantics(
-                button: offer.onProfile != null,
-                child: InkWell(
-                  onTap: offer.onProfile,
-                  child: Text(offer.sellerName, style: dealText(context, 14, bold: true)),
-                ),
-              ),
-              if (profileId != null)
-                FutureBuilder<BuyerDealSeller>(
-                  future: offer.loadSeller?.call(profileId),
-                  builder: (context, snapshot) {
-                    final seller = snapshot.data;
-                    final plan = seller?.plan;
-                    if (seller == null || (plan != PlanCode.pro && plan != PlanCode.elite)) {
-                      return const SizedBox.shrink();
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 6,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(plan == PlanCode.elite ? 'Elite' : 'Pro',
-                              style: dealText(context, 11, bold: true, color: BuyerUiTokens.action)),
-                            if (seller.verified) ...[
-                              dealArtwork('detail-verified', size: 13),
-                              Text('Verified seller', style: dealText(context, 11, bold: true)),
-                            ],
-                          ],
-                        ),
-                        if (seller.sales case final sales?)
-                          Text('$sales confirmed ${sales == 1 ? 'sale' : 'sales'}',
-                            style: dealText(context, 11, color: BuyerUiTokens.muted)),
-                      ],
-                    );
-                  },
-                ),
-              if (offer.message.trim().isNotEmpty)
-                Text(offer.message.trim(), maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: dealText(context, 11, color: BuyerUiTokens.muted)),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            if (primary) ...[
+              const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+              const SizedBox(width: 5),
             ],
-          )),
-        ]),
-        const SizedBox(height: 8),
+            Flexible(child: Text(label, textAlign: TextAlign.center)),
+          ]),
+        );
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: paper, border: Border.all(color: border), borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(9, 9, 9, 6),
+          child: FutureBuilder<BuyerDealSeller>(
+            future: profileId == null ? null : offer.loadSeller?.call(profileId),
+            builder: (context, snapshot) {
+              final seller = snapshot.data;
+              final plan = seller?.plan;
+              final premium = plan == PlanCode.pro || plan == PlanCode.elite;
+              final elite = plan == PlanCode.elite;
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _itemPhoto(offer.photos.firstOrNull),
+                const SizedBox(width: 9),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(offer.price, style: _text(18, brand, weight: FontWeight.w700)),
+                  InkWell(
+                    onTap: offer.onProfile,
+                    child: Text(offer.sellerName, style: _text(17, ink, weight: FontWeight.w700, height: 1.25)
+                        .copyWith(letterSpacing: -.28)),
+                  ),
+                  if (premium) ...[
+                    const SizedBox(height: 2),
+                    Wrap(
+                      spacing: 6, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: elite ? (dark ? const Color(0xff4b3722) : const Color(0xfffff0d7)) : soft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(elite ? 'Elite' : 'Pro', style: _text(11,
+                            elite ? (dark ? const Color(0xffffe2ae) : const Color(0xff6d4217)) : brand,
+                            weight: FontWeight.w600)),
+                        ),
+                        if (seller?.verified == true)
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.verified_outlined, size: 14, color: green),
+                            const SizedBox(width: 3),
+                            Flexible(child: Text('Verified seller', style: _text(11, green, weight: FontWeight.w600))),
+                          ]),
+                      ],
+                    ),
+                    if (seller?.sales case final sales?) ...[
+                      const SizedBox(height: 2),
+                      Text(sales == 1 ? '1 confirmed sale' : '$sales confirmed sales', style: _text(12, sub)),
+                    ],
+                  ],
+                ])),
+                const SizedBox(width: 9),
+                Container(
+                  foregroundDecoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: border)),
+                  child: ClipOval(
+                    child: seller?.avatarId != null
+                        ? PrivateRemoteImage(id: seller!.avatarId!, size: _portraitSize)
+                        : Container(
+                            width: _portraitSize, height: _portraitSize,
+                            color: soft, alignment: Alignment.center,
+                            child: Text(initials, style: _text(13, brand, weight: FontWeight.w600)),
+                          ),
+                  ),
+                ),
+              ]);
+            },
+          ),
+        ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-          decoration: BoxDecoration(
-            color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(children: [
-            _offerFact(context, 'offers-calendar', 'Proposed meetup', offer.meeting),
-            _offerFact(context, 'detail-location', 'Meetup place', offer.place),
-            _offerFact(context, 'detail-clock', 'Seller available', offer.availability ?? 'Not specified'),
+          decoration: BoxDecoration(color: page, border: Border(top: BorderSide(color: border))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _fact(Icons.event_outlined, 'Proposed meetup', offer.meeting, sub, ink),
+            const SizedBox(height: 4),
+            _fact(Icons.location_on_outlined, 'Meetup place', offer.place, sub, ink),
+            const SizedBox(height: 4),
+            _fact(Icons.event_available_outlined, 'Available from', offer.availability ?? 'Not specified', sub, ink),
           ]),
         ),
-      ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(flex: 23, child: button(offer.busy ? 'Opening…' : 'Chat with seller', offer.onChat, primary: true)),
+            if (offer.onDecline != null) ...[
+              const SizedBox(width: 7),
+              Expanded(flex: 20, child: button('Decline offer', offer.onDecline)),
+            ],
+          ]),
+        ),
+        if (offer.photos.length > 1) ...[
+          Center(child: TextButton(
+            onPressed: onTogglePhotos,
+            style: TextButton.styleFrom(foregroundColor: brand),
+            child: Text(expanded ? 'Hide additional photos' : 'More photos'),
+          )),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),
+              child: Wrap(spacing: 8, runSpacing: 8, children: offer.photos.skip(1).map(_itemPhoto).toList()),
+            ),
+        ],
+      ]),
     );
   }
 
-  Widget _offerFact(BuildContext context, String asset, String label, String value) =>
-    Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        dealArtwork(asset, size: 15),
-        const SizedBox(width: 4),
-        Expanded(child: Text(label, style: dealText(context, 11, color: BuyerUiTokens.muted))),
-        const SizedBox(width: 6),
-        Expanded(child: Text(value, textAlign: TextAlign.end,
-          style: dealText(context, 11, bold: true))),
-      ]),
-    );
+  Widget _fact(IconData icon, String label, String value, Color sub, Color ink) =>
+      Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: sub),
+            const SizedBox(width: 5),
+            Flexible(child: Text(label, style: _text(12, sub))),
+          ]),
+          Text(value, style: _text(12, ink, weight: FontWeight.w600)),
+        ],
+      );
 }
-
 class _DealFact extends StatelessWidget {
   const _DealFact(this.asset, this.label, this.value);
   final String asset, label, value;
