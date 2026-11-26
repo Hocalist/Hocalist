@@ -134,7 +134,11 @@ void main() {
           width: width,
         );
 
-        expect(find.textContaining('Good morning, Alex!'), findsOneWidget);
+        final name = find.byKey(const ValueKey('approved-buyer-home-name'));
+        final avatar = find.byKey(const ValueKey('approved-buyer-home-avatar'));
+        expect(tester.widget<Text>(name).data, 'Alex');
+        expect(find.textContaining('Good morning'), findsNothing);
+        expect(tester.getRect(avatar).right, lessThan(tester.getRect(name).left));
         expect(tester.takeException(), isNull);
       });
     }

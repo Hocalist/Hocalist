@@ -6117,6 +6117,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               ]);
             },
             name: buyerName,
+            avatarMediaId: _profileAvatarMediaId,
             requestTitle: requestTitle,
             requestPosted: requestPosted,
             onCreate: () => go(AppPage.createRequest),

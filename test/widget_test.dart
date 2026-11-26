@@ -161,7 +161,7 @@ void main() {
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
     await postBuyerRequest(tester);
-    expect(find.textContaining('Good morning, Maya'), findsOneWidget);
+    expect(find.textContaining('Maya'), findsOneWidget);
   }
 
   Future<void> openRequestEditor(WidgetTester tester) async {
@@ -442,7 +442,7 @@ void main() {
       await tapVisible(tester, 'Create account');
       await finishBuyerOnboarding(tester);
 
-      expect(find.textContaining('Good morning, Maya'), findsOneWidget);
+      expect(find.textContaining('Maya'), findsOneWidget);
       expect(
         find.byWidgetPredicate(
           (widget) =>
@@ -526,7 +526,7 @@ void main() {
     expect(find.text('Jump to dashboard'), findsOneWidget);
 
     await tapVisible(tester, 'Jump to dashboard');
-    expect(find.textContaining('Good morning, Maya'), findsOneWidget);
+    expect(find.textContaining('Maya'), findsOneWidget);
     expect(find.text('My active request'), findsNothing);
   });
 
@@ -609,7 +609,7 @@ void main() {
     await tapVisible(tester, 'Create account');
     await finishBuyerOnboarding(tester);
 
-    expect(find.textContaining('Good morning, Maya'), findsOneWidget);
+    expect(find.textContaining('Maya'), findsOneWidget);
 
     await tapVisible(tester, 'Post a new request');
     await tapVisible(tester, 'Continue');
@@ -667,7 +667,7 @@ void main() {
 
     await tester.tap(find.text('Home').last);
     await tester.pumpAndSettle();
-    expect(find.textContaining('Good morning, Maya'), findsOneWidget);
+    expect(find.textContaining('Maya'), findsOneWidget);
 
     await tester.tap(find.text('Offers').last);
     await tester.pumpAndSettle();

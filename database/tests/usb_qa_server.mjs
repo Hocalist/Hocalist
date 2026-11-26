@@ -19,6 +19,7 @@ const requestIds = { offer: randomUUID(), close: randomUUID() };
 const buyerDemo = process.env.HOCALIST_USB_QA_BUYER_DEMO === '1';
 const demoMeetupAvatarId = randomUUID();
 const demoEliteAvatarId = randomUUID();
+const demoBuyerAvatarId = randomUUID();
 const demoSellers = [
   { user: IDS.seller, profile: IDS.sellerMembership, name: 'Maya QA', price: 27500,
     sales: 24, image: randomUUID(), file: 'maya-ipad.jpg', place: 'Riverside Park', day: 1 },
@@ -249,9 +250,11 @@ async function handle(request, response) {
   if (demoImageRead) {
     const id = endpoint.searchParams.get('id');
     const seller = demoSellers.find((row) => row.image === id);
-    const avatarPath = id === demoMeetupAvatarId
-      ? '../../assets/approved_offers_chat/john-avatar.png'
-      : id === demoEliteAvatarId ? '../../assets/approved_seller/home-seller-avatar.png' : null;
+    const avatarPath = new Map([
+      [demoBuyerAvatarId, '../../assets/approved_onboarding_home/buyer-avatar.png'],
+      [demoMeetupAvatarId, '../../assets/approved_offers_chat/john-avatar.png'],
+      [demoEliteAvatarId, '../../assets/approved_seller/home-seller-avatar.png'],
+    ]).get(id);
     if (user.id !== IDS.buyer || (!seller && !avatarPath)) {
       return json(response, 404, { message: 'QA image unavailable' });
     }
@@ -270,6 +273,12 @@ async function handle(request, response) {
 
   if (verb.startsWith('rpc/')) {
     const name = verb.slice(4);
+    if (buyerDemo && name === 'member_avatar' && user.id === IDS.buyer &&
+        body.p_membership === IDS.buyerMembership) {
+      return json(response, 200, {
+        membership_id: IDS.buyerMembership, revision: 1, image_media_id: demoBuyerAvatarId,
+      });
+    }
     if (buyerDemo && name === 'seller_profile_public') {
       const seller = demoSellers.find((row) => row.profile === body.p_profile);
       if (user.id !== IDS.buyer || !seller) return json(response, 200, { available: false });

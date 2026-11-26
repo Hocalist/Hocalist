@@ -2888,6 +2888,7 @@ class ApprovedBuyerMeetingsPage extends StatelessWidget {
 class ApprovedBuyerHomePage extends StatelessWidget {
   const ApprovedBuyerHomePage({
     required this.name,
+    this.avatarMediaId,
     required this.requestTitle,
     required this.requestPosted,
     required this.onCreate,
@@ -2944,6 +2945,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
   });
 
   final String name;
+  final String? avatarMediaId;
   final String requestTitle;
   final bool requestPosted;
   final VoidCallback onCreate;
@@ -3064,9 +3066,6 @@ class ApprovedBuyerHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firstName = name.trim().isEmpty
-        ? ''
-        : name.trim().split(RegExp(r'\s+')).first;
     return LayoutBuilder(
       builder: (context, viewport) {
         final metrics = ApprovedReplicaMetrics.resolve(
@@ -3149,7 +3148,10 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                             onNotifications: onNotifications ?? () {},
                           ),
                           SizedBox(height: metrics.geometry(6)),
-                          _ApprovedDashboardHero(name: firstName),
+                          _ApprovedDashboardHero(
+                            name: name,
+                            avatarMediaId: avatarMediaId,
+                          ),
                           SizedBox(height: metrics.geometry(10)),
                         ],
                       ),
@@ -9212,9 +9214,10 @@ class _ApprovedMeetingField extends StatelessWidget {
 }
 
 class _ApprovedDashboardHero extends StatelessWidget {
-  const _ApprovedDashboardHero({required this.name});
+  const _ApprovedDashboardHero({required this.name, this.avatarMediaId});
 
   final String name;
+  final String? avatarMediaId;
 
   @override
   Widget build(BuildContext context) {
@@ -9222,14 +9225,35 @@ class _ApprovedDashboardHero extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stacked = metrics.usesStackedLayout;
+        final displayName = name.trim();
+        final portraitSize = metrics.artSize(44).clamp(36.0, 52.0).toDouble();
+        final mediaId = avatarMediaId;
+        final portrait = SizedBox.square(
+          key: const ValueKey('approved-buyer-home-avatar'),
+          dimension: portraitSize,
+          child: mediaId != null && mediaId.isNotEmpty
+              ? Semantics(
+                  label: 'Profile picture',
+                  image: true,
+                  child: ClipOval(
+                    child: PrivateRemoteImage(id: mediaId, size: portraitSize),
+                  ),
+                )
+              : CircleAvatar(
+                  backgroundColor: HocalistPalette.surface(
+                    context,
+                    BuyerUiTokens.softSurface,
+                  ),
+                  foregroundColor: HocalistPalette.text(context, _navy),
+                  child: Icon(Icons.person_outline, size: portraitSize * 0.52),
+                ),
+        );
         final copy = Column(
-          crossAxisAlignment: stacked
-              ? CrossAxisAlignment.center
-              : CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              name.isEmpty ? 'Good morning! 👋' : 'Good morning, $name! 👋',
-              textAlign: stacked ? TextAlign.center : TextAlign.left,
+              displayName.isEmpty ? 'Buyer' : displayName,
+              key: const ValueKey('approved-buyer-home-name'),
               style: _text(
                 context,
                 size: 18,
@@ -9241,9 +9265,15 @@ class _ApprovedDashboardHero extends StatelessWidget {
             SizedBox(height: metrics.geometry(4)),
             Text(
               'Post what you need and compare offers from sellers.',
-              textAlign: stacked ? TextAlign.center : TextAlign.left,
               style: _text(context, size: 11.5, color: _muted, height: 1.3),
             ),
+          ],
+        );
+        final identity = Row(
+          children: [
+            portrait,
+            SizedBox(width: metrics.geometry(8)),
+            Expanded(child: copy),
           ],
         );
         final art = OriginalGiftArtwork(
@@ -9254,7 +9284,7 @@ class _ApprovedDashboardHero extends StatelessWidget {
         if (stacked) {
           return Column(
             children: [
-              copy,
+              identity,
               SizedBox(height: metrics.geometry(8)),
               art,
             ],
@@ -9262,7 +9292,7 @@ class _ApprovedDashboardHero extends StatelessWidget {
         }
         return Row(
           children: [
-            Expanded(child: copy),
+            Expanded(child: identity),
             SizedBox(width: metrics.geometry(8)),
             art,
           ],
