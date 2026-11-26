@@ -201,9 +201,9 @@ class BuyerOfferView {
       priceLabel: BuyerOfferView._formatMoney(terms.price),
       message: terms.message.trim(),
       meetingLabel: formatSchedule(schedule),
-      availabilityLabel: formatOfferDate(terms.schedule.date),
+      availabilityLabel: formatSchedule(schedule),
       placeLabel: formatPlaceLabel(address: agreed?.placeAddress, label: agreed?.placeLabel, fallback: BuyerOfferView._formatPlace(terms.place)),
-      comparisonPlaceLabel: agreed?.placeLabel ?? terms.place.label,
+      comparisonPlaceLabel: formatPlaceLabel(address: agreed?.placeAddress, label: agreed?.placeLabel, fallback: BuyerOfferView._formatPlace(terms.place)),
       distanceLabel: distance,
       status: offer.status,
       conversationId: offer.conversationId,
@@ -3179,17 +3179,13 @@ class _OffersHero extends StatelessWidget {
         final narrow = constraints.maxWidth < 330;
         final request = requestTitle;
         if (request != null) {
-          final dark = Theme.of(context).brightness == Brightness.dark;
-          final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff17152e);
-          final sub = dark ? const Color(0xffb7b2ce) : const Color(0xff625e78);
+          final ink = HocalistPalette.text(context, BuyerUiTokens.text);
+          final sub = HocalistPalette.text(context, BuyerUiTokens.muted);
           final count = offerCount;
-          final detailStyle = TextStyle(fontFamily: 'Roboto', fontSize: 12, color: sub, height: 1.4);
+          final detailStyle = dealText(context, 12, color: sub).copyWith(height: 1.4);
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Compare offers', style: TextStyle(
-                fontFamily: 'Roboto', fontSize: 21, color: ink, fontWeight: FontWeight.w700,
-                height: 1.18, letterSpacing: -.65,
-              )),
+              Text('Compare offers', style: dealText(context, 21, color: ink, weight: FontWeight.w700).copyWith(height: 1.18, letterSpacing: -.65)),
               const SizedBox(height: 3),
               Text(request, style: detailStyle),
             ])),
@@ -3257,17 +3253,14 @@ class _PotentialBuyerRewardRowState extends State<_PotentialBuyerRewardRow> {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final paper = dark ? const Color(0xff19192a) : Colors.white;
-    final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff17152e);
-    final sub = dark ? const Color(0xffb7b2ce) : const Color(0xff625e78);
-    final border = dark ? const Color(0xff35314e) : const Color(0xffe9e6f4);
-    final brand = dark ? const Color(0xffc5b5ff) : const Color(0xff3920ba);
-    final soft = dark ? const Color(0xff332652) : const Color(0xffeee9ff);
-    final headingStyle = TextStyle(
-      fontFamily: 'Roboto', fontSize: 13, fontWeight: FontWeight.w700, color: ink,
-    );
-    final detailStyle = TextStyle(fontFamily: 'Roboto', fontSize: 12, height: 1.4, color: sub);
+    final paper = HocalistPalette.surface(context, BuyerUiTokens.surface);
+    final ink = HocalistPalette.text(context, BuyerUiTokens.text);
+    final sub = HocalistPalette.text(context, BuyerUiTokens.muted);
+    final border = HocalistPalette.border(context, BuyerUiTokens.border);
+    final brand = HocalistPalette.text(context, BuyerUiTokens.action);
+    final soft = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
+    final headingStyle = dealText(context, 13, color: ink, weight: FontWeight.w700);
+    final detailStyle = dealText(context, 12, color: sub).copyWith(height: 1.4);
     final radius = BorderRadius.circular(12);
     return Material(
       color: paper,

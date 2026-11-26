@@ -9,6 +9,7 @@ import 'package:hocalist/features/approved/buyer_deal_card.dart';
 import 'package:hocalist/features/media/private_remote_image.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
+import 'package:hocalist/theme/accessibility_visuals.dart';
 import 'package:hocalist/main.dart' show HocalistTheme;
 import 'test_fonts.dart';
 import 'visual_proof_capture.dart';
@@ -26,11 +27,11 @@ void main() {
       {VoidCallback? chat, VoidCallback? decline, VoidCallback? accept, VoidCallback? options,
       VisualDensity density = VisualDensity.standard, String message = 'Includes the original charger. Payment at the meeting.',
       List<String> photos = const ['test-product'], bool comparison = false,
-      PlanCode? plan, bool verified = true,
+      PlanCode? plan, bool verified = true, ThemeData? theme,
       Future<Uint8List> Function(String)? readPhoto}) async {
     t.view.devicePixelRatio = 1;
     t.view.physicalSize = Size(width, 1300);
-    await t.pumpWidget(MaterialApp(theme: HocalistTheme.light.copyWith(platform: platform, visualDensity: density),
+    await t.pumpWidget(MaterialApp(theme: theme ?? HocalistTheme.light.copyWith(platform: platform, visualDensity: density),
       home: MediaQuery(data: MediaQueryData(size: Size(width, 1300), textScaler: TextScaler.linear(scale)),
         child: Scaffold(body: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(12),
           child: RepaintBoundary(key: const Key('deal-proof'), child: BuyerDealCard(
@@ -64,6 +65,28 @@ void main() {
     await pump(t, 320, 1.6, TargetPlatform.android, comparison: true, plan: PlanCode.elite, verified: false);
     expect(find.text('Elite'), findsOneWidget);
     expect(find.text('Verified seller'), findsNothing);
+  });
+  testWidgets('comparison respects shared typography, contrast and mobile widths', (t) async {
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    final theme = HocalistTheme.light.copyWith(
+      textTheme: HocalistTheme.light.textTheme.apply(fontFamily: 'Nunito'),
+      extensions: [const HocalistAccessibilityVisuals(fontFamily: 'Nunito',
+        buttonRadius: 3, buttonBackground: Colors.black,
+        buttonForeground: Colors.white, buttonBorderWidth: 2)],
+    );
+    for (final width in [320.0, 360.0, 390.0, 430.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        await pump(t, width, scale, TargetPlatform.android,
+          comparison: true, plan: PlanCode.pro, photos: [], theme: theme);
+        expect(t.widget<Text>(find.text('Jonathan Sanchez')).style?.fontFamily, 'Nunito');
+        final button = find.descendant(of: find.byType(BuyerPrimaryButton), matching: find.byType(DecoratedBox));
+        expect((t.widget<DecoratedBox>(button.first).decoration as BoxDecoration).color, Colors.black);
+        final icon = find.descendant(of: find.byType(BuyerPrimaryButton), matching: find.byType(Icon)).first;
+        expect(IconTheme.of(t.element(icon)).color, Colors.white);
+        expect(t.takeException(), isNull, reason: 'width=$width scale=$scale');
+      }
+    }
   });
   testWidgets('offer photos use the approved crop for wide and tall uploads', (t) async {
     addTearDown(t.view.resetPhysicalSize);

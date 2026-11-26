@@ -354,7 +354,7 @@ void main() {
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
 
-    final support = find.text('Ask for help');
+    final support = find.text('Get help or send feedback');
     await tester.ensureVisible(support);
     await tester.tap(support);
     await tester.pumpAndSettle();

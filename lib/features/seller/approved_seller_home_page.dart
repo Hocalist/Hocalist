@@ -921,9 +921,14 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
               (value.phoneVerified ? 1 : 0) +
               (value.reviewStatus == 'approved' ? 1 : 0) +
               (widget.serviceAreaSaved ? 1 : 0);
+    final unavailableLabel = loading
+        ? 'Checking account health…'
+        : error != null
+        ? 'Could not load · Tap to retry'
+        : 'Not available yet';
     return Semantics(
       label: score != null ? 'Conduct score $score of 100. $completed of 4 verification steps complete.' : completed == null
-          ? 'Verification progress unavailable'
+          ? unavailableLabel
           : '$completed of 4 verification steps complete',
       child: Material(
         color: HocalistPalette.surface(context, Colors.transparent),
@@ -981,7 +986,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                 ),
               if (completed == null)
                 Text(
-                  'Not available yet',
+                  unavailableLabel,
                   style: sellerText(
                     ApprovedReplicaScope.of(context),
                     10,

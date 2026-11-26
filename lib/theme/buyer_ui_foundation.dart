@@ -510,7 +510,9 @@ class BuyerPrimaryButton extends StatelessWidget {
                     horizontal: metrics.geometry(compact ? 6 : 18),
                     vertical: metrics.geometry(compact ? 7 : 9),
                   ),
-                  child: Row(
+                  child: IconTheme.merge(
+                    data: IconThemeData(color: accessibility.foregroundOr(foreground)),
+                    child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -539,6 +541,7 @@ class BuyerPrimaryButton extends StatelessWidget {
                         trailing!,
                       ],
                     ],
+                    ),
                   ),
                 ),
               ),

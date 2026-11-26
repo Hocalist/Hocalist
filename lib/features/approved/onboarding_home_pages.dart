@@ -473,7 +473,7 @@ class _ApprovedAccountCreationPageState
               child: Column(
                 children: [
                   if (!widget.phoneSheet && widget.onAccessibility != null)
-                    Align(alignment: Alignment.centerLeft, child: _WelcomeAccessibilityLink(onTap: widget.onAccessibility!)),
+                    Align(alignment: Alignment.centerRight, child: _WelcomeAccessibilityLink(onTap: widget.onAccessibility!)),
                   SizedBox(
                     key: const ValueKey('approved-account-modal-header'),
                     height: metrics.geometry(widget.phoneSheet ? 40 : 103),
@@ -1795,10 +1795,16 @@ class _WelcomeAccessibilityLink extends StatelessWidget {
   const _WelcomeAccessibilityLink({required this.onTap});
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => TextButton.icon(
+  Widget build(BuildContext context) => BuyerPrimaryButton(
+    key: const ValueKey('welcome-accessibility-action'),
     onPressed: onTap,
-    icon: const Icon(Icons.accessibility_new_rounded, size: 18),
-    label: const Text('Accessibility'),
+    leading: Icon(Icons.accessibility_new_rounded,
+        size: _replicaMetrics(context).artSize(18)),
+    label: 'Accessibility',
+    fontSize: 13,
+    minimumHeight: 44,
+    colors: const [BuyerUiTokens.softSurface, BuyerUiTokens.softSurface],
+    foreground: BuyerUiTokens.action,
   );
 }
 
@@ -1912,7 +1918,7 @@ class _ApprovedNoAccountHomePageState extends State<ApprovedNoAccountHomePage> {
                           onNotifications: widget.onNotifications ?? () {},
                         ),
                         if (widget.onAccessibility != null)
-                          Align(alignment: Alignment.centerLeft, child: _WelcomeAccessibilityLink(onTap: widget.onAccessibility!)),
+                          Align(alignment: Alignment.centerRight, child: _WelcomeAccessibilityLink(onTap: widget.onAccessibility!)),
                         SizedBox(height: metrics.geometry(16)),
                         _ApprovedImageAction(
                           semanticLabel:
@@ -10002,12 +10008,9 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
     });
   }
 
-  static TextStyle _cardText(double size, Color color, {
+  TextStyle _cardText(double size, Color color, {
     FontWeight weight = FontWeight.w400, double height = 1.35,
-  }) => TextStyle(
-    fontFamily: 'Roboto', fontSize: size, color: color,
-    fontWeight: weight, height: height,
-  );
+  }) => dealText(context, size, color: color, weight: weight).copyWith(height: height);
 
   @override
   Widget build(BuildContext context) {
@@ -10017,38 +10020,26 @@ class _BuyerTodayMeetupState extends State<_BuyerTodayMeetup> {
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
       TimeOfDay(hour: schedule.startTime.hour, minute: schedule.startTime.minute),
     );
-    final place = schedule.placeLabel?.trim().isNotEmpty == true
-        ? schedule.placeLabel!.trim()
-        : BuyerOfferView.formatPlaceLabel(address: schedule.placeAddress);
+    final place = BuyerOfferView.formatPlaceLabel(
+      address: schedule.placeAddress, label: schedule.placeLabel,
+    );
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff19152f);
-    final muted = dark ? const Color(0xffc2bada) : const Color(0xff625b76);
-    final purple = dark ? const Color(0xffc8bbff) : const Color(0xff3d24b7);
-    final surface = dark ? const Color(0xff201e33) : Colors.white;
-    final primary = dark ? const Color(0xff5035ad) : const Color(0xff4027bc);
+    final ink = HocalistPalette.text(context, BuyerUiTokens.text);
+    final muted = HocalistPalette.text(context, BuyerUiTokens.muted);
+    final purple = HocalistPalette.text(context, BuyerUiTokens.action);
+    final surface = HocalistPalette.surface(context, BuyerUiTokens.surface);
+    final primary = BuyerUiTokens.action;
     final outline = dark ? const Color(0xff8e77c9) : const Color(0xffa99bd8);
     Widget action(String label, IconData icon, VoidCallback run, {
       required Color background, required Color foreground,
       BorderSide? border, double fontSize = 12,
-    }) => TextButton(
-      onPressed: run,
-      style: TextButton.styleFrom(
-        backgroundColor: background,
-        foregroundColor: foreground,
-        minimumSize: const Size(0, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        side: border,
-        textStyle: _cardText(fontSize, foreground, weight: FontWeight.w600, height: 1.2),
-      ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, size: 15),
-        const SizedBox(width: 5),
-        Flexible(child: Text(label, textAlign: TextAlign.center)),
-      ]),
-    );
+    }) => border != null
+        ? BuyerSecondaryButton(label: label, onPressed: run,
+            compact: true, fontSize: fontSize, minimumHeight: 44)
+        : BuyerPrimaryButton(label: label, onPressed: run,
+            compact: true, fontSize: fontSize, minimumHeight: 44,
+            colors: [background, background], foreground: foreground,
+            leading: Icon(icon, size: 15));
     final quickActions = <Widget>[
       if (widget.onDirections != null)
         action('Maps', Icons.map_outlined, () { _closeManage(); widget.onDirections!(); },

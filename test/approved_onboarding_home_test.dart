@@ -65,6 +65,32 @@ void main() {
     return 1;
   }
 
+  testWidgets('login accessibility action stays right aligned and usable', (tester) async {
+    for (final width in [320.0, 390.0, 430.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        var opened = false;
+        await pumpSurface(tester, ApprovedAccountCreationPage(
+          role: ApprovedAccountRole.buyer,
+          name: '',
+          onNameChanged: (_) {},
+          onRoleChanged: (_) {},
+          onClose: () {},
+          onSignup: () {},
+          onLogin: () {},
+          onAccessibility: () => opened = true,
+        ), width: width, textScale: scale);
+        final action = find.byKey(const ValueKey('welcome-accessibility-action'));
+        final bounds = tester.getRect(action);
+        expect(bounds.center.dx, greaterThan(width / 2));
+        expect(bounds.right, lessThanOrEqualTo(width));
+        expect(bounds.left, greaterThanOrEqualTo(0));
+        await tester.tap(action);
+        expect(opened, isTrue);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
   group('approved onboarding and home responsive layouts', () {
     for (final width in [360.0, 390.0, 426.0]) {
       testWidgets('$width account page fits at 1.6 text scale', (tester) async {

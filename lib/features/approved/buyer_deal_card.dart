@@ -78,8 +78,7 @@ class BuyerDealSellerHeader extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(name, textAlign: TextAlign.center, maxLines: 2,
-            overflow: TextOverflow.ellipsis, style: TextStyle(
-              fontFamily: 'Roboto', fontSize: 12, height: 1.35, fontWeight: FontWeight.w700,
+            overflow: TextOverflow.ellipsis, style: dealText(context, 12, weight: FontWeight.w700,
               color: Theme.of(context).brightness == Brightness.dark
                   ? const Color(0xfffaf8ff) : const Color(0xff19152f),
             )),
@@ -291,8 +290,8 @@ class _BuyerOfferComparison extends StatelessWidget {
   static const _photoHeight = 82.0;
   static const _portraitSize = 40.0;
 
-  TextStyle _text(double size, Color color, {FontWeight weight = FontWeight.w400, double height = 1.4}) =>
-      TextStyle(fontFamily: 'Roboto', fontSize: size, color: color, fontWeight: weight, height: height);
+  TextStyle _text(BuildContext context, double size, Color color, {FontWeight weight = FontWeight.w400, double height = 1.4}) =>
+      dealText(context, size, color: color, weight: weight).copyWith(height: height);
 
   Widget _itemPhoto(String? id) => ClipRRect(
     borderRadius: BorderRadius.circular(9),
@@ -307,14 +306,13 @@ class _BuyerOfferComparison extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final paper = dark ? const Color(0xff19192a) : Colors.white;
-    final page = dark ? const Color(0xff111120) : const Color(0xfff7f7fc);
-    final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff17152e);
-    final sub = dark ? const Color(0xffb7b2ce) : const Color(0xff625e78);
-    final border = dark ? const Color(0xff35314e) : const Color(0xffe9e6f4);
-    final brand = dark ? const Color(0xffc5b5ff) : const Color(0xff3920ba);
-    final soft = dark ? const Color(0xff332652) : const Color(0xffeee9ff);
-    final accent = dark ? const Color(0xff472d9c) : const Color(0xff3220b9);
+    final paper = HocalistPalette.surface(context, BuyerUiTokens.surface);
+    final page = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
+    final ink = HocalistPalette.text(context, BuyerUiTokens.text);
+    final sub = HocalistPalette.text(context, BuyerUiTokens.muted);
+    final border = HocalistPalette.border(context, BuyerUiTokens.border);
+    final brand = HocalistPalette.text(context, BuyerUiTokens.action);
+    final soft = HocalistPalette.surface(context, BuyerUiTokens.softSurface);
     final green = dark ? const Color(0xffb1edcd) : const Color(0xff196346);
     final profileId = offer.sellerProfileId;
     final initials = offer.sellerName.trim().split(RegExp(r'\s+'))
@@ -322,27 +320,16 @@ class _BuyerOfferComparison extends StatelessWidget {
         .map((part) => part.characters.first.toUpperCase()).join();
 
     Widget button(String label, VoidCallback? onPressed, {bool primary = false}) =>
-        TextButton(
-          onPressed: offer.busy ? null : onPressed,
-          style: TextButton.styleFrom(
-            foregroundColor: primary ? Colors.white : brand,
-            backgroundColor: primary ? accent : paper,
-            minimumSize: const Size(0, 44),
-            padding: const EdgeInsets.all(5),
-            visualDensity: VisualDensity.standard,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            side: BorderSide(color: primary ? accent : brand),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            textStyle: _text(12, primary ? Colors.white : brand, weight: FontWeight.w600),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (primary) ...[
-              const Icon(Icons.chat_bubble_outline_rounded, size: 15),
-              const SizedBox(width: 5),
-            ],
-            Flexible(child: Text(label, textAlign: TextAlign.center)),
-          ]),
-        );
+        primary
+            ? BuyerPrimaryButton(
+                label: label, onPressed: offer.busy ? null : onPressed,
+                compact: true, fontSize: 12, minimumHeight: 44,
+                leading: const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+              )
+            : BuyerSecondaryButton(
+                label: label, onPressed: offer.busy ? null : onPressed,
+                compact: true, fontSize: 12, minimumHeight: 44,
+              );
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -363,10 +350,10 @@ class _BuyerOfferComparison extends StatelessWidget {
                 _itemPhoto(offer.photos.firstOrNull),
                 const SizedBox(width: 9),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(offer.price, style: _text(18, brand, weight: FontWeight.w700)),
+                  Text(offer.price, style: _text(context, 18, brand, weight: FontWeight.w700)),
                   InkWell(
                     onTap: offer.onProfile,
-                    child: Text(offer.sellerName, style: _text(17, ink, weight: FontWeight.w700, height: 1.25)
+                    child: Text(offer.sellerName, style: _text(context, 17, ink, weight: FontWeight.w700, height: 1.25)
                         .copyWith(letterSpacing: -.28)),
                   ),
                   if (premium) ...[
@@ -380,7 +367,7 @@ class _BuyerOfferComparison extends StatelessWidget {
                             color: elite ? (dark ? const Color(0xff4b3722) : const Color(0xfffff0d7)) : soft,
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Text(elite ? 'Elite' : 'Pro', style: _text(11,
+                          child: Text(elite ? 'Elite' : 'Pro', style: _text(context, 11,
                             elite ? (dark ? const Color(0xffffe2ae) : const Color(0xff6d4217)) : brand,
                             weight: FontWeight.w600)),
                         ),
@@ -388,13 +375,13 @@ class _BuyerOfferComparison extends StatelessWidget {
                           Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(Icons.verified_outlined, size: 14, color: green),
                             const SizedBox(width: 3),
-                            Flexible(child: Text('Verified seller', style: _text(11, green, weight: FontWeight.w600))),
+                            Flexible(child: Text('Verified seller', style: _text(context, 11, green, weight: FontWeight.w600))),
                           ]),
                       ],
                     ),
                     if (seller?.sales case final sales?) ...[
                       const SizedBox(height: 2),
-                      Text(sales == 1 ? '1 confirmed sale' : '$sales confirmed sales', style: _text(12, sub)),
+                      Text(sales == 1 ? '1 confirmed sale' : '$sales confirmed sales', style: _text(context, 12, sub)),
                     ],
                   ],
                 ])),
@@ -407,7 +394,7 @@ class _BuyerOfferComparison extends StatelessWidget {
                         : Container(
                             width: _portraitSize, height: _portraitSize,
                             color: soft, alignment: Alignment.center,
-                            child: Text(initials, style: _text(13, brand, weight: FontWeight.w600)),
+                            child: Text(initials, style: _text(context, 13, brand, weight: FontWeight.w600)),
                           ),
                   ),
                 ),
@@ -419,11 +406,11 @@ class _BuyerOfferComparison extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
           decoration: BoxDecoration(color: page, border: Border(top: BorderSide(color: border))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _fact(Icons.event_outlined, 'Proposed meetup', offer.meeting, sub, ink),
+            _fact(context, Icons.event_outlined, 'Proposed meetup', offer.meeting, sub, ink),
             const SizedBox(height: 4),
-            _fact(Icons.location_on_outlined, 'Meetup place', offer.place, sub, ink),
+            _fact(context, Icons.location_on_outlined, 'Meetup place', offer.place, sub, ink),
             const SizedBox(height: 4),
-            _fact(Icons.event_available_outlined, 'Available from', offer.availability ?? 'Not specified', sub, ink),
+            _fact(context, Icons.event_available_outlined, 'Available from', offer.availability ?? 'Not specified', sub, ink),
           ]),
         ),
         Padding(
@@ -452,7 +439,7 @@ class _BuyerOfferComparison extends StatelessWidget {
     );
   }
 
-  Widget _fact(IconData icon, String label, String value, Color sub, Color ink) =>
+  Widget _fact(BuildContext context, IconData icon, String label, String value, Color sub, Color ink) =>
       Wrap(
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
@@ -462,9 +449,9 @@ class _BuyerOfferComparison extends StatelessWidget {
           Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 13, color: sub),
             const SizedBox(width: 5),
-            Flexible(child: Text(label, style: _text(12, sub))),
+            Flexible(child: Text(label, style: _text(context, 12, sub))),
           ]),
-          Text(value, style: _text(12, ink, weight: FontWeight.w600)),
+          Text(value, style: _text(context, 12, ink, weight: FontWeight.w600)),
         ],
       );
 }

@@ -1164,7 +1164,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     final userId = widget.accountSession?.userId;
     _accountHealthRefreshing = true;
     setState(() {
-      if (!silent) _accountHealthLoading = true;
+      if (!silent || _accountHealth == null) _accountHealthLoading = true;
       _accountHealthError = null;
     });
     try {

@@ -426,7 +426,7 @@ void main() {
     expect(view.offerId, offer.id);
     expect(view.priceLabel, BuyerOfferView.fromOffer(offer).priceLabel);
     expect(view.statusLabel, 'Awaiting buyer confirmation');
-    expect(view.actionLabel, 'Confirm seller');
+    expect(view.actionLabel, 'Accept offer and meet');
   });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {

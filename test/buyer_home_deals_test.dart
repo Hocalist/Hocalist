@@ -12,7 +12,6 @@ import 'package:hocalist/features/approved/buyer_deal_card.dart';
 import 'package:hocalist/features/approved/offers_chat_pages.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
 import 'test_fonts.dart';
-import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'visual_proof_capture.dart';
 
 final _now = DateTime.utc(2030, 11, 20);
@@ -92,6 +91,7 @@ void main() {
   test('participant address wins over generic label; missing address stays safe', () {
     final view = BuyerOfferView.fromOffer(_offer('agreed'), meeting: _meeting());
     expect(view.placeLabel, '112 N Green St, Chicago, IL 60607, USA');
+    expect(view.comparisonPlaceLabel, view.placeLabel);
     expect(BuyerOfferView.formatPlaceLabel(address: ' ', label: 'Business address'), 'Business address');
     expect(BuyerOfferView.formatPlaceLabel(), 'View meeting location');
   });
@@ -113,12 +113,14 @@ void main() {
     final waiting = BuyerOfferView.fromOffer(offer, agreedTerms: true,
       meeting: _meeting(pending: proposed));
     expect(waiting.meetingLabel, contains('3:00 PM'));
+    expect(waiting.availabilityLabel, waiting.meetingLabel);
     expect(waiting.meetingLabel, isNot(contains('5:00 PM')));
     final revised = BuyerOfferView.fromOffer(offer, agreedTerms: true,
       meeting: _meeting(accepted: accepted, pending: proposed),
       origin: RequestCoordinates(latitude: 0, longitude: 0));
     expect(revised.meetingLabel, contains('Nov 24'));
     expect(revised.meetingLabel, contains('4:00 PM'));
+    expect(revised.availabilityLabel, revised.meetingLabel);
     expect(revised.placeLabel, 'Agreed location');
     expect(revised.distanceLabel, '~69.1 mi away');
     expect(BuyerOfferView.fromOffer(offer, meeting: _meeting(accepted: accepted)).distanceLabel, isNull);
@@ -151,7 +153,7 @@ void main() {
           expect(t.takeException(), isNull);
           expect(find.text('Deals in progress'), findsOneWidget);
           expect(find.text('112 N Green St, Chicago, IL 60607, USA'), findsOneWidget);
-          expect(find.byWidgetPredicate((w) => w is BuyerAssetIcon && w.asset.endsWith('/meeting-map.png')), findsOneWidget);
+          expect(find.byKey(const ValueKey('buyer-upcoming-meetup-message')), findsOneWidget);
           final sectionLinks = t.widgetList<Text>(find.text('View all')).toList();
           expect(sectionLinks.length, greaterThanOrEqualTo(3));
           for (final link in sectionLinks.skip(1)) {
@@ -162,11 +164,13 @@ void main() {
           expect(find.text(r'$900'), findsNothing);
           await t.ensureVisible(find.text('Accept offer and meet'));
           await t.tap(find.text('Accept offer and meet')); expect(accepted, 'negotiating');
-          await t.tap(find.byTooltip('Chat with seller')); expect(chatted, 'negotiating');
-          for (final label in ['Maps', 'Call', 'Message']) {
-            await t.ensureVisible(find.text(label)); await t.tap(find.text(label));
-          }
-          expect(mapped, 'meeting'); expect(called, 'meeting'); expect(messaged, 'meeting');
+          final negotiation = find.byKey(const ValueKey('home-negotiation-negotiating'));
+          await t.tap(find.descendant(of: negotiation, matching: find.byTooltip('Chat with seller')));
+          expect(chatted, 'negotiating');
+          final meetupChat = find.byKey(const ValueKey('buyer-upcoming-meetup-message'));
+          await t.ensureVisible(meetupChat); await t.tap(meetupChat);
+          expect(messaged, 'meeting');
+          expect(mapped, isNull); expect(called, isNull);
           expect(t.takeException(), isNull);
           if (const bool.fromEnvironment('HOCALIST_BUYER_DEAL_CAPTURE')) {
             if (platform == TargetPlatform.android && scale == 1) {
