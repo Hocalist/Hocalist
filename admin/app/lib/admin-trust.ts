@@ -20,6 +20,11 @@ export type TrustVerification = {
 };
 
 export type TrustHealthReview = {
+  category: string | null;
+  seller_id: string | null;
+  request_id: string | null;
+  reporting_buyers: number;
+  priority: number;
   case_id: string;
   reason_code: string;
   status: string;
@@ -123,6 +128,13 @@ export function decodeReviewQueue(value: unknown): ReviewQueue | null {
   });
   const health = decodeSection<TrustHealthReview>(record.health_reviews, (row) => {
     if (
+      (row.category != null && !isText(row.category, 80)) ||
+      (row.seller_id != null && (typeof row.seller_id !== "string" || !uuid.test(row.seller_id))) ||
+      (row.request_id != null && (typeof row.request_id !== "string" || !uuid.test(row.request_id))) ||
+      (row.reporting_buyers !== undefined && !isCount(row.reporting_buyers)) ||
+      (row.priority !== undefined && (!isCount(row.priority) || row.priority > 2))
+    ) return null;
+    if (
       typeof row.case_id !== "string" ||
       !uuid.test(row.case_id) ||
       !isText(row.reason_code, 40) ||
@@ -135,6 +147,11 @@ export function decodeReviewQueue(value: unknown): ReviewQueue | null {
       return null;
     }
     return {
+      category: (row.category ?? null) as string | null,
+      seller_id: (row.seller_id ?? null) as string | null,
+      request_id: (row.request_id ?? null) as string | null,
+      reporting_buyers: (row.reporting_buyers ?? 0) as number,
+      priority: (row.priority ?? 0) as number,
       case_id: row.case_id,
       reason_code: row.reason_code as string,
       status: row.status as string,
@@ -308,4 +325,9 @@ export function decodeWithdrawalQueue(value: unknown): WithdrawalQueue | null {
     next_cursor: (record.next_cursor as string | null) ?? null,
     processing_minor: record.processing_minor,
   };
+}
+
+/** Price disagreements alone cannot be confirmed as seller misconduct. */
+export function canConfirmConduct(row: Pick<TrustHealthReview, "category">): boolean {
+  return row.category != null && row.category !== "price_disagreement";
 }

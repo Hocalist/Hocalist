@@ -30,6 +30,8 @@ const readSql = (file) => readFile(new URL(file, import.meta.url), 'utf8');
 const db = await createCommercialDb();
 
 for (const file of [
+  '../calls/110_call_signaling.sql',
+  '../communication_completion/150_chat_block.sql',
   '../chat/012_credit_qualification.sql',
   '../notifications/030_notification_inbox.sql',
   '../notifications/031_notification_producers.sql',
@@ -46,6 +48,11 @@ for (const file of [
   '../../supabase/migrations/20261125193543_elite_buyer_quota_and_lead_insights.sql',
   '../runtime_repairs/245_seller_home_summary.sql',
   '../discovery_completion/140_discovery_leads.sql',
+  '../discovery_completion/145_seller_outcomes.sql',
+  '../support/070_support_cases.sql',
+  '../trust/120_review_workflow.sql',
+  '../admin_completion/161_admin_review_queue.sql',
+  '../../supabase/migrations/20261125202712_seller_conduct_review_priorities.sql',
 ]) await db.exec(await readSql(file));
 
 await db.exec("ALTER TABLE hocalist.requests ADD COLUMN location_timezone text");
@@ -79,14 +86,18 @@ for (const file of [
   '../../supabase/migrations/20261121120000_accept_offered_meeting.sql',
   '../../supabase/migrations/20261121140000_confirmed_meeting_notification.sql',
   '../../supabase/migrations/20261120111441_buyer_offer_decline.sql',
-  '../runtime_repairs/buyer_meetup_management.sql',
   '../runtime_repairs/249_multi_seller_buyer_rewards.sql',
-  '../runtime_repairs/buyer_request_potential_reward.sql',
   '../runtime_repairs/274_buyer_catalogue_choices.sql',
   '../runtime_repairs/221_category_questions.sql',
-  '../runtime_repairs/request_any_condition.sql',
+  '../../supabase/migrations/20261126092555_marketplace_runtime_integration.sql',
 ]) await db.exec(await readSql(file));
 await seedUsbQaCatalogue(db);
+// Match the deployed read projection without replaying the historical migration
+// guard or replacing its unrelated chat/support functions in this fixture.
+const auditReads = await readSql('../audit_repairs/200_audit_reads.sql');
+const metadata = auditReads.match(/DO \$metadata\$[\s\S]*?END \$metadata\$;/);
+if (!metadata) throw new Error('Missing audited request metadata projection');
+await db.exec(metadata[0]);
 await definitions('../runtime_repairs/209_pair_conversations.sql', ['chat_deals']);
 await db.exec('REVOKE ALL ON FUNCTION hocalist.chat_deals(uuid) FROM PUBLIC, anon, service_role; GRANT EXECUTE ON FUNCTION hocalist.chat_deals(uuid) TO authenticated');
 await db.exec("INSERT INTO hocalist.reward_policy(singleton,normal_minor,late_minor,late_window_hours,rule_version) VALUES(true,15,30,12,'usb-qa-reward') ON CONFLICT (singleton) DO NOTHING");
@@ -186,7 +197,13 @@ const readBody = async (request) => {
     result += part;
     if (result.length > 100_000) throw new Error('Fixture request too large');
   }
-  return result ? JSON.parse(result) : {};
+  // PostgREST clients can send JSON null for a no-argument RPC.
+  const body = result ? JSON.parse(result) : null;
+  if (body == null) return {};
+  if (typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('Fixture request must be a JSON object');
+  }
+  return body;
 };
 const claims = (email, user) => ({
   id: user.id, aud: 'authenticated', role: 'authenticated', email,
@@ -326,10 +343,10 @@ async function handle(request, response) {
   const single = request.headers.accept?.includes('application/vnd.pgrst.object+json');
   return json(response, 200, single ? rows[0] ?? null : rows);
 }
-createServer((request, response) => {
+const server = createServer((request, response) => {
   queue = queue.then(() => handle(request, response)).catch((error) => {
     console.log('ERROR ' + request.method + ' ' + request.url.split('?')[0] + ' ' + (error.code ?? '') + ' ' + error.message);
     if (!response.headersSent) json(response, 400, { code: error.code ?? 'QA000', message: error.message });
     else response.end();
   });
-}).listen(port, '127.0.0.1', () => console.log('USB QA READY on 127.0.0.1:' + port));
+}).listen(port, '127.0.0.1', () => console.log('USB QA READY on 127.0.0.1:' + server.address().port));
