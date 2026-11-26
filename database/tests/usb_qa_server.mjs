@@ -44,6 +44,35 @@ for (const name of ['marketplace_lead_json', 'discovery_lead_json']) {
   await db.exec(timezoneMigration.slice(start, timezoneMigration.indexOf('$$;', start) + 3));
 }
 
+await db.exec("ALTER TABLE hocalist.offer_revisions ADD COLUMN IF NOT EXISTS place_latitude double precision, ADD COLUMN IF NOT EXISTS place_longitude double precision; ALTER TABLE hocalist.meeting_schedule_revisions ADD COLUMN IF NOT EXISTS place_latitude double precision, ADD COLUMN IF NOT EXISTS place_longitude double precision");
+const definitions = async (file, names) => {
+  const sql = await readSql(file);
+  for (const name of names) {
+    const start = sql.indexOf('CREATE OR REPLACE FUNCTION hocalist.' + name + '(');
+    if (start < 0) throw new Error('Missing SQL definition: ' + name);
+    await db.exec(sql.slice(start, sql.indexOf('$$;', start) + 3));
+  }
+};
+// Use the same local setup for the legacy reschedule guard as the
+// accept-offered-meeting contract test.
+await definitions('../runtime_repairs/192_confirmed_meeting_coordinates.sql',
+  ['marketplace_normalize_offer', 'meeting_normalize_schedule', 'meeting_revision_json', 'meeting_reschedule_propose']);
+let reschedule = (await db.query("SELECT pg_get_functiondef('hocalist.meeting_reschedule_propose(uuid,jsonb,bigint,text)'::regprocedure) AS d")).rows[0].d;
+reschedule = reschedule.replace("IF v_row.status NOT IN ('accepted','reschedule_proposed') THEN",
+  "-- seller_counterproposal\nIF v_user=v_row.seller_user_id AND EXISTS(SELECT 1 FROM hocalist.meeting_schedule_revisions WHERE meeting_id=p_meeting AND status='proposed' AND proposed_by_user_id=v_row.buyer_user_id) THEN UPDATE hocalist.meeting_schedule_revisions SET status='superseded',resolved_at=now() WHERE meeting_id=p_meeting AND status='proposed'; ELSIF v_row.status NOT IN ('accepted','reschedule_proposed') THEN")
+  .replace("SET status = 'reschedule_proposed',", "SET status = CASE WHEN v_row.accepted_revision_id IS NULL THEN 'proposed' ELSE 'reschedule_proposed' END,");
+await db.exec(reschedule);
+for (const file of [
+  '../runtime_repairs/meeting_reschedule_single_notification.sql',
+  '../../supabase/migrations/20261121120000_accept_offered_meeting.sql',
+  '../../supabase/migrations/20261121140000_confirmed_meeting_notification.sql',
+  '../runtime_repairs/249_multi_seller_buyer_rewards.sql',
+  '../runtime_repairs/274_buyer_catalogue_choices.sql',
+]) await db.exec(await readSql(file));
+await definitions('../runtime_repairs/209_pair_conversations.sql', ['chat_deals']);
+await db.exec('REVOKE ALL ON FUNCTION hocalist.chat_deals(uuid) FROM PUBLIC, anon, service_role; GRANT EXECUTE ON FUNCTION hocalist.chat_deals(uuid) TO authenticated');
+await db.exec("INSERT INTO hocalist.reward_policy(singleton,normal_minor,late_minor,late_window_hours,rule_version) VALUES(true,15,30,12,'usb-qa-reward') ON CONFLICT (singleton) DO NOTHING");
+
 for (const [label, title] of [
   ['offer', 'USB QA Camera Tripod'],
   ['close', 'USB QA Close Request'],
@@ -56,6 +85,27 @@ for (const [label, title] of [
 await db.exec("UPDATE hocalist.role_profiles SET area_label='Orlando, FL'");
 await db.query("INSERT INTO hocalist.seller_entitlements(user_id,plan_code,source) VALUES($1,'pro','admin')", [IDS.seller]);
 await db.query("SELECT hocalist.credit_deposit_internal($1,'usb-qa-credit',5000,190,475,'test')", [IDS.seller]);
+
+const command = async (identity, operation, key, values) => (await callAs(db, 'authenticated', identity,
+  'SELECT hocalist.marketplace_command($1,$2,$3::jsonb) AS result',
+  [operation, key, values]))[0].result;
+const date = (await db.query("SELECT ((now() AT TIME ZONE 'America/New_York')::date+1)::text AS day")).rows[0].day;
+await command(IDS.buyer, 'request.close', 'usb-qa-seed-previous-close-test',
+  { request_id: requestIds.close, expected_revision: 1 });
+const offer = await command(IDS.seller, 'offer.submit', 'usb-qa-seed-previous-offer', {
+  request_id: requestIds.offer, price_minor: 3500, currency_code: 'USD',
+  message: 'Tripod available for the synthetic QA meetup.',
+  schedule_date: date, schedule_time: '15:00', schedule_timezone: 'America/New_York',
+  place_choice: 'specific_place', place_label: 'USB QA Library',
+  place_address: '123 Synthetic Test Rd, Orlando, FL',
+  place_latitude: 28.54, place_longitude: -81.38, image_media_ids: [],
+});
+const selected = await command(IDS.buyer, 'offer.select', 'usb-qa-seed-previous-selection',
+  { offer_id: offer.id, revision_id: offer.revisions[0].id, expected_offer_revision: offer.revision });
+const opened = await command(IDS.buyer, 'conversation.open_offer', 'usb-qa-seed-previous-conversation',
+  { offer_id: selected.id });
+await callAs(db, 'authenticated', IDS.buyer, 'SELECT hocalist.chat_deal_send($1,$2,$3,$4)',
+  [opened.conversation_id, selected.id, 'usb-qa-seed-previous-chat', 'USB QA message']);
 
 const identifier = /^[a-z_][a-z0-9_]*$/;
 const safeIdentifier = (value) => {
@@ -104,7 +154,11 @@ async function handle(request, response) {
     const offers = (await db.query(
       'SELECT o.status, o.revision, r.title, v.price_minor FROM hocalist.offers o JOIN hocalist.requests r ON r.id=o.request_id LEFT JOIN LATERAL (SELECT price_minor FROM hocalist.offer_revisions WHERE offer_id=o.id ORDER BY sequence DESC LIMIT 1) v ON true ORDER BY r.title',
     )).rows;
-    return json(response, 200, { database: 'usb-qa', requests, offers });
+    const meetings = (await db.query('SELECT status, accepted_revision_id IS NOT NULL AS accepted_schedule FROM hocalist.meetings')).rows;
+    const purchaseCount = (await db.query('SELECT count(*)::int AS n FROM hocalist.sale_confirmations')).rows[0].n;
+    const rewards = (await db.query('SELECT count(*)::int AS rows,coalesce(sum(amount_minor),0)::int AS amount_minor FROM hocalist.buyer_rewards', [])).rows[0];
+    const wallet = (await callAs(db, 'authenticated', IDS.buyer, 'SELECT hocalist.commercial_reward_wallet() AS result'))[0].result;
+    return json(response, 200, { database: 'usb-qa', requests, offers, meetings, purchaseCount, rewards, wallet });
   }
   if (request.headers.apikey !== clientKey) return json(response, 401, { message: 'Invalid QA API key' });
   const token = request.headers.authorization?.replace(/^Bearer /i, '');
