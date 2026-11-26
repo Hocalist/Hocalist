@@ -83,6 +83,7 @@ for (const file of [
   '../runtime_repairs/buyer_request_potential_reward.sql',
   '../runtime_repairs/274_buyer_catalogue_choices.sql',
   '../runtime_repairs/221_category_questions.sql',
+  '../runtime_repairs/request_any_condition.sql',
 ]) await db.exec(await readSql(file));
 await seedUsbQaCatalogue(db);
 await definitions('../runtime_repairs/209_pair_conversations.sql', ['chat_deals']);

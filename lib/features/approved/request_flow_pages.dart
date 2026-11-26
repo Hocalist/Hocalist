@@ -12,6 +12,7 @@ import 'request_category_match.dart';
 import '../../domain/phase2/us_states.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../components/hocalist_motion.dart';
 import '../media/request_photo_gallery.dart';
 
@@ -85,6 +86,14 @@ const _minimumIcon = '$_assetRoot/price-min.png';
 const _maximumIcon = '$_assetRoot/price-max.png';
 const _categoryGridIcon = '$_assetRoot/category-grid.png';
 const _categoryDownIcon = '$_assetRoot/category-down.png';
+
+const _requestConditions = ['Any condition', 'New', 'Used'];
+
+ProductCondition? _productCondition(String label) => switch (label) {
+  'New' => ProductCondition.newItem,
+  'Used' => ProductCondition.used,
+  _ => null,
+};
 const _selectedRadioIcon = '$_assetRoot/location-radio-selected.png';
 
 ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
@@ -244,7 +253,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       _descriptionController.text != widget.initialDescription ||
       _kind != widget.initialKind || _quantity != 1 || _categoryId != null ||
       _categoryAnswers.isNotEmpty || _minimum.isNotEmpty || _maximum.isNotEmpty ||
-      _condition != 'New' || _serviceType != 'Single' || !_acceptHigherOffers ||
+      _condition != _initialCondition || _serviceType != 'Single' || !_acceptHigherOffers ||
       _preferMeetHere || !_useHomeAddress || _mapLocation != null || _addressLine1 != null ||
       _addressLine2 != null || _city != null || _state != null ||
       _postalCode != null || _country != null;
@@ -316,7 +325,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     });
 
   }
-  String _condition = 'New';
+  late final String _initialCondition =
+      widget.usesRealSubmission ? 'Any condition' : 'New';
+  late String _condition = _initialCondition;
   String _serviceType = 'Single';
   String _minimum = '';
   String _maximum = '';
@@ -597,11 +608,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       kind: isProduct ? RequestKind.product : RequestKind.service,
       title: widget.requestTitle.trim(),
       description: _descriptionController.text.trim(),
-      condition: isProduct
-          ? (_condition == 'New'
-                ? ProductCondition.newItem
-                : ProductCondition.used)
-          : null,
+      condition: isProduct ? _productCondition(_condition) : null,
       serviceType: isProduct
           ? null
           : (_serviceType == 'Single'
@@ -1458,8 +1465,23 @@ class _ApprovedDetailsStep extends StatelessWidget {
           maxLines: 3,
           counterText: '500',
         ),
-        const SizedBox.shrink(),
-        _ApprovedResponsiveGrid(
+        if (onCategorySelected != null) ...[
+          SizedBox(height: metrics.geometry(6)),
+          _RequestPostingPreferences(
+            product: isProduct,
+            selectedChoice: selectedChoice,
+            quantity: quantity,
+            minimum: minimum,
+            maximum: maximum,
+            higherOffers: acceptHigherOffers,
+            onChoiceChanged: onChoiceChanged,
+            onQuantityChanged: onQuantityChanged,
+            onMinimumChanged: onMinimumChanged,
+            onMaximumChanged: onMaximumChanged,
+            onBudgetChanged: onBudgetChanged,
+            onHigherOffersChanged: onAcceptHigherOffersChanged,
+          ),
+        ] else _ApprovedResponsiveGrid(
           preserveColumnsAtNormalScale: true,
           referenceSpacing: 4,
           referenceRunSpacing: 6,
@@ -1491,7 +1513,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
                     quantity: quantity,
                     onChanged: onQuantityChanged,
                   )
-            else if (onCategorySelected == null)
+            else
               const _ApprovedCategoryPanel(supportsProduct: false),
             _ApprovedHigherOffersPanel(
               value: acceptHigherOffers,
@@ -1499,7 +1521,7 @@ class _ApprovedDetailsStep extends StatelessWidget {
             ),
           ],
         ),
-        SizedBox(height: metrics.geometry(2)),
+        SizedBox(height: metrics.geometry(onCategorySelected == null ? 2 : 7)),
         if (error != null) ...[
           Text(
             error!,
@@ -1517,9 +1539,228 @@ class _ApprovedDetailsStep extends StatelessWidget {
           forwardLabel: 'Continue',
           onBack: onBack,
           onForward: onContinue,
+          plainForward: onCategorySelected != null,
         ),
       ],
     );
+  }
+}
+
+class _RequestPostingPreferences extends StatelessWidget {
+  const _RequestPostingPreferences({
+    required this.product,
+    required this.selectedChoice,
+    required this.quantity,
+    required this.minimum,
+    required this.maximum,
+    required this.higherOffers,
+    required this.onChoiceChanged,
+    required this.onQuantityChanged,
+    required this.onMinimumChanged,
+    required this.onMaximumChanged,
+    required this.onBudgetChanged,
+    required this.onHigherOffersChanged,
+  });
+
+  final bool product;
+  final String selectedChoice;
+  final int quantity;
+  final String minimum;
+  final String maximum;
+  final bool higherOffers;
+  final ValueChanged<String> onChoiceChanged;
+  final ValueChanged<int> onQuantityChanged;
+  final ValueChanged<String> onMinimumChanged;
+  final ValueChanged<String> onMaximumChanged;
+  final ValueChanged<String> onBudgetChanged;
+  final ValueChanged<bool> onHigherOffersChanged;
+
+  void _updateBudget(String min, String max) {
+    onBudgetChanged(
+      min.trim().isEmpty && max.trim().isEmpty
+          ? ''
+          : '\$${min.trim().isEmpty ? '0' : min.trim()} - '
+                '\$${max.trim().isEmpty ? '0' : max.trim()}',
+    );
+  }
+
+  Widget _pair(bool stack, Widget first, Widget second) => stack
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [first, const SizedBox(height: 8), second],
+        )
+      : Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 8),
+            Expanded(child: second),
+          ],
+        );
+
+  @override
+  Widget build(BuildContext context) {
+    final stack = MediaQuery.textScalerOf(context).scale(14) > 17;
+    Widget number({
+      required String label,
+      required String value,
+      required ValueChanged<String> onChanged,
+      bool whole = false,
+    }) => _RequestPreferenceField(
+      label: label,
+      child: TextFormField(
+        key: ValueKey(switch (label) {
+          'Minimum budget' => 'approved-request-budget-min',
+          'Maximum budget' => 'approved-request-budget-max',
+          _ => 'approved-request-quantity',
+        }),
+        initialValue: value,
+        keyboardType: TextInputType.numberWithOptions(decimal: !whole),
+        inputFormatters: whole
+            ? [
+                TextInputFormatter.withFunction(
+                  (oldValue, newValue) =>
+                      RegExp(r'^(?:[1-9][0-9]?)?$').hasMatch(newValue.text)
+                      ? newValue
+                      : oldValue,
+                ),
+              ]
+            : null,
+        onChanged: onChanged,
+        style: _requestInputStyle(context),
+        decoration: _inputDecoration(context).copyWith(
+          hintText: whole ? '1' : 'Optional',
+          semanticCounterText: '',
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 9,
+            vertical: 12,
+          ),
+          constraints: const BoxConstraints(minHeight: 44),
+        ),
+      ),
+    );
+
+    final condition = _RequestPreferenceSelect(
+      label: product ? 'Condition' : 'Service Type',
+      value: selectedChoice,
+      choices: product ? _requestConditions : const ['Single', 'Ongoing'],
+      onChanged: onChoiceChanged,
+    );
+    return _ApprovedSurface(
+      referenceVerticalPadding: 7,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (product)
+            _pair(
+              stack,
+              condition,
+              number(
+                label: 'Quantity',
+                value: '$quantity',
+                whole: true,
+                onChanged: (value) =>
+                    onQuantityChanged(int.tryParse(value) ?? 1),
+              ),
+            )
+          else
+            condition,
+          const SizedBox(height: 9),
+          _pair(
+            stack,
+            number(
+              label: 'Minimum budget',
+              value: minimum,
+              onChanged: (value) {
+                onMinimumChanged(value);
+                _updateBudget(value, maximum);
+              },
+            ),
+            number(
+              label: 'Maximum budget',
+              value: maximum,
+              onChanged: (value) {
+                onMaximumChanged(value);
+                _updateBudget(minimum, value);
+              },
+            ),
+          ),
+          const SizedBox(height: 9),
+          _RequestPreferenceSelect(
+            label: 'Open to higher offers?',
+            value: higherOffers ? 'Yes' : 'No',
+            choices: const ['No', 'Yes'],
+            onChanged: (value) => onHigherOffersChanged(value == 'Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestPreferenceField extends StatelessWidget {
+  const _RequestPreferenceField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        label,
+        style: _bodyStyle(context).copyWith(fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 5),
+      Semantics(label: label, child: child),
+    ],
+  );
+}
+
+class _RequestPreferenceSelect extends StatelessWidget {
+  const _RequestPreferenceSelect({
+    required this.label,
+    required this.value,
+    required this.choices,
+    required this.onChanged,
+    this.showLabel = true,
+  });
+
+  final String label;
+  final String value;
+  final List<String> choices;
+  final ValueChanged<String> onChanged;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final dropdown = InputDecorator(
+      decoration: _inputDecoration(
+        context,
+      ).copyWith(contentPadding: const EdgeInsets.symmetric(horizontal: 9)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          style: _requestInputStyle(context),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+          items: [
+            for (final choice in choices)
+              DropdownMenuItem(
+                value: choice,
+                child: Text(choice, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+        ),
+      ),
+    );
+    return showLabel
+        ? _RequestPreferenceField(label: label, child: dropdown)
+        : Semantics(label: label, child: dropdown);
   }
 }
 
@@ -2035,6 +2276,7 @@ class _ApprovedBuyerRequestDetailsPageState
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   bool _isNew = true;
+  bool _anyCondition = false;
   ServiceType _serviceType = ServiceType.oneTime;
   bool _acceptHigherOffers = true;
   int _quantity = 1;
@@ -2075,6 +2317,7 @@ class _ApprovedBuyerRequestDetailsPageState
       _editedMaximum = draft.budget.maximum == null ? '' : _formatMinorUnits(draft.budget.maximum!.minorUnits);
       _categoryAnswers = draft.categoryAnswers;
       _isNew = draft.condition != ProductCondition.used;
+      _anyCondition = draft.condition == null;
       _serviceType = draft.serviceType ?? ServiceType.oneTime;
       _acceptHigherOffers = draft.acceptsHigherOffers;
       _quantity = draft.quantity;
@@ -2175,7 +2418,7 @@ class _ApprovedBuyerRequestDetailsPageState
     return current.copyWith(
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      condition: current.kind == RequestKind.product
+      condition: current.kind == RequestKind.product && !_anyCondition
           ? (_isNew ? ProductCondition.newItem : ProductCondition.used)
           : null,
       serviceType: current.kind == RequestKind.service ? _serviceType : null,
@@ -2544,9 +2787,22 @@ class _ApprovedBuyerRequestDetailsPageState
                   onEdit: () => _message(
                     widget.request?.draft.kind == RequestKind.service
                         ? 'Choose Single or Ongoing below.'
-                        : 'Choose New or Used below.',
+                        : 'Choose your preferred condition below.',
                   ),
-                  child: Row(
+                  child: widget.request?.draft.kind == RequestKind.product
+                      ? _RequestPreferenceSelect(
+                          label: 'Preferred condition',
+                          value: _anyCondition
+                              ? 'Any condition'
+                              : (_isNew ? 'New' : 'Used'),
+                          choices: _requestConditions,
+                          showLabel: false,
+                          onChanged: (value) => setState(() {
+                            _anyCondition = value == 'Any condition';
+                            _isNew = value == 'New';
+                          }),
+                        )
+                      : Row(
                     children: [
                       Expanded(
                         child: _ApprovedTextChoice(
@@ -4185,12 +4441,14 @@ class _ApprovedActionRow extends StatelessWidget {
     required this.forwardLabel,
     required this.onBack,
     required this.onForward,
+    this.plainForward = false,
   });
 
   final String backLabel;
   final String forwardLabel;
   final VoidCallback onBack;
   final VoidCallback onForward;
+  final bool plainForward;
 
   @override
   Widget build(BuildContext context) {
@@ -4230,6 +4488,7 @@ class _ApprovedActionRow extends StatelessWidget {
         final forward = _ApprovedPrimaryButton(
           label: forwardLabel,
           onPressed: onForward,
+          showIcon: !plainForward,
         );
         if (stacked) {
           return Column(
@@ -4258,12 +4517,14 @@ class _ApprovedPrimaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.busy = false,
+    this.showIcon = true,
     super.key,
   });
 
   final String label;
   final VoidCallback onPressed;
   final bool busy;
+  final bool showIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -4295,14 +4556,14 @@ class _ApprovedPrimaryButton extends StatelessWidget {
             ),
           ),
         ),
-        icon: BuyerGlyphIcon(
+        icon: showIcon ? BuyerGlyphIcon(
           icon: Icons.send_outlined,
           slotSize: _requestDimension(
             metrics,
             BuyerIconTokens.inline,
             floor: 16,
           ),
-        ),
+        ) : null,
         label: Text(
           busy ? 'Posting…' : label,
           maxLines: 1,

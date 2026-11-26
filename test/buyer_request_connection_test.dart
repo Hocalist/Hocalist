@@ -407,15 +407,24 @@ void main() {
       ),
     );
 
+    final quantity = find.byKey(const Key('approved-request-quantity'));
+    await tester.ensureVisible(quantity);
+    await tester.enterText(quantity, '2');
+    final minimum = find.byKey(const Key('approved-request-budget-min'));
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '350');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await _postRequest(tester);
 
     expect(drafts, hasLength(1));
     final draft = drafts.single;
     expect(draft.kind, RequestKind.product);
     expect(draft.title, 'iPad Air, 5th gen or newer');
-    expect(draft.condition, ProductCondition.newItem);
+    expect(draft.condition, isNull);
     expect(draft.serviceType, isNull);
-    expect(draft.quantity, 1);
+    expect(draft.quantity, 2);
+    expect(draft.budget.minimum?.minorUnits, 35000);
     expect(draft.acceptsHigherOffers, isTrue);
     expect(draft.location.useHomeAddress, isTrue);
     expect(draft.location.coordinates?.latitude, 43.07);
