@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../components/hocalist_motion.dart';
 import '../../components/pull_refresh.dart';
 import 'package:flutter/services.dart';
 import '../../data/phase2/outcomes/sale_confirmation.dart';
@@ -52,6 +53,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
   Timer? expiry;
   Timer? statusPoll;
   bool statusPolling = false;
+  bool animateConfirmation = false;
   bool get retryBlocked => result?.status == 'locked' || result?.status == 'support_required';
   @override
   void initState() {
@@ -96,6 +98,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
         input.clear();
         setState(() {
           result = value;
+          animateConfirmation = value.status == 'confirmed';
           error = null;
         });
         widget.onPurchaseConfirmed?.call();
@@ -162,7 +165,10 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
             (result?.status == 'support_required' || result?.retryAt == null ||
              result!.retryAt!.isAfter(DateTime.now().toUtc()));
         if (!keepLock) result = value;
-        if (value.status == 'confirmed') input.clear();
+        if (value.status == 'confirmed') {
+          animateConfirmation = action == 'verify';
+          input.clear();
+        }
       });
       if (value.status == 'confirmed' ||
           value.status == 'completed_elsewhere') {
@@ -257,6 +263,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
                 _ => 'Confirm purchase',
               },
               message: message,
+              animateConfirmation: animateConfirmation,
             ),
           if (canReveal)
             Container(
@@ -358,6 +365,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
               _ => 'Confirm purchase',
             },
             message: message,
+            animateConfirmation: animateConfirmation,
           ),
           if (result?.pin != null || (widget.isBuyer && !done)) ...[
             SizedBox(height: metrics.spacing(12)),
@@ -458,12 +466,14 @@ class _ConfirmationNotice extends StatelessWidget {
     required this.tone,
     required this.title,
     required this.message,
+    this.animateConfirmation = false,
   });
 
   final bool isBuyer;
   final _ConfirmationTone tone;
   final String title;
   final String message;
+  final bool animateConfirmation;
 
   @override
   Widget build(BuildContext context) {
@@ -473,9 +483,13 @@ class _ConfirmationNotice extends StatelessWidget {
       _ConfirmationTone.error => Icons.error_outline_rounded,
       _ConfirmationTone.success => Icons.check_circle_rounded,
     };
+    final check = tone == _ConfirmationTone.success && animateConfirmation
+        ? const _ConfirmedPurchaseCheck(key: Key('purchaseConfirmedCheck'))
+        : null;
     if (isBuyer) {
       return BuyerStateNotice(
         icon: icon,
+        iconOverride: check,
         title: title,
         body: message,
         tone: switch (tone) {
@@ -488,6 +502,7 @@ class _ConfirmationNotice extends StatelessWidget {
     }
     return SellerStateNotice(
       icon: icon,
+      iconOverride: check,
       title: title,
       body: message,
       tone: switch (tone) {
@@ -498,6 +513,67 @@ class _ConfirmationNotice extends StatelessWidget {
       },
     );
   }
+}
+
+class _ConfirmedPurchaseCheck extends StatelessWidget {
+  const _ConfirmedPurchaseCheck({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (HocalistMotion.reduced(context)) {
+      return const Icon(Icons.check_circle_rounded);
+    }
+    final theme = IconTheme.of(context);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, _) {
+        if (progress == 1) return const Icon(Icons.check_circle_rounded);
+        return CustomPaint(
+          size: Size.square(theme.size!),
+          painter: _ConfirmationCheckPainter(theme.color!, progress),
+        );
+      },
+    );
+  }
+}
+
+class _ConfirmationCheckPainter extends CustomPainter {
+  const _ConfirmationCheckPainter(this.color, this.progress);
+
+  final Color color;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final unit = size.width / 24;
+    final check = Path()
+      ..moveTo(7 * unit, 12 * unit)
+      ..lineTo(10 * unit, 15 * unit)
+      ..lineTo(17 * unit, 8 * unit);
+    final stroke = check.computeMetrics().first;
+    canvas.saveLayer(Offset.zero & size, Paint());
+    canvas.drawCircle(
+      size.center(Offset.zero),
+      10 * unit,
+      Paint()..color = color,
+    );
+    canvas.drawPath(
+      stroke.extractPath(0, stroke.length * progress),
+      Paint()
+        ..blendMode = BlendMode.clear
+        ..strokeWidth = 2 * unit
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ConfirmationCheckPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.progress != progress;
 }
 
 class PurchasePinCard extends StatelessWidget {

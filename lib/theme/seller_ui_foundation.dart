@@ -615,6 +615,7 @@ enum SellerNoticeTone { brand, neutral, warning, error, success }
 class SellerStateNotice extends StatelessWidget {
   const SellerStateNotice({
     required this.icon,
+    this.iconOverride,
     required this.title,
     this.body,
     this.tone = SellerNoticeTone.neutral,
@@ -627,6 +628,7 @@ class SellerStateNotice extends StatelessWidget {
   });
 
   final IconData icon;
+  final Widget? iconOverride;
   final String title;
   final String? body;
   final SellerNoticeTone tone;
@@ -706,10 +708,16 @@ class SellerStateNotice extends StatelessWidget {
                     ),
                   ),
                   child: Center(
-                    child: Icon(
+                    child: IconTheme.merge(
+                      data: IconThemeData(
+                        size: metrics.artSize(17),
+                        color: HocalistPalette.text(context, foreground),
+                      ),
+                      child: iconOverride ?? Icon(
                       icon,
                       size: metrics.artSize(17),
-                      color: HocalistPalette.text(context, foreground),
+                        color: HocalistPalette.text(context, foreground),
+                      ),
                     ),
                   ),
                 ),

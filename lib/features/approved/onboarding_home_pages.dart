@@ -3071,28 +3071,46 @@ class ApprovedBuyerHomePage extends StatelessWidget {
         }
         int unreadFor(String id) =>
             submitted[id]?.where((offer) => unreadOfferIds.contains(offer.id)).length ?? 0;
-        String requestMeta(BuyerRequestView request) {
+        Set<String>? submittedIds(BuyerRequestView request) {
+          if (!request.isActive || !homeOffersReady ||
+              negotiationsError != null) {
+            return null;
+          }
+          return {
+            for (final offer in submitted[request.requestId] ?? const <Offer>[])
+              offer.id,
+          };
+        }
+
+        ({String detail, String? offerCount}) requestMeta(
+          BuyerRequestView request,
+        ) {
           if (request.isActive && homeOffersReady && negotiationsError == null) {
             final offers = submitted[request.requestId] ?? const <Offer>[];
             if (offers.isEmpty && request.purchaseOfferId == null &&
                 !homeOffers.any((offer) => offer.requestId == request.requestId &&
                     offer.status == OfferStatus.selected)) {
-              return 'Waiting for offers';
+              return (detail: 'Waiting for offers', offerCount: null);
             }
             if (offers.isNotEmpty) {
               final unread = unreadFor(request.requestId);
               final count = unread > 0 ? unread : offers.length;
               final latest = offers.reduce((a, b) =>
                   b.stamp.updatedAt.isAfter(a.stamp.updatedAt) ? b : a);
-              return '$count${unread > 0 ? ' new' : ''} ${count == 1 ? 'offer' : 'offers'}'
-                  ' · Latest offer ${BuyerOfferView.fromOffer(latest).priceLabel}';
+              return (
+                offerCount: '$count${unread > 0 ? ' new' : ''} ${count == 1 ? 'offer' : 'offers'}',
+                detail: ' · Latest offer ${BuyerOfferView.fromOffer(latest).priceLabel}',
+              );
             }
           }
-          return [
-            request.statusLabel,
-            request.budgetLabel,
-            if (request.windowLabel != null) request.windowLabel!,
-          ].join(' · ');
+          return (
+            detail: [
+              request.statusLabel,
+              request.budgetLabel,
+              if (request.windowLabel != null) request.windowLabel!,
+            ].join(' · '),
+            offerCount: null,
+          );
         }
         final today = todayConfirmedMeetup(realMeetings ?? const [], DateTime.now());
         final todayOffer = today == null ? null : homeOffers.where((offer) =>
@@ -3253,7 +3271,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                                   Navigator.pop(sheetContext);
                                                   _openRequestPin(context, request);
                                                 },
-                                                metaLabel: requestMeta(request),
+                                                metadata: requestMeta(request),
                                                 hasNewOffers: unreadFor(request.requestId) > 0,
                                                 onDetails: () {
                                                   Navigator.pop(sheetContext);
@@ -3306,7 +3324,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                   onClose: request.isActive && onCloseFromHome != null ? () => onCloseFromHome!(request) : null,
                                   showOffers: request.canViewOffers,
                                   onPin: () => _openRequestPin(context, request),
-                                  metaLabel: requestMeta(request),
+                                  metadata: requestMeta(request),
+                                  submittedOfferIds: submittedIds(request),
                                   hasNewOffers: unreadFor(request.requestId) > 0,
                                   onDetails: () => onOpenRequest?.call(request),
                                   onOffers: () {
@@ -9688,11 +9707,47 @@ class _ApprovedRealRewardCards extends StatefulWidget {
 
 class _ApprovedRealRewardCardsState extends State<_ApprovedRealRewardCards> {
   late Future<Map<String, dynamic>> _result;
+  late final Timer _refreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _result = widget.load();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => unawaited(_refreshRewards()),
+    );
+  }
+
+  Future<void> _refreshRewards() async {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (_refreshing ||
+        (lifecycle != null && lifecycle != AppLifecycleState.resumed)) {
+      return;
+    }
+    final previous = _result;
+    final load = widget.load;
+    _refreshing = true;
+    try {
+      await previous.then<void>((_) {}, onError: (Object _) {});
+      if (!mounted || _result != previous) return;
+      final latest = await load();
+      if (!mounted || _result != previous) return;
+      setState(() {
+        _result = Future.value(latest);
+      });
+    } catch (_) {
+      // Keep the last response visible on a background network failure.
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer.cancel();
+    super.dispose();
   }
 
   @override
@@ -9745,7 +9800,8 @@ class _ApprovedRealRewardCardsState extends State<_ApprovedRealRewardCards> {
               onTap: widget.onTap,
               alignActionToBottom: !stacked,
               amount: earned == null ? '—' : _usd(earned),
-              detail: loading
+              earnedMinor: earned,
+              detail: loading && earned == null
                   ? 'Loading rewards…'
                   : earned == null
                   ? 'Rewards unavailable'
@@ -9753,7 +9809,7 @@ class _ApprovedRealRewardCardsState extends State<_ApprovedRealRewardCards> {
             ),
             _ApprovedPendingCard(
               amount: held == null ? '—' : _usd(held),
-              detail: loading
+              detail: loading && held == null
                   ? 'Checking reward status…'
                   : held == null
                   ? 'Status unavailable'
@@ -9790,12 +9846,14 @@ class _ApprovedRewardCard extends StatelessWidget {
     required this.alignActionToBottom,
     this.amount = '\$128.45',
     this.detail = 'From 42 completed purchases',
+    this.earnedMinor,
   });
 
   final VoidCallback onTap;
   final bool alignActionToBottom;
   final String amount;
   final String detail;
+  final int? earnedMinor;
 
   @override
   Widget build(BuildContext context) {
@@ -9825,13 +9883,36 @@ class _ApprovedRewardCard extends StatelessWidget {
               return Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      amount,
-                      style: _text(
-                        context,
-                        size: 23,
-                        weight: FontWeight.w700,
-                        color: _blue,
+                    child: HocalistEventFeedback<int>(
+                      key: const Key('buyerRewardCreditFeedback'),
+                      value: earnedMinor,
+                      isNewEvent: (previous, current) => current > previous,
+                      duration: const Duration(milliseconds: 1000),
+                      builder: (context, progress, child) {
+                        final intensity = 1 - Curves.easeIn.transform(progress);
+                        final highlight = HocalistPalette.surface(
+                          context,
+                          const Color(0xffffeab0),
+                        );
+                        return Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: highlight.withValues(alpha: intensity),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        amount,
+                        style: _text(
+                          context,
+                          size: 23,
+                          weight: FontWeight.w700,
+                          color: _blue,
+                        ),
                       ),
                     ),
                   ),
@@ -10185,7 +10266,8 @@ class _ApprovedActiveRequest extends StatefulWidget {
     this.showOffers = true,
     this.onClose,
     this.onPin,
-    this.metaLabel,
+    this.metadata,
+    this.submittedOfferIds,
     this.hasNewOffers = false,
     super.key,
   });
@@ -10196,7 +10278,8 @@ class _ApprovedActiveRequest extends StatefulWidget {
   final bool showOffers;
   final VoidCallback? onClose;
   final VoidCallback? onPin;
-  final String? metaLabel;
+  final ({String detail, String? offerCount})? metadata;
+  final Set<String>? submittedOfferIds;
   final bool hasNewOffers;
 
   @override
@@ -10206,6 +10289,52 @@ class _ApprovedActiveRequest extends StatefulWidget {
 class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
   static const double _pinSwipeThreshold = 48;
   double _dragDistance = 0;
+
+  Widget _summary(BuildContext context, ApprovedReplicaMetrics metrics) {
+    final detail =
+        widget.metadata?.detail ?? 'Posted on May 13    2 offers received';
+    final count = widget.metadata?.offerCount;
+    final style = _text(
+      context,
+      size: 9.5,
+      color: widget.hasNewOffers ? _blue : _muted,
+      weight: widget.hasNewOffers ? FontWeight.w700 : FontWeight.w400,
+    );
+    return HocalistEventFeedback<Set<String>>(
+      key: const Key('buyerNewOfferFeedback'),
+      value: widget.submittedOfferIds,
+      isNewEvent: (previous, current) => current.difference(previous).isNotEmpty,
+      duration: const Duration(milliseconds: 440),
+      builder: (context, progress, child) {
+        if (count == null) return child;
+        final numberEnd = count.indexOf(' ');
+        final pulse = progress < 0.4
+            ? Curves.easeOut.transform(progress / 0.4)
+            : 1 - Curves.easeInOut.transform((progress - 0.4) / 0.6);
+        return Text.rich(
+          TextSpan(children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: Transform.scale(
+                scale: 1 + 0.12 * pulse,
+                child: Text(count.substring(0, numberEnd), style: style),
+              ),
+            ),
+            TextSpan(text: '${count.substring(numberEnd)}$detail'),
+          ]),
+          semanticsLabel: '$count$detail',
+          maxLines: metrics.screenshotLocked ? 1 : null,
+          style: style,
+        );
+      },
+      child: Text(
+        '${count ?? ''}$detail',
+        maxLines: metrics.screenshotLocked ? 1 : null,
+        style: style,
+      ),
+    );
+  }
 
   void _showOptions() => showModalBottomSheet<void>(
     context: context,
@@ -10302,16 +10431,7 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
                               ),
                             ),
                             SizedBox(height: metrics.geometry(2)),
-                            Text(
-                              widget.metaLabel ??
-                                  'Posted on May 13    2 offers received',
-                              maxLines: metrics.screenshotLocked ? 1 : null,
-                              style: _text(
-                                context, size: 9.5,
-                                color: widget.hasNewOffers ? _blue : _muted,
-                                weight: widget.hasNewOffers ? FontWeight.w700 : FontWeight.w400,
-                              ),
-                            ),
+                            _summary(context, metrics),
                           ],
                         ),
                       ),

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/domain/phase2/common.dart';
 import 'package:hocalist/domain/phase2/money.dart';
 import 'package:hocalist/domain/phase2/notifications.dart';
+import 'package:hocalist/domain/phase2/offers.dart';
 import 'package:hocalist/domain/phase2/requests.dart';
 import 'package:hocalist/domain/phase2/schedule.dart';
 import 'package:hocalist/data/phase2/meetings/meeting_adapter.dart';
@@ -46,6 +47,7 @@ Future<void> _pump(
   Widget child, {
   double width = 390,
   double textScale = 1,
+  bool reduceMotion = false,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 900);
@@ -56,6 +58,10 @@ Future<void> _pump(
   await tester.pumpWidget(
     MaterialApp(
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reduceMotion),
+        child: child!,
+      ),
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Nunito',
@@ -69,6 +75,8 @@ Future<void> _pump(
 
 ApprovedBuyerHomePage _page({
   List<BuyerRequestView>? realRequests,
+  List<Offer> offers = const [],
+  bool homeOffersReady = false,
   bool requestsLoading = false,
   String? requestsError,
   VoidCallback? onRefreshRequests,
@@ -99,6 +107,8 @@ ApprovedBuyerHomePage _page({
   onRecentActivity: () {},
   onWallet: () {},
   realRequests: realRequests,
+  homeOffers: offers,
+  homeOffersReady: homeOffersReady,
   requestsLoading: requestsLoading,
   requestsError: requestsError,
   onRefreshRequests: onRefreshRequests,
@@ -259,6 +269,127 @@ void main() {
   });
 
   setUpAll(loadHocalistTestFonts);
+
+  for (final reduceMotion in [false, true]) {
+    testWidgets('only an incoming offer pulses, reduced motion $reduceMotion', (
+      tester,
+    ) async {
+      final request = _request();
+      Offer offer(String id) => Offer(
+        id: id,
+        requestId: request.id,
+        buyerUserId: request.buyerUserId,
+        sellerUserId: 'seller-$id',
+        sellerProfileId: 'profile-$id',
+        sellerDisplayName: 'Seller $id',
+        requestTitle: request.draft.title,
+        status: OfferStatus.submitted,
+        stamp: request.stamp,
+        revisions: [
+          OfferRevision(
+            id: 'revision-$id',
+            offerId: id,
+            sequence: 1,
+            terms: OfferTerms(
+              price: Money(minorUnits: 45000, currencyCode: 'USD'),
+              message: 'Available today.',
+              schedule: LocalSchedule(
+                date: LocalDate(year: 2026, month: 11, day: 26),
+                startTime: LocalTime(hour: 15, minute: 0),
+                timezoneId: 'America/New_York',
+              ),
+              place: MeetingPlace(
+                choice: MeetupPlaceChoice.sellerBusiness,
+                label: 'Business address',
+              ),
+            ),
+            status: OfferRevisionStatus.proposed,
+            proposedByUserId: 'seller-$id',
+            createdAt: request.stamp.createdAt,
+          ),
+        ],
+      );
+      final first = offer('first');
+      final offers = ValueNotifier([first]);
+      await _pump(tester, ValueListenableBuilder(
+        valueListenable: offers,
+        builder: (context, current, _) => _page(
+          realRequests: [BuyerRequestView.fromRequest(request)],
+          offers: current,
+          homeOffersReady: true,
+        ),
+      ), reduceMotion: reduceMotion);
+      final number = find.descendant(
+        of: find.byKey(const Key('buyerNewOfferFeedback')),
+        matching: find.byType(Transform),
+      );
+      double scale() => tester.widget<Transform>(number).transform.storage[0];
+      expect(scale(), 1);
+      final second = offer('second');
+      offers.value = [first, second];
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 175));
+      if (reduceMotion) {
+        expect(scale(), 1);
+      } else {
+        expect(scale(), greaterThan(1.1));
+      }
+      await tester.pumpAndSettle();
+      offers.value = [second, first];
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 175));
+      expect(scale(), 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      offers.dispose();
+    });
+  }
+
+  testWidgets('confirmed credit briefly highlights the loaded reward amount', (
+    tester,
+  ) async {
+    var balance = 150;
+    var held = 30;
+    var loads = 0;
+    await _pump(tester, _page(
+      realRequests: const [],
+      loadRealRewards: () async {
+        loads++;
+        return {
+          'currency': 'USD',
+          'earned_minor': balance,
+          'items': [{'amount_minor': held, 'status': 'held'}],
+        };
+      },
+    ));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final highlight = find.descendant(
+      of: find.byKey(const Key('buyerRewardCreditFeedback')),
+      matching: find.byType(DecoratedBox),
+    );
+    double opacity() =>
+        (tester.widget<DecoratedBox>(highlight).decoration as BoxDecoration)
+            .color!.a;
+    expect(opacity(), 0);
+    held = 50;
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(loads, 2);
+    expect(find.text(r'$0.50'), findsOneWidget);
+    expect(opacity(), 0);
+    balance = 250;
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(loads, 3);
+    expect(find.text(r'$2.50'), findsOneWidget);
+    expect(opacity(), greaterThan(0));
+    await tester.pumpAndSettle();
+    expect(opacity(), 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('real dashboard uses ledger rewards and hides prototype payout', (
     tester,

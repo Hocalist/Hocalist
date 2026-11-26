@@ -1154,6 +1154,7 @@ enum BuyerNoticeTone { brand, neutral, warning, error, success }
 class BuyerStateNotice extends StatelessWidget {
   const BuyerStateNotice({
     required this.icon,
+    this.iconOverride,
     required this.title,
     this.body,
     this.tone = BuyerNoticeTone.neutral,
@@ -1166,6 +1167,7 @@ class BuyerStateNotice extends StatelessWidget {
   });
 
   final IconData icon;
+  final Widget? iconOverride;
   final String title;
   final String? body;
   final BuyerNoticeTone tone;
@@ -1242,11 +1244,17 @@ class BuyerStateNotice extends StatelessWidget {
                     ),
                   ),
                   child: Center(
-                    child: BuyerGlyphIcon(
+                    child: IconTheme.merge(
+                      data: IconThemeData(
+                        size: metrics.artSize(18),
+                        color: HocalistPalette.text(context, foreground),
+                      ),
+                      child: iconOverride ?? BuyerGlyphIcon(
                       icon: icon,
                       slotSize: metrics.artSize(18),
                       glyphSize: metrics.artSize(18),
-                      color: HocalistPalette.text(context, foreground),
+                        color: HocalistPalette.text(context, foreground),
+                      ),
                     ),
                   ),
                 ),
