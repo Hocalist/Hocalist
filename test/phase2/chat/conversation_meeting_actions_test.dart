@@ -102,9 +102,13 @@ void main() {
       String selected = 'first';
       String? opened;
       bool pending = true;
+      bool multiple = false;
+      late VoidCallback addDeals;
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-          body: StatefulBuilder(builder: (context, update) => ApprovedConversationBody(
+          body: StatefulBuilder(builder: (context, update) {
+            addDeals = () => update(() => multiple = true);
+            return ApprovedConversationBody(
             onBack: () {},
             onPrimary: () {},
             onCall: () {},
@@ -116,24 +120,46 @@ void main() {
             onLearnMore: () {},
             viewerIsSeller: seller,
             realEntries: const [],
-            realDeals: const [
-              ApprovedDealView(meetingId: 'first', title: 'Camera tripod',
+            realDeals: [
+              const ApprovedDealView(meetingId: 'first', title: 'Camera tripod',
                   priceLabel: r'$35', statusLabel: 'Meeting set'),
-              ApprovedDealView(meetingId: 'other', title: 'LED light',
+              if (multiple) ...[
+                const ApprovedDealView(meetingId: 'other', title: 'LED light',
                   priceLabel: r'$20', statusLabel: 'Your response needed'),
+                const ApprovedDealView(meetingId: 'third', title: 'Camera bag',
+                  priceLabel: r'$15', statusLabel: 'Meeting set'),
+              ],
+            ],
+            previousDeals: const [
+              ApprovedDealView(meetingId: 'past', title: 'Old deal',
+                  priceLabel: r'$10', statusLabel: 'Completed', completed: true),
             ],
             selectedDealId: selected,
             onSelectRealDeal: (id) => update(() => selected = id),
             onOpenRealDeal: (id) => opened = id,
-            meetupProposals: pending ? [(meeting: change, title: 'LED light')] : const [],
+            meetupProposals: pending && multiple
+                ? [(meeting: change, title: 'LED light')] : const [],
             onRespondToMeetup: (proposal, accept) async {
               decisions.add((proposal.meetingId, accept));
               update(() => pending = false);
               return MeetingActionResult.success(proposal);
             },
-          )),
+          );
+          }),
         ),
       ));
+      await tester.pumpAndSettle();
+      final count = find.byKey(const Key('chat-deal-count'));
+      expect(find.descendant(of: count, matching: find.text('1')), findsOneWidget);
+      await tester.tap(count);
+      await tester.pumpAndSettle();
+      expect(find.text('1 active deal'), findsOneWidget);
+      expect(find.textContaining(seller
+          ? 'When the buyer accepts another of your offers'
+          : 'When you accept another offer from this seller'), findsOneWidget);
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+      addDeals();
       await tester.pumpAndSettle();
       expect(find.text('Meetup change proposed'), findsOneWidget);
       expect(find.textContaining(seller ? 'The buyer proposed' : 'The seller proposed'), findsOneWidget);
@@ -143,7 +169,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Meetup change proposed'), findsNothing);
       final explore = find.byKey(const ValueKey('deal-details-first'));
-      final count = find.byKey(const Key('chat-deal-count'));
+      expect(find.descendant(of: count, matching: find.text('3')), findsOneWidget);
       final exploreRect = tester.getRect(explore);
       final countRect = tester.getRect(count);
       expect(countRect.height, exploreRect.height);

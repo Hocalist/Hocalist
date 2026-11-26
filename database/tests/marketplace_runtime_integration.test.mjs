@@ -80,6 +80,45 @@ test('marketplace fixture supports health, history, Any condition and buyer meet
   assert.equal(accepted.accepted_schedule.schedule_date, tomorrow);
   const buyerMeetings = await rpc(buyer, 'meeting_list', { p_status: null, p_limit: 50, p_cursor: null });
   assert.equal(buyerMeetings.items.find(row => row.id === meeting.id).accepted_schedule.schedule_date, tomorrow);
+
+  // Keep the tripod and create three more requests for the same pair.
+  await rpc(buyer, 'marketplace_command', { p_operation: 'request.close', p_key: 'close-any-condition',
+    p_input: { request_id: request.id, expected_revision: request.revision } });
+  const pairDeals = [];
+  for (const sequence of [2, 3, 4]) {
+    const posted = await rpc(buyer, 'marketplace_command', { p_operation: 'request.create',
+      p_key: 'pair-request-' + sequence, p_input: { kind: 'product', title: 'Pair test ' + sequence,
+        description: 'Synthetic test for the active deals limit', quantity: 1, use_home_address: false,
+        city: 'Orlando', region: 'FL', country_code: 'US' } });
+    const offer = await rpc(seller, 'marketplace_command', { p_operation: 'offer.submit',
+      p_key: 'pair-offer-' + sequence, p_input: { request_id: posted.id, price_minor: 3500,
+        currency_code: 'USD', message: 'Synthetic offer for the limit check',
+        schedule_date: tomorrow, schedule_time: '17:00', schedule_timezone: 'America/New_York',
+        place_choice: 'specific_place', place_label: 'Test library',
+        place_address: '123 Synthetic Test Rd, Orlando, FL', image_media_ids: [] } });
+    pairDeals.push({ posted, offer, select: { p_operation: 'offer.select', p_key: 'pair-select-' + sequence,
+      p_input: { offer_id: offer.id, revision_id: offer.revisions[0].id, expected_offer_revision: offer.revision } } });
+  }
+  for (const { select } of pairDeals.slice(0, 2)) {
+    const selected = await rpc(buyer, 'marketplace_command', select);
+    assert.equal(selected.status, 'selected');
+    assert.deepEqual(await rpc(buyer, 'marketplace_command', select), selected);
+  }
+  const fourth = pairDeals[2];
+  assert.match((await rpc(buyer, 'marketplace_command', fourth.select, 400)).message, /active_deal_pair_limit/);
+  assert.equal((await rpc(seller, 'marketplace_offer', { p_offer: fourth.offer.id })).status, 'submitted');
+  const closing = pairDeals[0].posted;
+  const reopenTarget = (await rpc(buyer, 'marketplace_request_offers', {
+    p_request: closing.id, p_limit: 25, p_cursor: null,
+  })).items[0];
+  assert.equal(reopenTarget.status, 'selected');
+  const currentRequest = await rpc(buyer, 'marketplace_request', { p_request: closing.id });
+  const closed = await rpc(buyer, 'marketplace_command', { p_operation: 'request.close',
+    p_key: 'pair-close', p_input: { request_id: closing.id, expected_revision: currentRequest.revision } });
+  assert.equal((await rpc(buyer, 'marketplace_command', fourth.select)).status, 'selected');
+  assert.match((await rpc(buyer, 'marketplace_command', { p_operation: 'request.reopen', p_key: 'pair-reopen',
+    p_input: { request_id: closed.id, expected_revision: closed.revision } }, 400)).message, /active_deal_pair_limit/);
+
   const input = { p_meeting: meeting.id, p_expected_revision: accepted.revision,
     p_key: 'cancel-integration', p_action: 'cancel', p_reason: 'schedule_changed', p_note: null, p_input: null };
   assert.match((await rpc(seller, 'meeting_buyer_manage', input, 400)).message, /meeting_access_denied/);
@@ -89,6 +128,8 @@ test('marketplace fixture supports health, history, Any condition and buyer meet
   assert.equal(canceled.buyer_change_reason, 'schedule_changed');
   const sellerMeetings = await rpc(seller, 'meeting_list', { p_status: null, p_limit: 50, p_cursor: null });
   assert.equal(sellerMeetings.items.find(row => row.id === meeting.id).status, 'cancelled');
+  assert.equal((await rpc(buyer, 'marketplace_command', { p_operation: 'request.reopen', p_key: 'pair-reopen',
+    p_input: { request_id: closed.id, expected_revision: closed.revision } })).status, 'active');
 });
 
 test('public plan response preserves access checks, unavailable profiles and existing fields', async () => {

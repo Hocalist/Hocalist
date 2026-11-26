@@ -199,6 +199,7 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend,
           'meeting_time_passed',
           'meeting_seller_payment_required',
           'meeting_seller_account_pending',
+          'active_deal_pair_limit',
         }.contains(error.conflictCode)) {
       return error.debugMessage;
     }

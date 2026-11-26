@@ -2420,6 +2420,41 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     );
   }
 
+  Future<void> _showDealCount(int count) async {
+    if (count != 1) {
+      await _showConversationDeals(selectOnly: true);
+      return;
+    }
+    final seller = widget.viewerIsSeller;
+    final showPast = await showDialog<bool>(
+      context: context,
+      animationStyle: HocalistMotion.dialogStyle(context),
+      builder: (dialog) => AlertDialog(
+        scrollable: true,
+        title: const Text('1 active deal'),
+        content: Text(
+          seller
+              ? 'You have one active deal with this buyer. When the buyer accepts another of your offers, tap this number to switch deals. You can have up to 3 active deals with this buyer.'
+              : 'You have one active deal with this seller. When you accept another offer from this seller, tap this number to switch deals. You can have up to 3 active deals with this seller.',
+        ),
+        actions: [
+          if (widget.previousDeals?.isNotEmpty == true)
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Past deals'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+    if (mounted && showPast == true) {
+      await _showConversationDeals(selectOnly: true);
+    }
+  }
+
   Future<void> _showConversationDeals({bool selectOnly = false}) async {
     if (widget.usesRealEntries) {
       await showModalBottomSheet<void>(
@@ -2482,9 +2517,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
     final compactDeal = widget.usesRealEntries && widget.onRespondToMeetup != null
         ? _selectedRealDeal
         : null;
-    final dealCount = {
-      for (final deal in [...?widget.realDeals, ...?widget.previousDeals]) deal.id,
-    }.length;
+    final dealCount = widget.realDeals?.map((deal) => deal.id).toSet().length ?? 0;
     final content = IconButtonTheme(
       data: IconButtonThemeData(
         style: ButtonStyle(
@@ -2578,7 +2611,7 @@ class _ApprovedConversationBodyState extends State<ApprovedConversationBody> {
                                 _CurrentChatDeal(
                                   deal: compactDeal,
                                   count: dealCount,
-                                  onChoose: () => _showConversationDeals(selectOnly: true),
+                                  onChoose: () => _showDealCount(dealCount),
                                   onExplore: () {
                                     final open = widget.onOpenRealDeal;
                                     if (open != null) {
@@ -5304,10 +5337,10 @@ class _CurrentChatDeal extends StatelessWidget {
               ),
             ),
           ),
-          if (count > 1) ...[
+          ...[
             const SizedBox(width: 7),
             Tooltip(
-              message: 'Choose from $count deals',
+              message: count == 1 ? '1 active deal' : '$count active deals',
               child: TextButton(
                 key: const Key('chat-deal-count'),
                 onPressed: onChoose,
@@ -5324,7 +5357,7 @@ class _CurrentChatDeal extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('$count'),
-                    const Icon(Icons.expand_more, size: 16),
+                    if (count > 1) const Icon(Icons.expand_more, size: 16),
                   ],
                 ),
               ),

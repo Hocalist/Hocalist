@@ -179,6 +179,9 @@ class Phase2MarketplaceRequestsBackend
   }
 
   String _message(RepositoryError? error) {
+    if (error is ConflictError && error.conflictCode == 'active_deal_pair_limit') {
+      return 'Reopening this request would exceed the 3 active deals allowed with one seller. Finish or close another deal first.';
+    }
     if (error is ConflictError && error.conflictCode == 'request_not_editable') {
       return 'This request can no longer be edited. Agree any deal changes with your seller in chat.';
     }

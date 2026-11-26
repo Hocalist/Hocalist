@@ -136,6 +136,13 @@ class MarketplaceErrorMapper {
     if (_has(message, 'weekly_target_limit')) {
       return const LimitExceededError(limitCode: 'weekly_targets');
     }
+    if (_has(message, 'active_deal_pair_limit')) {
+      return const ConflictError(
+        conflictCode: 'active_deal_pair_limit',
+        debugMessage:
+            'You already have 3 active deals with this seller. Finish or close one before starting another.',
+      );
+    }
     if (_has(message, 'targeting_fee_unconfigured')) {
       return const ConflictError(
         conflictCode: 'targeting_fee_unconfigured',
