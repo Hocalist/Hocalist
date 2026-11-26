@@ -55,6 +55,7 @@ import 'features/media/private_remote_image.dart';
 import 'data/phase2/support/support_adapter.dart';
 import 'data/phase2/support/support_composition.dart';
 import 'features/support/support_cases_page.dart';
+import 'features/support/chat_report_reasons.dart';
 import 'data/phase2/outcomes/sale_composition.dart';
 import 'features/meetings/sale_confirmation_panel.dart';
 
@@ -647,16 +648,20 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
 
   SupportAdapter? _supportAdapter;
   String? _supportConversationId;
+  String? _supportSellerOfferId;
+  bool _supportFromChat = false;
   Widget _realSupportPage() => SupportCasesPage(
     key: ValueKey(
-      'support-${page.name}-${_supportConversationId ?? 'general'}',
+      'support-${page.name}-${_supportConversationId ?? _supportSellerOfferId ?? 'general'}',
     ),
     initialReasonCode: page == AppPage.reportIssue ? 'safety' : 'general',
     generalHelp: page != AppPage.reportIssue,
     seller: role == UserRole.seller,
+    fromChat: page == AppPage.reportIssue && _supportFromChat,
     adapter: _supportAdapter ??= createSupportAdapter(),
     onBack: back,
     conversationId: page == AppPage.reportIssue ? _supportConversationId : null,
+    sellerOfferId: page == AppPage.reportIssue ? _supportSellerOfferId : null,
   );
   static const _storage = _LocalSessionStore();
   final messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -1168,6 +1173,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           emailVerified: status.emailVerified,
           phoneVerified: status.phoneVerified,
           reviewStatus: status.reviewStatus,
+          conductScore: status.conductScore,
+          confirmedIncidents: status.confirmedIncidents,
           restrictions: status.restrictions
               .map(
                 (row) => SellerHealthRestriction(
@@ -2794,10 +2801,18 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         _newRequestBudget = '';
       }
       if (destination == AppPage.reportIssue) {
+        _supportFromChat =
+            page == AppPage.buyerChat || page == AppPage.sellerConversation;
+        if (_supportFromChat && widget.accountSession == null) {
+          reportSubmitted = false;
+        }
+        _supportSellerOfferId = role != UserRole.buyer ? null : switch (page) {
+          AppPage.buyerChat => _marketplace.activeChatOfferId,
+          AppPage.meetingDetails => _marketplace.meetingDetail?.offerId,
+          _ => null,
+        };
         _supportConversationId =
-            _marketplace.isChatBacked &&
-                (page == AppPage.buyerChat ||
-                    page == AppPage.sellerConversation)
+            _marketplace.isChatBacked && _supportFromChat
             ? _marketplace.activeConversationId
             : null;
       }
@@ -3269,7 +3284,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         }
         unawaited(_loadConversationDeals(force: true));
         showMessage(
-          'Seller confirmed. Review the meeting details from the offer.',
+          'Seller chosen for purchase. Review the meetup details.',
         );
         await _openConversationMeeting(offerId: sourceOffer.id);
       } else {
@@ -4630,7 +4645,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     if (view == null || !_marketplace.isBuyerOffersBacked) {
       commit(
         next: AppPage.buyerChat,
-        message: 'Seller selected. Chatroom opened.',
+        message: 'Deal chat opened.',
         update: () {
           offerSelected = true;
           _marketplace.updateOfferStatus(LocalOfferStatus.selected);
@@ -4701,7 +4716,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
       _saveSession();
       commit(
         next: AppPage.buyerChat,
-        message: 'Seller selected. Chatroom opened.',
+        message: 'Deal chat opened.',
         update: () {},
       );
       return;
@@ -6316,7 +6331,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             onViewOffer: _selectSelectedOffer,
             onChat: () => commit(
               next: AppPage.buyerChat,
-              message: 'Seller selected. Chatroom opened.',
+              message: 'Deal chat opened.',
               update: () {
                 offerSelected = true;
                 _marketplace.updateOfferStatus(LocalOfferStatus.selected);
@@ -6426,7 +6441,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               ? _selectSelectedOffer
               : () => commit(
                   next: AppPage.buyerChat,
-                  message: 'Seller selected. Chatroom opened.',
+                  message: 'Deal chat opened.',
                   update: () {
                     offerSelected = true;
                     _marketplace.updateOfferStatus(LocalOfferStatus.selected);
@@ -7028,10 +7043,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
         if (widget.accountSession != null) return _realSupportPage();
         return ReportIssuePage(
           accent: accent,
+          chatViewerIsSeller: _supportFromChat ? role == UserRole.seller : null,
           submitted: reportSubmitted,
           onSubmit: () => commit(
             next: AppPage.reportIssue,
-            message: 'Report saved in this device session.',
+            message: 'Sample report saved on this device.',
             update: () => reportSubmitted = true,
             resetHistory: true,
           ),
@@ -7369,7 +7385,9 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               },
               onOpenLead: (lead) {
                 _rememberLead(lead);
-                final offer = _marketplace.sellerOffers.where((o) => o.requestId == lead.requestId).firstOrNull;
+                final offer = _marketplace.sellerOffers.where((offer) =>
+                    offer.requestId == lead.requestId &&
+                    (offer.status == OfferStatus.submitted || offer.status == OfferStatus.selected)).firstOrNull;
                 if (offer != null) {
                   unawaited(_openSellerOffer(offer));
                   return;
@@ -7445,6 +7463,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               onInteract: _rememberLead,
               sellerName: sellerName,
               onOfferSubmitted: _submitSellerOffer,
+              loadLeadInsights: _discoveryBackend?.loadLeadInsights,
+              onComparePlans: _realAccountMode ? () {
+                _billingUpgradeRequested = true;
+                go(AppPage.sellerBilling);
+              } : null,
               onValidateLead: _marketplace.isOffersBacked
                   ? (lead) async {
                       final client = Supabase.instance.client;

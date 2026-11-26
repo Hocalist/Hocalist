@@ -49,6 +49,9 @@ class _SellerCustomersPageState extends State<SellerCustomersPage> {
       padding: EdgeInsets.all(metrics.pageHorizontalPadding(16)),
       children: [
         SellerNestedHeader(title: 'Customers', subtitle: 'Keep your confirmed buyers close.', onBack: widget.onBack),
+        if (upgradeRequired || data != null)
+          Align(alignment: Alignment.centerLeft,
+            child: SellerPlanBadge(label: 'Pro & Elite benefit', locked: upgradeRequired)),
         SizedBox(height: metrics.spacing(18)),
         Padding(padding: EdgeInsets.only(left: metrics.spacing(2), bottom: metrics.spacing(7)),
           child: Text('CONFIRMED CUSTOMERS', style: sellerText(metrics, 11,
@@ -221,6 +224,8 @@ class _CustomerCardState extends State<_CustomerCard> {
       if (draft.error != null) Padding(padding: EdgeInsets.only(top: metrics.spacing(7)),
         child: Text(draft.error!, style: sellerText(metrics, 11, color: SellerUiColors.muted))),
       if (widget.insights) ...[
+        const Align(alignment: Alignment.centerLeft,
+          child: SellerPlanBadge(label: 'Elite benefit')),
         TextButton(onPressed: draft.loadingHistory ? null : draft.facts == null
             ? loadHistory : () => draft.update(() => draft.facts = null),
           child: Text(draft.loadingHistory ? 'Loading history…'

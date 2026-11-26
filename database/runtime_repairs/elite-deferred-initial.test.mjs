@@ -26,6 +26,7 @@ test('Elite settlement boundaries for wallet and card funding',async t=>{
   }
   const historical=await seed();
   await db.exec(await readFile(migration,'utf8'));
+  await db.exec(await read('../../supabase/migrations/20261125190045_free_weekly_unique_buyers.sql'));
   const settle=(x,action='initial')=>db.query('SELECT hocalist.credit_settle_internal($1,$2)',[x.target,action]);
   const row=async x=>(await db.query('SELECT * FROM hocalist.credit_targets WHERE id=$1',[x.target])).rows[0];
   const jobs=async x=>(await db.query('SELECT * FROM hocalist.paygo_charges WHERE target_id=$1 ORDER BY phase',[x.target])).rows;
@@ -36,6 +37,15 @@ test('Elite settlement boundaries for wallet and card funding',async t=>{
    await db.query('INSERT INTO hocalist.sale_confirmations(request_id,meeting_id,offer_id,schedule_revision_id,buyer_user_id,seller_user_id) VALUES($1,$2,$3,gen_random_uuid(),$4,$5)',[x.request,meeting,x.offer,IDS.buyer,seller]);
   }
   await t.test('historical targets retain their original timing',async()=>{await settle(historical);assert.equal(Number((await row(historical)).charged_minor),155);});
+  await t.test('a PIN-confirmed purchase on the buyer’s other request does not defeat the waiver',async()=>{
+   const purchased = await seed();
+   const expired = await seed('prepaid',{due:true});
+   await purchase(purchased);
+   await db.query('SELECT hocalist.credit_reconcile_target_internal($1)',[expired.target]);
+   const waived = await row(expired);
+   assert.equal(waived.status,'refunded');
+   assert.equal(Number(waived.charged_minor),0);
+  });
   for(const kind of ['prepaid','paygo']){
    await t.test(`${kind}: reply records eligibility without collecting`,async()=>{const x=await seed(kind);await settle(x);await settle(x);assert.equal(Number((await row(x)).charged_minor),0);assert.equal((await jobs(x)).length,0);});
    await t.test(`${kind}: eligible day-seven expiry waives the fee`,async()=>{const x=await seed(kind,{due:true});await db.query('SELECT hocalist.credit_reconcile_target_internal($1)',[x.target]);assert.equal((await row(x)).status,'refunded');assert.equal(Number((await row(x)).charged_minor),0);assert.equal((await jobs(x)).length,0);});

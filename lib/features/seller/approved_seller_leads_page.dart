@@ -2,6 +2,8 @@ import 'offer_price_input.dart';
 import '../commercial/seller_offer_presentation.dart';
 export '../commercial/seller_offer_presentation.dart' show SellerOfferPresentation;
 import 'lower_offer_confirmation.dart';
+import 'seller_offer_fee_guide.dart';
+import '../commercial/seller_fee_copy.dart';
 import '../commercial/offer_funding_sheet.dart';
 import '../../data/phase2/maps/places_contract.dart' show PlaceSuggestion;
 import 'package:hocalist/components/hocalist_loading_indicator.dart';
@@ -18,6 +20,7 @@ import '../../components/pull_refresh.dart';
 import '../../components/hocalist_paged_list.dart';
 
 import '../../data/local_marketplace_repository.dart';
+import '../../domain/phase2/customers.dart';
 import '../../data/phase2/commercial/commercial_wallet_backend.dart';
 import '../../data/phase2/commercial/entitlement_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
@@ -96,6 +99,8 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
     this.onSubmitOffer,
     this.offeredRequestIds = const <String>{},
     this.onValidateLead,
+    this.loadLeadInsights,
+    this.onComparePlans,
     this.uploadImage,
     this.leadPaging,
     this.discoveryOrigin,
@@ -115,6 +120,8 @@ class ApprovedSellerLeadsPage extends StatefulWidget {
   final Future<SellerDiscoveryOrigin> Function()? onLoadSearchLocation;
   final Set<String> offeredRequestIds;
   final Future<SellerLeadView?> Function(SellerLeadView)? onValidateLead;
+  final Future<CustomerHistory?> Function(String)? loadLeadInsights;
+  final VoidCallback? onComparePlans;
   final ValueChanged<LocalOfferRecord>? onOfferSubmitted;
   final String sellerName;
   final SellerOfferPresentation offerPresentation;
@@ -296,6 +303,9 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
   @override
   void didUpdateWidget(covariant ApprovedSellerLeadsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _justOfferedRequestIds.removeAll(
+      oldWidget.offeredRequestIds.difference(widget.offeredRequestIds),
+    );
     if (oldWidget.focusedLead != widget.focusedLead) {
       _resetFilters();
       _focusActive = true;
@@ -778,6 +788,8 @@ class _ApprovedSellerLeadsPageState extends State<ApprovedSellerLeadsPage> {
             : lead.presetPrice(high: highPreset),
         sellerName: widget.sellerName,
         presentation: widget.offerPresentation,
+        loadLeadInsights: widget.loadLeadInsights,
+        onComparePlans: widget.onComparePlans,
         onChooseSpecificLocation: widget.onChooseSpecificLocation,
         automaticTimezone: widget.automaticTimezone,
         resolveBusinessPlace: widget.resolveBusinessPlace,
@@ -1288,9 +1300,9 @@ class _TargetingNotice extends StatelessWidget {
       subtitle: 'Sending an offer does not charge the initial fee.',
       answers: const {
         'Free and Pro sellers': 'The initial fee is charged when the buyer replies.',
-        'Elite sellers': 'Fees stay pending until a PIN-confirmed purchase or the seven-day deadline. Eligible fees are waived if no purchase happens.',
+        'Elite sellers': '$eliteLeadFeeTiming $eliteNoPurchaseWaiver',
         'When a purchase is confirmed': 'The winning total includes the initial fee. Only the remaining difference is charged.',
-        'Weekly targeting limit': 'Each buyer you send an offer to uses one weekly slot.',
+        'Weekly targeting limit': 'Your plan sets your weekly targeting limit. Check your remaining capacity under Plans & credits.',
       },
     ),
   );
@@ -1660,6 +1672,9 @@ class SellerOfferForm extends StatefulWidget {
     this.timezones = const <String>[],
     this.onSubmitOffer,
     this.uploadImage,
+    this.previewFeePlan,
+    this.loadLeadInsights,
+    this.onComparePlans,
   });
 
   final SellerLeadView lead;
@@ -1674,6 +1689,9 @@ class SellerOfferForm extends StatefulWidget {
   final List<String> timezones;
   final SellerOfferSubmitter? onSubmitOffer;
   final ImageUpload? uploadImage;
+  final PlanCode? previewFeePlan;
+  final Future<CustomerHistory?> Function(String)? loadLeadInsights;
+  final VoidCallback? onComparePlans;
 
   final SellerOfferEditFields? edit;
   @override
@@ -1682,6 +1700,21 @@ class SellerOfferForm extends StatefulWidget {
 
 class _SendOfferSheetState extends State<SellerOfferForm> {
   bool get _realMode => widget.onSubmitOffer != null || widget.edit != null;
+  PlanCode? _feePlan;
+  Future<CustomerHistory?>? _leadInsights;
+  PlanCode? get _insightsPlan => _realMode ? _feePlan : widget.previewFeePlan;
+
+  void _comparePlans() {
+    if (!_ownsCurrentRoute) return;
+    _close();
+    widget.onComparePlans?.call();
+  }
+
+  Future<CustomerHistory?>? _loadLeadInsights(PlanCode? plan) {
+    final requestId = widget.lead.requestId;
+    if (plan != PlanCode.elite || requestId == null || widget.edit != null) return null;
+    return widget.loadLeadInsights?.call(requestId);
+  }
   SellerOfferPresentation get _presentation =>
       _realMode ? _livePresentation : widget.presentation;
   SellerOfferPresentation _livePresentation =
@@ -1708,7 +1741,11 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
       bool current() => mounted && (identity == null || (user != null && identity() == user));
       if (!current()) return;
       final plan = entitlement?.effectivePlan;
-      setState(() => _canPublish = plan == PlanCode.pro || plan == PlanCode.elite);
+      setState(() {
+        _feePlan = plan;
+        _canPublish = plan == PlanCode.pro || plan == PlanCode.elite;
+        _leadInsights = _loadLeadInsights(plan);
+      });
       if (backend == null) return;
       final wallet = await backend.loadCreditWallet();
       if (!current()) return;
@@ -1822,6 +1859,8 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
           if (mounted) _resolveBusiness();
         });
       }
+    } else {
+      _leadInsights = _loadLeadInsights(widget.previewFeePlan);
     }
     final firstName = widget.lead.name.split(' ').first;
     final product = widget.lead.request
@@ -2513,6 +2552,7 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                         ),
                       ),
                       SizedBox(height: metrics.spacing(10)),
+
                       if (edit == null) Padding(
                         padding: EdgeInsets.only(left: metrics.geometry(40)),
                         child: Wrap(
@@ -2663,7 +2703,7 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                               icon: Icons.location_on_outlined,
                               title: 'Buyer’s location',
                               subtitle: _meetupChoice == _MeetupChoice.buyer
-                                  ? '${widget.lead.city}. Exact address shared after selection.'
+                                  ? '${widget.lead.city}. Review the exact location in your meetup details when it’s shared.'
                                   : 'I’ll travel to the buyer',
                               onTap: () => setState(() {
                                 final originalBuyerPlace = edit?.terms.place.choice == MeetupPlaceChoice.buyerLocation;
@@ -2765,44 +2805,10 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                         number: '5',
                         title: 'How it works',
                         subtitle: '',
-                        child: Container(
-                          padding: EdgeInsets.all(metrics.spacing(10)),
-                          decoration: BoxDecoration(
-                            color: HocalistPalette.surface(
-                              context,
-                              SellerUiColors.lavender,
-                            ),
-                            borderRadius: BorderRadius.circular(
-                              metrics.geometry(9),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              const _OfferHowItWorksRow(
-                                icon: Icons.edit_note_outlined,
-                                text: 'Send your offer to the buyer.',
-                              ),
-                              _OfferHowItWorksRow(
-                                icon: Icons.phone_outlined,
-                                text: _realMode
-                                    ? 'Sending holds the total fee from one eligible credit top-up. Free and Pro pay the initial fee when the buyer replies. Elite fees stay pending until a purchase is confirmed with a PIN or the seven-day deadline. Eligible fees are waived if no purchase happens.'
-                                    : 'Free and Pro initial fees apply after the buyer replies. Elite fees stay pending until a purchase confirmed with a PIN or the seven-day deadline; eligible no-purchase fees are waived.',
-                              ),
-                              _OfferHowItWorksRow(
-                                icon: Icons.emoji_events_outlined,
-                                text: _realMode
-                                    ? 'If the buyer confirms purchasing from you with their Hocalist PIN, only the unpaid part of your total fee is charged.'
-                                    : 'If the buyer confirms the purchase with their Hocalist PIN, you’ll only pay the remaining balance needed to complete your winning bid.',
-                              ),
-                              _OfferHowItWorksRow(
-                                icon: Icons.refresh,
-                                text: _realMode
-                                    ? 'Your credit top-up keeps its original rates. Held credits are released according to the meeting and expiry rules. There is no automatic \$1 charge.'
-                                    : 'If the buyer never confirms a purchase with any seller, your initial bid is automatically reduced to just \$1.00.',
-                                showBottomGap: false,
-                              ),
-                            ],
-                          ),
+                        child: SellerOfferFeeGuide(
+                          plan: _realMode
+                              ? _feePlan
+                              : widget.previewFeePlan ?? PlanCode.pro,
                         ),
                       ),
                       ],
@@ -2819,6 +2825,15 @@ class _SendOfferSheetState extends State<SellerOfferForm> {
                       ),
                       SizedBox(height: metrics.spacing(10)),
 
+                      if (edit == null && widget.lead.requestId != null &&
+                          widget.loadLeadInsights != null && _insightsPlan != null) ...[
+                        _LeadInsightsNotice(
+                          unlocked: _insightsPlan == PlanCode.elite,
+                          history: _leadInsights,
+                          onComparePlans: widget.onComparePlans == null ? null : _comparePlans,
+                        ),
+                        SizedBox(height: metrics.spacing(10)),
+                      ],
                       if (_submitError != null) ...[
                         Text(
                           _submitError!,
@@ -3536,7 +3551,7 @@ class _OfferBidCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Initial bid $initialBid',
+                'Initial lead fee $initialBid',
                 style: sellerText(
                   metrics,
                   compact ? 9.5 : 11,
@@ -3545,13 +3560,20 @@ class _OfferBidCard extends StatelessWidget {
               ),
               SizedBox(height: metrics.geometry(3)),
               Text(
-                '${remainingWinningBid == null ? 'Winning Bid' : 'Winning total'} $winningBid',
+                'Total fee if you win $winningBid',
                 style: sellerText(
                   metrics,
                   compact ? 9.5 : 11,
                   weight: FontWeight.w800,
                 ),
               ),
+              if (remainingWinningBid case final remaining?) ...[
+                SizedBox(height: metrics.geometry(3)),
+                Text(
+                  'After initial fee $remaining',
+                  style: sellerText(metrics, compact ? 9.5 : 11),
+                ),
+              ],
             ],
           ),
         ),
@@ -3610,7 +3632,7 @@ class _OfferPublishChoice extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
     final accent = HocalistPalette.text(context, SellerUiColors.primaryBright);
-    const label = 'Also publish to Store and Hocatrends';
+    const label = 'Also submit to Store and Hocatrends for review';
     return Semantics(
       checked: selected,
       enabled: onTap != null,
@@ -3929,38 +3951,48 @@ class _OfferMessageField extends StatelessWidget {
   }
 }
 
-class _OfferHowItWorksRow extends StatelessWidget {
-  const _OfferHowItWorksRow({
-    required this.icon,
-    required this.text,
-    this.showBottomGap = true,
-  });
+class _LeadInsightsNotice extends StatelessWidget {
+  const _LeadInsightsNotice({required this.unlocked, this.history, this.onComparePlans});
 
-  final IconData icon;
-  final String text;
-  final bool showBottomGap;
+  final bool unlocked;
+  final Future<CustomerHistory?>? history;
+  final VoidCallback? onComparePlans;
 
   @override
   Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.of(context);
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: showBottomGap ? metrics.geometry(10) : 0,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, unlocked ? SellerUiColors.amberSurface : SellerUiColors.lavender),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: HocalistPalette.border(context, SellerUiColors.line)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: HocalistPalette.text(context, SellerUiColors.primaryBright),
-            size: metrics.artSize(18),
-          ),
-          SizedBox(width: metrics.geometry(9)),
-          Expanded(
-            child: Text(text, style: sellerText(metrics, 11, height: 1.35)),
-          ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 6, children: [
+          Text('About this customer', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          SellerPlanBadge(label: unlocked ? 'Elite benefit' : 'Elite only', locked: !unlocked),
+        ]),
+        const SizedBox(height: 8),
+        if (unlocked)
+          FutureBuilder<CustomerHistory?>(
+            future: history,
+            builder: (context, snapshot) {
+              final data = snapshot.data;
+              return Text(switch (snapshot.connectionState) {
+                ConnectionState.waiting => 'Loading purchase history…',
+                _ when snapshot.hasError => 'Purchase history is unavailable.',
+                _ when data != null =>
+                  'This buyer confirmed a purchase on ${data.confirmedPurchases} of ${data.concludedRequests} past requests.',
+                _ => 'Not enough purchase history yet.',
+              });
+            },
+          )
+        else ...[
+          const Text('Upgrade to Elite to see this buyer’s purchase history.'),
+          if (onComparePlans != null)
+            TextButton(onPressed: onComparePlans, child: const Text('Compare plans')),
         ],
-      ),
+      ]),
     );
   }
 }

@@ -192,7 +192,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     final message = switch (status) {
       'confirmed' =>
         'Purchase confirmed. Item payment remains between buyer and seller.',
-      'completed_elsewhere' => 'This request already has a confirmed purchase.',
+      'completed_elsewhere' => 'The purchase was confirmed with a different seller.',
       'meeting_not_accepted' =>
         'Accept a meeting schedule before confirming a purchase.',
       'expired' =>
@@ -216,7 +216,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     };
     final tone = switch (status) {
       'confirmed' => _ConfirmationTone.success,
-      'completed_elsewhere' => _ConfirmationTone.success,
+      'completed_elsewhere' => _ConfirmationTone.brand,
       'incorrect' ||
       'invalid_format' ||
       'locked' ||
@@ -242,7 +242,11 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
           _ConfirmationNotice(
             isBuyer: widget.isBuyer,
             tone: tone,
-            title: done ? 'Purchase confirmed' : 'Confirm purchase',
+            title: switch (status) {
+              'confirmed' => 'Purchase confirmed',
+              'completed_elsewhere' => 'Purchased from another seller',
+              _ => 'Confirm purchase',
+            },
             message: message,
           ),
           if (result?.pin != null || (widget.isBuyer && !done)) ...[

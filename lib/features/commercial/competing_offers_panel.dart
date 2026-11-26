@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/phase2/commercial/entitlement_backend.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../../theme/seller_ui_foundation.dart';
+import 'seller_fee_copy.dart';
 
 /// Prices are loaded only after explicit consent. The server owns eligibility.
 class CompetingOffersPanel extends StatefulWidget {
@@ -106,6 +107,9 @@ class _CompetingOffersPanelState extends State<CompetingOffersPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Align(alignment: Alignment.centerLeft,
+            child: SellerPlanBadge(label: 'Elite benefit')),
+          const SizedBox(height: 8),
           if (_prices != null) ...[
             const SellerSectionHeading(title: 'Competing offer prices'),
             const SizedBox(height: 8),
@@ -116,20 +120,20 @@ class _CompetingOffersPanelState extends State<CompetingOffersPanel> {
               style: body,
             ),
             const SizedBox(height: 8),
-            Text('Refund eligibility has been removed for this request.', style: body),
+            Text('The no-purchase fee waiver no longer applies to this request.', style: body),
           ] else if (_confirm) ...[
             Text(
-              'Viewing competing offers removes your refund eligibility for this request. Only prices will be shown.',
+              '$eliteNoPurchaseWaiver Only prices will be shown.',
               style: body,
             ),
             const SizedBox(height: 12),
             SellerPrimaryButton(
-              label: _busy ? 'Opening…' : 'View prices and give up refund',
+              label: _busy ? 'Opening…' : 'View prices and give up waiver',
               onPressed: _busy ? null : _view,
             ),
             const SizedBox(height: 8),
             SellerSecondaryButton(
-              label: 'Keep refund eligibility',
+              label: 'Keep fee waiver',
               onPressed: _busy
                   ? null
                   : () => setState(() {

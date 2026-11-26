@@ -215,12 +215,17 @@ class _SellerOfferRevisionEditorState extends State<SellerOfferRevisionEditor> {
               FutureBuilder<bool>(
                 future: widget.withdrawalEligibility,
                 builder: (_, approval) => (widget.withdrawalEligibility == null || approval.data == true)
-                  ? SellerSecondaryButton(
-                key: const Key('sellerOfferWithdraw'),
-                color: SellerUiColors.red,
-                label: _retryWithdrawal ? 'Retry withdrawal' : 'Withdraw offer',
-                onPressed: _busy || _uncertain != null || waiting ? null : _withdraw,
-              ) : const SizedBox.shrink(),
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    const Align(alignment: Alignment.centerLeft,
+                      child: SellerPlanBadge(label: 'Pro & Elite benefit')),
+                    const SizedBox(height: 6),
+                    SellerSecondaryButton(
+                      key: const Key('sellerOfferWithdraw'),
+                      color: SellerUiColors.red,
+                      label: _retryWithdrawal ? 'Retry withdrawal' : 'Withdraw offer',
+                      onPressed: _busy || _uncertain != null || waiting ? null : _withdraw,
+                    ),
+                  ]) : const SizedBox.shrink(),
               ),
             ],
             if (_uncertain != null) ...[

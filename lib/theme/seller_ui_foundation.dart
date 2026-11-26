@@ -36,6 +36,37 @@ abstract final class SellerUiColors {
   static const white = Color(0xFFFFFFFF);
 }
 
+class SellerPlanBadge extends StatelessWidget {
+  const SellerPlanBadge({required this.label, this.locked = false, super.key});
+
+  final String label;
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = locked
+        ? HocalistPalette.text(context, SellerUiColors.body)
+        : dark ? const Color(0xFFFFD784) : const Color(0xFF754900);
+    final background = locked
+        ? HocalistPalette.surface(context, SellerUiColors.lavender)
+        : dark ? const Color(0xFF392916) : SellerUiColors.amberSurface;
+    return DecoratedBox(
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(30)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(locked ? Icons.lock_outline : Icons.workspace_premium_outlined,
+            size: 15, color: foreground),
+          const SizedBox(width: 4),
+          Flexible(child: Text(label, style: TextStyle(fontSize: 11,
+            fontWeight: FontWeight.w800, color: foreground))),
+        ]),
+      ),
+    );
+  }
+}
+
 abstract final class SellerAssets {
   static const _root = 'assets/approved_seller';
 

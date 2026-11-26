@@ -358,6 +358,8 @@ class SellerAccountHealthView {
     required this.reviewStatus,
     this.restrictions = const [],
     this.loaded = true,
+    this.conductScore,
+    this.confirmedIncidents = 0,
   });
 
   const SellerAccountHealthView.unavailable()
@@ -365,6 +367,8 @@ class SellerAccountHealthView {
       phoneVerified = false,
       reviewStatus = 'not_submitted',
       restrictions = const [],
+      conductScore = null,
+      confirmedIncidents = 0,
       loaded = false;
 
   final bool emailVerified;
@@ -374,10 +378,13 @@ class SellerAccountHealthView {
   /// or `rejected`.
   final String reviewStatus;
 
+  /// Active restrictions returned by the account health read.
   final List<SellerHealthRestriction> restrictions;
   final bool loaded;
+  final int? conductScore;
+  final int confirmedIncidents;
 
-  bool get hasActiveRestriction => restrictions.any((row) => row.canAppeal);
+  bool get hasActiveRestriction => restrictions.isNotEmpty;
 }
 
 /// One recorded restriction with its reason and appeal route.

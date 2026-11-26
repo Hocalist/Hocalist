@@ -186,7 +186,7 @@ class _BuyerRewardsPanelState extends State<BuyerRewardsPanel> {
               body:
                   'Normal ${usd(value.normalMinor ?? 0)}'
                   '${value.lateWindowHours == null ? '' : ' · late ${usd(value.lateMinor ?? 0)} within ${value.lateWindowHours}h'}'
-                  '. A purchase confirmation alone does not create a reward.',
+                  '. Eligible rewards follow PIN confirmation and seller fee collection.',
             ),
           SizedBox(height: metrics.spacing(12)),
           if (!value.withdrawal.configured)
@@ -220,9 +220,7 @@ class _BuyerRewardsPanelState extends State<BuyerRewardsPanel> {
                 tone: BuyerNoticeTone.warning,
                 title: 'Withdrawals are not available yet',
                 body:
-                    'Payout execution is provider-neutral and stays off '
-                    'until the payout provider is verified. Nothing is '
-                    'simulated and no bank details are collected here.',
+                    'You can still review your earned rewards and available balance.',
               ),
           ],
           SizedBox(height: metrics.spacing(16)),

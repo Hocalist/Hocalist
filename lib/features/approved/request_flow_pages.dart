@@ -1551,7 +1551,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
         ),
         SizedBox(height: metrics.geometry(6)),
         Text(
-          'Sellers will be able to only see your\nlocation once you close the deal.',
+          'Sellers can see your general area. Check which exact address will be shared before proposing or accepting a meetup.',
           textAlign: TextAlign.center,
           style: _bodyStyle(context).copyWith(
             color: HocalistPalette.text(context, _approvedMuted),

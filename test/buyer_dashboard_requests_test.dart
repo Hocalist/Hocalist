@@ -71,6 +71,7 @@ ApprovedBuyerHomePage _page({
   String? requestsError,
   VoidCallback? onRefreshRequests,
   ValueChanged<BuyerRequestView>? onOpenRequest,
+  ValueChanged<BuyerRequestView>? onCloseFromHome,
   ValueChanged<BuyerRequestView>? onOpenOffers,
   Future<Map<String, dynamic>> Function()? loadRealRewards,
   List<MeetingView>? realMeetings,
@@ -98,6 +99,7 @@ ApprovedBuyerHomePage _page({
   requestsError: requestsError,
   onRefreshRequests: onRefreshRequests,
   onOpenRequest: onOpenRequest,
+  onCloseFromHome: onCloseFromHome,
   onOpenOffers: onOpenOffers,
   loadRealRewards: loadRealRewards,
   realMeetings: realMeetings,
@@ -255,7 +257,7 @@ void main() {
       find.byKey(const ValueKey('approved-keep-earning-banner')),
       findsOneWidget,
     );
-    expect(find.text('Keep earning rewards'), findsOneWidget);
+    expect(find.text('How rewards work'), findsOneWidget);
   });
 
   testWidgets('real dashboard requests Offers carries the tapped identity', (
@@ -394,6 +396,7 @@ void main() {
   testWidgets('request card opens offers and editing stays in its menu', (tester) async {
     BuyerRequestView? opened;
     BuyerRequestView? edited;
+    BuyerRequestView? closeRequested;
     await _pump(
       tester,
       _page(
@@ -404,6 +407,7 @@ void main() {
         ],
         onOpenOffers: (view) => opened = view,
         onOpenRequest: (view) => edited = view,
+        onCloseFromHome: (view) => closeRequested = view,
       ),
     );
     await tester.ensureVisible(
@@ -421,6 +425,12 @@ void main() {
     await tester.tap(find.text('Edit request'));
     await tester.pumpAndSettle();
     expect(edited?.requestId, opened?.requestId);
+    expect(closeRequested, isNull);
+    await tester.longPress(
+      find.byKey(const ValueKey('approved-active-request-card')).first,
+    );
+    await tester.pumpAndSettle();
+    expect(closeRequested?.requestId, opened?.requestId);
   });
 
   testWidgets('dashboard shows loading, error and empty request states', (

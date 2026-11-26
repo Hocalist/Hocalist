@@ -4,6 +4,7 @@ import '../../theme/adaptive_palette.dart';
 import '../../theme/seller_ui_foundation.dart';
 import 'approved_billing_artwork.dart';
 import 'seller_payment_panel.dart';
+import 'seller_fee_copy.dart';
 
 class SellerPlanSummary extends StatelessWidget {
   const SellerPlanSummary({required this.value, this.focusManagePlans = false, super.key});
@@ -20,7 +21,7 @@ class SellerPlanSummary extends StatelessWidget {
     final limits = value.plans.where((p) => p.planCode == plan).firstOrNull;
     final rows = <String>[
       if (limits != null)
-        'Target up to ${limits.weeklyTargetLimit} weekly customers',
+        'Weekly targeting limit: ${limits.weeklyTargetLimit}',
       if (limits != null)
         'List up to ${limits.storeListingLimit} products or services',
       if (plan == PlanCode.free)
@@ -30,11 +31,11 @@ class SellerPlanSummary extends StatelessWidget {
         'Offer withdrawal before the buyer responds',
         'Contacts dashboard',
         'Recommended leads',
-        'Get listed on Hocatrends',
+        'Publish eligible listings to Hocatrends',
         'More savings on targeting fees',
       ],
       if (elite) ...[
-        'Refunds when no purchase is confirmed',
+        'Eligible fee waivers when no purchase is confirmed',
         'View competing offers after buyer acceptance',
         'Customer insights',
       ],
@@ -170,9 +171,17 @@ class SellerPlanSummary extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            rows[i],
-                            style: const TextStyle(fontSize: 14, height: 1.4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(rows[i], style: const TextStyle(fontSize: 14, height: 1.4)),
+                              if (plan != PlanCode.free) ...[
+                                const SizedBox(height: 5),
+                                SellerPlanBadge(label: artworkIndices[i] < 2
+                                    ? '$name benefit'
+                                    : artworkIndices[i] >= 7 ? 'Elite benefit' : 'Pro & Elite benefit'),
+                              ],
+                            ],
                           ),
                         ),
                       ],
@@ -202,7 +211,7 @@ class SellerPlanSummary extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Text(
-              'Viewing competing offers removes refund eligibility for that request. You will be asked before viewing.',
+              '$eliteNoPurchaseWaiver You’ll be asked before viewing.',
               style: TextStyle(fontSize: 12, color: SellerUiColors.muted),
             ),
           ),

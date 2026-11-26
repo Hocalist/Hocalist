@@ -83,6 +83,8 @@ class Phase2MarketplaceOffersBackend implements MarketplaceOffersBackend {
       ConflictError(conflictCode: 'offer_exists') =>
         'You already sent an offer for this request. Open your existing offer '
             'to review or change it.',
+      ConflictError(conflictCode: 'offer_funding_conflict') =>
+        'The previous offer still has an active payment hold. Check your Credits and try again.',
       ConflictError(conflictCode: 'targeting_fee_unconfigured') =>
         'Targeting is not configured yet, so this offer cannot be accepted. '
             'No charge was made.',

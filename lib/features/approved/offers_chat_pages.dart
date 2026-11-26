@@ -957,12 +957,12 @@ class _PurchaseSellerPanel extends StatelessWidget {
     final compact =
         MediaQuery.sizeOf(context).width <= 320 &&
         !_usesAccessibilityReflow(context);
-    final title = purchaseSelected ? 'Seller confirmed' : 'Confirm your seller';
+    final title = purchaseSelected ? 'Seller chosen for purchase' : 'Choose a seller for purchase';
     final body = purchaseSelected
         ? 'Only this seller can confirm the purchase with your request PIN. '
               'Other negotiations close if you confirm with them.'
-        : 'Confirm this seller before arranging your meeting. Each deal stays '
-              'separate inside your conversation. Item payment stays offline.';
+        : 'Choose the seller who can confirm your completed purchase with the PIN. '
+              'You’ll pay the seller directly.';
     return _Surface(
       padding: EdgeInsets.all(compact ? 5 : 7),
       child: Column(
@@ -991,7 +991,7 @@ class _PurchaseSellerPanel extends StatelessWidget {
             SizedBox(height: compact ? 4 : 6),
             _PrimaryButton(
               key: const Key('approved-choose-purchase-seller'),
-              label: busy ? 'Confirming…' : 'Confirm seller',
+              label: busy ? 'Saving…' : 'Choose seller for purchase',
               onPressed: busy ? null : onChoose,
               height: compact ? 32 : 44,
             ),
@@ -1107,7 +1107,7 @@ class ApprovedDealView {
       statusLabel: offer.requestClosed && offer.status != OfferStatus.completed ? 'Request closed' : historical
           ? (offer.status == OfferStatus.completed ? 'Purchase completed' : 'Deal closed')
           : offer.purchaseSelected
-          ? 'Seller confirmed · review offered meeting'
+          ? 'Seller chosen · review meetup details'
           : 'Awaiting buyer confirmation',
       actionLabel: historical
           ? 'View offer details'
@@ -1368,7 +1368,7 @@ class ApprovedConversationBody extends StatefulWidget {
     required this.onLearnMore,
     this.primaryLabel = 'Accept to meet',
     this.contactName = 'John D.',
-    this.contactRoleLabel = 'Verified Seller',
+    this.contactRoleLabel = 'Sample chat',
     this.contactInitials,
     this.incomingMessage =
         'Hi! The iPad is in perfect condition like we discussed.',
@@ -3202,24 +3202,26 @@ class _OffersRewardsCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                realMode ? 'Rewards' : 'Est. Rewards',
+                realMode ? 'Buyer rewards' : 'Sample reward estimate',
                 style: _text(
                   context,
                   size: tight ? 9 : 12,
                   weight: FontWeight.w800,
                 ),
               ),
-              Text(
-                realMode ? r'$0.15–$0.30' : r'$0.40',
+              if (!realMode) Text(
+                r'$0.40',
                 style: _text(
                   context,
-                  size: realMode ? (tight ? 17 : 21) : (tight ? 24 : 31),
+                  size: tight ? 24 : 31,
                   weight: FontWeight.w900,
                   color: _offersBlue,
                 ),
               ),
               Text(
-                realMode ? 'Per confirmed purchase' : 'From 2 sellers',
+                realMode
+                    ? 'Eligible purchases earn rewards after PIN confirmation and seller fee collection.'
+                    : 'From 2 sample sellers',
                 style: _text(context, size: tight ? 8 : 10, color: _muted),
               ),
             ],
@@ -3231,7 +3233,7 @@ class _OffersRewardsCard extends StatelessWidget {
             IconButton(tooltip: 'How offer rewards work', icon: const Icon(Icons.info_outline_rounded),
               color: HocalistPalette.text(context, _offersBlue),
               onPressed: () => showMoneyHelp(context, title: 'Offer rewards', answers: const {
-                'When do I earn a reward?': 'Confirm a qualifying purchase with your request PIN. The reward becomes available after the applicable seller fees are collected.',
+                'When do I earn a reward?': 'Earn rewards on eligible purchases after PIN confirmation and seller fee collection.',
               })),
           ]);
         },
@@ -3626,7 +3628,7 @@ class _OfferSellerSummary extends StatelessWidget {
                                       offer?.status ==
                                           LocalOfferStatus.meetingConfirmed
                                 ? 'Selected for discussion. Review the agreed deal details below.'
-                                : 'Offer received. Select this seller to open your conversation.',
+                                : 'Offer received. Start a deal chat to discuss it.',
                             style: _text(
                               context,
                               size: compact ? 8 : 9,
@@ -3852,7 +3854,7 @@ class _OfferRewardWindow extends StatelessWidget {
                     Text(
                       realMode
                           ? 'Rewards after a confirmed purchase'
-                          : 'You have 7 days left',
+                          : 'Sample reward estimate',
                       style: _text(
                         context,
                         size: compact ? 11 : 14,
@@ -3863,9 +3865,9 @@ class _OfferRewardWindow extends StatelessWidget {
                     Text(
                       realMode
                           ? 'Share your request PIN only after you complete the '
-                                'sale. Rewards stay pending until applicable '
-                                'fees are collected.'
-                          : 'Buy from any seller within 7 days to get your rewards.',
+                                'purchase. Eligible rewards are earned after '
+                                'PIN confirmation and seller fee collection.'
+                          : 'An eligible purchase earns a reward after PIN confirmation and seller fee collection.',
                       style: _text(
                         context,
                         size: compact ? 8 : 10,
@@ -3878,6 +3880,7 @@ class _OfferRewardWindow extends StatelessWidget {
               ),
             ],
           );
+          if (realMode) return copy;
           final reward = Container(
             padding: EdgeInsets.symmetric(
               horizontal: compact ? 8 : 11,
@@ -3890,7 +3893,7 @@ class _OfferRewardWindow extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  realMode ? 'Policy rate' : 'Est. rewards',
+                  'Sample estimate',
                   style: _text(
                     context,
                     size: compact ? 7 : 9,
@@ -3899,10 +3902,10 @@ class _OfferRewardWindow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  realMode ? r'$0.15–$0.30' : r'$12.40',
+                  r'$12.40',
                   style: _text(
                     context,
-                    size: realMode ? (compact ? 12 : 14) : (compact ? 15 : 18),
+                    size: compact ? 15 : 18,
                     weight: FontWeight.w900,
                   ),
                 ),
@@ -4393,9 +4396,9 @@ class _SelectSellerPanel extends StatelessWidget {
                 child: _PrimaryButton(
                   key: const Key('approved-select-seller'),
                   label: busy
-                      ? 'Selecting…'
+                      ? 'Opening…'
                       : enabled
-                      ? 'Select this seller'
+                      ? 'Start deal chat'
                       : 'Offer unavailable',
                   onPressed: busy || !enabled ? null : onSelect,
                   height: compact ? 32 : 44,
@@ -4419,7 +4422,7 @@ class _SelectSellerPanel extends StatelessWidget {
           ],
           SizedBox(height: compact ? 1 : 2),
           Text(
-            'Selecting this seller will share your contact information.',
+            'Discuss the offer and meetup with this seller in Hocalist chat.',
             textAlign: TextAlign.center,
             style: _text(
               context,
@@ -5860,7 +5863,7 @@ class ApprovedRealDealDetailsSheet extends StatelessWidget {
           if (onOpenMeeting == null && !hideUnavailableAction) ...[
             SizedBox(height: metrics.geometry(6)),
             Text(
-              'Meeting details are not connected in this build.',
+              'Meeting details are currently unavailable.',
               key: const ValueKey('approved-real-deal-meeting-unavailable'),
               textAlign: TextAlign.center,
               style: _text(context, size: 10.5, color: _muted),

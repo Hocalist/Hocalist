@@ -130,7 +130,7 @@ void main() {
 
       await _pumpPage(tester, _viewOffer(calls), width: 320, height: 693);
       _expectSameRow(tester, 'Identity verified', '1.2 mi away');
-      _expectSameRow(tester, 'You have 7 days left', 'Est. rewards');
+      _expectSameRow(tester, 'Sample reward estimate', 'Sample estimate');
       _expectSameRow(
         tester,
         'Seller PIN for your rewards',
@@ -142,7 +142,7 @@ void main() {
       _expectNoTruncatedText(tester);
 
       await _pumpPage(tester, _chat(calls), width: 320, height: 693);
-      _expectSameRow(tester, 'John D.', 'Verified Seller');
+      _expectSameRow(tester, 'John D.', 'Sample chat');
       expect(find.text('Active deals (1)'), findsOneWidget);
       expect(find.byKey(const Key('active-deal-ipad')), findsOneWidget);
       expect(find.byKey(const Key('active-deal-new')), findsOneWidget);
@@ -317,13 +317,14 @@ void main() {
     });
   });
 
-  testWidgets('buyer sees the reward range and can open its corner help', (tester) async {
+  testWidgets('buyer sees reward eligibility and can open its corner help', (tester) async {
     final calls = _Calls();
     await _pumpPage(tester, ApprovedOffersReceivedPage(
       onBack: () {}, onNotifications: () {}, onViewOffer: () {},
       onChat: () {}, onFilter: () {}, navigation: calls.navigation, realOffers: const [],
     ), width: 320);
-    expect(find.text(r'$0.15–$0.30'), findsOneWidget);
+    expect(find.text('Buyer rewards'), findsOneWidget);
+    expect(find.text(r'$0.15–$0.30'), findsNothing);
     final help = find.byTooltip('How offer rewards work');
     await tester.ensureVisible(help);
     await tester.tap(help);

@@ -209,8 +209,8 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 SizedBox(height: metrics.spacing(14)),
                 _SectionTitle(
                   title: 'Recommended leads for you',
-                  subtitle: 'Buyers looking for what you offer',
-                  action: 'View all',
+                  subtitle: 'Suggested requests based on your seller setup',
+                  action: 'Browse leads',
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -287,8 +287,9 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 SizedBox(height: metrics.spacing(14)),
                 _SectionTitle(
                   title: 'Recommended leads for you',
-                  subtitle: 'Buyer requests that match what you offer',
-                  action: 'View all',
+                  subtitle: 'Suggested requests based on your seller setup',
+                  benefit: SellerPlanBadge(label: 'Pro & Elite benefit', locked: widget.recommendationsLocked),
+                  action: 'Browse leads',
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -602,8 +603,8 @@ class _RealSellerHomeNotice extends StatelessWidget {
 
 /// Account health slot. When the trust projection is available it shows the
 /// manual review state and recorded restriction reasons with the appeal path;
-/// otherwise it keeps the approved honest placeholder. It never shows a
-/// computed numeric health score.
+/// otherwise it keeps the placeholder. Verification and conduct are shown
+/// together while each retains its own meaning.
 class _AccountHealthSlot extends StatefulWidget {
   const _AccountHealthSlot({
     this.health,
@@ -656,7 +657,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
     if (error != null) return 'Account health could not be loaded';
     final value = health;
     if (value == null) return 'Not available yet';
-    if (value.hasActiveRestriction) return 'Restricted · review required';
+    if (value.hasActiveRestriction) return _restrictionHeadline(value);
     return switch (value.reviewStatus) {
       'approved' => 'Identity review approved',
       'pending' => 'Review in progress',
@@ -664,6 +665,11 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
       _ => 'No review submitted',
     };
   }
+
+  String _restrictionHeadline(SellerAccountHealthView value) =>
+      value.restrictions.any((restriction) => restriction.appealStatus == 'submitted')
+          ? 'Restricted · Appeal pending'
+          : 'Restricted · review required';
 
   IconData get _icon {
     final value = health;
@@ -716,7 +722,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                         error ??
                         (loading
                             ? 'Your verification and review status will appear here.'
-                            : 'Account review is not connected in this build.'),
+                            : 'Account review is currently unavailable.'),
                     tone: error != null
                         ? SellerNoticeTone.error
                         : SellerNoticeTone.brand,
@@ -746,6 +752,16 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                         ? SellerNoticeTone.error
                         : SellerNoticeTone.brand,
                   ),
+                  if (value.conductScore case final score?) ...[
+                    const SizedBox(height: 10),
+                    SellerStateNotice(
+                      icon: Icons.fact_check_outlined,
+                      title: 'Conduct score · $score/100',
+                      body: value.confirmedIncidents == 0
+                          ? 'No confirmed conduct violations in the past six months.'
+                          : '${value.confirmedIncidents} confirmed ${value.confirmedIncidents == 1 ? 'incident' : 'incidents'} in the past six months. Only recorded findings affect this score.',
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   LayoutBuilder(
                     builder: (context, constraints) {
@@ -898,6 +914,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
   @override
   Widget build(BuildContext context) {
     final value = health;
+    final score = value?.conductScore;
     final completed = value == null || !value.loaded
         ? null
         : (value.emailVerified ? 1 : 0) +
@@ -905,7 +922,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
               (value.reviewStatus == 'approved' ? 1 : 0) +
               (widget.serviceAreaSaved ? 1 : 0);
     return Semantics(
-      label: completed == null
+      label: score != null ? 'Conduct score $score of 100. $completed of 4 verification steps complete.' : completed == null
           ? 'Verification progress unavailable'
           : '$completed of 4 verification steps complete',
       child: Material(
@@ -921,9 +938,22 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _AccountHealthBar(
-                steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
-              ),
+              if (score == null)
+                _AccountHealthBar(
+                  steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
+                )
+              else ...[
+                Text(value!.hasActiveRestriction ? 'Conduct score · $score/100'
+                    : '${score == 100 ? 'Good standing' : 'Needs attention'} · $score/100',
+                  style: sellerText(ApprovedReplicaScope.of(context), 11, weight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                LinearProgressIndicator(
+                  value: score / 100,
+                  backgroundColor: HocalistPalette.surface(context, SellerUiColors.line),
+                  color: value.hasActiveRestriction ? SellerUiColors.red : score == 100 ? SellerUiColors.green : SellerUiColors.amber,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ],
               if (completed != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -940,7 +970,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'Restricted · review required',
+                    _restrictionHeadline(value!),
                     style: sellerText(
                       ApprovedReplicaScope.of(context),
                       11,
@@ -1467,10 +1497,12 @@ class _SectionTitle extends StatelessWidget {
     required this.action,
     required this.onAction,
     this.subtitle,
+    this.benefit,
   });
 
   final String title;
   final String? subtitle;
+  final Widget? benefit;
   final String action;
   final VoidCallback onAction;
 
@@ -1493,6 +1525,10 @@ class _SectionTitle extends StatelessWidget {
                   subtitle!,
                   style: sellerText(metrics, 10.5, color: SellerUiColors.body),
                 ),
+              if (benefit != null) ...[
+                const SizedBox(height: 4),
+                benefit!,
+              ],
             ],
           ),
         ),
