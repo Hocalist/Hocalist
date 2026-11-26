@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        if (packageName.endsWith(".jonsdev")) return
         val preferences = getSharedPreferences("hocalist_analytics", MODE_PRIVATE)
         val analytics = FirebaseAnalytics.getInstance(this)
         fun applyConsent(enabled: Boolean) {

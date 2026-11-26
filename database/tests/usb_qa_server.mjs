@@ -1,0 +1,181 @@
+import { createServer } from 'node:http';
+import { randomBytes, randomUUID, createHmac } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { createCommercialDb, IDS, callAs } from '../commercial_completion/tests/fixture.mjs';
+
+const port = Number(process.env.HOCALIST_USB_QA_PORT ?? 48913);
+const clientKey = 'sb_publishable_local_hocalist_qa';
+const password = 'UsbQa2026TestOnly';
+const secret = randomBytes(32);
+const identities = new Map([
+  ['buyer@hocalist-qa.invalid', { id: IDS.buyer, name: 'USB QA Buyer', role: 'buyer' }],
+  ['seller@hocalist-qa.invalid', { id: IDS.seller, name: 'USB QA Seller', role: 'seller' }],
+]);
+const sessions = new Map();
+const refreshSessions = new Map();
+const requestIds = { offer: randomUUID(), close: randomUUID() };
+const readSql = (file) => readFile(new URL(file, import.meta.url), 'utf8');
+const db = await createCommercialDb();
+
+for (const file of [
+  '../chat/012_credit_qualification.sql',
+  '../notifications/030_notification_inbox.sql',
+  '../notifications/031_notification_producers.sql',
+  '../runtime_repairs/207_offer_submission_fee.sql',
+  '../runtime_repairs/228_target_fee_policy.sql',
+  '../runtime_repairs/229_earned_pro_policy.sql',
+  '../runtime_repairs/231_deal_chat_threads.sql',
+  '../runtime_repairs/235_paygo_payment_setup.sql',
+  '../runtime_repairs/236_paygo_collection.sql',
+  '../../supabase/migrations/20261027065137_elite_deferred_initial_fee.sql',
+  '../../supabase/migrations/20261125190045_free_weekly_unique_buyers.sql',
+  '../../supabase/migrations/20261125192441_pro_buyer_quota_and_offer_pull_out.sql',
+  '../runtime_repairs/248_seller_customer_tools.sql',
+  '../../supabase/migrations/20261125193543_elite_buyer_quota_and_lead_insights.sql',
+  '../runtime_repairs/245_seller_home_summary.sql',
+  '../discovery_completion/140_discovery_leads.sql',
+]) await db.exec(await readSql(file));
+
+await db.exec("ALTER TABLE hocalist.requests ADD COLUMN location_timezone text");
+const timezoneMigration = await readSql('../runtime_repairs/210_request_location_timezone.sql');
+for (const name of ['marketplace_lead_json', 'discovery_lead_json']) {
+  const start = timezoneMigration.indexOf('CREATE OR REPLACE FUNCTION hocalist.' + name + '(');
+  if (start < 0) throw new Error('Missing timezone projection: ' + name);
+  await db.exec(timezoneMigration.slice(start, timezoneMigration.indexOf('$$;', start) + 3));
+}
+
+for (const [label, title] of [
+  ['offer', 'USB QA Camera Tripod'],
+  ['close', 'USB QA Close Request'],
+]) {
+  await db.query(
+    'INSERT INTO hocalist.requests(id,buyer_user_id,buyer_profile_id,kind,title,description,condition,status,city,location_timezone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+    [requestIds[label], IDS.buyer, IDS.buyerMembership, 'product', title, 'Synthetic USB test request.', 'used', 'active', 'Orlando, FL', 'America/New_York'],
+  );
+}
+await db.exec("UPDATE hocalist.role_profiles SET area_label='Orlando, FL'");
+await db.query("INSERT INTO hocalist.seller_entitlements(user_id,plan_code,source) VALUES($1,'pro','admin')", [IDS.seller]);
+await db.query("SELECT hocalist.credit_deposit_internal($1,'usb-qa-credit',5000,190,475,'test')", [IDS.seller]);
+
+const identifier = /^[a-z_][a-z0-9_]*$/;
+const safeIdentifier = (value) => {
+  if (!identifier.test(value)) throw new Error('Invalid fixture field');
+  return '"' + value + '"';
+};
+const json = (response, status, payload) => {
+  response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+  response.end(JSON.stringify(payload));
+};
+const readBody = async (request) => {
+  let result = '';
+  for await (const part of request) {
+    result += part;
+    if (result.length > 100_000) throw new Error('Fixture request too large');
+  }
+  return result ? JSON.parse(result) : {};
+};
+const claims = (email, user) => ({
+  id: user.id, aud: 'authenticated', role: 'authenticated', email,
+  email_confirmed_at: '2026-11-01T00:00:00Z',
+  app_metadata: { provider: 'email', providers: ['email'] },
+  user_metadata: { full_name: user.name, role: user.role },
+  created_at: '2026-11-01T00:00:00Z', identities: [],
+});
+function session(email, user) {
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const base = encode({ alg: 'HS256', typ: 'JWT' }) + '.' +
+    encode({ sub: user.id, iss: 'http://127.0.0.1:48913/auth/v1', aud: 'authenticated', role: 'authenticated', email, iat: now, exp: now + 3600, session_id: randomUUID() });
+  const token = base + '.' + createHmac('sha256', secret).update(base).digest('base64url');
+  const refresh = randomBytes(32).toString('hex');
+  sessions.set(token, { email, user });
+  refreshSessions.set(refresh, { email, user });
+  return { access_token: token, token_type: 'bearer', expires_in: 3600, expires_at: now + 3600, refresh_token: refresh, user: claims(email, user) };
+}
+const visibleTables = new Set(['memberships', 'role_profiles', 'profile_contacts', 'notifications']);
+let queue = Promise.resolve();
+async function handle(request, response) {
+  const endpoint = new URL(request.url, 'http://127.0.0.1:' + port);
+  if (endpoint.pathname === '/__qa/state') {
+    const requests = (await db.query(
+      'SELECT title,status,revision FROM hocalist.requests WHERE id = ANY($1::uuid[]) ORDER BY title',
+      [Object.values(requestIds)],
+    )).rows;
+    const offers = (await db.query(
+      'SELECT o.status, o.revision, r.title, v.price_minor FROM hocalist.offers o JOIN hocalist.requests r ON r.id=o.request_id LEFT JOIN LATERAL (SELECT price_minor FROM hocalist.offer_revisions WHERE offer_id=o.id ORDER BY sequence DESC LIMIT 1) v ON true ORDER BY r.title',
+    )).rows;
+    return json(response, 200, { database: 'usb-qa', requests, offers });
+  }
+  if (request.headers.apikey !== clientKey) return json(response, 401, { message: 'Invalid QA API key' });
+  const token = request.headers.authorization?.replace(/^Bearer /i, '');
+  const signedIn = sessions.get(token);
+  const body = await readBody(request);
+  if (endpoint.pathname === '/auth/v1/token') {
+    if (endpoint.searchParams.get('grant_type') === 'refresh_token') {
+      const saved = refreshSessions.get(body.refresh_token);
+      return saved ? json(response, 200, session(saved.email, saved.user)) : json(response, 400, { msg: 'Invalid refresh token' });
+    }
+    const user = identities.get(body.email);
+    if (!user || body.password !== password) return json(response, 400, { msg: 'Invalid login credentials' });
+    return json(response, 200, session(body.email, user));
+  }
+  if (endpoint.pathname === '/auth/v1/logout') {
+    sessions.delete(token);
+    response.writeHead(204).end();
+    return;
+  }
+  if (!signedIn) return json(response, 401, { message: 'Sign in to USB QA first' });
+  const { email, user } = signedIn;
+  if (endpoint.pathname === '/auth/v1/user') return json(response, 200, claims(email, user));
+  if (!endpoint.pathname.startsWith('/rest/v1/')) return json(response, 404, { message: 'External providers disabled for USB QA' });
+  const verb = endpoint.pathname.slice('/rest/v1/'.length);
+  const profile = request.headers['content-profile'] ?? request.headers['accept-profile'];
+  if (profile !== 'hocalist') return json(response, 400, { message: 'Only the synthetic marketplace schema is exposed' });
+
+  if (verb.startsWith('rpc/')) {
+    const name = verb.slice(4);
+    const parts = Object.keys(body);
+    const bindings = parts.map((part, i) => safeIdentifier(part) + ' => $' + (i + 1));
+    const values = parts.map((part) => body[part]);
+    const rows = await callAs(db, 'authenticated', user.id,
+      'SELECT hocalist.' + safeIdentifier(name) + '(' + bindings.join(', ') + ') AS result', values);
+    if (name === 'marketplace_command') {
+      console.log('WRITE ' + user.role + ' ' + body.p_operation);
+    }
+    return json(response, 200, rows[0]?.result ?? null);
+  }
+
+  if (request.method !== 'GET' || !visibleTables.has(verb)) {
+    return json(response, 404, { code: 'PGRST205', message: 'QA table not exposed' });
+  }
+  const select = endpoint.searchParams.get('select') ?? '*';
+  const projection = select === '*' ? '*' : select.split(',').map(safeIdentifier).join(', ');
+  const values = [];
+  const conditions = [];
+  for (const [field, value] of endpoint.searchParams) {
+    if (['select', 'order', 'limit', 'offset'].includes(field)) continue;
+    const key = safeIdentifier(field);
+    if (value.startsWith('eq.')) {
+      values.push(value.slice(3));
+      conditions.push(key + ' = $' + values.length);
+    } else if (value === 'is.null') conditions.push(key + ' IS NULL');
+    else throw new Error('Unsupported QA filter');
+  }
+  const order = endpoint.searchParams.get('order');
+  const orderBy = order ? ' ORDER BY ' + order.split(',').map((term) => {
+    const [column, direction] = term.split('.');
+    return safeIdentifier(column) + (direction === 'desc' ? ' DESC' : ' ASC');
+  }).join(', ') : '';
+  const rows = await callAs(db, 'authenticated', user.id,
+    'SELECT ' + projection + ' FROM hocalist.' + safeIdentifier(verb) +
+    (conditions.length ? ' WHERE ' + conditions.join(' AND ') : '') + orderBy, values);
+  const single = request.headers.accept?.includes('application/vnd.pgrst.object+json');
+  return json(response, 200, single ? rows[0] ?? null : rows);
+}
+createServer((request, response) => {
+  queue = queue.then(() => handle(request, response)).catch((error) => {
+    console.log('ERROR ' + request.method + ' ' + request.url.split('?')[0] + ' ' + (error.code ?? '') + ' ' + error.message);
+    if (!response.headersSent) json(response, 400, { code: error.code ?? 'QA000', message: error.message });
+    else response.end();
+  });
+}).listen(port, '127.0.0.1', () => console.log('USB QA READY on 127.0.0.1:' + port));
