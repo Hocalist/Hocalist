@@ -4652,6 +4652,14 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     }
   }
 
+  Future<int> _loadBuyerRequestPotentialReward(String requestId) {
+    final backend = createConfiguredCommercialWalletBackend();
+    if (backend is CommercialRequestRewardBackend) {
+      return (backend as CommercialRequestRewardBackend).loadPotentialReward(requestId);
+    }
+    return Future.error(const CommercialUnavailableException('The reward estimate is unavailable.'));
+  }
+
   void _refreshBuyerOffersIfNeeded() {
     final request = _currentBuyerRequest;
     if (request == null || !_marketplace.isBuyerOffersBacked) return;
@@ -6456,6 +6464,8 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           animation: _marketplace,
           builder: (context, _) => ApprovedOffersReceivedPage(
             comparisonRequestTitle: _currentBuyerRequest?.draft.title,
+            rewardRequestId: _currentBuyerRequest?.id,
+            loadPotentialReward: _loadBuyerRequestPotentialReward,
             onBack: back,
             onNotifications: () => go(AppPage.notifications),
             onViewOffer: _selectSelectedOffer,

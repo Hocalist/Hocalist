@@ -80,6 +80,7 @@ for (const file of [
   '../../supabase/migrations/20261120111441_buyer_offer_decline.sql',
   '../runtime_repairs/buyer_meetup_management.sql',
   '../runtime_repairs/249_multi_seller_buyer_rewards.sql',
+  '../runtime_repairs/buyer_request_potential_reward.sql',
   '../runtime_repairs/274_buyer_catalogue_choices.sql',
   '../runtime_repairs/221_category_questions.sql',
 ]) await db.exec(await readSql(file));
@@ -147,13 +148,24 @@ if (buyerDemo) {
   for (const seller of demoSellers) {
     await db.query('UPDATE hocalist.role_profiles SET display_name=$1 WHERE membership_id=$2', [seller.name, seller.profile]);
     const [{ day }] = (await db.query("SELECT ((now() AT TIME ZONE 'America/New_York')::date+$1::int)::text AS day", [seller.day])).rows;
-    await command(seller.user, 'offer.submit', 'usb-qa-demo-offer-' + seller.day, {
+    // Give the second fixture offer a rate snapshot inside the late window.
+    if (seller.day === 2) {
+      await db.query("UPDATE hocalist.requests SET first_accepted_at=now(),acceptance_expires_at=now()+interval '6 hours' WHERE id=$1", [product]);
+    }
+    const sampleOffer = await command(seller.user, 'offer.submit', 'usb-qa-demo-offer-' + seller.day, {
       request_id: product, price_minor: seller.price, currency_code: 'USD',
       message: seller.day === 1 ? 'Protective case included' : 'USB-C cable included',
       schedule_date: day, schedule_time: '15:00', schedule_timezone: 'America/New_York',
       place_choice: 'specific_place', place_label: seller.place,
       place_latitude: 28.54, place_longitude: -81.38, image_media_ids: [seller.image],
     });
+    // Fixture already has eligible interactions so both offers can still be
+    // displayed in Compare offers. End-to-end qualification is tested separately.
+    const [{ id: target }] = (await db.query(
+      'UPDATE hocalist.credit_targets SET qualified_at=now() WHERE offer_id=$1 RETURNING id',
+      [sampleOffer.id],
+    )).rows;
+    await db.query("SELECT hocalist.credit_settle_internal($1,'initial')", [target]);
   }
 }
 

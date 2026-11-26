@@ -418,6 +418,8 @@ class ChatThreadView {
 class ApprovedOffersReceivedPage extends StatefulWidget {
   const ApprovedOffersReceivedPage({
     this.comparisonRequestTitle,
+    this.rewardRequestId,
+    this.loadPotentialReward,
     required this.onBack,
     required this.onNotifications,
     required this.onViewOffer,
@@ -442,6 +444,8 @@ class ApprovedOffersReceivedPage extends StatefulWidget {
   });
 
   final String? comparisonRequestTitle;
+  final String? rewardRequestId;
+  final Future<int> Function(String requestId)? loadPotentialReward;
 
   final VoidCallback onBack;
   final VoidCallback onNotifications;
@@ -479,11 +483,30 @@ class _ApprovedOffersReceivedPageState
     extends State<ApprovedOffersReceivedPage> {
   String _sort = 'Best match';
   bool _underFourHundredOnly = false;
+  Future<int>? _potentialReward;
 
   @override
   void initState() {
     super.initState();
     if (widget.usesRealOffers) _sort = 'Newest first';
+    _loadEstimate();
+  }
+
+  void _loadEstimate() {
+    final id = widget.rewardRequestId;
+    _potentialReward = id == null ? null : widget.loadPotentialReward?.call(id);
+  }
+
+  @override
+  void didUpdateWidget(covariant ApprovedOffersReceivedPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final previous = oldWidget.realOffers;
+    final current = widget.realOffers;
+    if (widget.rewardRequestId != oldWidget.rewardRequestId ||
+        (oldWidget.offersLoading && !widget.offersLoading && widget.offersError == null) ||
+        previous?.length != current?.length) {
+      _loadEstimate();
+    }
   }
 
   Future<void> _showFilters() async {
@@ -708,7 +731,14 @@ class _ApprovedOffersReceivedPageState
                     : null,
               ),
               const SizedBox(height: 8),
-              _OffersRewardsCard(realMode: widget.usesRealOffers),
+              if (widget.usesRealOffers)
+                _PotentialBuyerRewardRow(
+                  key: ValueKey(widget.rewardRequestId),
+                  estimate: _potentialReward,
+                  onOpen: () => setState(_loadEstimate),
+                )
+              else
+                const _OffersRewardsCard(),
               const SizedBox(height: 10),
               _OffersToolbar(
                 value: _sort,
@@ -3212,13 +3242,100 @@ class _OffersHero extends StatelessWidget {
   }
 }
 
-class _OffersRewardsCard extends StatelessWidget {
-  const _OffersRewardsCard({this.realMode = false});
+class _PotentialBuyerRewardRow extends StatefulWidget {
+  const _PotentialBuyerRewardRow({required this.estimate, required this.onOpen, super.key});
 
-  /// Real mode never shows a fixture total or seller count. It explains the
-  /// documented reward policy instead until an authoritative per-offer
-  /// estimate exists.
-  final bool realMode;
+  final Future<int>? estimate;
+  final VoidCallback onOpen;
+
+  @override
+  State<_PotentialBuyerRewardRow> createState() => _PotentialBuyerRewardRowState();
+}
+
+class _PotentialBuyerRewardRowState extends State<_PotentialBuyerRewardRow> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final paper = dark ? const Color(0xff19192a) : Colors.white;
+    final ink = dark ? const Color(0xfffaf8ff) : const Color(0xff17152e);
+    final sub = dark ? const Color(0xffb7b2ce) : const Color(0xff625e78);
+    final border = dark ? const Color(0xff35314e) : const Color(0xffe9e6f4);
+    final brand = dark ? const Color(0xffc5b5ff) : const Color(0xff3920ba);
+    final soft = dark ? const Color(0xff332652) : const Color(0xffeee9ff);
+    final headingStyle = TextStyle(
+      fontFamily: 'Roboto', fontSize: 13, fontWeight: FontWeight.w700, color: ink,
+    );
+    final detailStyle = TextStyle(fontFamily: 'Roboto', fontSize: 12, height: 1.4, color: sub);
+    final radius = BorderRadius.circular(12);
+    return Material(
+      color: paper,
+      shape: RoundedRectangleBorder(borderRadius: radius, side: BorderSide(color: border)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Semantics(
+          expanded: _expanded,
+          child: InkWell(
+            onTap: () {
+              setState(() => _expanded = !_expanded);
+              if (_expanded) widget.onOpen();
+            },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                child: Row(children: [
+                  Container(
+                    width: 24, height: 24, alignment: Alignment.center,
+                    decoration: BoxDecoration(color: soft, borderRadius: BorderRadius.circular(7)),
+                    child: Icon(Icons.card_giftcard_outlined, size: 14, color: brand),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(child: Text('Potential reward', style: headingStyle)),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: FutureBuilder<int>(
+                      future: widget.estimate,
+                      builder: (context, snapshot) {
+                        final amount = snapshot.data;
+                        final value = amount != null && amount > 0 && !snapshot.hasError
+                            ? 'Up to \$${(amount / 100).toStringAsFixed(2)}'
+                            : snapshot.hasError ? 'Estimate unavailable'
+                            : snapshot.connectionState == ConnectionState.waiting
+                                ? 'Checking…' : 'No estimate yet';
+                        return Semantics(liveRegion: true, child: Text(
+                          value, style: headingStyle.copyWith(color: brand), textAlign: TextAlign.end,
+                        ));
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 14, color: brand),
+                ]),
+              ),
+            ),
+          ),
+        ),
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(39, 0, 8, 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Chat with sellers to compare offers. When you buy from one of them and confirm '
+                'the purchase with your PIN, you can earn the combined reward from eligible '
+                'sellers you interacted with.', style: detailStyle),
+              const SizedBox(height: 6),
+              Text('Refunded targeting fees are excluded from the total.', style: detailStyle),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+class _OffersRewardsCard extends StatelessWidget {
+  const _OffersRewardsCard();
 
   @override
   Widget build(BuildContext context) {
@@ -3244,14 +3361,14 @@ class _OffersRewardsCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                realMode ? 'Buyer rewards' : 'Sample reward estimate',
+                'Sample reward estimate',
                 style: _text(
                   context,
                   size: tight ? 9 : 12,
                   weight: FontWeight.w800,
                 ),
               ),
-              if (!realMode) Text(
+              Text(
                 r'$0.40',
                 style: _text(
                   context,
@@ -3261,9 +3378,7 @@ class _OffersRewardsCard extends StatelessWidget {
                 ),
               ),
               Text(
-                realMode
-                    ? 'Eligible purchases earn rewards after PIN confirmation and seller fee collection.'
-                    : 'From 2 sample sellers',
+                'From 2 sample sellers',
                 style: _text(context, size: tight ? 8 : 10, color: _muted),
               ),
             ],

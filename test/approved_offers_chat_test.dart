@@ -78,6 +78,39 @@ void main() {
     binding.platformDispatcher.clearAllTestValues();
   });
 
+  testWidgets('real offer reward is scoped to the request and explains PIN eligibility', (tester) async {
+    final calls = _Calls();
+    final reads = <String>[];
+    await _pumpPage(
+      tester,
+      ApprovedOffersReceivedPage(
+        comparisonRequestTitle: 'Sample buyer request',
+        rewardRequestId: 'request-a',
+        loadPotentialReward: (id) async {
+          reads.add(id);
+          return 45;
+        },
+        realOffers: const [],
+        navigation: calls.navigation,
+        onBack: () {},
+        onNotifications: () {},
+        onViewOffer: () {},
+        onChat: () {},
+        onFilter: () {},
+      ),
+      width: 320,
+      height: 693,
+    );
+    expect(reads, ['request-a']);
+    expect(find.text(r'Up to $0.45'), findsOneWidget);
+    expect(find.textContaining('confirm the purchase with your PIN'), findsNothing);
+    await tester.tap(find.text('Potential reward'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('confirm the purchase with your PIN'), findsOneWidget);
+    expect(find.text('Refunded targeting fees are excluded from the total.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   group('approved offers and chat responsive proof', () {
     const defaultViewports = <(double, double)>[
       (320, 693),
@@ -317,19 +350,20 @@ void main() {
     });
   });
 
-  testWidgets('buyer sees reward eligibility and can open its corner help', (tester) async {
+  testWidgets('buyer sees reward eligibility when no estimate is available yet', (tester) async {
     final calls = _Calls();
     await _pumpPage(tester, ApprovedOffersReceivedPage(
       onBack: () {}, onNotifications: () {}, onViewOffer: () {},
       onChat: () {}, onFilter: () {}, navigation: calls.navigation, realOffers: const [],
     ), width: 320);
-    expect(find.text('Buyer rewards'), findsOneWidget);
+    expect(find.text('Potential reward'), findsOneWidget);
+    expect(find.text('No estimate yet'), findsOneWidget);
     expect(find.text(r'$0.15–$0.30'), findsNothing);
-    final help = find.byTooltip('How offer rewards work');
+    final help = find.text('Potential reward');
     await tester.ensureVisible(help);
     await tester.tap(help);
     await tester.pumpAndSettle();
-    expect(find.text('When do I earn a reward?'), findsOneWidget);
+    expect(find.textContaining('combined reward from eligible sellers'), findsOneWidget);
   });
 
   testWidgets('approved offer callbacks preserve the current route behavior', (
