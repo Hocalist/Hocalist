@@ -8,6 +8,7 @@ import '../../data/phase2/maps/places_contract.dart';
 import '../account/private_contact_editor.dart' show contactAddressFromPlace;
 import '../../domain/phase2/category_answers.dart';
 import 'category_question_editor.dart';
+import 'request_category_match.dart';
 import '../../domain/phase2/us_states.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
@@ -321,6 +322,8 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   String _maximum = '';
   String? _categoryId;
   List<CategoryAnswer> _categoryAnswers = const [];
+  bool _categoryChosenManually = false;
+  Timer? _categoryTimer;
   final _questionKey = GlobalKey<CategoryQuestionEditorState>();
   String? _addressLine1;
   String? _addressLine2;
@@ -394,6 +397,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   void initState() {
     super.initState();
     _kind = widget.initialKind;
+    _scheduleCategoryMatch(widget.requestTitle);
     unawaited(_loadSavedAddresses());
     _useHomeAddress =
         !widget.usesRealSubmission ||
@@ -406,7 +410,17 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   @override
+  void didUpdateWidget(covariant ApprovedRequestFlowPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.categories != widget.categories ||
+        oldWidget.categoriesLoading != widget.categoriesLoading) {
+      _scheduleCategoryMatch(widget.requestTitle);
+    }
+  }
+
+  @override
   void dispose() {
+    _categoryTimer?.cancel();
     _scrollController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -454,9 +468,76 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     final id = _categoryId;
     if (id == null) return null;
     for (final option in widget.categories) {
-      if (option.id == id) return option.label;
+      if (option.id != id) continue;
+      for (final parent in widget.categories) {
+        if (parent.id == option.parentId) {
+          return '${parent.label} › ${option.label}';
+        }
+      }
+      return option.label;
     }
     return id;
+  }
+
+  void _scheduleCategoryMatch(String title) {
+    _categoryTimer?.cancel();
+    if (!widget.usesRealSubmission || widget.categoriesLoading ||
+        widget.categoriesError != null || _categoryChosenManually ||
+        _categoryAnswers.isNotEmpty) {
+      return;
+    }
+    _categoryTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted || _step != _ApprovedRequestStep.details ||
+          _categoryChosenManually || _categoryAnswers.isNotEmpty) {
+        return;
+      }
+      _applyCategoryMatch(title);
+    });
+  }
+
+  bool _applyCategoryMatch(String title) {
+    if (_categoryChosenManually || _categoryAnswers.isNotEmpty) return false;
+    final matched = matchRequestCategory(
+      title,
+      widget.categories,
+      product: _kind == ApprovedRequestKind.product,
+    );
+    if (_categoryId == matched?.id) return false;
+    setState(() {
+      _categoryId = matched?.id;
+      _submitError = null;
+    });
+    return true;
+  }
+
+  void _onTitleChanged(String title) {
+    widget.onTitleChanged(title);
+    _scheduleCategoryMatch(title);
+  }
+
+  void _selectCategory(String id) {
+    _categoryTimer?.cancel();
+    setState(() {
+      _categoryChosenManually = true;
+      if (_categoryId != id) {
+        _categoryId = id;
+        _categoryAnswers = const [];
+      }
+      _submitError = null;
+    });
+  }
+
+  Widget? get _matchedCategoryQuestions {
+    final id = _categoryId;
+    if (!widget.usesRealSubmission || id == null) return null;
+    return CategoryQuestionEditor(
+      key: _questionKey,
+      loader: widget.questionLoader,
+      categoryId: id,
+      answers: _categoryAnswers,
+      compactRequestFields: true,
+      onChanged: (answers) => setState(() => _categoryAnswers = answers),
+    );
   }
 
   ValueChanged<String> _updateAddress(void Function(String value) assign) {
@@ -567,6 +648,12 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   void _continueToLocation() {
+    if (_categoryTimer?.isActive == true) {
+      _categoryTimer?.cancel();
+      if (_applyCategoryMatch(widget.requestTitle) && _categoryId != null) {
+        return;
+      }
+    }
     final error = widget.usesRealSubmission
         ? _detailsValidationMessage()
         : null;
@@ -883,10 +970,17 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
             if (!isLocation) ...[
               _ApprovedKindPicker(
                 selected: _kind,
-                onChanged: (value) => setState(() {
-                  if (_kind != value) { _categoryId = null; _categoryAnswers = const []; }
-                  _kind = value;
-                }),
+                onChanged: (value) {
+                  if (_kind == value) return;
+                  setState(() {
+                    _kind = value;
+                    _categoryId = null;
+                    _categoryChosenManually = false;
+                    _categoryAnswers = const [];
+                    _submitError = null;
+                  });
+                  _scheduleCategoryMatch(widget.requestTitle);
+                },
               ),
               SizedBox(height: _requestDimension(metrics, 21, floor: 18)),
             ],
@@ -983,7 +1077,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       minimum: _minimum,
                       maximum: _maximum,
                       acceptHigherOffers: _acceptHigherOffers,
-                      onTitleChanged: widget.onTitleChanged,
+                      onTitleChanged: _onTitleChanged,
                       onBudgetChanged: widget.onBudgetChanged,
                       onConditionChanged: (value) {
                         setState(() => _condition = value);
@@ -1010,26 +1104,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       categoriesError: widget.categoriesError,
                       onRefreshCategories: widget.onRefreshCategories,
                       onCategorySelected: widget.usesRealSubmission
-                          ? (value) {
-                              if (_categoryId == value) return;
-                              setState(() {
-                                _categoryId = value;
-                                _categoryAnswers = const [];
-                                _submitError = null;
-                              });
-                            }
+                          ? _selectCategory
                           : null,
-                      categoryQuestions:
-                          widget.usesRealSubmission && _categoryId != null
-                          ? CategoryQuestionEditor(
-                              key: _questionKey,
-                              loader: widget.questionLoader,
-                              categoryId: _categoryId!,
-                              answers: _categoryAnswers,
-                              onChanged: (answers) =>
-                                  setState(() => _categoryAnswers = answers),
-                            )
-                          : null,
+                      categoryQuestions: _matchedCategoryQuestions,
                       error: _submitError,
                     )
                   : ApprovedServiceRequestStep(
@@ -1039,7 +1116,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       minimum: _minimum,
                       maximum: _maximum,
                       acceptHigherOffers: _acceptHigherOffers,
-                      onTitleChanged: widget.onTitleChanged,
+                      onTitleChanged: _onTitleChanged,
                       onBudgetChanged: widget.onBudgetChanged,
                       onServiceTypeChanged: (value) {
                         setState(() => _serviceType = value);
@@ -1063,26 +1140,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       categoriesError: widget.categoriesError,
                       onRefreshCategories: widget.onRefreshCategories,
                       onCategorySelected: widget.usesRealSubmission
-                          ? (value) {
-                              if (_categoryId == value) return;
-                              setState(() {
-                                _categoryId = value;
-                                _categoryAnswers = const [];
-                                _submitError = null;
-                              });
-                            }
+                          ? _selectCategory
                           : null,
-                      categoryQuestions:
-                          widget.usesRealSubmission && _categoryId != null
-                          ? CategoryQuestionEditor(
-                              key: _questionKey,
-                              loader: widget.questionLoader,
-                              categoryId: _categoryId!,
-                              answers: _categoryAnswers,
-                              onChanged: (answers) =>
-                                  setState(() => _categoryAnswers = answers),
-                            )
-                          : null,
+                      categoryQuestions: _matchedCategoryQuestions,
                       error: _submitError,
                     ),
             ),
@@ -1366,13 +1426,32 @@ class _ApprovedDetailsStep extends StatelessWidget {
               : 'e.g., House Cleaning, Car Detailing, Logo Design',
           onChanged: onTitleChanged,
         ),
+        if (onCategorySelected != null) ...[
+          SizedBox(height: metrics.geometry(7)),
+          _ApprovedCategoryPanel(
+            options: categories,
+            selectedId: categoryId,
+            selectedLabel: categoryLabel,
+            onSelected: onCategorySelected,
+            loading: categoriesLoading,
+            error: categoriesError,
+            onRetry: onRefreshCategories,
+            supportsProduct: isProduct,
+          ),
+          ?categoryQuestions,
+        ],
         SizedBox(height: metrics.geometry(10)),
         _ApprovedFieldCard(
-          title: isProduct ? 'Describe the product' : 'Describe the service',
-          helper:
-              'Include key details so sellers can give you accurate offers.',
+          title: onCategorySelected != null
+              ? 'Additional notes'
+              : (isProduct ? 'Describe the product' : 'Describe the service'),
+          helper: onCategorySelected != null
+              ? 'Optional. Add anything sellers should know.'
+              : 'Include key details so sellers can give you accurate offers.',
           iconAsset: _descriptionIcon,
-          hint: isProduct
+          hint: onCategorySelected != null
+              ? 'Add any other preferences or requirements.'
+              : isProduct
               ? 'Describe what you need, preferred brand, model, size, color, condition, features, etc.'
               : 'Describe what you need, preferred outcome, specific requirements, etc.',
           controller: descriptionController,
@@ -1407,39 +1486,19 @@ class _ApprovedDetailsStep extends StatelessWidget {
               onMaximumChanged: onMaximumChanged,
               onBudgetChanged: onBudgetChanged,
             ),
-            isProduct
-                ? _ApprovedQuantityPanel(
+            if (isProduct)
+                _ApprovedQuantityPanel(
                     quantity: quantity,
                     onChanged: onQuantityChanged,
                   )
-                : _ApprovedCategoryPanel(
-                    options: categories,
-                    selectedId: categoryId,
-                    selectedLabel: categoryLabel,
-                    onSelected: onCategorySelected,
-                    loading: categoriesLoading,
-                    error: categoriesError,
-                    onRetry: onRefreshCategories,
-                    supportsProduct: false,
-                  ),
+            else if (onCategorySelected == null)
+              const _ApprovedCategoryPanel(supportsProduct: false),
             _ApprovedHigherOffersPanel(
               value: acceptHigherOffers,
               onChanged: onAcceptHigherOffersChanged,
             ),
           ],
         ),
-        if (isProduct && onCategorySelected != null)
-          _ApprovedCategoryPanel(
-            options: categories,
-            selectedId: categoryId,
-            selectedLabel: categoryLabel,
-            onSelected: onCategorySelected,
-            loading: categoriesLoading,
-            error: categoriesError,
-            onRetry: onRefreshCategories,
-            supportsProduct: true,
-          ),
-        ?categoryQuestions,
         SizedBox(height: metrics.geometry(2)),
         if (error != null) ...[
           Text(
@@ -3712,7 +3771,14 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
             optional: widget.onSelected == null,
           ),
           SizedBox(height: metrics.geometry(4)),
-          Text('This avoids mismatch.', style: _smallStyle(context)),
+          Text(
+            widget.onSelected == null
+                ? 'This avoids mismatch.'
+                : selected == null
+                    ? 'Type a title to find a category, or choose one.'
+                    : 'Tap to change the category.',
+            style: _smallStyle(context),
+          ),
           SizedBox(height: metrics.geometry(8)),
           InkWell(
             key: const Key('approved-request-category-select'),
@@ -3740,7 +3806,7 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
                   Expanded(
                     child: Text(
                       selected ?? 'Select a category',
-                      maxLines: 1,
+                      maxLines: widget.onSelected == null ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: selected == null
                           ? _requestHintStyle(context)
@@ -3822,12 +3888,6 @@ class _ApprovedCategorySheetState extends State<_ApprovedCategorySheet> {
   final _search = TextEditingController();
   CatalogueCategoryOption? _parent;
 
-  static const _aliases = {
-    'Sofas & chairs': 'couch sectional loveseat',
-    'Junk removal': 'haul away furniture disposal',
-    'Phones & tablets': 'cellphone smartphone iphone android ipad',
-  };
-
   @override
   void dispose() {
     _search.dispose();
@@ -3846,14 +3906,12 @@ class _ApprovedCategorySheetState extends State<_ApprovedCategorySheet> {
     final parents = active.map((option) => option.parentId).toSet();
     final parent = _parent;
     final search = _search.text.trim().toLowerCase();
-    final words = search.split(RegExp(r'\s+'));
     final choices = active.where((option) {
       if (parent != null && option.parentId != parent.id) return false;
       if (parent == null && search.isEmpty && ids.contains(option.parentId)) {
         return false;
       }
-      final label = ('${option.label} ${_aliases[option.label] ?? ''}').toLowerCase();
-      return search.isEmpty || words.every(label.contains);
+      return requestCategoryMatchesSearch(option.label, search);
     });
 
     return BuyerModalSheet(

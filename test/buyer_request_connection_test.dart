@@ -593,9 +593,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('approved-request-category-select')));
     await tester.pumpAndSettle();
-    expect(find.text('Cleaning'), findsOneWidget);
+    final cleaningOption = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('Cleaning'),
+    );
+    expect(cleaningOption, findsOneWidget);
     expect(find.text('Retired service'), findsNothing);
-    await tester.tap(find.text('Cleaning'));
+    await tester.tap(cleaningOption);
     await tester.pumpAndSettle();
 
     await _postRequest(tester);
