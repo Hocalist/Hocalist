@@ -12,6 +12,7 @@ import '../../theme/original_gift_artwork.dart';
 import '../../components/notification_indicator.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import '../commercial/money_help.dart';
 import '../../components/hocalist_motion.dart';
 
@@ -3165,6 +3166,7 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                         children: [
                                             for (final request in requests) ...[
                                               _ApprovedActiveRequest(
+                                                key: ValueKey(request.requestId),
                                                 title: request.title,
                                                 onClose: request.isActive && onCloseFromHome != null ? () {
                                                   Navigator.pop(sheetContext);
@@ -3172,8 +3174,10 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                                                 } : null,
                                                 showOffers:
                                                     request.canViewOffers,
-                                                showPin: false,
-                                  onPin: () => _openRequestPin(context, request),
+                                                onPin: () {
+                                                  Navigator.pop(sheetContext);
+                                                  _openRequestPin(context, request);
+                                                },
                                                 metaLabel: [
                                                   request.statusLabel,
                                                   request.budgetLabel,
@@ -3224,10 +3228,10 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                             else
                               for (final request in requests.take(4)) ...[
                                 _ApprovedActiveRequest(
+                                  key: ValueKey(request.requestId),
                                   title: request.title,
                                   onClose: request.isActive && onCloseFromHome != null ? () => onCloseFromHome!(request) : null,
                                   showOffers: request.canViewOffers,
-                                  showPin: false,
                                   onPin: () => _openRequestPin(context, request),
                                   metaLabel: [
                                     request.statusLabel,
@@ -9683,182 +9687,155 @@ class _ApprovedEmptySectionCard extends StatelessWidget {
   }
 }
 
-class _ApprovedActiveRequest extends StatelessWidget {
+class _ApprovedActiveRequest extends StatefulWidget {
   const _ApprovedActiveRequest({
     required this.title,
     required this.onDetails,
     required this.onOffers,
     this.showOffers = true,
-    this.showPin = true,
     this.onClose,
     this.onPin,
     this.metaLabel,
+    super.key,
   });
 
   final String title;
   final VoidCallback onDetails;
   final VoidCallback onOffers;
   final bool showOffers;
-
   final VoidCallback? onClose;
-
-  /// Real mode hides the prototype PIN claim until PIN policy is approved.
-  final bool showPin;
   final VoidCallback? onPin;
-
-  /// Real status/budget summary replacing the prototype posted-date text.
   final String? metaLabel;
+
+  @override
+  State<_ApprovedActiveRequest> createState() => _ApprovedActiveRequestState();
+}
+
+class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
+  static const double _pinSwipeThreshold = 48;
+  double _dragDistance = 0;
+
+  void _showOptions() => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (sheet) => _ApprovedBuyerFlowSheet(
+      icon: Icons.edit_note_rounded,
+      title: 'Request options',
+      subtitle: widget.title,
+      onClose: () => Navigator.pop(sheet),
+      children: [
+        BuyerPrimaryButton(
+          label: 'Edit request',
+          onPressed: () {
+            Navigator.pop(sheet);
+            widget.onDetails();
+          },
+        ),
+        if (widget.onClose != null) ...[
+          const SizedBox(height: 12),
+          BuyerSecondaryButton(
+            label: 'Close request',
+            onPressed: () {
+              Navigator.pop(sheet);
+              widget.onClose?.call();
+            },
+          ),
+        ],
+      ],
+    ),
+  );
+
+  void _resetDrag() => setState(() => _dragDistance = 0);
 
   @override
   Widget build(BuildContext context) {
     final metrics = _replicaMetrics(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = metrics.accessibilityReflow;
-        final details = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (showPin)
-              Text(
-                'Product PIN: 12345',
-                style: _text(
-                  context,
-                  size: 10.5,
-                  weight: FontWeight.w700,
-                  color: _navy,
-                ),
-              ),
-            if (showPin) SizedBox(height: metrics.geometry(2)),
-            Text(
-              title,
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: _text(
-                context,
-                size: 14,
-                weight: FontWeight.w800,
-                color: _navy,
-              ),
-            ),
-            SizedBox(height: metrics.geometry(2)),
-            Text(
-              metaLabel ?? 'Posted on May 13    2 offers received',
-              maxLines: metrics.screenshotLocked ? 1 : null,
-              style: _text(context, size: 9.5, color: _muted),
-            ),
-          ],
-        );
-        final action = TextButton(
-          onPressed: onOffers,
-          style: TextButton.styleFrom(
-            backgroundColor: HocalistPalette.surface(context, _lavender),
-            minimumSize: Size.zero,
-            padding: metrics.geometryInsets(
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            ),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: Text(
-            'View offers  ›',
-            style: _text(
-              context,
-              size: 10,
-              weight: FontWeight.w700,
-              color: _blue,
-            ),
-          ),
-        );
-        final actions = Wrap(
-          spacing: metrics.geometry(4),
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (onPin != null)
-              Tooltip(
-                message: 'Purchase PIN',
-                child: TextButton(
-                  onPressed: onPin,
-                  style: action.style,
-                  child: Text('PIN', style: _text(context, size: 10, weight: FontWeight.w700, color: _blue)),
-                ),
-              ),
-            if (showOffers) action,
-            IconButton(
-              tooltip: 'Request options',
-              iconSize: 18,
-              visualDensity: VisualDensity.compact,
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                backgroundColor: Colors.transparent,
-                isScrollControlled: true,
-                builder: (sheet) => _ApprovedBuyerFlowSheet(
-                  icon: Icons.edit_note_rounded,
-                  title: 'Request options',
-                  subtitle: title,
-                  onClose: () => Navigator.pop(sheet),
-                  children: [
-                    BuyerPrimaryButton(label: 'Edit request', onPressed: () {
-                      Navigator.pop(sheet);
-                      onDetails();
-                    }),
-                    if (onClose != null) ...[
-                      const SizedBox(height: 12),
-                      BuyerSecondaryButton(label: 'Close request', onPressed: () {
-                        Navigator.pop(sheet);
-                        onClose!();
-                      }),
-                    ],
-                  ],
-                ),
-              ),
-              icon: const Icon(Icons.more_horiz),
-            ),
-          ],
-        );
-        return _ApprovedDashboardCard(
-          key: const ValueKey('approved-active-request-card'),
-          padding: metrics.geometryInsets(
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
+    final onPin = widget.onPin;
+    return _ApprovedDashboardCard(
+      key: const ValueKey('approved-active-request-card'),
+      padding: EdgeInsets.zero,
+      child: Semantics(
+        hint: widget.showOffers ? 'Opens offers' : null,
+        customSemanticsActions: onPin == null
+            ? null
+            : {const CustomSemanticsAction(label: 'Show purchase PIN'): onPin},
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragUpdate: onPin == null
+              ? null
+              : (details) => setState(() {
+                  _dragDistance = (_dragDistance + details.delta.dx)
+                      .clamp(-72.0, 0.0);
+                }),
+          onHorizontalDragEnd: onPin == null
+              ? null
+              : (_) {
+                  final showPin = _dragDistance <= -_pinSwipeThreshold;
+                  _resetDrag();
+                  if (showPin) onPin();
+                },
+          onHorizontalDragCancel: onPin == null ? null : _resetDrag,
           child: InkWell(
-            onLongPress: onClose,
-            onTap: showOffers ? onOffers : null,
-            child: stacked
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          BuyerAssetIcon(
-                            asset:
-                                '$_approvedAssetRoot/dashboard-clipboard.png',
-                            slotSize: metrics.artSize(44),
-                          ),
-                          SizedBox(width: metrics.geometry(8)),
-                          Expanded(child: details),
-                        ],
-                      ),
-                      SizedBox(height: metrics.geometry(6)),
-                      if (onPin != null || showOffers) actions,
-                    ],
-                  )
-                : Row(
+            onLongPress: _showOptions,
+            onTap: widget.showOffers ? widget.onOffers : null,
+            borderRadius: BorderRadius.circular(metrics.geometry(9)),
+            child: ClipRect(
+              child: Transform.translate(
+                offset: Offset(_dragDistance, 0),
+                child: Padding(
+                  padding: metrics.geometryInsets(
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                  child: Row(
                     children: [
                       BuyerAssetIcon(
                         asset: '$_approvedAssetRoot/dashboard-clipboard.png',
                         slotSize: metrics.artSize(44),
                       ),
                       SizedBox(width: metrics.geometry(8)),
-                      Expanded(child: details),
-                      if (onPin != null || showOffers) actions,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.title,
+                              maxLines: metrics.accessibilityReflow ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _text(
+                                context,
+                                size: 14,
+                                weight: FontWeight.w800,
+                                color: _navy,
+                              ),
+                            ),
+                            SizedBox(height: metrics.geometry(2)),
+                            Text(
+                              widget.metaLabel ??
+                                  'Posted on May 13    2 offers received',
+                              maxLines: metrics.screenshotLocked ? 1 : null,
+                              style: _text(context, size: 9.5, color: _muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.showOffers)
+                        Icon(
+                          Icons.chevron_right,
+                          color: HocalistPalette.text(context, _blue),
+                          size: metrics.artSize(18),
+                        ),
                     ],
                   ),
+                ),
+              ),
+            ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
-
 class _BuyerHomeSectionLink extends StatelessWidget {
   const _BuyerHomeSectionLink({required this.onPressed});
   final VoidCallback? onPressed;

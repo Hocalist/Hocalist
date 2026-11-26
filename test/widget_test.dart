@@ -165,10 +165,10 @@ void main() {
   }
 
   Future<void> openRequestEditor(WidgetTester tester) async {
-    final options = find.byTooltip('Request options').first;
+    final options = find.byKey(const ValueKey('approved-active-request-card')).first;
     await tester.ensureVisible(options);
     await tester.pumpAndSettle();
-    await tester.tap(options);
+    await tester.longPress(options);
     await tester.pumpAndSettle();
     await tapVisible(tester, 'Edit request');
   }
@@ -657,9 +657,9 @@ void main() {
   ) async {
     await openBuyerDashboard(tester);
 
-    await tester.ensureVisible(find.text('View offers  ›').first);
+    await tester.ensureVisible(find.byKey(const ValueKey('approved-active-request-card')).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('View offers  ›').first);
+    await tester.tap(find.byKey(const ValueKey('approved-active-request-card')).first);
     await tester.pumpAndSettle();
 
     expect(find.text('Offers received'), findsOneWidget);
@@ -736,9 +736,9 @@ void main() {
     tester,
   ) async {
     await openBuyerDashboard(tester);
-    await tester.ensureVisible(find.text('View offers  ›').first);
+    await tester.ensureVisible(find.byKey(const ValueKey('approved-active-request-card')).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('View offers  ›').first);
+    await tester.tap(find.byKey(const ValueKey('approved-active-request-card')).first);
     await tester.pumpAndSettle();
 
     expect(find.text('Sample reward estimate'), findsOneWidget);

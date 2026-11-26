@@ -273,13 +273,12 @@ void main() {
         onOpenOffers: (view) => opened = view,
       ),
     );
-    await tester.ensureVisible(find.text('View offers  ›').first);
+    final card = find.byKey(const ValueKey('approved-active-request-card'));
+    await tester.ensureVisible(card);
     await tester.pumpAndSettle();
-    expect(
-      tester.getCenter(find.text('PIN').first).dy,
-      closeTo(tester.getCenter(find.text('View offers  ›').first).dy, 1),
-    );
-    await tester.tap(find.text('View offers  ›').first);
+    expect(find.text('View offers  ›'), findsNothing);
+    expect(find.text('PIN'), findsNothing);
+    await tester.tap(card);
     await tester.pumpAndSettle();
     expect(opened?.title, 'Gaming laptop');
   });
@@ -365,8 +364,13 @@ void main() {
         onOpenPinMeeting: (value) => pinMeeting = value,
       ),
     );
-    await tester.ensureVisible(find.text('PIN'));
-    await tester.tap(find.text('PIN'));
+    final card = find.byKey(const ValueKey('approved-active-request-card'));
+    await tester.ensureVisible(card);
+    await tester.drag(card, const Offset(124, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Purchase PIN'), findsNothing);
+    await tester.ensureVisible(card);
+    await tester.drag(card, const Offset(-124, 0));
     await tester.pumpAndSettle();
     expect(find.text('Choose a seller to access the purchase PIN.'), findsOneWidget);
     expect(pinMeeting, isNull);
@@ -381,8 +385,8 @@ void main() {
       onOpenMeeting: (value) => opened = value,
       onOpenPinMeeting: (value) => pinMeeting = value,
     ));
-    await tester.ensureVisible(find.text('PIN'));
-    await tester.tap(find.text('PIN'));
+    await tester.ensureVisible(card);
+    await tester.drag(card, const Offset(-124, 0));
     expect(pinMeeting?.meetingId, meeting.meetingId);
     expect(opened, isNull);
     final row = find.byKey(const ValueKey('buyerMeeting-meeting-42'));
@@ -420,7 +424,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened?.requestId, '30000000-0000-4000-8000-000000000042');
     expect(edited, isNull);
-    await tester.tap(find.byTooltip('Request options'));
+    expect(find.byTooltip('Request options'), findsNothing);
+    await tester.longPress(
+      find.byKey(const ValueKey('approved-active-request-card')).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Edit request'));
     await tester.pumpAndSettle();
@@ -429,6 +436,9 @@ void main() {
     await tester.longPress(
       find.byKey(const ValueKey('approved-active-request-card')).first,
     );
+    await tester.pumpAndSettle();
+    expect(closeRequested, isNull);
+    await tester.tap(find.text('Close request'));
     await tester.pumpAndSettle();
     expect(closeRequested?.requestId, opened?.requestId);
   });

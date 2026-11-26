@@ -793,9 +793,11 @@ void main() {
           tester.getBottomRight(find.textContaining('View all rewards')).dy,
       lessThan(16),
     );
+    final request = find.byKey(const ValueKey('approved-active-request-card'));
+    expect(find.text('View offers  ›'), findsNothing);
     expect(
-      tester.getCenter(find.text('View offers  ›')).dx,
-      greaterThan(tester.getCenter(find.text('iPad Air 5, 256GB').first).dx),
+      find.descendant(of: request, matching: find.byIcon(Icons.chevron_right)),
+      findsOneWidget,
     );
     await tester.ensureVisible(bannerFinder);
     await tester.pumpAndSettle();
