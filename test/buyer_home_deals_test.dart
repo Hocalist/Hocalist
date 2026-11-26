@@ -15,20 +15,65 @@ import 'test_fonts.dart';
 import 'visual_proof_capture.dart';
 
 final _now = DateTime.utc(2030, 11, 20);
-Offer _offer(String id, {bool newerProposal = false, OfferStatus status = OfferStatus.selected}) {
-  final terms = OfferTerms(price: Money(minorUnits: 65000, currencyCode: 'USD'), message: 'Includes charger.',
-    schedule: LocalSchedule(date: LocalDate(year: 2030, month: 11, day: 23), startTime: LocalTime(hour: 15, minute: 0), timezoneId: 'America/Chicago'),
-    place: MeetingPlace(choice: MeetupPlaceChoice.sellerBusiness, label: 'Business address'));
-  return Offer(id: id, requestId: 'request-$id', buyerUserId: 'buyer', sellerUserId: 'seller', sellerProfileId: 'seller-profile',
-    sellerDisplayName: 'Jonathan Sanchez', requestTitle: 'iPad Air 5th Gen (64GB)',
-    status: status, conversationId: status == OfferStatus.submitted ? null : 'chat-$id',
-    acceptedRevisionId: status == OfferStatus.submitted ? null : 'accepted-$id',
+Offer _offer(
+  String id, {
+  OfferRevisionStatus? newerRevisionStatus,
+  OfferStatus status = OfferStatus.selected,
+}) {
+  final newPriceAccepted = newerRevisionStatus == OfferRevisionStatus.accepted;
+  final terms = OfferTerms(
+    price: Money(minorUnits: 65000, currencyCode: 'USD'),
+    message: 'Includes charger.',
+    schedule: LocalSchedule(
+      date: LocalDate(year: 2030, month: 11, day: 23),
+      startTime: LocalTime(hour: 15, minute: 0),
+      timezoneId: 'America/Chicago',
+    ),
+    place: MeetingPlace(
+      choice: MeetupPlaceChoice.sellerBusiness,
+      label: 'Business address',
+    ),
+  );
+  return Offer(
+    id: id,
+    requestId: 'request-$id',
+    buyerUserId: 'buyer',
+    sellerUserId: 'seller',
+    sellerProfileId: 'seller-profile',
+    sellerDisplayName: 'Jonathan Sanchez',
+    requestTitle: 'iPad Air 5th Gen (64GB)',
+    status: status,
+    conversationId: status == OfferStatus.submitted ? null : 'chat-$id',
+    acceptedRevisionId: status == OfferStatus.submitted
+        ? null
+        : (newPriceAccepted ? 'new-$id' : 'accepted-$id'),
     stamp: RecordStamp(revision: 2, createdAt: _now, updatedAt: _now),
-    revisions: [OfferRevision(id: 'accepted-$id', offerId: id, sequence: 1, terms: terms,
-      status: OfferRevisionStatus.accepted, proposedByUserId: 'seller', createdAt: _now),
-      if (newerProposal) OfferRevision(id: 'new-$id', offerId: id, sequence: 2,
-        terms: terms.copyWith(price: Money(minorUnits: 90000, currencyCode: 'USD')), status: OfferRevisionStatus.proposed,
-        proposedByUserId: 'seller', createdAt: _now)]);
+    revisions: [
+      OfferRevision(
+        id: 'accepted-$id',
+        offerId: id,
+        sequence: 1,
+        terms: terms,
+        status: newPriceAccepted
+            ? OfferRevisionStatus.superseded
+            : OfferRevisionStatus.accepted,
+        proposedByUserId: 'seller',
+        createdAt: _now,
+      ),
+      if (newerRevisionStatus != null)
+        OfferRevision(
+          id: 'new-$id',
+          offerId: id,
+          sequence: 2,
+          terms: terms.copyWith(
+            price: Money(minorUnits: 90000, currencyCode: 'USD'),
+          ),
+          status: newerRevisionStatus,
+          proposedByUserId: 'seller',
+          createdAt: _now,
+        ),
+    ],
+  );
 }
 
 MeetingView _meeting({MeetingScheduleView? accepted, MeetingScheduleView? pending, String status = 'accepted'}) {
@@ -95,10 +140,25 @@ void main() {
     expect(BuyerOfferView.formatPlaceLabel(address: ' ', label: 'Business address'), 'Business address');
     expect(BuyerOfferView.formatPlaceLabel(), 'View meeting location');
   });
-  test('agreed view keeps accepted price when a new revision is proposed', () {
-    final offer = _offer('agreed', newerProposal: true);
-    expect(BuyerOfferView.fromOffer(offer).priceLabel, r'$900');
-    expect(BuyerOfferView.fromOffer(offer, agreedTerms: true).priceLabel, r'$650');
+  test('buyer sees the agreed price until accepting the proposed price', () {
+    final pending = _offer(
+      'agreed',
+      newerRevisionStatus: OfferRevisionStatus.proposed,
+    );
+    final accepted = _offer(
+      'agreed',
+      newerRevisionStatus: OfferRevisionStatus.accepted,
+    );
+    for (final agreedTerms in [false, true]) {
+      expect(
+        BuyerOfferView.fromOffer(pending, agreedTerms: agreedTerms).priceLabel,
+        r'$650',
+      );
+      expect(
+        BuyerOfferView.fromOffer(accepted, agreedTerms: agreedTerms).priceLabel,
+        r'$900',
+      );
+    }
   });
   test('cards follow agreed rescheduling and ignore an unaccepted proposal', () {
     MeetingScheduleView schedule(int day, int hour, String status) => MeetingScheduleView(
@@ -141,7 +201,10 @@ void main() {
                 name: 'Alex', requestTitle: 'iPad', requestPosted: false,
                 onCreate: () {}, onRequestDetails: () {}, onOffers: () {}, onRecentActivity: () {}, onWallet: () {},
                 realRequests: const [], realMeetings: [_meeting()],
-                homeOffers: [_offer('negotiating', newerProposal: true), _offer('agreed', newerProposal: true)],
+                homeOffers: [
+                  _offer('negotiating', newerRevisionStatus: OfferRevisionStatus.proposed),
+                  _offer('agreed', newerRevisionStatus: OfferRevisionStatus.proposed),
+                ],
                 loadDealSeller: (_) => SynchronousFuture(const BuyerDealSeller(verified: true, rating: 4.9, reviewCount: 128, sales: 42)),
                 onOpenNegotiation: (o) => chatted = o.id, onAcceptNegotiation: (o) => accepted = o.id,
                 onNegotiationOptions: (_) {}, onOpenMeeting: (_) {},
