@@ -592,7 +592,7 @@ void main() {
       );
 
       for (final label in [
-        'Buyers Earn Commissions From Sellers Targeting',
+        'Earn rewards on eligible purchases',
         'Businesses Don\'t Waste Money On Ads Just To Reach People',
         'A System designed to give both sides & Better Outcome',
         'Safe, private, and in your control',
@@ -807,7 +807,7 @@ void main() {
     );
     expect(banner.bottom, lessThanOrEqualTo(navigation.top));
     expect(
-      find.text('Keep earning more rewards').hitTestable(),
+      find.text('How rewards work').hitTestable(),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -872,7 +872,7 @@ void main() {
     );
     expect(pending.top, greaterThan(earned.bottom));
     expect(
-      find.text('Keep earning more rewards').hitTestable(),
+      find.text('How rewards work').hitTestable(),
       findsOneWidget,
     );
     final banner = tester.getRect(
@@ -939,7 +939,7 @@ void main() {
       expect(artwork.center.dy, closeTo(banner.center.dy, 1));
       expect(
         find.text(
-          'Refer friends, complete purchases, and unlock bigger rewards.',
+          'Eligible rewards follow PIN confirmation and seller fee collection.',
         ),
         findsOneWidget,
       );
@@ -1061,7 +1061,7 @@ void main() {
     );
     await tester.tap(
       find.bySemanticsLabel(
-        'I am buying. Get paid to buy and get the best offers. Post a request.',
+        'I am buying. Post a request and compare offers from sellers.',
       ),
     );
     expect(buyerCount, 1);
