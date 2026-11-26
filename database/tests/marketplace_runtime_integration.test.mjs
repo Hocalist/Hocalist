@@ -103,6 +103,15 @@ test('marketplace fixture supports health, history, Any condition and buyer meet
     const selected = await rpc(buyer, 'marketplace_command', select);
     assert.equal(selected.status, 'selected');
     assert.deepEqual(await rpc(buyer, 'marketplace_command', select), selected);
+    const thread = await rpc(buyer, 'marketplace_command', {
+      p_operation: 'conversation.open_offer', p_key: 'pair-chat-' + selected.id,
+      p_input: { offer_id: selected.id },
+    });
+    assert.equal(thread.conversation_id, meeting.conversation_id);
+  }
+  for (const token of [buyer, seller]) {
+    const chat = await rpc(token, 'chat_deals', { p_conversation: meeting.conversation_id });
+    assert.equal(chat.items.length, 3);
   }
   const fourth = pairDeals[2];
   assert.match((await rpc(buyer, 'marketplace_command', fourth.select, 400)).message, /active_deal_pair_limit/);

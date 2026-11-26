@@ -99,7 +99,7 @@ const auditReads = await readSql('../audit_repairs/200_audit_reads.sql');
 const metadata = auditReads.match(/DO \$metadata\$[\s\S]*?END \$metadata\$;/);
 if (!metadata) throw new Error('Missing audited request metadata projection');
 await db.exec(metadata[0]);
-await definitions('../runtime_repairs/209_pair_conversations.sql', ['chat_deals']);
+await definitions('../runtime_repairs/209_pair_conversations.sql', ['chat_open_internal', 'chat_deals']);
 await db.exec('REVOKE ALL ON FUNCTION hocalist.chat_deals(uuid) FROM PUBLIC, anon, service_role; GRANT EXECUTE ON FUNCTION hocalist.chat_deals(uuid) TO authenticated');
 await db.exec("INSERT INTO hocalist.reward_policy(singleton,normal_minor,late_minor,late_window_hours,rule_version) VALUES(true,15,30,12,'usb-qa-reward') ON CONFLICT (singleton) DO NOTHING");
 

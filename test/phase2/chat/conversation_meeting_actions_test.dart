@@ -171,7 +171,15 @@ void main() {
       final explore = find.byKey(const ValueKey('deal-details-first'));
       expect(find.descendant(of: count, matching: find.text('3')), findsOneWidget);
       final exploreRect = tester.getRect(explore);
+      final exploreLabel = find.descendant(
+        of: explore, matching: find.text('Explore deal'),
+      );
+      final chevron = find.descendant(
+        of: explore, matching: find.byIcon(Icons.chevron_right_rounded),
+      );
       final countRect = tester.getRect(count);
+      expect(tester.getRect(exploreLabel).right, tester.getRect(chevron).left);
+      expect(exploreRect.right - tester.getRect(chevron).right, lessThanOrEqualTo(10));
       expect(countRect.height, exploreRect.height);
       expect(countRect.left, greaterThan(exploreRect.right));
       await tester.tap(count);

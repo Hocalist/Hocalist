@@ -5329,8 +5329,14 @@ class _CurrentChatDeal extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Text('Explore deal',
-                      style: _text(context, size: 11, weight: FontWeight.w800, color: _blue)),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: Text(
+                        'Explore deal',
+                        textAlign: TextAlign.end,
+                        style: _text(context, size: 11, weight: FontWeight.w800, color: _blue),
+                      ),
+                    ),
                   ),
                   const Icon(Icons.chevron_right_rounded, size: 16),
                 ],
