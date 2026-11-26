@@ -4,6 +4,7 @@ import { PageShell } from '../site-content';
 import { downloadOptions } from '../lib/download-options';
 import { DownloadLink } from './DownloadLink';
 import { androidTestRelease } from '../lib/android-test-release';
+import { MarketplacePreview } from './MarketplacePreview';
 
 export const metadata = {
   title: 'Hocalist Mobile App | Early access updates',
@@ -84,6 +85,7 @@ export default function DownloadPage() {
           </div>
         </section>
 
+        <MarketplacePreview />
         <section id="launch-updates" className="cta-band download-cta-band">
           <h2>Be first to hear.</h2>
           <p>

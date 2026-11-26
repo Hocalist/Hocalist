@@ -181,3 +181,12 @@
 .billing-confirmation-spinner{display:block;width:28px;height:28px;border:3px solid #e4dfff;border-top-color:#3210ff;border-radius:50%;animation:billing-confirmation-spin .8s linear infinite;margin-bottom:18px}
 @keyframes billing-confirmation-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.billing-confirmation-spinner{animation:none;border-style:dotted}}
+.illustrated-site .marketplace-preview-section{box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px;max-width:1060px;margin:20px auto 50px;padding:36px;border:1px solid #ded8eb;border-radius:26px;background:#f7f7fc;scroll-margin-top:100px}
+.illustrated-site .marketplace-preview-section h2{font-size:clamp(26px,3vw,34px);line-height:1.2;letter-spacing:-.025em;margin:16px 0}
+.illustrated-site .marketplace-preview-section h3{font-size:20px;margin:0 0 12px}
+.illustrated-site .marketplace-preview-section p{color:#59617f;line-height:1.65}
+.illustrated-site .marketplace-preview-section .store-availability{font-size:13px}
+.illustrated-site .marketplace-preview-install{min-width:0;padding-left:30px;border-left:1px solid #ded8eb}
+.illustrated-site .marketplace-preview-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:20px 0}
+.illustrated-site .marketplace-preview-actions .button{white-space:normal;text-align:center;min-height:44px;box-sizing:border-box}
+@media(max-width:760px){.illustrated-site .marketplace-preview-section{grid-template-columns:minmax(0,1fr);margin:20px 6% 40px;padding:24px;gap:24px}.illustrated-site .marketplace-preview-install{padding:24px 0 0;border-left:0;border-top:1px solid #ded8eb}.illustrated-site .marketplace-preview-actions{align-items:stretch;flex-direction:column}}
