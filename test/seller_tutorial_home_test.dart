@@ -33,7 +33,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(loadHocalistTestFonts);
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const analytics = MethodChannel('hocalist/marketplace_analytics');
+    messenger.setMockMethodCallHandler(analytics, (_) async => false);
+    addTearDown(() => messenger.setMockMethodCallHandler(analytics, null));
+  });
 
   Future<void> pumpSurface(
     WidgetTester tester,

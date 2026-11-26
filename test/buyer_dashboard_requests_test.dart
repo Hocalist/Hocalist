@@ -255,7 +255,7 @@ void main() {
       find.byKey(const ValueKey('approved-keep-earning-banner')),
       findsOneWidget,
     );
-    expect(find.text('Keep earning rewards'), findsOneWidget);
+    expect(find.text('How rewards work'), findsOneWidget);
   });
 
   testWidgets('real dashboard requests Offers carries the tapped identity', (
