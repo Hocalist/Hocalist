@@ -1011,6 +1011,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onRefreshCategories: widget.onRefreshCategories,
                       onCategorySelected: widget.usesRealSubmission
                           ? (value) {
+                              if (_categoryId == value) return;
                               setState(() {
                                 _categoryId = value;
                                 _categoryAnswers = const [];
@@ -1063,6 +1064,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       onRefreshCategories: widget.onRefreshCategories,
                       onCategorySelected: widget.usesRealSubmission
                           ? (value) {
+                              if (_categoryId == value) return;
                               setState(() {
                                 _categoryId = value;
                                 _categoryAnswers = const [];
@@ -3799,7 +3801,7 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
 }
 
 /// Real-mode category picker sheet: active server categories by id.
-class _ApprovedCategorySheet extends StatelessWidget {
+class _ApprovedCategorySheet extends StatefulWidget {
   const _ApprovedCategorySheet({
     required this.options,
     required this.selectedId,
@@ -3813,53 +3815,119 @@ class _ApprovedCategorySheet extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  State<_ApprovedCategorySheet> createState() => _ApprovedCategorySheetState();
+}
+
+class _ApprovedCategorySheetState extends State<_ApprovedCategorySheet> {
+  final _search = TextEditingController();
+  CatalogueCategoryOption? _parent;
+
+  static const _aliases = {
+    'Sofas & chairs': 'couch sectional loveseat',
+    'Junk removal': 'haul away furniture disposal',
+    'Phones & tablets': 'cellphone smartphone iphone android ipad',
+  };
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _showLevel(CatalogueCategoryOption? parent) {
+    _search.clear();
+    setState(() => _parent = parent);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final active = options.where((option) => option.isActive).toList();
+    final active = widget.options.where((option) => option.isActive).toList();
+    final ids = active.map((option) => option.id).toSet();
+    final parents = active.map((option) => option.parentId).toSet();
+    final parent = _parent;
+    final search = _search.text.trim().toLowerCase();
+    final words = search.split(RegExp(r'\s+'));
+    final choices = active.where((option) {
+      if (parent != null && option.parentId != parent.id) return false;
+      if (parent == null && search.isEmpty && ids.contains(option.parentId)) {
+        return false;
+      }
+      final label = ('${option.label} ${_aliases[option.label] ?? ''}').toLowerCase();
+      return search.isEmpty || words.every(label.contains);
+    });
+
     return BuyerModalSheet(
-      title: 'Choose a category',
-      subtitle: 'Categories come from the Hocalist catalogue.',
+      title: parent == null ? 'Choose a category' : 'Choose a subcategory',
+      subtitle: parent?.label ?? 'Pick the closest match for your request.',
       icon: Icons.grid_view_outlined,
-      onClose: onClose,
+      onClose: widget.onClose,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (active.isEmpty)
+          if (parent != null)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => _showLevel(null),
+                icon: const Icon(Icons.arrow_back, size: 18),
+                label: const Text('Back to categories'),
+              ),
+            ),
+          if (active.isNotEmpty)
+            TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: parent == null
+                    ? 'Search categories'
+                    : 'Search subcategories',
+              ),
+            ),
+          if (choices.isEmpty)
             Padding(
               key: const Key('approvedRequestCategoryEmpty'),
               padding: const EdgeInsets.symmetric(vertical: 18),
               child: Text(
-                'No categories are available yet. An administrator must publish '
-                'the catalogue before categories can be chosen.',
+                active.isEmpty
+                    ? 'No categories are available yet. An administrator must publish '
+                        'the catalogue before categories can be chosen.'
+                    : 'No matching categories.',
                 textAlign: TextAlign.center,
                 style: _bodyStyle(context),
               ),
-            )
-          else
-            for (final option in active)
-              InkWell(
-                key: ValueKey('approvedRequestCategory-${option.id}'),
-                onTap: () => onSelected(option.id),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(option.label, style: _bodyStyle(context)),
+            ),
+          for (final option in choices)
+            InkWell(
+              key: ValueKey('approvedRequestCategory-${option.id}'),
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                if (parents.contains(option.id)) {
+                  _showLevel(option);
+                } else {
+                  widget.onSelected(option.id);
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(option.label, style: _bodyStyle(context)),
+                    ),
+                    if (parents.contains(option.id))
+                      const Icon(Icons.chevron_right, size: 18)
+                    else if (option.id == widget.selectedId)
+                      Icon(
+                        Icons.check,
+                        color: HocalistPalette.text(context, _approvedBlue),
+                        size: 18,
                       ),
-                      if (option.id == selectedId)
-                        Icon(
-                          Icons.check,
-                          color: HocalistPalette.text(context, _approvedBlue),
-                          size: 18,
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
+            ),
         ],
       ),
     );

@@ -491,10 +491,12 @@ class CatalogueCategoryOption {
     required this.label,
     required this.scope,
     required this.status,
+    this.parentId,
   });
 
   final String id;
   final String label;
+  final String? parentId;
 
   /// Wire scope: `product`, `service` or `both`.
   final String scope;

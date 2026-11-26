@@ -3,6 +3,8 @@ import { randomBytes, randomUUID, createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createCommercialDb, IDS, callAs } from '../commercial_completion/tests/fixture.mjs';
 
+import { seedUsbQaCatalogue } from './usb_qa_catalogue.mjs';
+
 const port = Number(process.env.HOCALIST_USB_QA_PORT ?? 48913);
 const clientKey = 'sb_publishable_local_hocalist_qa';
 const password = 'UsbQa2026TestOnly';
@@ -68,7 +70,9 @@ for (const file of [
   '../../supabase/migrations/20261121140000_confirmed_meeting_notification.sql',
   '../runtime_repairs/249_multi_seller_buyer_rewards.sql',
   '../runtime_repairs/274_buyer_catalogue_choices.sql',
+  '../runtime_repairs/221_category_questions.sql',
 ]) await db.exec(await readSql(file));
+await seedUsbQaCatalogue(db);
 await definitions('../runtime_repairs/209_pair_conversations.sql', ['chat_deals']);
 await db.exec('REVOKE ALL ON FUNCTION hocalist.chat_deals(uuid) FROM PUBLIC, anon, service_role; GRANT EXECUTE ON FUNCTION hocalist.chat_deals(uuid) TO authenticated');
 await db.exec("INSERT INTO hocalist.reward_policy(singleton,normal_minor,late_minor,late_window_hours,rule_version) VALUES(true,15,30,12,'usb-qa-reward') ON CONFLICT (singleton) DO NOTHING");

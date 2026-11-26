@@ -55,6 +55,7 @@ class Phase2MarketplaceRequestsBackend
           CatalogueCategoryOption(
             id: category.id,
             label: category.label,
+            parentId: category.parentId,
             scope: category.scope.name,
             status: category.status.name,
           ),
