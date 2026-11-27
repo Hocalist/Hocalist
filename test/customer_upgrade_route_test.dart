@@ -21,7 +21,9 @@ void main(){
   if(failure=='contacts_plan_required') {
    expect(find.text('Retry'),findsNothing);expect(find.text('Upgrade plan'),findsOneWidget);
    await tester.tap(find.byKey(const Key('customersUpgradePlan')));await tester.pumpAndSettle();
-   expect(find.text('Plans & credits'),findsOneWidget);expect(find.text('Continue to upgrade'),findsNothing);expect(find.text('CURRENT PLAN'),findsOneWidget);
+   expect(find.text('Plans & credits'),findsOneWidget);expect(find.text('Continue to upgrade'),findsNothing);
+   expect(find.text('Could not load your plan'), findsOneWidget);
+   expect(find.text('Credits unavailable'), findsNothing);
   } else {expect(find.text('Upgrade plan'),findsNothing);expect(find.text('Retry'),findsOneWidget);}
   expect(tester.takeException(),isNull);
  });

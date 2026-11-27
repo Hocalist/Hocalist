@@ -37,6 +37,7 @@ class PrivateImagePicker extends StatefulWidget {
     this.enabled = true,
     this.maxImages = 10,
     this.storePhotoControls = false,
+    this.cropToSquare = false,
     this.role = HocalistControlRole.seller,
     this.onPendingChanged,
     this.existingImageCount = 0,
@@ -50,6 +51,7 @@ class PrivateImagePicker extends StatefulWidget {
   final bool enabled;
   final int maxImages;
   final bool storePhotoControls;
+  final bool cropToSquare;
   final HocalistControlRole role;
   final ValueChanged<bool>? onPendingChanged;
   final int existingImageCount;
@@ -89,7 +91,7 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
         final bytes = await file.readAsBytes();
         if (!mounted) return;
         final prepared = preparePrivatePhoto(bytes);
-        final photo = widget.storePhotoControls
+        final photo = widget.cropToSquare
             ? await cropStorePhoto(context, prepared)
             : prepared;
         if (!mounted || photo == null) return;

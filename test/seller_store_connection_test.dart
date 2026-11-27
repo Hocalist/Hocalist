@@ -10,6 +10,7 @@ import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
 import 'package:hocalist/features/media/private_remote_image.dart';
+import 'package:hocalist/features/media/private_image_picker.dart';
 import 'package:hocalist/features/seller/approved_seller_store_page.dart';
 import 'package:hocalist/features/seller/seller_app_shell.dart';
 import 'package:hocalist/features/seller/seller_bottom_navigation.dart';
@@ -21,12 +22,14 @@ const String categoryId = '20000000-0000-4000-8000-000000000001';
 
 class _WidgetStoreBackend implements MarketplaceStoreBackend {
   List<LocalStoreListing> listings = <LocalStoreListing>[];
+  Future<List<LocalStoreListing>> Function()? onLoadListings;
   Future<StoreWriteResult> Function(LocalStoreListing listing, String key)?
   onSave;
   final List<String> saveKeys = <String>[];
 
   @override
-  Future<List<LocalStoreListing>> loadListings() async => listings;
+  Future<List<LocalStoreListing>> loadListings() async =>
+      onLoadListings == null ? listings : await onLoadListings!();
 
   @override
   Future<List<StoreCategoryOption>> loadCategories() async => const [
@@ -227,9 +230,14 @@ void main() {
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
     var uploads = 0;
+    var entitlementReads = 0;
     await pumpStore(
       tester,
       repository,
+      loadEntitlement: () async {
+        entitlementReads++;
+        return null;
+      },
       imageUpload: (bytes, key) async {
         uploads++;
         final cropped = img.decodeJpg(bytes)!;
@@ -281,6 +289,8 @@ void main() {
       },
     );
     await tapPublish(tester);
+    expect(entitlementReads, 2);
+    expect(find.text('Saving…'), findsNothing);
     expect(picker.calls, 3);
     expect(uploads, 2);
     expect(backend.listings.single.imageMediaIds, ['synthetic-image-id']);
@@ -315,6 +325,46 @@ void main() {
     await _settle(tester);
     expect(find.text('Edit listing'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('feedback photos keep their full frame', (tester) async {
+    final previous = ImagePickerPlatform.instance;
+    ImagePickerPlatform.instance = SyntheticImagePicker(
+      sourceImage: img.Image(width: 60, height: 30),
+    );
+    addTearDown(() => ImagePickerPlatform.instance = previous);
+    var uploads = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PrivateImagePicker(
+          storePhotoControls: true,
+          addLabel: 'Attach screenshot (optional)',
+          upload: (bytes, _) async {
+            final photo = img.decodeJpg(bytes)!;
+            expect(photo.width, 60);
+            expect(photo.height, 30);
+            uploads++;
+            return 'feedback-photo';
+          },
+          onChanged: (_) {},
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Attach screenshot (optional)'));
+    await _settle(tester);
+    expect(uploads, 1);
+    expect(find.text('Crop listing photo'), findsNothing);
+  });
+
+  test('Store catalogue survives an initial listing read failure', () async {
+    final backend = _WidgetStoreBackend()
+      ..onLoadListings = () async => throw const StoreBackendException('Listings unavailable');
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    await repository.refreshStore();
+    expect(repository.storeError, 'Listings unavailable');
+    expect(repository.storeCatalogueLoaded, isTrue);
+    expect(repository.storeCategories.single.id, categoryId);
   });
 
   test('background Store refresh updates approval without loading flicker', () async {

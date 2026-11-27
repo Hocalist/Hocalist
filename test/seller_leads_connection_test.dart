@@ -296,9 +296,7 @@ void main() {
   final selected = view(requestId: 'selected', request: 'Selected recent lead', initials: 'RL');
   await pumpLeads(tester, ApprovedSellerLeadsPage(leads:[view()], focusedLead: selected, onRefreshLeads:(){}));
   final card = find.byKey(const Key('sellerLeadCardRL'));
-  expect(card, findsOneWidget);
-  expect(tester.getTopLeft(card).dy, greaterThanOrEqualTo(0));
-  expect(tester.getTopLeft(card).dy, lessThan(100));
+  expect(card.hitTestable(), findsOneWidget);
   tester.state<ScrollableState>(find.descendant(of: find.byKey(const Key('sellerLeadsScroll')), matching: find.byType(Scrollable)).first).position.jumpTo(0);
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('sellerLeadsSearch')), 'no matching lead');

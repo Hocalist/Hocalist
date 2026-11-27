@@ -86,13 +86,20 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
   }
 
   void _refreshEntitlement() {
-    if (widget.loadEntitlement != null) {
-      setState(() => _entitlement = widget.loadEntitlement!());
-    }
+    final load = widget.loadEntitlement;
+    if (load == null) return;
+    final entitlement = Future.sync(load);
+    setState(() {
+      _entitlement = entitlement;
+    });
   }
 
   Future<void> _refreshPresentation() async {
-    setState(() => _publicProfile = widget.loadPublicProfile?.call());
+    final load = widget.loadPublicProfile;
+    final profile = load == null ? null : Future.sync(load);
+    setState(() {
+      _publicProfile = profile;
+    });
     _refreshEntitlement();
   }
 
@@ -855,9 +862,12 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                     onTap: _openListingEditor,
                     firstListing: inventory.isEmpty,
                     enabled: catalogueReady,
-                    disabledNote:
-                        'Adding listings is unavailable until an administrator '
-                        'configures at least one active Store category.',
+                    disabledNote: widget.repository.storeCatalogueLoaded
+                        ? 'Adding listings is unavailable until an administrator '
+                            'configures at least one active Store category.'
+                        : widget.repository.storeLoading
+                        ? 'Loading Store categories…'
+                        : 'Store categories could not be loaded. Pull down to refresh.',
                   ),
                   if (inventory.isNotEmpty || _statusFilter != _StoreStatusFilter.all) ...[
                   SizedBox(height: metrics.spacing(14)),
@@ -2388,6 +2398,7 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
               upload: upload,
               existingImageCount: _existingImageIds.length,
               storePhotoControls: true,
+              cropToSquare: true,
               onPendingChanged: (value) =>
                   setState(() => _imagePending = value),
               enabled: !_saving && !_ambiguous,

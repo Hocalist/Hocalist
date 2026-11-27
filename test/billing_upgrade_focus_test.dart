@@ -23,7 +23,9 @@ void main(){
   expect(find.text('Loading your plan…'),findsOneWidget);
   plan.complete(SellerEntitlementView.fromJson(entitlementJson(effectivePlan:'free',effectiveSource:'free',calendarConfigured:true)));
   await tester.pumpAndSettle();
-  expect(find.text('Compare and manage plans').hitTestable(),findsOneWidget);
+  expect(find.text('Seller plans').hitTestable(),findsOneWidget);
+  expect(find.byKey(const ValueKey('billingChoose-pro')),findsOneWidget);
+  expect(find.byKey(const ValueKey('billingChoose-elite')),findsOneWidget);
   expect(find.text('Continue to upgrade'),findsNothing);
   expect(tester.takeException(),isNull);
  });

@@ -3023,6 +3023,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (destination == AppPage.sellerDashboard) unawaited(_showSellerMeetingReminder());
+      if (destination == AppPage.sellerStore &&
+          page == destination &&
+          _marketplace.isStoreBacked &&
+          !_marketplace.storeLoading &&
+          !_marketplace.storeCatalogueLoaded) {
+        unawaited(_marketplace.refreshStore());
+      }
       if ((destination == AppPage.marketplace ||
               destination == AppPage.sellerDashboard) &&
           _marketplace.isLeadsBacked) {

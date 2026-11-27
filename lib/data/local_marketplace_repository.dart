@@ -2679,6 +2679,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   }
 
   bool _storeLoading = false;
+  bool _storeCatalogueLoaded = false;
   String? _storeError;
   List<StoreCategoryOption> _storeCategories = const <StoreCategoryOption>[];
   bool _disposed = false;
@@ -2687,6 +2688,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
   final Map<String, int> _mutationTokens = <String, int>{};
 
   bool get storeLoading => _storeLoading;
+  bool get storeCatalogueLoaded => _storeCatalogueLoaded;
 
   /// User-safe message for the last failed Store operation, if any.
   String? get storeError => _storeError;
@@ -2721,6 +2723,7 @@ class LocalMarketplaceRepository extends ChangeNotifier {
       final categories = await backend.loadCategories();
       if (_disposed || token != _leadCategoriesToken) return;
       _storeCategories = categories;
+      _storeCatalogueLoaded = true;
     } catch (error) {
       if (_disposed || token != _leadCategoriesToken) return;
       _leadCategoriesError = error is StoreBackendException
@@ -2763,15 +2766,23 @@ class LocalMarketplaceRepository extends ChangeNotifier {
     }
     var changed = !background;
     try {
-      final listings = await backend.loadListings();
-      final categories = background ? _storeCategories : await backend.loadCategories();
-      if (!_isCurrentRefresh(generation, token)) return;
-      changed = changed || jsonEncode(listings.map((l) => l.toJson()).toList()) !=
-          jsonEncode(_storeListings.map((l) => l.toJson()).toList());
-      _storeListings
-        ..clear()
-        ..addAll(listings);
-      _storeCategories = categories;
+      await Future.wait([
+        Future.sync(backend.loadListings).then((listings) {
+          if (!_isCurrentRefresh(generation, token)) return;
+          changed = changed || jsonEncode(listings.map((l) => l.toJson()).toList()) !=
+              jsonEncode(_storeListings.map((l) => l.toJson()).toList());
+          _storeListings
+            ..clear()
+            ..addAll(listings);
+        }),
+        if (!background || !_storeCatalogueLoaded)
+          Future.sync(backend.loadCategories).then((categories) {
+            if (!_isCurrentRefresh(generation, token)) return;
+            changed = true;
+            _storeCategories = categories;
+            _storeCatalogueLoaded = true;
+          }),
+      ]);
     } catch (error) {
       if (!_isCurrentRefresh(generation, token)) return;
       if (!background) _storeError = _storeMessage(error);
