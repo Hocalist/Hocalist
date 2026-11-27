@@ -6,7 +6,6 @@ import { requestEvidence } from "./lib/admin-evidence-client";
 import { AdminIntent } from "./lib/admin-intent";
 import {
   decodeReviewQueue,
-  canConfirmConduct,
   decodeWithdrawalQueue,
   mergeReviewSection,
   trustErrorMessage,
@@ -34,11 +33,7 @@ export function TrustPanel() {
   const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const [healthDecisions, setHealthDecisions] = useState<Record<string, string>>({});
-  const healthDecision = (row: { case_id: string; category: string | null }) => {
-    const decision = healthDecisions[row.case_id] ?? "no_action";
-    return decision === "violation_confirmed" && !canConfirmConduct(row) ? "no_action" : decision;
-  };
+  const [healthDecision, setHealthDecision] = useState("no_action");
   const [filterUi, setFilterUi] = useState(DEFAULT_FILTERS);
   const [retry, setRetry] = useState<{ operation: string; input: Record<string, unknown> } | null>(null);
   const [evidenceNotice, setEvidenceNotice] = useState<string | null>(null);
@@ -375,7 +370,6 @@ export function TrustPanel() {
               onChange={(event) => applyFilter({ healthState: event.target.value })}
             >
               <option value="needs_review">Needs review</option>
-              <option value="priority">Priority reports</option>
               <option value="reviewed">Reviewed</option>
               <option value="">All</option>
             </select>
@@ -388,7 +382,6 @@ export function TrustPanel() {
                 <thead>
                   <tr>
                     <th>Case</th>
-                    <th>Priority / context</th>
                     <th>Reason</th>
                     <th>Report</th>
                     <th>Review</th>
@@ -398,13 +391,6 @@ export function TrustPanel() {
                   {data.health_reviews.items.map((row) => (
                     <tr key={row.case_id}>
                       <td><strong>{row.case_id}</strong></td>
-                      <td>
-                        <strong>{row.priority === 2 ? "Serious report" : row.priority === 1 ? "Repeated reports" : "Standard review"}</strong>
-                        {row.category && <div>{row.category.replaceAll("_", " ")}</div>}
-                        {row.seller_id && <div>Seller: {row.seller_id}</div>}
-                        {row.request_id && <div>Request: {row.request_id}</div>}
-                        {row.reporting_buyers > 0 && <div>{row.reporting_buyers} reporting buyer{row.reporting_buyers === 1 ? "" : "s"}</div>}
-                      </td>
                       <td>{row.reason_code}</td>
                       <td>{row.body.slice(0, 140)}</td>
                       <td>
@@ -416,13 +402,12 @@ export function TrustPanel() {
                           <>
                             <select
                               aria-label="Health review decision"
-                              value={healthDecision(row)}
+                              value={healthDecision}
                               disabled={busy || !!retry}
-                              onChange={(event) => setHealthDecisions((current) => ({ ...current, [row.case_id]: event.target.value }))}
+                              onChange={(event) => setHealthDecision(event.target.value)}
                             >
                               <option value="no_action">No action</option>
                               <option value="watch">Watch</option>
-                              {canConfirmConduct(row) && <option value="violation_confirmed">Violation confirmed</option>}
                               <option value="restriction_recommended">
                                 Restriction recommended
                               </option>
@@ -432,7 +417,7 @@ export function TrustPanel() {
                               onClick={() =>
                                 void execute("health.review", {
                                   case_id: row.case_id,
-                                  decision: healthDecision(row),
+                                  decision: healthDecision,
                                 })
                               }
                             >
