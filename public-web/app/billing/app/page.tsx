@@ -2,6 +2,7 @@
 import { BrandLoading } from '../../brand-loading';
 import { useEffect, useRef, useState } from 'react';
 import { subscribeNativeBillingReentry } from '../../lib/native-billing-reentry';
+import { sellerBillingPath } from '../../lib/seller-plan-destination';
 
 export default function NativeBillingAdmission() {
   const [failed, setFailed] = useState(false);
@@ -13,6 +14,7 @@ export default function NativeBillingAdmission() {
     if (started.current) return stopReentry;
     started.current = true;
     const ticket = new URLSearchParams(window.location.hash.slice(1)).get('ticket');
+    const billingPath = sellerBillingPath(new URLSearchParams(window.location.search));
     // Remove the one-use credential before any network call or navigation.
     window.history.replaceState(null, '', '/billing/app');
     if (!ticket) { setFailed(true); return stopReentry; }
@@ -24,7 +26,7 @@ export default function NativeBillingAdmission() {
       cache: 'no-store', referrerPolicy: 'no-referrer', signal: controller.signal,
     }).then(response => {
       if (!response.ok) throw new Error('billing_admission_failed');
-      window.location.replace('/billing');
+      window.location.replace(billingPath);
     }).catch(() => setFailed(true)).finally(() => window.clearTimeout(timer));
     // Do not abort on React's development effect replay: this ticket is one use.
     return stopReentry;
