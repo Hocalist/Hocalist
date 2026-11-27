@@ -266,9 +266,16 @@ void main() {
       of: listingCard,
       matching: find.byType(PrivateRemoteImage),
     );
-    final cardRect = tester.getRect(listingCard);
     final photoRect = tester.getRect(photo);
-    expect(cardRect.bottom - photoRect.bottom, closeTo(photoRect.top - cardRect.top, 1));
+    expect(photoRect.height, closeTo(photoRect.width, 1));
+    final category = find.descendant(
+      of: listingCard,
+      matching: find.text('Product · Electronics'),
+    );
+    expect(
+      tester.getTopLeft(category).dy - tester.getBottomLeft(titleAction).dy,
+      closeTo(0, 1),
+    );
     await tester.tap(titleAction);
     await _settle(tester);
     expect(find.text('Edit listing'), findsOneWidget);
