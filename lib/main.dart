@@ -1260,6 +1260,11 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
     return (backend as CommercialSellerHomeBackend).loadSellerHomeSummary();
   }
 
+  Future<PlanCode?> _loadSellerHomePlan() async {
+    final view = await createConfiguredEntitlementBackend()?.loadEntitlement();
+    return view?.effectivePlan;
+  }
+
   Future<void> _refreshConfirmedBuyerMeetings({bool background = false}) async {
     final session = widget.accountSession;
     if (role != UserRole.buyer || session == null || !kCommercialReadsEnabled) {
@@ -7817,6 +7822,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
               key:ValueKey('seller-home-${widget.accountSession?.userId ?? 'demo'}'),
               avatarMediaId:_profileAvatarMediaId,
               loadSummary:_realAccountMode ? _loadSellerHomeSummary : null,
+              loadPlan: _realAccountMode ? _loadSellerHomePlan : null,
               todayMeetup: _sellerTodayMeetup(),
               onRefresh: () async {
                 await Future.wait([_marketplace.refreshSellerLeads(), _marketplace.refreshSellerOffers(),

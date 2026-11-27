@@ -44,6 +44,8 @@ Future<void> pumpHome(
   ValueChanged<Offer>? onOpenRecentOffer,
   VoidCallback? onSetupBusiness,
   Future<SellerHomeSummaryView> Function()? loadSummary,
+  Future<PlanCode?> Function()? loadPlan,
+  bool reducedMotion = false,
   double width = 390,
   double scale = 1,
   String sellerName = 'Northside Tech',
@@ -57,6 +59,10 @@ Future<void> pumpHome(
   await tester.pumpWidget(
     MaterialApp(
       theme:ThemeData(fontFamily:'Nunito'),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reducedMotion),
+        child: child!,
+      ),
       home: Scaffold(
         body: RepaintBoundary(key:const Key('seller-home-capture'),child:ApprovedSellerHomePage(
           onLeads: () {},
@@ -67,6 +73,7 @@ Future<void> pumpHome(
           onOfferHistory: onOfferHistory,
           sellerName: sellerName,
           loadSummary:loadSummary,
+          loadPlan: loadPlan,
           realLeads: leads,
           sellerOffers: offers,
           leadsLoading: loading,
@@ -86,6 +93,48 @@ void main() {
       final icons=FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf')); await icons.load();
     }
   });
+  for (final reduced in [false, true]) {
+    testWidgets('current paid plan badge refreshes on return ($reduced)', (
+      tester,
+    ) async {
+      var plan = PlanCode.free;
+      await pumpHome(
+        tester,
+        width: 320,
+        scale: 1.3,
+        reducedMotion: reduced,
+        loadPlan: () async => plan,
+      );
+      final badge = find.byKey(const Key('sellerHomePlanShimmer'));
+      expect(badge, findsNothing);
+
+      Future<void> returnToHome(PlanCode upgraded) async {
+        plan = upgraded;
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pumpAndSettle();
+      }
+
+      for (final (tier, label, color) in [
+        (PlanCode.pro, 'Pro', const Color(0xff4027bc)),
+        (PlanCode.elite, 'Elite', const Color(0xfff3c451)),
+      ]) {
+        await returnToHome(tier);
+        expect(find.descendant(of: badge, matching: find.text(label)), findsOneWidget);
+        final surface = tester.widget<DecoratedBox>(
+          find.descendant(of: badge, matching: find.byType(DecoratedBox)),
+        );
+        expect((surface.decoration as BoxDecoration).color, color);
+        final paint = tester.widget<CustomPaint>(
+          find.descendant(of: badge, matching: find.byType(CustomPaint)),
+        );
+        expect(paint.foregroundPainter == null, reduced);
+        expect(tester.takeException(), isNull);
+      }
+      await returnToHome(PlanCode.free);
+      expect(badge, findsNothing);
+    });
+  }
   for (final reduced in [false, true]) {
     testWidgets('Browse requests stays right aligned with two optional shimmer passes ($reduced)', (tester) async {
       tester.view.devicePixelRatio = 1;

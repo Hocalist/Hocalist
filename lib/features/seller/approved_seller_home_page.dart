@@ -9,6 +9,7 @@ import '../../components/hocalist_status_fact.dart';
 import '../../domain/phase2/discovery.dart';
 import '../../domain/phase2/requests.dart';
 import '../../domain/phase2/offers.dart';
+import '../../theme/marketplace_ui_foundation.dart';
 import '../../theme/seller_ui_foundation.dart';
 import '../../theme/accessibility_visuals.dart';
 import 'approved_seller_leads_page.dart';
@@ -27,6 +28,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.sellerName,
     this.avatarMediaId,
     this.loadSummary,
+    this.loadPlan,
     this.realLeads,
     this.sellerOffers = const [],
     this.leadsLoading = false,
@@ -61,6 +63,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   final String? sellerName;
   final String? avatarMediaId;
   final Future<SellerHomeSummaryView> Function()? loadSummary;
+  final Future<PlanCode?> Function()? loadPlan;
   final List<SellerLeadView>? realLeads;
   final List<Offer> sellerOffers;
   final Future<void> Function()? onRefresh;
@@ -100,7 +103,40 @@ class ApprovedSellerHomePage extends StatefulWidget {
   State<ApprovedSellerHomePage> createState() => _ApprovedSellerHomePageState();
 }
 
-class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
+class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage>
+    with WidgetsBindingObserver {
+  PlanCode? _plan;
+  Future<void>? _planRead;
+
+  Future<void> _loadPlan() async {
+    final load = widget.loadPlan;
+    if (load == null) return;
+    final pending = _planRead;
+    if (pending != null) {
+      await pending;
+      return;
+    }
+    final read = _readPlan(load);
+    _planRead = read;
+    try {
+      await read;
+    } finally {
+      if (_planRead == read) _planRead = null;
+    }
+  }
+
+  Future<void> _readPlan(Future<PlanCode?> Function() load) async {
+    PlanCode? plan;
+    try {
+      plan = await load();
+    } catch (_) {
+      // A plan badge requires a successful entitlement read.
+    }
+    if (mounted && widget.loadPlan == load && _plan != plan) {
+      setState(() => _plan = plan);
+    }
+  }
+
   SellerHomeSummaryView? _summary;
   bool _summaryLoading=false;
   bool _summaryFailed=false;
@@ -122,6 +158,8 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadPlan());
     if (widget.usesRealLeads) _loadSummary();
     final refresh = widget.onRefreshOffers;
     if (refresh != null) {
@@ -129,6 +167,27 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
         if (mounted) refresh();
       });
     }
+  }
+
+  @override
+  void didUpdateWidget(ApprovedSellerHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.loadPlan != widget.loadPlan) {
+      _plan = null;
+      _planRead = null;
+      unawaited(_loadPlan());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_loadPlan());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
@@ -151,6 +210,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
               _SellerHero(
                 realName: realLeads == null ? null : widget.sellerName ?? '',
                 avatarMediaId: widget.avatarMediaId,
+                plan: _plan,
                 accountHealth: widget.accountHealth,
                 serviceAreaSaved: widget.serviceAreaSaved,
                 accountHealthLoading: widget.accountHealthLoading,
@@ -320,7 +380,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
           ),
         );
         return Align(alignment:Alignment.topCenter,child:widget.onRefresh == null ? content : PullRefreshAction(onRefresh: () async {
-          await Future.wait([widget.onRefresh!(),_loadSummary()]);
+          await Future.wait([widget.onRefresh!(),_loadSummary(),_loadPlan()]);
         }, child: content));
       },
     );
@@ -475,6 +535,7 @@ class _SellerHero extends StatelessWidget {
   const _SellerHero({
     this.realName,
     this.avatarMediaId,
+    this.plan,
     this.accountHealth,
     this.serviceAreaSaved = false,
     this.accountHealthLoading = false,
@@ -486,6 +547,7 @@ class _SellerHero extends StatelessWidget {
 
   final String? realName;
   final String? avatarMediaId;
+  final PlanCode? plan;
   final SellerAccountHealthView? accountHealth;
   final bool serviceAreaSaved;
   final bool accountHealthLoading;
@@ -517,9 +579,18 @@ class _SellerHero extends StatelessWidget {
                 child: nameHeading,
               ),
         SizedBox(height: metrics.geometry(3)),
-        Text(
-          'Account health',
-          style: sellerText(metrics, 11.5, color: SellerUiColors.body),
+        Wrap(
+          spacing: metrics.geometry(6),
+          runSpacing: metrics.geometry(2),
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Account health',
+              style: sellerText(metrics, 11.5, color: SellerUiColors.body),
+            ),
+            if (plan == PlanCode.pro || plan == PlanCode.elite)
+              _SellerHomePlanBadge(key: ValueKey(plan), elite: plan == PlanCode.elite),
+          ],
         ),
         SizedBox(height: metrics.geometry(2)),
         if (realName==null) const _AccountHealthBar()
@@ -575,6 +646,47 @@ class _SellerHero extends StatelessWidget {
         SizedBox(width: metrics.geometry(4)),
         art,
       ],
+    );
+  }
+}
+
+class _SellerHomePlanBadge extends StatelessWidget {
+  const _SellerHomePlanBadge({required this.elite, super.key});
+
+  final bool elite;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    final radius = metrics.geometry(20);
+    return _SellerShimmer(
+      key: const Key('sellerHomePlanShimmer'),
+      radius: radius,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          color: elite
+              ? const Color(0xfff3c451)
+              : MarketplaceColors.of(context, surface: MarketplaceSurface.meetup)
+                  .primary,
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: metrics.geometry(6),
+            vertical: metrics.geometry(2),
+          ),
+          child: Text(
+            elite ? 'Elite' : 'Pro',
+            semanticsLabel: elite ? 'Elite Seller' : 'Pro Seller',
+            style: sellerText(
+              metrics,
+              10,
+              weight: FontWeight.w800,
+              color: elite ? const Color(0xff362502) : Colors.white,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1416,16 +1528,17 @@ class _SellerMetricCard extends StatelessWidget {
   }
 }
 
-class _FindBuyersBanner extends StatefulWidget {
-  const _FindBuyersBanner({required this.onTap});
+class _SellerShimmer extends StatefulWidget {
+  const _SellerShimmer({required this.child, required this.radius, super.key});
 
-  final VoidCallback onTap;
+  final Widget child;
+  final double radius;
 
   @override
-  State<_FindBuyersBanner> createState() => _FindBuyersBannerState();
+  State<_SellerShimmer> createState() => _SellerShimmerState();
 }
 
-class _FindBuyersBannerState extends State<_FindBuyersBanner>
+class _SellerShimmerState extends State<_SellerShimmer>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final _shine = AnimationController(
     vsync: this,
@@ -1448,6 +1561,7 @@ class _FindBuyersBannerState extends State<_FindBuyersBanner>
       _entrance?.cancel();
       _followUp?.cancel();
       _shine.reset();
+      _scheduled = false;
     } else if (!_scheduled) {
       _scheduled = true;
       _entrance = Timer(const Duration(milliseconds: 350), _playShine);
@@ -1479,6 +1593,20 @@ class _FindBuyersBannerState extends State<_FindBuyersBanner>
     _shine.dispose();
     super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: HocalistMotion.reduced(context)
+        ? null
+        : _SellerShimmerPainter(_shine, widget.radius),
+    child: widget.child,
+  );
+}
+
+class _FindBuyersBanner extends StatelessWidget {
+  const _FindBuyersBanner({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1536,17 +1664,12 @@ class _FindBuyersBannerState extends State<_FindBuyersBanner>
               SizedBox(width: metrics.geometry(8)),
               SizedBox(
                 width: metrics.artSize(112),
-                child: CustomPaint(
-                  foregroundPainter: HocalistMotion.reduced(context)
-                      ? null
-                      : _BrowseButtonShimmer(
-                          _shine,
-                          hocalistAccessibilityVisualsOf(context)
-                              .radiusOr(metrics.geometry(13)),
-                        ),
+                child: _SellerShimmer(
+                  radius: hocalistAccessibilityVisualsOf(context)
+                      .radiusOr(metrics.geometry(13)),
                   child: SellerPrimaryButton(
                     label: 'Browse requests',
-                    onPressed: widget.onTap,
+                    onPressed: onTap,
                     fontSize: 10,
                     compact: true,
                     trailing: Icon(
@@ -1565,8 +1688,8 @@ class _FindBuyersBannerState extends State<_FindBuyersBanner>
   }
 }
 
-class _BrowseButtonShimmer extends CustomPainter {
-  _BrowseButtonShimmer(this.progress, this.radius) : super(repaint: progress);
+class _SellerShimmerPainter extends CustomPainter {
+  _SellerShimmerPainter(this.progress, this.radius) : super(repaint: progress);
 
   final Animation<double> progress;
   final double radius;
@@ -1588,7 +1711,7 @@ class _BrowseButtonShimmer extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_BrowseButtonShimmer oldDelegate) =>
+  bool shouldRepaint(_SellerShimmerPainter oldDelegate) =>
       oldDelegate.radius != radius || oldDelegate.progress != progress;
 }
 
