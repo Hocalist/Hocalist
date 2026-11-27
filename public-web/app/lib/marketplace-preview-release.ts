@@ -1,18 +1,14 @@
 // Pinned preview assets; the regular Android download remains independent.
-const releaseRoot = 'https://github.com/Hocalist/Hocalist/releases/download/marketplace-preview-2026-11-26';
+const releaseAsset = {
+  assetUrl: 'https://github.com/Hocalist/Hocalist/releases/download/marketplace-preview-4004/Hocalist-Android-Preview-4004.apk',
+  bytes: 107642663,
+  sha256: '69d01ff6eb3588d6baa2dd2617cdc2edd98a2b5e6a5b0dc8178a6ad71a6c9fa8',
+} as const;
 
 export const marketplacePreviewRelease = {
-  date: '26 November 2026 · Revision 2',
+  date: '27 November 2026',
   version: '1.0.0',
-  sourceCommit: '04e88deae50afaa153f7c75c2bd842ba15b8041b',
-  arm64: {
-    assetUrl: `${releaseRoot}/Hocalist-Marketplace-Preview-2026-11-26-arm64.apk`,
-    bytes: 77683886,
-    sha256: '08a11dd7e36dab79eac6241a38e928599b75967dc451072a4cd76e351d1525ff',
-  },
-  arm32: {
-    assetUrl: `${releaseRoot}/Hocalist-Marketplace-Preview-2026-11-26-arm32.apk`,
-    bytes: 70507378,
-    sha256: '99908e266d880467ce970399ae9db5b5463b439f767f3e63e9942db97b49db84',
-  },
+  sourceCommit: '59bbf43273be91fe7e3d52f7d46997fe022b39c2',
+  arm64: releaseAsset,
+  arm32: releaseAsset,
 } as const;
