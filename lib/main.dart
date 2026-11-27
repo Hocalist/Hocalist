@@ -7893,9 +7893,43 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           ),
         );
       case AppPage.sellerStore:
+        final storeProfileId = widget.accountSession?.profile?.membershipId;
+        final leadLoader = _marketplace.leadsBackend;
         return _sellerShell(
           selected: SellerNavDestination.store,
           child: ApprovedSellerStorePage(
+            key: ValueKey('seller-store-$storeProfileId'),
+            loadPublicProfile: storeProfileId == null
+                ? null
+                : () => ProfilePresentationBackend(Supabase.instance.client)
+                    .publicSeller(storeProfileId),
+            loadEntitlement: !_realAccountMode ? null : () async =>
+                await createConfiguredEntitlementBackend()?.loadEntitlement(),
+            loadMatchingRequests: leadLoader is! MarketplacePagedLeadsBackend
+                ? null
+                : (listing) async {
+                    final matches = await (leadLoader as MarketplacePagedLeadsBackend).loadLeadPage(
+                      filter: DiscoveryLeadFilter(
+                        categoryId: listing.categoryId,
+                        kind: listing.kind == LocalListingKind.product
+                            ? RequestKind.product : RequestKind.service,
+                      ),
+                      limit: 10,
+                    );
+                    return [
+                      for (var i = 0; i < matches.items.length; i++)
+                        SellerLeadView.fromProjection(
+                          matches.items[i],
+                          matchReasons: i < matches.matchReasons.length
+                              ? matches.matchReasons[i] : const [],
+                        ),
+                    ];
+                  },
+            onOpenMatchingRequest: (lead) {
+              _rememberLead(lead);
+              _focusedSellerLead = lead;
+              go(AppPage.marketplace);
+            },
             hocatrendsControl: _discoveryBackend == null ? null : (id) => HocatrendsOfferPanel(
               key: ValueKey(id), forListing: true,
               load: () => _discoveryBackend!.hocatrendsListingPreference(id),
@@ -7903,7 +7937,7 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
             ),
             repository: _marketplace,
             sellerName: sellerName,
-            sellerProfileId: widget.accountSession?.profile?.membershipId,
+            sellerProfileId: storeProfileId,
             onStoreSettings: () => go(AppPage.sellerProfile),
           ),
         );

@@ -142,6 +142,46 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a service can save a quote-only draft without an amount', (
+    tester,
+  ) async {
+    final repository = LocalMarketplaceRepository();
+    addTearDown(repository.dispose);
+    await pumpStore(tester, repository, height: 1000);
+
+    await tester.tap(find.byKey(const Key('sellerStoreAddListing')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sellerStoreChooseService')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('sellerStoreTitleField')),
+      'Weekend cleaning',
+    );
+    await tester.enterText(
+      find.byKey(const Key('sellerStoreCategoryField')),
+      'Home services',
+    );
+    final pricing = find.byKey(const Key('sellerStorePricingType'));
+    await tester.ensureVisible(pricing);
+    await tester.tap(pricing);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Request a quote').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sellerStorePriceField')), findsNothing);
+    final save = find.text('Save draft');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    final draft = repository.storeListings.singleWhere(
+      (listing) => listing.title == 'Weekend cleaning',
+    );
+    expect(draft.kind, LocalListingKind.service);
+    expect(draft.priceLabel, 'Quote required');
+    expect(draft.status, LocalListingStatus.draft);
+    expect(draft.isPubliclyVisible, isFalse);
+  });
+
   testWidgets('Store filters and listing status actions work locally', (
     tester,
   ) async {
@@ -149,16 +189,26 @@ void main() {
     addTearDown(repository.dispose);
     await pumpStore(tester, repository);
 
+    final filters = find.byKey(const Key('sellerStoreFilter'));
+    await tester.ensureVisible(filters);
+    await tester.tap(filters);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Services'));
+    await tester.ensureVisible(find.text('Apply filters'));
+    await tester.tap(find.text('Apply filters'));
     await tester.pumpAndSettle();
     expect(find.text('Pressure washing'), findsOneWidget);
     expect(find.text('iPad Air 5th Gen 64GB'), findsNothing);
 
-    await tester.tap(find.text('All'));
+    await tester.tap(filters);
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('sellerStoreListing-listing-ipad-air')),
-    );
+    await tester.tap(find.text('All types'));
+    await tester.ensureVisible(find.text('Apply filters'));
+    await tester.tap(find.text('Apply filters'));
+    await tester.pumpAndSettle();
+    final listing = find.byKey(const Key('sellerStoreListing-listing-ipad-air'));
+    await tester.ensureVisible(listing);
+    await tester.tap(listing);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sellerStoreToggleListing')));
     await tester.pumpAndSettle();

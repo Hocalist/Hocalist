@@ -6,11 +6,14 @@ import 'support/synthetic_image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
+import 'package:hocalist/domain/phase2/commercial/commercial.dart';
+import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
 import 'package:hocalist/features/seller/approved_seller_store_page.dart';
 import 'package:hocalist/features/seller/seller_app_shell.dart';
 import 'package:hocalist/features/seller/seller_bottom_navigation.dart';
 
 import 'test_fonts.dart';
+import 'phase2/commercial/support/commercial_payloads.dart';
 
 const String categoryId = '20000000-0000-4000-8000-000000000001';
 
@@ -103,6 +106,10 @@ void main() {
     LocalMarketplaceRepository repository, {
     String? sellerName,
     ImageUpload? imageUpload,
+    Future<Map<String, dynamic>> Function()? loadPublicProfile,
+    Future<SellerEntitlementView?> Function()? loadEntitlement,
+    Future<List<SellerLeadView>> Function(LocalStoreListing listing)?
+        loadMatchingRequests,
   }) async {
     await repository.refreshStore();
     await tester.binding.setSurfaceSize(const Size(390, 900));
@@ -129,6 +136,10 @@ void main() {
                 repository: repository,
                 sellerName: sellerName,
                 imageUpload: imageUpload,
+                loadPublicProfile: loadPublicProfile,
+                loadEntitlement: loadEntitlement,
+                loadMatchingRequests: loadMatchingRequests,
+                onOpenMatchingRequest: (_) {},
                 onStoreSettings: () {},
               ),
             ),
@@ -136,6 +147,20 @@ void main() {
         ),
       ),
     );
+    await _settle(tester);
+  }
+
+  Future<void> applyStatusFilter(WidgetTester tester, String status) async {
+    final open = find.byKey(const Key('sellerStoreFilter'));
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    await _settle(tester);
+    final option = find.text(status).last;
+    await tester.ensureVisible(option);
+    await tester.tap(option);
+    final apply = find.text('Apply filters');
+    await tester.ensureVisible(apply);
+    await tester.tap(apply);
     await _settle(tester);
   }
 
@@ -362,7 +387,7 @@ void main() {
     addTearDown(repository.dispose);
     await pumpStore(tester, repository);
     expect(find.text('Archived item'), findsOneWidget);
-    expect(find.text('All (1)'), findsOneWidget);
+    expect(find.text('Your listings'), findsOneWidget);
     expect(repository.storeListings, isEmpty);
     expect(repository.archivedStoreListings, hasLength(1));
     await tester.tap(find.byTooltip('Store options'));
@@ -370,6 +395,7 @@ void main() {
     await tester.tap(find.text('Archived listings'));
     await _settle(tester);
     expect(find.text('Archived item'), findsOneWidget);
+    await tester.ensureVisible(find.text('Archived item'));
     await tester.tap(find.text('Archived item'));
     await _settle(tester);
     expect(find.text('Publish listing'), findsNothing);
@@ -382,7 +408,7 @@ void main() {
     expect(find.text('0 published'), findsOneWidget);
   });
 
-  testWidgets('status shortcuts show only matching listings and counts follow search', (tester) async {
+  testWidgets('the filter button narrows listings by status and search', (tester) async {
     const base = LocalStoreListing(
       id: 'active', kind: LocalListingKind.product, title: 'Active camera',
       priceLabel: '15', description: '', category: 'Electronics',
@@ -399,22 +425,23 @@ void main() {
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
     await pumpStore(tester, repository);
-    expect(find.text('All (6)'), findsOneWidget);
+    expect(find.text('Your listings'), findsOneWidget);
     for (final pair in {
-      'Active': 'Active camera', 'In review': 'Review camera', 'Not approved': 'Rejected tripod',
+      'Live': 'Active camera', 'In review': 'Review camera', 'Needs changes': 'Rejected tripod',
       'Draft': 'Draft lens', 'Paused': 'Paused lens', 'Archived': 'Archived lens',
     }.entries) {
-      final chip = find.text('${pair.key} (1)');
-      await tester.ensureVisible(chip);
-      await tester.tap(chip);
-      await _settle(tester);
+      await applyStatusFilter(tester, pair.key);
       expect(find.text(pair.value), findsOneWidget);
       expect(find.byTooltip('Manage listing'), findsOneWidget);
     }
-    await tester.enterText(find.byKey(const Key('sellerStoreSearch')), 'camera');
+    await applyStatusFilter(tester, 'All statuses');
+    final search = find.byKey(const Key('sellerStoreSearch'));
+    await tester.ensureVisible(search);
+    await tester.enterText(search, 'camera');
     await _settle(tester);
-    expect(find.text('All (2)'), findsOneWidget);
-    expect(find.text('Archived (0)'), findsOneWidget);
+    expect(find.text('Active camera'), findsOneWidget);
+    expect(find.text('Review camera'), findsOneWidget);
+    expect(find.text('Archived lens'), findsNothing);
   });
 
   testWidgets('pending review is not presented as published', (tester) async {
@@ -443,13 +470,10 @@ void main() {
     expect(find.text('In review'), findsOneWidget);
     expect(find.text('0 published'), findsOneWidget);
     expect(find.text('Awaiting review item'), findsOneWidget);
-    await tester.ensureVisible(find.text('Active (0)'));
-    await tester.tap(find.text('Active (0)'));
-    await _settle(tester);
+    await applyStatusFilter(tester, 'Live');
     expect(find.text('Awaiting review item'), findsNothing);
-    await tester.ensureVisible(find.text('In review (1)'));
-    await tester.tap(find.text('In review (1)'));
-    await _settle(tester);
+    await applyStatusFilter(tester, 'In review');
+    await tester.ensureVisible(find.text('Awaiting review item'));
     await tester.tap(find.text('Awaiting review item'));
     await _settle(tester);
     expect(find.text('Archive listing'), findsOneWidget);
@@ -467,15 +491,26 @@ void main() {
     expect(repository.storeListings, hasLength(1));
   });
 
-  testWidgets('backed preview uses the real seller name and no share claim', (
+  testWidgets('backed preview shows the company and only opted-in contact', (
     tester,
   ) async {
     final backend = _WidgetStoreBackend();
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
-    await pumpStore(tester, repository, sellerName: 'Real Seller Co');
+    await pumpStore(
+      tester,
+      repository,
+      sellerName: 'Real Seller Co',
+      loadPublicProfile: () async => {
+        'available': true,
+        'display_name': 'Real Seller Co',
+        'area_label': 'Orlando, FL',
+        'phone': '(407) 555-0142',
+        'email': null,
+      },
+    );
 
-    expect(find.text('No listings yet'), findsWidgets);
+    expect(find.text('Add your first listing'), findsOneWidget);
     expect(find.text('Store active'), findsNothing);
 
     await tester.tap(find.byKey(const Key('sellerStoreMenu')));
@@ -485,10 +520,48 @@ void main() {
     await tester.tap(find.byKey(const Key('sellerStorePreviewAction')));
     await _settle(tester);
 
-    expect(find.text('Real Seller Co'), findsOneWidget);
+    expect(find.text('Real Seller Co'), findsWidgets);
+    expect(find.text('Orlando, FL'), findsWidgets);
+    expect(find.text('Contact this business'), findsOneWidget);
+    expect(find.text('Phone: (407) 555-0142'), findsOneWidget);
+    expect(find.textContaining('Email:'), findsNothing);
     expect(find.text('Northside Tech'), findsNothing);
     expect(find.textContaining('Verified seller'), findsNothing);
     expect(find.text('Public store preview'), findsWidgets);
+  });
+
+  testWidgets('paid Store uses server capacity and the selected listing for matches', (
+    tester,
+  ) async {
+    const listing = LocalStoreListing(
+      id: 'tv', kind: LocalListingKind.product, title: 'Smart TV',
+      priceLabel: r'$240', description: '', category: 'Electronics',
+      categoryId: categoryId, serviceArea: 'Orlando', availability: 'Today',
+      status: LocalListingStatus.active,
+    );
+    final backend = _WidgetStoreBackend()..listings = [listing];
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    String? loadedCategory;
+    await pumpStore(
+      tester,
+      repository,
+      loadEntitlement: () async => SellerEntitlementView.fromJson(entitlementJson(
+        effectivePlan: 'pro', effectiveSource: 'billing', billingPlan: 'pro',
+        storeLimit: 15, activeListings: 1,
+      )),
+      loadMatchingRequests: (source) async {
+        loadedCategory = source.categoryId;
+        return [];
+      },
+    );
+    expect(find.text('1 of 15 listing slots used'), findsOneWidget);
+    final matches = find.text('Find matching requests');
+    await tester.ensureVisible(matches);
+    await tester.tap(matches);
+    await _settle(tester);
+    expect(loadedCategory, categoryId);
+    expect(find.text('No open buyer requests match this category right now.'), findsOneWidget);
   });
 
   testWidgets('backed store without active categories disables adding', (
