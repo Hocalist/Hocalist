@@ -122,6 +122,10 @@ class _HocalistRealProviderBootstrapState
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          if (const bool.fromEnvironment('HOCALIST_USB_QA')) {
+            debugPrint('USB QA init: ');
+            debugPrintStack(stackTrace: snapshot.stackTrace);
+          }
           return _wrap(
             _AccountGatePage(
               key: const ValueKey('real-account-init-failure'),

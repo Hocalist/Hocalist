@@ -86,8 +86,8 @@ void main() {
         ),
       ),
     );
-    await tester.ensureVisible(find.text('Ask for help'));
-    await tester.tap(find.text('Ask for help'));
+    await tester.ensureVisible(find.text('Get help or send feedback'));
+    await tester.tap(find.text('Get help or send feedback'));
     await tester.pump();
     await tester.ensureVisible(find.text('Report a safety concern'));
     await tester.tap(find.text('Report a safety concern'));

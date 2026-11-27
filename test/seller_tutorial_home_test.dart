@@ -33,7 +33,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(loadHocalistTestFonts);
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const analytics = MethodChannel('hocalist/marketplace_analytics');
+    messenger.setMockMethodCallHandler(analytics, (_) async => false);
+    addTearDown(() => messenger.setMockMethodCallHandler(analytics, null));
+  });
 
   Future<void> pumpSurface(
     WidgetTester tester,
@@ -253,7 +260,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final sellerChoice = find.bySemanticsLabel(
-      'I am selling. Target real customers and beat the competition. Browse requests.',
+      'I am selling. Browse buyer requests and send offers.',
     );
     await tester.ensureVisible(sellerChoice);
     await tester.tap(sellerChoice);
@@ -412,13 +419,13 @@ void main() {
         find.byKey(const Key('sellerSendOfferBottomSheet')),
         findsOneWidget,
       );
-      expect(find.text('Send your offer'), findsOneWidget);
+      expect(find.byKey(const Key('sellerSendOfferHeading')), findsOneWidget);
       expect(find.text('Your Pro Plan'), findsOneWidget);
-      expect(find.text(r'Initial bid $1.90'), findsOneWidget);
-      expect(find.text(r'Winning Bid $4.75'), findsOneWidget);
+      expect(find.text(r'Initial lead fee $1.90'), findsOneWidget);
+      expect(find.text(r'Total fee if you win $4.75'), findsOneWidget);
       expect(find.textContaining('Buyer’s budget:'), findsOneWidget);
       expect(find.byKey(const Key('sellerHigherOffersAllowed')), findsNothing);
-      expect(find.text('Send your offer to the buyer.'), findsOneWidget);
+      expect(find.byKey(const Key('sellerSendOfferSubmit')), findsOneWidget);
       expect(
         find.byKey(const Key('sellerOfferCurrencyPrefix')),
         findsOneWidget,
@@ -771,8 +778,8 @@ void main() {
         .getTopLeft(find.byKey(const Key('sellerSendOfferCancel')))
         .dy;
     expect(cancelTop - submitBottom, greaterThanOrEqualTo(10));
-    final compactBidText = tester.widget<Text>(find.text(r'Initial bid $1.90'));
-    final compactHeading = tester.widget<Text>(find.text('Send your offer'));
+    final compactBidText = tester.widget<Text>(find.text(r'Initial lead fee $1.90'));
+    final compactHeading = tester.widget<Text>(find.byKey(const Key('sellerSendOfferHeading')));
     expect(
       compactBidText.style!.fontSize,
       lessThan(compactHeading.style!.fontSize!),
@@ -1122,7 +1129,7 @@ void main() {
       textScale: 1.6,
     );
 
-    final roleText = tester.widget<Text>(find.text('Verified Seller'));
+    final roleText = tester.widget<Text>(find.text('Sample chat'));
     expect(roleText.maxLines, 1);
     expect(roleText.softWrap, isFalse);
     expect(roleText.overflow, TextOverflow.ellipsis);
@@ -1242,7 +1249,8 @@ void main() {
       width: 360,
       height: 932,
     );
-    await tester.tap(find.byKey(const Key('sellerEditProfilePhotoAction')));
+    expect(find.byKey(const Key('sellerEditProfilePhotoAction')), findsNothing);
+    await tester.tap(find.byKey(const Key('sellerEditProfileChangePhoto')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('sellerPhotoTakePhoto')), findsOneWidget);
     expect(find.byKey(const Key('sellerPhotoChooseGallery')), findsOneWidget);

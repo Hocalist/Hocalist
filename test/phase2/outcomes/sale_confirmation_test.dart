@@ -87,6 +87,7 @@ void main() {
         );
         await tester.pump();
         expect(find.textContaining('Purchase confirmed.'), findsOneWidget);
+        expect(find.byKey(const Key('purchaseConfirmedCheck')), findsNothing);
         expect(find.text('Confirm completed purchase'), findsNothing);
         expect(find.text('Show my purchase PIN'), findsNothing);
         expect(find.byType(TextField), findsNothing);
@@ -122,9 +123,18 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      final check = find.byKey(const Key('purchaseConfirmedCheck'));
+      expect(check, findsNothing);
       confirmed = true;
       await tester.pump(const Duration(seconds: 8));
+      await tester.pump();
+      final drawnCheck = find.descendant(
+        of: check,
+        matching: find.byType(CustomPaint),
+      );
+      expect(drawnCheck, findsOneWidget);
       await tester.pumpAndSettle();
+      expect(drawnCheck, findsNothing);
       expect(callbacks, 1);
       expect(find.textContaining('Purchase confirmed.'), findsOneWidget);
       await tester.pump(const Duration(seconds: 8));

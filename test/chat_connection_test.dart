@@ -426,7 +426,7 @@ void main() {
     expect(view.offerId, offer.id);
     expect(view.priceLabel, BuyerOfferView.fromOffer(offer).priceLabel);
     expect(view.statusLabel, 'Awaiting buyer confirmation');
-    expect(view.actionLabel, 'Confirm seller');
+    expect(view.actionLabel, 'Accept offer and meet');
   });
   for (final width in [320.0, 360.0, 390.0, 430.0]) {
     for (final scale in [1.0, 1.15, 1.3, 1.6]) {
@@ -518,65 +518,6 @@ void main() {
     expect(attempts, 2);
     expect(tester.takeException(), isNull);
   });
-
-  testWidgets(
-    'real change request sends exact chat intent and retries without changing terms',
-    (tester) async {
-      final calls = <String>[];
-      var attempts = 0;
-      await _pump(
-        tester,
-        ApprovedConversationBody(
-          onBack: () {},
-          onPrimary: () {},
-          onCall: () {},
-          onMore: () {},
-          onRequestChange: () => fail('prototype action should not run'),
-          onChangeLocation: () {},
-          onAttach: () {},
-          onSend: (_) {},
-          onLearnMore: () {},
-          realEntries: const [],
-          onSubmitMessage: (text) async {
-            calls.add(text);
-            attempts++;
-            return attempts == 2;
-          },
-        ),
-      );
-      await tester.tap(find.byKey(const Key('approved-chat-more')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Ask for a change'));
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('offer and meeting stay as they are'),
-        findsOneWidget,
-      );
-      await tester.enterText(
-        find.byKey(const Key('real-change-request-text')),
-        'Could we meet after six?',
-      );
-      await tester.tap(find.byKey(const Key('real-change-request-send')));
-      await tester.pumpAndSettle();
-      expect(calls, ['Change request: Could we meet after six?']);
-      expect(
-        tester
-            .widget<TextField>(
-              find.byKey(const Key('real-change-request-text')),
-            )
-            .readOnly,
-        isTrue,
-      );
-      await tester.tap(find.byKey(const Key('real-change-request-send')));
-      await tester.pumpAndSettle();
-      expect(calls, [
-        'Change request: Could we meet after six?',
-        'Change request: Could we meet after six?',
-      ]);
-      expect(find.byKey(const Key('real-change-request-text')), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
 
   testWidgets('real seller chat omits prototype request-updated claim', (
     tester,

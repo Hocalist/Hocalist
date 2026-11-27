@@ -25,6 +25,7 @@ import '../media/private_remote_image.dart';
 import '../commercial/seller_subscription_panel.dart';
 import '../commercial/seller_payment_panel.dart';
 import '../commercial/credit_wallet_panel.dart';
+import '../commercial/seller_fee_copy.dart';
 
 enum SellerProfilePhotoAction { camera, gallery, remove }
 
@@ -454,7 +455,7 @@ class ApprovedSellerEditProfilePage extends StatelessWidget {
                               readOnly: _realValues,
                               helperText: _realValues
                                   ? 'Update this in Profile details below.'
-                                  : 'Your exact meetup location remains private until confirmed in chat.',
+                                  : 'Review the exact address before you share it in your meetup details.',
                             ),
                             SizedBox(height: metrics.spacing(14)),
                             _SellerProfileField(
@@ -658,14 +659,13 @@ class ApprovedSellerHelpSupportPage extends StatelessWidget {
                     'Targeting fees are recorded in HocaCredits. '
                     'Each successful deposit creates its own batch with frozen '
                     'rates. Hocalist spends from the oldest batch that can cover '
-                    'the full fee for one customer. Pay as you go uses an '
+                    'the full fee for one offer. Pay as you go uses an '
                     'authorised card and any eligible returned credits. '
                     'Sending an offer does not charge the initial fee. '
                     'For Free and Pro, the buyer\'s reply triggers it for that deal. '
-                    'Elite fees stay pending until a PIN-confirmed purchase or the seven-day deadline; eligible no-purchase fees are waived, '
-                    'and a confirmed purchase charges only the difference up to that '
-                    'batch\'s winning total. One targeted customer uses one '
-                    'weekly slot; credits and weekly slots are separate. '
+                    '$eliteLeadFeeTiming $eliteNoPurchaseWaiver '
+                    'The total fee if you win includes any initial lead fee already paid. '
+                    'Your plan sets your weekly targeting limit. '
                     'Unused batch remainders stay in your balance. '
                     'See Plans & credits for your batch history and weekly usage.',
               ),
@@ -1877,7 +1877,7 @@ class _ApprovedSellerNotificationPreferencesPageState
                 icon: Icons.health_and_safety_outlined,
                 title: 'Account & safety alerts',
                 body: _realMode
-                    ? 'Security, verification, and important safety notices. Always on.'
+                    ? 'Critical updates stay in your Hocalist inbox. Phone alerts depend on this device’s settings.'
                     : 'Security, verification, and important safety notices.',
                 value: _realMode ? true : safety,
                 enabled: !_realMode,
@@ -2550,7 +2550,6 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
     if (widget.realContent != null) {
       final plans = <Widget>[
         _SellerSubpageSection(
-          title: 'Current plan',
           children: [SellerSubscriptionPanel(focusManagePlans: widget.focusUpgrade)],
         ),
         const _SellerSubpageSection(
@@ -3901,9 +3900,9 @@ class _SellerSubpageBlock extends StatelessWidget {
 }
 
 class _SellerSubpageSection extends StatelessWidget {
-  const _SellerSubpageSection({required this.title, required this.children});
+  const _SellerSubpageSection({this.title, required this.children});
 
-  final String title;
+  final String? title;
   final List<Widget> children;
 
   @override
@@ -3913,22 +3912,24 @@ class _SellerSubpageSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: EdgeInsets.only(left: metrics.spacing(2)),
-            child: Text(
-              title.toUpperCase(),
-              style: sellerText(
-                metrics,
-                11,
-                weight: FontWeight.w800,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Theme.of(context).colorScheme.onSurfaceVariant
-                    : SellerUiColors.muted,
-                letterSpacing: .8,
+          if (title case final label?) ...[
+            Padding(
+              padding: EdgeInsets.only(left: metrics.spacing(2)),
+              child: Text(
+                label.toUpperCase(),
+                style: sellerText(
+                  metrics,
+                  11,
+                  weight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : SellerUiColors.muted,
+                  letterSpacing: .8,
+                ),
               ),
             ),
-          ),
-          SizedBox(height: metrics.spacing(7)),
+            SizedBox(height: metrics.spacing(7)),
+          ],
           Material(
             color: HocalistPalette.surface(context, SellerUiColors.white),
             shape: RoundedRectangleBorder(
@@ -4287,8 +4288,6 @@ class SellerProfilePhotoEditor extends StatelessWidget {
               _SellerProfileAvatar(
                 initial: initial,
                 metrics: metrics,
-                onChangePhoto: changePhoto,
-                actionKey: const Key('sellerEditProfilePhotoAction'),
                 avatarMediaId: avatarMediaId,
               ),
               SizedBox(width: metrics.spacing(12)),
@@ -4424,15 +4423,15 @@ class _SellerProfileAvatar extends StatelessWidget {
   const _SellerProfileAvatar({
     required this.initial,
     required this.metrics,
-    required this.onChangePhoto,
-    required this.actionKey,
+    this.onChangePhoto,
+    this.actionKey,
     this.avatarMediaId,
   });
 
   final String initial;
   final ApprovedReplicaMetrics metrics;
-  final VoidCallback onChangePhoto;
-  final Key actionKey;
+  final VoidCallback? onChangePhoto;
+  final Key? actionKey;
 
   /// Server-issued avatar media id. Null keeps the approved initial avatar.
   final String? avatarMediaId;
@@ -4470,34 +4469,35 @@ class _SellerProfileAvatar extends StatelessWidget {
                     ),
                   ),
           ),
-          Positioned(
-            right: -metrics.spacing(2),
-            bottom: -metrics.spacing(2),
-            child: Material(
-              color: HocalistPalette.surface(context, SellerUiColors.white),
-              shape: const CircleBorder(),
-              elevation: 1,
-              child: IconButton(
-                key: actionKey,
-                tooltip: 'Change profile picture',
-                onPressed: onChangePhoto,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.all(metrics.spacing(6)),
-                constraints: BoxConstraints.tightFor(
-                  width: metrics.artSize(32),
-                  height: metrics.artSize(32),
-                ),
-                icon: Icon(
-                  Icons.photo_camera_outlined,
-                  color: HocalistPalette.text(
-                    context,
-                    SellerUiColors.primaryBright,
+          if (onChangePhoto != null)
+            Positioned(
+              right: -metrics.spacing(2),
+              bottom: -metrics.spacing(2),
+              child: Material(
+                color: HocalistPalette.surface(context, SellerUiColors.white),
+                shape: const CircleBorder(),
+                elevation: 1,
+                child: IconButton(
+                  key: actionKey,
+                  tooltip: 'Change profile picture',
+                  onPressed: onChangePhoto,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.all(metrics.spacing(6)),
+                  constraints: BoxConstraints.tightFor(
+                    width: metrics.artSize(32),
+                    height: metrics.artSize(32),
                   ),
-                  size: metrics.artSize(17),
+                  icon: Icon(
+                    Icons.photo_camera_outlined,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
+                    size: metrics.artSize(17),
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

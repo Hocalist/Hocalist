@@ -1,7 +1,9 @@
+import '../../theme/marketplace_ui_foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../theme/adaptive_palette.dart';
 import '../../theme/buyer_ui_foundation.dart';
+import '../../domain/phase2/commercial/commercial.dart' show PlanCode;
 import '../media/private_remote_image.dart';
 import '../media/listing_image_placeholder.dart';
 import 'approved_replica_metrics.dart';
@@ -10,11 +12,12 @@ import 'approved_replica_metrics.dart';
 /// fabricated rating, verified badge or sales count.
 class BuyerDealSeller {
   const BuyerDealSeller({this.avatarId, this.verified = false,
-    this.rating, this.reviewCount, this.sales});
+    this.rating, this.reviewCount, this.sales, this.plan});
   final String? avatarId;
   final bool verified;
   final double? rating;
   final int? reviewCount, sales;
+  final PlanCode? plan;
 }
 
 typedef BuyerDealSellerLoader = Future<BuyerDealSeller> Function(String profileId);
@@ -36,13 +39,14 @@ Widget dealArtwork(String name, {double size = 20}) => BuyerAssetIcon(
 class BuyerDealSellerHeader extends StatelessWidget {
   const BuyerDealSellerHeader({super.key, required this.name, this.profileId,
     this.load, this.onProfile, this.trailing, this.showSales = true, this.compact = false,
-    this.prominent = false, this.dense = false});
+    this.prominent = false, this.dense = false, this.stackedIdentity = false,
+    this.sellerLabelBelow = false});
   final String name;
   final String? profileId;
   final BuyerDealSellerLoader? load;
   final VoidCallback? onProfile;
   final Widget? trailing;
-  final bool showSales, compact, prominent, dense;
+  final bool showSales, compact, prominent, dense, stackedIdentity, sellerLabelBelow;
 
   @override
   Widget build(BuildContext context) => FutureBuilder<BuyerDealSeller>(
@@ -52,7 +56,32 @@ class BuyerDealSellerHeader extends StatelessWidget {
       final initials = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty)
         .take(2).map((s) => s[0]).join().toUpperCase();
       final large = prominent && !compact;
-      final avatarSize = compact ? 32.0 : dense ? 36.0 : large ? 56.0 : 44.0;
+      final avatarSize = stackedIdentity ? 40.0 : sellerLabelBelow ? 36.0 : compact ? 32.0 : dense ? 36.0 : large ? 56.0 : 44.0;
+      final avatar = ClipOval(
+        child: seller?.avatarId != null
+            ? PrivateRemoteImage(id: seller!.avatarId!, size: avatarSize)
+            : Container(width: avatarSize, height: avatarSize, alignment: Alignment.center,
+                color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
+                child: Text(initials, style: dealText(context, 15, bold: true, color: BuyerUiTokens.action))),
+      );
+      if (stackedIdentity) {
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            foregroundDecoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xff201e33) : Colors.white,
+                width: 2,
+              ),
+            ),
+            child: avatar,
+          ),
+          const SizedBox(height: 3),
+          Text(name, textAlign: TextAlign.center, maxLines: 2,
+            overflow: TextOverflow.ellipsis, style: MarketplaceTypography.text(context, 12, MarketplaceColors.of(context, surface: MarketplaceSurface.meetup).ink, height: 1.35, weight: FontWeight.w700)),
+        ]);
+      }
       final salesStyle = dealText(context, large && !dense ? 11 : 10, bold: true);
       final salesWord = TextPainter(text: TextSpan(text: 'Confirmed', style: salesStyle),
         textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
@@ -61,18 +90,15 @@ class BuyerDealSellerHeader extends StatelessWidget {
       return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Semantics(button: onProfile != null, label: 'View $name profile', child: InkWell(
           onTap: onProfile, borderRadius: BorderRadius.circular(24),
-          child: ClipOval(child: seller?.avatarId != null
-            ? PrivateRemoteImage(id: seller!.avatarId!, size: avatarSize)
-            : Container(width: avatarSize, height: avatarSize, alignment: Alignment.center,
-                color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
-                child: Text(initials, style: dealText(context, 15, bold: true, color: BuyerUiTokens.action)))))),
+          child: avatar)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (compact) Text('Seller', style: dealText(context, 9, color: BuyerUiTokens.muted)),
+          if (compact && !sellerLabelBelow) Text('Seller', style: dealText(context, 9, color: BuyerUiTokens.muted)),
           Row(children: [
             Flexible(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: dealText(context, compact ? 11 : 14, bold: true))),
+              style: dealText(context, compact && !sellerLabelBelow ? 11 : 14, bold: true))),
           ]),
+          if (sellerLabelBelow) Text('Seller', style: dealText(context, 10, color: BuyerUiTokens.muted)),
           if (!compact && seller?.verified == true) Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
             dealArtwork('detail-verified', size: 14),
             Text('Verified seller', style: dealText(context, 11, weight: FontWeight.w700, color: BuyerUiTokens.action)),
@@ -108,10 +134,13 @@ class BuyerDealCard extends StatefulWidget {
     required this.price, required this.meeting, required this.place,
     required this.message, required this.onChat, this.onDecline, this.onAccept,
     this.onOptions, this.onProfile, this.sellerProfileId, this.loadSeller,
-    this.photos = const [], this.busy = false, this.readImage, this.distanceLabel});
+    this.photos = const [], this.busy = false, this.readImage, this.distanceLabel,
+    this.comparison = false, this.availability});
   final String sellerName, title, price, meeting, place, message;
   final String? sellerProfileId;
   final String? distanceLabel;
+  final String? availability;
+  final bool comparison;
   final BuyerDealSellerLoader? loadSeller;
   final List<String> photos;
   final VoidCallback? onChat, onDecline, onAccept, onOptions, onProfile;
@@ -125,6 +154,12 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
   bool expanded = false;
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+    if (widget.comparison) {
+      return _BuyerOfferComparison(
+        offer: widget, expanded: expanded,
+        onTogglePhotos: () => setState(() => expanded = !expanded),
+      );
+    }
     final width = constraints.maxWidth;
     final metrics = _dealMetrics(context);
     final receivedOffer = widget.onAccept == null;
@@ -238,6 +273,183 @@ class _BuyerDealCardState extends State<BuyerDealCard> {
   });
 }
 
+class _BuyerOfferComparison extends StatelessWidget {
+  const _BuyerOfferComparison({
+    required this.offer,
+    required this.expanded,
+    required this.onTogglePhotos,
+  });
+
+  final BuyerDealCard offer;
+  final bool expanded;
+  final VoidCallback onTogglePhotos;
+
+  static const _photoWidth = 76.0;
+  static const _photoHeight = 82.0;
+  static const _portraitSize = 40.0;
+
+  TextStyle _text(BuildContext context, double size, Color color, {FontWeight weight = FontWeight.w400, double height = 1.4}) =>
+      MarketplaceTypography.text(context, size, color, weight: weight, height: height);
+
+  Widget _itemPhoto(String? id) => ClipRRect(
+    borderRadius: BorderRadius.circular(9),
+    child: id == null
+        ? const ListingImagePlaceholder(size: _photoWidth, height: _photoHeight)
+        : PrivateRemoteImage(
+            id: id, size: _photoWidth, height: _photoHeight,
+            showWholeImage: true, read: offer.readImage,
+          ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final palette = MarketplaceColors.of(context);
+    final paper = palette.paper;
+    final page = palette.page;
+    final ink = palette.ink;
+    final sub = palette.muted;
+    final border = palette.border;
+    final brand = palette.brand;
+    final soft = palette.soft;
+    final accent = palette.primary;
+    final green = dark ? const Color(0xffb1edcd) : const Color(0xff196346);
+    final profileId = offer.sellerProfileId;
+    final initials = offer.sellerName.trim().split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty).take(2)
+        .map((part) => part.characters.first.toUpperCase()).join();
+
+    Widget button(String label, VoidCallback? onPressed, {bool primary = false}) =>
+        MarketplaceButton(label: label, onPressed: offer.busy ? null : onPressed,
+          background: primary ? accent : paper,
+          foreground: primary ? Colors.white : brand,
+          border: BorderSide(color: primary ? accent : brand),
+          icon: primary ? Icons.chat_bubble_outline_rounded : null);
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: paper, border: Border.all(color: border), borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(9, 9, 9, 6),
+          child: FutureBuilder<BuyerDealSeller>(
+            future: profileId == null ? null : offer.loadSeller?.call(profileId),
+            builder: (context, snapshot) {
+              final seller = snapshot.data;
+              final plan = seller?.plan;
+              final premium = plan == PlanCode.pro || plan == PlanCode.elite;
+              final elite = plan == PlanCode.elite;
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _itemPhoto(offer.photos.firstOrNull),
+                const SizedBox(width: 9),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(offer.price, style: _text(context, 18, brand, weight: FontWeight.w700)),
+                  InkWell(
+                    onTap: offer.onProfile,
+                    child: Text(offer.sellerName, style: _text(context, 17, ink, weight: FontWeight.w700, height: 1.25)
+                        .copyWith(letterSpacing: -.28)),
+                  ),
+                  if (premium) ...[
+                    const SizedBox(height: 2),
+                    Wrap(
+                      spacing: 6, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: elite ? (dark ? const Color(0xff4b3722) : const Color(0xfffff0d7)) : soft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(elite ? 'Elite' : 'Pro', style: _text(context, 11,
+                            elite ? (dark ? const Color(0xffffe2ae) : const Color(0xff6d4217)) : brand,
+                            weight: FontWeight.w600)),
+                        ),
+                        if (seller?.verified == true)
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.verified_outlined, size: 14, color: green),
+                            const SizedBox(width: 3),
+                            Flexible(child: Text('Verified seller', style: _text(context, 11, green, weight: FontWeight.w600))),
+                          ]),
+                      ],
+                    ),
+                    if (seller?.sales case final sales?) ...[
+                      const SizedBox(height: 2),
+                      Text(sales == 1 ? '1 confirmed sale' : '$sales confirmed sales', style: _text(context, 12, sub)),
+                    ],
+                  ],
+                ])),
+                const SizedBox(width: 9),
+                Container(
+                  foregroundDecoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: border)),
+                  child: ClipOval(
+                    child: seller?.avatarId != null
+                        ? PrivateRemoteImage(id: seller!.avatarId!, size: _portraitSize)
+                        : Container(
+                            width: _portraitSize, height: _portraitSize,
+                            color: soft, alignment: Alignment.center,
+                            child: Text(initials, style: _text(context, 13, brand, weight: FontWeight.w600)),
+                          ),
+                  ),
+                ),
+              ]);
+            },
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          decoration: BoxDecoration(color: page, border: Border(top: BorderSide(color: border))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _fact(context, Icons.event_outlined, 'Proposed meetup', offer.meeting, sub, ink),
+            const SizedBox(height: 4),
+            _fact(context, Icons.location_on_outlined, 'Meetup place', offer.place, sub, ink),
+            const SizedBox(height: 4),
+            _fact(context, Icons.event_available_outlined, 'Available from', offer.availability ?? 'Not specified', sub, ink),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(flex: 23, child: button(offer.busy ? 'Opening…' : 'Chat with seller', offer.onChat, primary: true)),
+            if (offer.onDecline != null) ...[
+              const SizedBox(width: 7),
+              Expanded(flex: 20, child: button('Decline offer', offer.onDecline)),
+            ],
+          ]),
+        ),
+        if (offer.photos.length > 1) ...[
+          Center(child: TextButton(
+            onPressed: onTogglePhotos,
+            style: TextButton.styleFrom(foregroundColor: brand),
+            child: Text(expanded ? 'Hide additional photos' : 'More photos'),
+          )),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),
+              child: Wrap(spacing: 8, runSpacing: 8, children: offer.photos.skip(1).map(_itemPhoto).toList()),
+            ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _fact(BuildContext context, IconData icon, String label, String value, Color sub, Color ink) =>
+      Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: sub),
+            const SizedBox(width: 5),
+            Flexible(child: Text(label, style: _text(context, 12, sub))),
+          ]),
+          Text(value, style: _text(context, 12, ink, weight: FontWeight.w600)),
+        ],
+      );
+}
 class _DealFact extends StatelessWidget {
   const _DealFact(this.asset, this.label, this.value);
   final String asset, label, value;

@@ -25,12 +25,12 @@ void main() {
       await tester.tap(find.text('View competing offers'));
       await tester.pumpAndSettle();
       expect(calls, 0);
-      await tester.tap(find.text('Keep refund eligibility'));
+      await tester.tap(find.text('Keep fee waiver'));
       await tester.pumpAndSettle();
       expect(calls, 0);
       await tester.tap(find.text('View competing offers'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('View prices and give up refund'));
+      await tester.tap(find.text('View prices and give up waiver'));
       await tester.pumpAndSettle();
       expect(calls, 1);
       expect(find.text('USD 45.00'), findsOneWidget);
@@ -68,11 +68,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('View competing offers'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('View prices and give up refund'));
+    await tester.tap(find.text('View prices and give up waiver'));
     await tester.pumpAndSettle();
     expect(find.textContaining('unavailable for this deal'), findsOneWidget);
     expect(
-      find.text('Refund eligibility has been removed for this request.'),
+      find.text('The no-purchase fee waiver no longer applies to this request.'),
       findsNothing,
     );
   });
@@ -107,7 +107,7 @@ void main() {
         await tester.tap(find.text('View competing offers'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expect(find.text('Keep refund eligibility'), findsOneWidget);
+        expect(find.text('Keep fee waiver'), findsOneWidget);
       });
     }
   }

@@ -19,11 +19,13 @@ class ApprovedSellerRescheduleDialog extends StatefulWidget {
     this.initialProposal = false,
     this.offeredPlaceLabel,
     this.onChangeLocation,
+    this.editDateImmediately = false,
     super.key,
   });
 
   final String customerName;
   final bool initialProposal;
+  final bool editDateImmediately;
   final String? offeredPlaceLabel;
   final Future<String?> Function()? onChangeLocation;
   final String currentDate;
@@ -77,7 +79,7 @@ class _ApprovedSellerRescheduleDialogState
         selectedDate.isBefore(DateUtils.dateOnly(DateTime.now()))) {
       selectedDate = DateUtils.dateOnly(DateTime.now());
     }
-    _editing =
+    _editing = widget.editDateImmediately ||
         widget.offeredPlaceLabel == null || selectedDate != widget.initialDate;
     displayedMonth = DateTime(selectedDate.year, selectedDate.month);
     selectedTime = widget.initialTime ?? selectedTime;

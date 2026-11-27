@@ -13,6 +13,29 @@ typedef HealthState = ({
 });
 
 void main() {
+  testWidgets('health header distinguishes first load, failure and background refresh', (tester) async {
+    Future<void> show({bool busy = false, String? error, SellerAccountHealthView? value}) async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: ApprovedSellerHomePage(
+        sellerName: 'Seller', realLeads: const [], onLeads: () {}, onBrowseRequests: () {},
+        accountHealth: value, accountHealthLoading: busy, accountHealthError: error,
+      ))));
+      await tester.pump();
+    }
+    await show(busy: true);
+    expect(find.text('Checking account health…'), findsOneWidget);
+    expect(find.text('Not available yet'), findsNothing);
+    await show(error: 'Connection unavailable');
+    expect(find.text('Could not load · Tap to retry'), findsOneWidget);
+    expect(find.text('Checking account health…'), findsNothing);
+    await show(busy: true, value: const SellerAccountHealthView(
+      emailVerified: true, phoneVerified: false, reviewStatus: 'not_submitted', conductScore: 100,
+    ));
+    expect(find.text('Good standing · 100/100'), findsOneWidget);
+    expect(find.text('Checking account health…'), findsNothing);
+    expect(find.text('Could not load · Tap to retry'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
  testWidgets('four verification steps track every completion combination', (tester) async {
   for (var mask=0;mask<16;mask++) {
    final steps=List.generate(4,(i)=>(mask & (1<<i))!=0);

@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:hocalist/main.dart' show findDealMeeting;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/data/phase2/meetings/meeting_codecs.dart';
 import 'package:hocalist/domain/phase2/schedule.dart';
+import 'package:hocalist/features/approved/offers_chat_pages.dart';
 import 'package:hocalist/features/chat/conversation_meeting_actions.dart';
 
 MeetingView meeting({
@@ -14,14 +16,14 @@ MeetingView meeting({
   String id = 'meeting',
 }) {
   MeetingScheduleView schedule(String status) => MeetingScheduleView(
-    sequence: 1,
+    sequence: status == 'proposed' && accepted ? 2 : 1,
     date: LocalDate(year: 2026, month: 10, day: 18),
     startTime: LocalTime(hour: 14, minute: 30),
     timezoneId: 'America/Chicago',
     offsetMinutes: -300,
     instant: DateTime.utc(2026, 10, 18, 19, 30),
     placeChoice: 'specific_place',
-    placeLabel: 'Test library',
+    placeLabel: status == 'proposed' && accepted ? 'Community center' : 'Test library',
     proposedByUserId: proposer ?? 'seller',
     status: status,
     createdAt: DateTime.utc(2026, 10, 17),
@@ -88,6 +90,153 @@ Future<void> pump(
 }
 
 void main() {
+  for (final seller in [false, true]) {
+    testWidgets('deal picker and incoming meetup proposal for ${seller ? 'seller' : 'buyer'}', (tester) async {
+      tester.view.physicalSize = const Size(320, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final change = meeting(id: 'other', accepted: true,
+          proposer: seller ? 'buyer' : 'seller');
+      final decisions = <(String, bool)>[];
+      String selected = 'first';
+      String? opened;
+      bool pending = true;
+      bool multiple = false;
+      String? priceOffer;
+      bool pricePending = false;
+      bool? priceResponse;
+      late VoidCallback addDeals;
+      late VoidCallback addPriceProposal;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(builder: (context, update) {
+            addDeals = () => update(() => multiple = true);
+            addPriceProposal = () => update(() => pricePending = true);
+            return ApprovedConversationBody(
+            onBack: () {},
+            onPrimary: () {},
+            onCall: () {},
+            onMore: () {},
+            onRequestChange: () {},
+            onChangeLocation: () {},
+            onAttach: () {},
+            onSend: (_) {},
+            onLearnMore: () {},
+            viewerIsSeller: seller,
+            realEntries: const [],
+            realDeals: [
+              const ApprovedDealView(meetingId: 'first', offerId: 'offer-first', title: 'Camera tripod',
+                  priceLabel: r'$35', statusLabel: 'Meeting set'),
+              if (multiple) ...[
+                const ApprovedDealView(meetingId: 'other', offerId: 'offer-other', title: 'LED light',
+                  priceLabel: r'$20', statusLabel: 'Your response needed', canSuggestMeetup: true),
+                const ApprovedDealView(meetingId: 'third', title: 'Camera bag',
+                  priceLabel: r'$15', statusLabel: 'Meeting set'),
+              ],
+            ],
+            previousDeals: const [
+              ApprovedDealView(meetingId: 'past', title: 'Old deal',
+                  priceLabel: r'$10', statusLabel: 'Completed', completed: true),
+            ],
+            selectedDealId: selected,
+            onSelectRealDeal: (id) => update(() => selected = id),
+            onOpenRealDeal: (id) => opened = id,
+            meetupProposals: pending && multiple
+                ? [(meeting: change, title: 'LED light')] : const [],
+            onRespondToMeetup: (proposal, accept) async {
+              decisions.add((proposal.meetingId, accept));
+              update(() => pending = false);
+              return MeetingActionResult.success(proposal);
+            },
+            onSuggestMeetup: (_) {},
+            onProposePrice: (id) => priceOffer = id,
+            priceProposals: [
+              if (pricePending)
+                (offerId: 'offer-other', revisionId: 'price-other', title: 'LED light',
+                  currentPrice: r'$20', proposedPrice: r'$18', incoming: true),
+            ],
+            onRespondToPrice: (proposal, accept) async {
+              expect(proposal.offerId, 'offer-other');
+              priceResponse = accept;
+              update(() => pricePending = false);
+              return null;
+            },
+          );
+          }),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final count = find.byKey(const Key('chat-deal-count'));
+      expect(find.descendant(of: count, matching: find.text('1')), findsOneWidget);
+      await tester.tap(count);
+      await tester.pumpAndSettle();
+      expect(find.text('1 active deal'), findsOneWidget);
+      expect(find.textContaining(seller
+          ? 'When the buyer accepts another of your offers'
+          : 'When you accept another offer from this seller'), findsOneWidget);
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+      addDeals();
+      await tester.pumpAndSettle();
+      expect(find.text('Meetup change proposed'), findsOneWidget);
+      expect(find.textContaining(seller ? 'The buyer proposed' : 'The seller proposed'), findsOneWidget);
+      expect(find.textContaining('Test library'), findsOneWidget);
+      expect(find.textContaining('Community center'), findsOneWidget);
+      await tester.tap(find.text('Later'));
+      await tester.pumpAndSettle();
+      expect(find.text('Meetup change proposed'), findsNothing);
+      final explore = find.byKey(const ValueKey('deal-details-first'));
+      expect(find.descendant(of: count, matching: find.text('3')), findsOneWidget);
+      final exploreRect = tester.getRect(explore);
+      final exploreLabel = find.descendant(
+        of: explore, matching: find.text('Explore deal'),
+      );
+      final chevron = find.descendant(
+        of: explore, matching: find.byIcon(Icons.chevron_right_rounded),
+      );
+      final countRect = tester.getRect(count);
+      expect(tester.getRect(exploreLabel).right, tester.getRect(chevron).left);
+      expect(exploreRect.right - tester.getRect(chevron).right, lessThanOrEqualTo(10));
+      expect(countRect.height, exploreRect.height);
+      expect(countRect.left, greaterThan(exploreRect.right));
+      await tester.tap(count);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('approved-real-deal-row-other')));
+      await tester.pumpAndSettle();
+      expect(opened, isNull);
+      await tester.tap(find.byKey(const ValueKey('deal-details-other')));
+      expect(opened, 'other');
+      await tester.tap(find.text('Review meetup proposal · LED light'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(seller ? 'Decline' : 'Accept'));
+      await tester.pumpAndSettle();
+      expect(decisions, [('other', !seller)]);
+      expect(find.text('Meetup change proposed'), findsNothing);
+      await tester.tap(find.byKey(const Key('approved-chat-more')));
+      await tester.pumpAndSettle();
+      expect(find.text('Ask for a change'), findsNothing);
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('approved-chat-attach')));
+      await tester.pumpAndSettle();
+      expect(find.text('Reschedule meetup'), findsOneWidget);
+      final priceAction = find.text(seller ? 'Update price' : 'Request a price change');
+      await tester.ensureVisible(priceAction);
+      await tester.tap(priceAction);
+      await tester.pumpAndSettle();
+      expect(priceOffer, 'offer-other');
+      addPriceProposal();
+      await tester.pumpAndSettle();
+      expect(find.text('Price change proposed'), findsOneWidget);
+      expect(find.text(r'Proposed price: $18'), findsOneWidget);
+      await tester.tap(find.text(seller ? 'Accept' : 'Decline'));
+      await tester.pumpAndSettle();
+      expect(priceResponse, seller);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test('seller opens the selected offer meeting in a shared buyer conversation', () {
     final meetings = [meeting(id: 'first'), meeting(id: 'second')];
     expect(findDealMeeting(meetings, 'chat', 'offer-second')?.meetingId, 'second');

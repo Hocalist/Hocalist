@@ -176,8 +176,8 @@ class HomeBenefitPanel extends StatelessWidget {
     const benefits = [
       _HomeBenefitData(
         Icons.volunteer_activism,
-        'Buyers Earn Commissions From Sellers Targeting',
-        'You get rewards every time you buy through the app.',
+        'Earn rewards on eligible purchases',
+        'Earn rewards after PIN confirmation and collection of the eligible seller fee.',
         HocalistTheme.giftPurple,
         Colors.white,
       ),
@@ -484,7 +484,7 @@ class _HomeFaqListState extends State<HomeFaqList> {
       _FaqData(
         Icons.volunteer_activism,
         'What Incentive do I get as a buyer?',
-        'Buyers can earn rewards when sellers target and win their business through the app.',
+        'Buyers can earn rewards after an eligible purchase is confirmed with the PIN and the seller fee is collected.',
         Color(0xffe8f7ed),
         HocalistTheme.sellerGreen,
       ),
@@ -648,7 +648,7 @@ class HomeStartBanner extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Join thousands of buyers earning rewards every day on Hocalist.',
+                'Post a request and compare offers from sellers.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],

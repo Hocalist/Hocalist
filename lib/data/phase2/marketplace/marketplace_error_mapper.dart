@@ -68,6 +68,11 @@ class MarketplaceErrorMapper {
         entityType: 'request',
       );
     }
+    if (_has(message, 'offer_withdraw_plan_required')) {
+      return const PermissionDeniedError(
+        action: 'offer_withdraw_plan_required', entityType: 'offer',
+      );
+    }
     if (_has(message, 'offer_access_denied')) {
       return const PermissionDeniedError(
         action: 'offer_access_denied',
@@ -130,6 +135,22 @@ class MarketplaceErrorMapper {
     }
     if (_has(message, 'weekly_target_limit')) {
       return const LimitExceededError(limitCode: 'weekly_targets');
+    }
+    if (_has(message, 'active_deal_pair_limit')) {
+      return const ConflictError(
+        conflictCode: 'active_deal_pair_limit',
+        debugMessage:
+            'You already have 3 active deals with this seller. Finish or close one before starting another.',
+      );
+    }
+    for (final (code, detail) in const [
+      ('price_proposal_pending', 'A price proposal is already waiting for a response.'),
+      ('price_proposal_resolved', 'This price proposal has already been answered.'),
+      ('price_deal_closed', 'The price can only be changed on an active deal.'),
+    ]) {
+      if (_has(message, code)) {
+        return ConflictError(conflictCode: code, debugMessage: detail);
+      }
     }
     if (_has(message, 'targeting_fee_unconfigured')) {
       return const ConflictError(
@@ -241,6 +262,8 @@ class MarketplaceErrorMapper {
       'request_not_editable',
       'request_not_reopenable',
       'offer_not_open',
+      'offer_withdraw_buyer_responded',
+      'offer_funding_conflict',
       'listing_not_editable',
       'conversation_not_eligible',
       'chat_foundation_missing',

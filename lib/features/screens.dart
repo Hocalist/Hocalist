@@ -28,7 +28,7 @@ class _WelcomePageState extends State<WelcomePage> {
         const SizedBox(height: 24),
         HomeRoleActionCard(
           title: 'I am buying',
-          body: 'Get Paid To Buy And\nGet The Best Offers',
+          body: 'Post what you need\nand compare seller offers',
           buttonLabel: 'Post a request',
           icon: Icons.shopping_bag_outlined,
           color: HocalistTheme.actionBlue,
@@ -40,7 +40,7 @@ class _WelcomePageState extends State<WelcomePage> {
         const SizedBox(height: 16),
         HomeRoleActionCard(
           title: 'I am selling',
-          body: 'Target Real Customers\n& Beat The Competition.',
+          body: 'Browse buyer requests\nand send offers',
           buttonLabel: 'Browse requests',
           icon: Icons.storefront_outlined,
           color: HocalistTheme.sellerGreen,
@@ -749,12 +749,12 @@ class _BuyerBenefitOnboardingPageState
   static const benefits = [
     _BuyerBenefitData(
       'assets/buyer_onboarding/benefit-reward.png',
-      'Earn rewards on every purchase',
-      'Sellers pay you to have the chance to earn your business. Choose one to buy from and keep your earnings.',
+      'Earn rewards on eligible purchases',
+      'Earn rewards after PIN confirmation and collection of the eligible seller fee.',
     ),
     _BuyerBenefitData(
       'assets/buyer_onboarding/benefit-tag.png',
-      'Receive the best offers',
+      'Compare offers from sellers',
       'Sellers compete for your business so you get better deals.',
     ),
     _BuyerBenefitData(
@@ -779,7 +779,7 @@ class _BuyerBenefitOnboardingPageState
     ),
     _BuyerBenefitData(
       'assets/buyer_onboarding/benefit-payment-shield.png',
-      'We protect your choices & reward you for it',
+      'Choose who to meet and how to pay',
       'Choose who to talk to, meet safely, and complete item payment on your terms outside the app.',
     ),
     _BuyerBenefitData(
@@ -1002,7 +1002,7 @@ class _BuyerWelcomeHeader extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'With your Hocalist buyer account, you get paid to buy and enjoy the best offers.',
+                'Post what you need and compare offers from sellers.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: HocalistPalette.text(context, HocalistTheme.muted),
                   height: 1.28,
@@ -1122,7 +1122,7 @@ class _BuyerFairnessBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'We\'re here to give you more value every time you buy.',
+                  'Find products and services by posting what you need.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: HocalistPalette.text(context, HocalistTheme.muted),
                   ),
@@ -1364,7 +1364,7 @@ class _BuyerDashboardHero extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'You\'re earning rewards while sellers compete for your business.',
+                    'Post what you need and compare offers from sellers.',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: HocalistPalette.text(context, HocalistTheme.muted),
                       height: 1.45,
@@ -1531,7 +1531,7 @@ class _PendingRewardsCard extends StatelessWidget {
                   const _RewardInfoButton(
                     title: 'Pending rewards',
                     body:
-                        'Pending rewards are earned but not ready for payout yet. This preview shows the next payout target and date.',
+                        'These are sample estimates. Eligible rewards become earned after PIN confirmation and seller fee collection.',
                     color: HocalistTheme.muted,
                   ),
                 ],
@@ -1599,7 +1599,7 @@ class _PendingRewardsCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '\$0.20 until next payout',
+                '\$0.20 to minimum',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: HocalistPalette.text(context, HocalistTheme.muted),
                 ),
@@ -1989,7 +1989,7 @@ class _RecentActivityPanel extends StatelessWidget {
         Icons.account_balance_wallet_outlined,
         HocalistTheme.actionBlue,
         HocalistTheme.roleSurface,
-        'Rewards will be paid on May 20',
+        'Sample reward payout',
         '2 days ago',
         '\$24.80',
         HocalistTheme.actionBlue,
@@ -2127,7 +2127,7 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
       icon: Icons.account_balance_wallet_outlined,
       iconColor: HocalistTheme.actionBlue,
       background: HocalistTheme.roleSurface,
-      title: 'Rewards will be paid on May 20',
+      title: 'Sample reward payout',
       time: '2 days ago',
       value: '\$24.80',
       valueColor: HocalistTheme.actionBlue,
@@ -2166,7 +2166,7 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
       icon: Icons.account_balance_wallet_outlined,
       iconColor: HocalistTheme.actionBlue,
       background: HocalistTheme.roleSurface,
-      title: 'Rewards will be paid on May 13',
+      title: 'Sample reward payout',
       time: '6 days ago',
       value: '\$19.40',
       valueColor: HocalistTheme.actionBlue,
@@ -2513,7 +2513,7 @@ class _KeepEarningBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Keep earning more rewards',
+              'How rewards work',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: HocalistPalette.text(context, HocalistTheme.actionBlue),
                 height: 1.18,
@@ -2521,7 +2521,7 @@ class _KeepEarningBanner extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Sellers pay to reach you. Buy from any seller within 5 days to earn rewards from all of them.',
+              'Eligible rewards follow PIN confirmation and seller fee collection.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: HocalistPalette.text(context, HocalistTheme.muted),
                 height: 1.35,
@@ -7763,9 +7763,9 @@ class _OffersRewardsSummary extends StatelessWidget {
             children: [
               _RewardRule(
                 icon: Icons.calendar_month_outlined,
-                title: 'Buy from any seller within 5 days',
-                bodyLead: 'To keep rewards from ',
-                bodyEmphasis: 'all sellers',
+                title: 'Complete an eligible purchase',
+                bodyLead: 'Rewards follow PIN confirmation and ',
+                bodyEmphasis: 'seller fee collection.',
               ),
               Divider(height: 22),
               _RewardRule(
@@ -9482,7 +9482,7 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'You have 7 days left',
+                'Sample reward estimate',
                 style: TextStyle(
                   color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.sectionTitleSize,
@@ -9491,7 +9491,7 @@ class _ApprovedRewardsWindowCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Buy from any seller within 7 days to get your rewards.',
+                'Eligible rewards follow PIN confirmation and seller fee collection.',
                 style: TextStyle(
                   color: HocalistPalette.text(context, HocalistTheme.primary),
                   fontSize: HocalistTheme.bodySize,
@@ -9730,7 +9730,7 @@ class _ApprovedMeetPinCard extends StatelessWidget {
               ),
               SizedBox(height: 10),
               Text(
-                'When you meet the seller, show them your confirmation PIN to complete the transaction. If the PIN isn\'t verified, you won\'t receive your rewards. Your PIN expires 24 hours after accepting your seller\'s offer.',
+                'Share your purchase PIN after completing the purchase. The PIN expires at the end of the accepted meeting day in the meeting’s time zone.',
                 style: TextStyle(
                   color: HocalistPalette.text(context, HocalistTheme.primary),
                   height: 1.4,
@@ -9962,7 +9962,7 @@ class _ApprovedSelectSellerBar extends StatelessWidget {
               ),
             ),
             child: const Text(
-              'Select this seller',
+              'Start deal chat',
               style: TextStyle(
                 fontSize: HocalistTheme.buttonSize,
                 fontWeight: FontWeight.w900,
@@ -9971,7 +9971,7 @@ class _ApprovedSelectSellerBar extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Selecting this seller will share your contact information.',
+            'Discuss the offer and meetup with this seller in Hocalist chat.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: HocalistPalette.text(context, HocalistTheme.muted),
@@ -12200,7 +12200,7 @@ class _BuyerNotificationPreferencesPageState
                 icon: Icons.health_and_safety_outlined,
                 title: 'Account & safety alerts',
                 body: _realMode
-                    ? 'Security, reporting, and important account safety notices. Always on.'
+                    ? 'Critical updates stay in your Hocalist inbox. Phone alerts depend on this device’s settings.'
                     : 'Security, reporting, and important account safety notices.',
                 value: _realMode ? true : safety,
                 enabled: !_realMode,
@@ -12942,34 +12942,44 @@ class SafetyGuidePage extends StatelessWidget {
   }
 }
 
-class ReportIssuePage extends StatelessWidget {
+class ReportIssuePage extends StatefulWidget {
   const ReportIssuePage({
     required this.accent,
     required this.submitted,
     required this.onSubmit,
+    this.chatViewerIsSeller,
     super.key,
   });
 
   final Color accent;
   final bool submitted;
   final VoidCallback onSubmit;
+  final bool? chatViewerIsSeller;
+
+  @override
+  State<ReportIssuePage> createState() => _ReportIssuePageState();
+}
+
+class _ReportIssuePageState extends State<ReportIssuePage> {
+  ChatReportReason? _reason;
+  String _details = '';
 
   @override
   Widget build(BuildContext context) {
-    if (submitted) {
+    if (widget.submitted) {
       return const _BuyerSubpageBlock(
-        title: 'Report Saved',
+        title: 'Sample report saved',
         subtitle:
-            'Your report is available in the current support status flow.',
+            'This preview saves the sample report on this device.',
         children: [
           _BuyerSubpageSection(
             title: 'Status',
             children: [
               _BuyerSubpageRow(
                 icon: Icons.schedule_outlined,
-                title: 'Review pending',
+                title: 'Preview only',
                 body:
-                    'Online moderation delivery is not connected yet. Keep any evidence until support confirms receipt.',
+                    'Use a connected Hocalist account to send a report to Support.',
               ),
             ],
           ),
@@ -12977,8 +12987,13 @@ class ReportIssuePage extends StatelessWidget {
       );
     }
 
+    final chatSeller = widget.chatViewerIsSeller;
     return _BuyerSubpageBlock(
-      title: 'Report a Problem',
+      title: switch (chatSeller) {
+        true => 'Report buyer',
+        false => 'Report seller',
+        null => 'Report a Problem',
+      },
       subtitle: 'Describe an unsafe interaction, user, or deal concern.',
       children: [
         _BuyerSubpageSection(
@@ -12990,16 +13005,38 @@ class ReportIssuePage extends StatelessWidget {
                 children: [
                   const BuyerFieldLabel('Report reason'),
                   const SizedBox(height: 5),
-                  TextFormField(
-                    decoration: buyerInputDecoration(
-                      context,
-                      hintText: 'Choose or describe the main concern',
+                  if (chatSeller != null)
+                    AccountSecondaryButton(
+                      seller: chatSeller,
+                      label: _reason?.label ?? 'Choose a reason',
+                      onPressed: () async {
+                        final selected = await pickChatReportReason(
+                          context,
+                          seller: chatSeller,
+                          reasons: chatReportReasons(seller: chatSeller),
+                          selected: _reason,
+                        );
+                        if (mounted && selected != null) {
+                          setState(() => _reason = selected);
+                        }
+                      },
+                    )
+                  else
+                    TextFormField(
+                      decoration: buyerInputDecoration(
+                        context,
+                        hintText: 'Choose or describe the main concern',
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 12),
-                  const BuyerFieldLabel('What happened?'),
+                  BuyerFieldLabel(
+                    chatSeller != null && _reason?.requiresDetails != true
+                        ? 'Add details (optional)'
+                        : 'What happened?',
+                  ),
                   const SizedBox(height: 5),
                   TextFormField(
+                    onChanged: chatSeller == null ? null : (value) => setState(() => _details = value),
                     minLines: 3,
                     maxLines: 5,
                     decoration: buyerInputDecoration(
@@ -13017,15 +13054,19 @@ class ReportIssuePage extends StatelessWidget {
           children: [
             _BuyerSubpageRow(
               icon: Icons.cloud_off_outlined,
-              title: 'Online delivery is not connected',
+              title: 'Reporting preview',
               body:
-                  'This report is stored in the current on-device support flow only.',
+                  'This sample report stays on this device.',
             ),
           ],
         ),
         BuyerPrimaryButton(
           label: 'Save report',
-          onPressed: onSubmit,
+          onPressed: chatSeller == null ||
+                  (_reason != null &&
+                      (!_reason!.requiresDetails || _details.trim().length >= 10))
+              ? widget.onSubmit
+              : null,
           colors: const [HocalistTheme.danger, Color(0xffd62f29)],
           leading: BuyerGlyphIcon(
             icon: Icons.outgoing_mail,
@@ -13145,7 +13186,7 @@ class BuyerRewardsDetailPage extends StatelessWidget {
           values: const [
             Metric('\$128.45', 'Total earned'),
             Metric('\$24.80', 'Pending'),
-            Metric('\$0.20', 'Next payout'),
+            Metric('\$0.20', 'Sample withdrawal minimum'),
           ],
         ),
         AlertBanner(

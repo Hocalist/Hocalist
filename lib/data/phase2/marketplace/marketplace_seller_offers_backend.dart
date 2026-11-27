@@ -106,6 +106,12 @@ class Phase2MarketplaceSellerOffersBackend
   }
 
   String _message(RepositoryError? error) {
+    if (error case PermissionDeniedError(action: 'offer_withdraw_plan_required')) {
+      return 'Offer withdrawal is available with Pro and Elite.';
+    }
+    if (error case ConflictError(conflictCode: 'offer_withdraw_buyer_responded')) {
+      return 'You can only withdraw an offer before the buyer responds.';
+    }
     if (error == null) {
       return 'Your offer change could not be saved. Try again.';
     }

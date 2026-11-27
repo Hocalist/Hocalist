@@ -6,7 +6,8 @@ import '../../local_marketplace_repository.dart';
 import 'meeting_adapter.dart';
 import 'meeting_codecs.dart';
 
-class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend, MarketplaceOfferedMeetingBackend {
+class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend,
+    MarketplaceOfferedMeetingBackend, BuyerMeetupManagementBackend {
   Phase2MarketplaceMeetingsBackend({required this.adapter});
 
   final MeetingDataAdapter adapter;
@@ -169,12 +170,36 @@ class Phase2MarketplaceMeetingsBackend implements MarketplaceMeetingsBackend, Ma
     };
   }
 
+  @override
+  Future<MeetingView> manageBuyerMeetup({
+    required String meetingId,
+    required int expectedRevision,
+    required String operationKey,
+    required BuyerMeetupChange change,
+    MeetingScheduleInput? input,
+  }) async {
+    final result = await adapter.manageBuyerMeetup(
+      meetingId: meetingId,
+      expectedRevision: expectedRevision,
+      operationKey: operationKey,
+      change: change,
+      input: input,
+    );
+    if (result.isFailure) {
+      final error = result.errorOrNull!;
+      throw StoreBackendException(_message(error), ambiguous: _isAmbiguous(error),
+        code: error is ValidationError ? error.issues.firstOrNull?.code : null);
+    }
+    return result.valueOrNull!;
+  }
+
   String _message(RepositoryError? error) {
     if (error is ConflictError &&
         const {
           'meeting_time_passed',
           'meeting_seller_payment_required',
           'meeting_seller_account_pending',
+          'active_deal_pair_limit',
         }.contains(error.conflictCode)) {
       return error.debugMessage;
     }

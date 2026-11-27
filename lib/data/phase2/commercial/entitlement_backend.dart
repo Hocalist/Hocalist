@@ -103,7 +103,11 @@ class Phase2EntitlementBackend {
 }
 
 /// Set true only after the reviewed commercial_completion bundle is applied.
-const bool kEntitlementsEnabled = bool.fromEnvironment('HOCALIST_ENTITLEMENTS');
+const bool kEntitlementsEnabled = bool.fromEnvironment(
+  'HOCALIST_ENTITLEMENTS',
+  // The disposable USB preview loads the reviewed entitlement SQL too.
+  defaultValue: bool.fromEnvironment('HOCALIST_USB_QA'),
+);
 
 Phase2EntitlementBackend? createConfiguredEntitlementBackend({
   bool enabled = kEntitlementsEnabled,

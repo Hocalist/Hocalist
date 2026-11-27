@@ -8,6 +8,7 @@ test('request estimates accumulate but cannot be withdrawn; collected contributo
  const db=await createCommercialDb();
  try {
   for(const path of ['../chat/012_credit_qualification.sql', './207_offer_submission_fee.sql', './228_target_fee_policy.sql', './231_deal_chat_threads.sql', './235_paygo_payment_setup.sql', './236_paygo_collection.sql', './249_multi_seller_buyer_rewards.sql']) await db.exec(await read(path));
+  await db.exec(await read('./buyer_request_potential_reward.sql'));
   const request=crypto.randomUUID(), offers=[crypto.randomUUID(),crypto.randomUUID()];
   await db.exec("INSERT INTO hocalist.reward_policy(singleton,normal_minor,late_minor,late_window_hours,rule_version) VALUES(true,15,30,12,'synthetic-approved')");
   await db.query("INSERT INTO hocalist.requests(id,buyer_user_id,buyer_profile_id,kind,title,condition,status,first_accepted_at,acceptance_expires_at) VALUES($1,$2,$3,'product','Synthetic reward contract','used','active',now()-interval '6 days',now()+interval '1 day')",[request,IDS.buyer,IDS.buyerMembership]);
@@ -20,8 +21,13 @@ test('request estimates accumulate but cannot be withdrawn; collected contributo
    targets.push(target);
   }
   const estimate=async()=>Number((await db.query('SELECT hocalist.reward_pending_estimate_minor($1) AS n',[IDS.buyer])).rows[0].n);
+  const requestEstimate=async(user=IDS.buyer)=>(await callAs(db,'authenticated',user,
+    'SELECT hocalist.commercial_request_potential_reward($1) AS result',[request]))[0].result.estimated_minor;
   const collected=async(id)=>(await db.query('SELECT hocalist.reward_target_collected($1) AS ok',[id])).rows[0].ok;
   assert.equal(await estimate(),30);
+  assert.equal(await requestEstimate(),30);
+  await assert.rejects(requestEstimate(IDS.seller), /wallet_access_denied/);
+  await assert.rejects(requestEstimate(IDS.outsider), /wallet_access_denied/);
   const wallet=async()=>(await callAs(db,'authenticated',IDS.buyer,'SELECT hocalist.commercial_reward_wallet() AS d'))[0].d;
   assert.equal((await wallet()).estimated_minor,30);
   assert.equal((await wallet()).available_minor,0);
@@ -29,9 +35,14 @@ test('request estimates accumulate but cannot be withdrawn; collected contributo
   assert.equal(await collected(targets[0]),false);
   await db.query('UPDATE hocalist.credit_targets SET qualified_at=NULL WHERE id=$1',[targets[1]]);
   assert.equal(await estimate(),15);
+  assert.equal(await requestEstimate(),15);
   await db.query('UPDATE hocalist.credit_targets SET qualified_at=now() WHERE id=$1',[targets[1]]);
+  await db.query("UPDATE hocalist.credit_targets SET status='refunded' WHERE id=$1",[targets[1]]);
+  assert.equal(await requestEstimate(),15);
+  await db.query("UPDATE hocalist.credit_targets SET status='initial_charged' WHERE id=$1",[targets[1]]);
   await db.query("UPDATE hocalist.requests SET status='expired',acceptance_expires_at=now()-interval '1 hour' WHERE id=$1",[request]);
   assert.equal(await estimate(),0);
+  assert.equal(await requestEstimate(),0);
   const conversation=crypto.randomUUID(),meeting=crypto.randomUUID();
   const revision=crypto.randomUUID();
   await db.query("INSERT INTO hocalist.offer_revisions(id,offer_id,sequence,price_minor,currency_code,message,schedule_date,schedule_time,schedule_timezone,schedule_offset_minutes,schedule_instant,place_choice,place_label,status,proposed_by_user_id) VALUES($1,$2,1,1500,'USD','','2026-11-05','18:30','America/Chicago',-360,'2026-11-06T00:30:00Z','specific_place','Synthetic place','accepted',$3)",[revision,offers[0],IDS.seller]);
@@ -41,6 +52,7 @@ test('request estimates accumulate but cannot be withdrawn; collected contributo
   await db.query("INSERT INTO hocalist.sale_confirmations(request_id,meeting_id,offer_id,schedule_revision_id,buyer_user_id,seller_user_id) VALUES($1,$2,$3,$4,$5,$6)",[request,meeting,offers[0],crypto.randomUUID(),IDS.buyer,IDS.seller]);
   await db.query('SELECT hocalist.credit_settle_purchase($1)',[request]);
   await db.query('SELECT hocalist.credit_settle_purchase($1)',[request]);
+  assert.equal(await requestEstimate(),0);
   const fees=(await db.query('SELECT status,charged_minor,reserved_minor FROM hocalist.credit_targets WHERE id=ANY($1::uuid[]) ORDER BY user_id',[targets])).rows;
   assert.deepEqual(fees.map(t=>[t.status,Number(t.charged_minor),Number(t.reserved_minor)]),[['won',500,0],['released',200,0]]);
   assert.equal(await estimate(),0);

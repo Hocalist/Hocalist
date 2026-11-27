@@ -133,7 +133,7 @@ class _BuyerProfileVisibilityEditorState
           const BuyerSectionHeading(title: 'Buyer profile sharing'),
           const SizedBox(height: 8),
           Text(
-            'Choose what sellers can see. Your contact details and exact address stay private.',
+            'Choose what sellers can see on your profile. Your phone, email, and exact address stay off your public profile.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),

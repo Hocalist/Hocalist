@@ -6,7 +6,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../accounts/fresh_session_token.dart';
 
-const hocalistSupabaseUrl = 'https://icqwbzswokoulatomgql.supabase.co';
+const _usbQa = bool.fromEnvironment('HOCALIST_USB_QA');
+const hocalistSupabaseUrl = _usbQa
+    ? 'http://127.0.0.1:48913'
+    : 'https://icqwbzswokoulatomgql.supabase.co';
 const hocalistAuthCallback = 'com.hocalist.app://login-callback/';
 const hocalistLocalWebTestEnabled = bool.fromEnvironment(
   'HOCALIST_LOCAL_WEB_TEST',
@@ -128,6 +131,9 @@ Future<SupabaseClient> initializeHocalistProviders({
           ].contains(defaultTargetPlatform))) {
     throw const ProviderOperationException('mobile_only');
   }
+  if (_usbQa && (!kDebugMode || publicKey != 'sb_publishable_local_hocalist_qa')) {
+    throw const ProviderOperationException('public_client_key_required');
+  }
   var allowed = publicKey.startsWith('sb_publishable_');
   if (!allowed) {
     try {
@@ -148,7 +154,9 @@ Future<SupabaseClient> initializeHocalistProviders({
     url: hocalistSupabaseUrl,
     publishableKey: publicKey,
     debug: false,
-    authOptions: hocalistLocalWebTest
+    authOptions: _usbQa
+        ? const FlutterAuthClientOptions(detectSessionInUri: false)
+        : hocalistLocalWebTest
         ? const FlutterAuthClientOptions()
         : const FlutterAuthClientOptions(
             localStorage: HocalistSessionStorage(),

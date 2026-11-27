@@ -51,7 +51,7 @@ Future<bool> confirmOfferedMeeting(BuildContext context, {
         ),
       ],
       const SizedBox(height: 16),
-      Text('This confirms your meeting, not a completed purchase. Pay the seller directly when you meet.',
+      Text('This confirms your meeting. Check the item or agreed service first and pay the seller directly if you’re satisfied. Share your purchase PIN after completing the purchase.',
         style: _confirmationText(sheet, size: 12)),
       const SizedBox(height: 18),
       BuyerPrimaryButton(label: 'Confirm meeting', minimumHeight: 48,

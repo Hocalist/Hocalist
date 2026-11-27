@@ -121,7 +121,7 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('creditBatch-bt-1')));
     await tester.tap(find.byKey(const Key('creditBatch-bt-1')));
     await tester.pumpAndSettle();
-    expect(find.text('Winning total'), findsOneWidget);
+    expect(find.text('Total fee if you win'), findsOneWidget);
     expect(find.textContaining('These rates were saved'), findsOneWidget);
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
@@ -223,7 +223,7 @@ void main() {
     expect(find.byKey(const Key('creditOption-opt-1')), findsOneWidget);
     expect(find.text('40.00 HC'), findsWidgets);
     expect(find.text('1.45 HC'), findsOneWidget);
-    expect(find.text('Winning total'), findsOneWidget);
+    expect(find.text('Total fee if you win'), findsOneWidget);
     expect(find.byKey(const Key('creditWalletNoPacks')), findsNothing);
   });
 

@@ -8,9 +8,11 @@ import '../../data/phase2/maps/places_contract.dart';
 import '../account/private_contact_editor.dart' show contactAddressFromPlace;
 import '../../domain/phase2/category_answers.dart';
 import 'category_question_editor.dart';
+import 'request_category_match.dart';
 import '../../domain/phase2/us_states.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../components/hocalist_motion.dart';
 import '../media/request_photo_gallery.dart';
 
@@ -84,6 +86,14 @@ const _minimumIcon = '$_assetRoot/price-min.png';
 const _maximumIcon = '$_assetRoot/price-max.png';
 const _categoryGridIcon = '$_assetRoot/category-grid.png';
 const _categoryDownIcon = '$_assetRoot/category-down.png';
+
+const _requestConditions = ['Any condition', 'New', 'Used'];
+
+ProductCondition? _productCondition(String label) => switch (label) {
+  'New' => ProductCondition.newItem,
+  'Used' => ProductCondition.used,
+  _ => null,
+};
 const _selectedRadioIcon = '$_assetRoot/location-radio-selected.png';
 
 ApprovedReplicaMetrics _replicaMetrics(BuildContext context) {
@@ -243,7 +253,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       _descriptionController.text != widget.initialDescription ||
       _kind != widget.initialKind || _quantity != 1 || _categoryId != null ||
       _categoryAnswers.isNotEmpty || _minimum.isNotEmpty || _maximum.isNotEmpty ||
-      _condition != 'New' || _serviceType != 'Single' || !_acceptHigherOffers ||
+      _condition != _initialCondition || _serviceType != 'Single' || !_acceptHigherOffers ||
       _preferMeetHere || !_useHomeAddress || _mapLocation != null || _addressLine1 != null ||
       _addressLine2 != null || _city != null || _state != null ||
       _postalCode != null || _country != null;
@@ -315,12 +325,18 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     });
 
   }
-  String _condition = 'New';
+  late final String _initialCondition =
+      widget.usesRealSubmission ? 'Any condition' : 'New';
+  late String _condition = _initialCondition;
   String _serviceType = 'Single';
   String _minimum = '';
   String _maximum = '';
   String? _categoryId;
   List<CategoryAnswer> _categoryAnswers = const [];
+  final _answersByCategory = <String, List<CategoryAnswer>>{};
+  bool _categoryChosenManually = false;
+  String? _titleMatchAtManualChoice;
+  Timer? _categoryTimer;
   final _questionKey = GlobalKey<CategoryQuestionEditorState>();
   String? _addressLine1;
   String? _addressLine2;
@@ -394,6 +410,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   void initState() {
     super.initState();
     _kind = widget.initialKind;
+    _scheduleCategoryMatch(widget.requestTitle);
     unawaited(_loadSavedAddresses());
     _useHomeAddress =
         !widget.usesRealSubmission ||
@@ -406,7 +423,17 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   @override
+  void didUpdateWidget(covariant ApprovedRequestFlowPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.categories != widget.categories ||
+        oldWidget.categoriesLoading != widget.categoriesLoading) {
+      _scheduleCategoryMatch(widget.requestTitle);
+    }
+  }
+
+  @override
   void dispose() {
+    _categoryTimer?.cancel();
     _scrollController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -454,9 +481,85 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
     final id = _categoryId;
     if (id == null) return null;
     for (final option in widget.categories) {
-      if (option.id == id) return option.label;
+      if (option.id != id) continue;
+      for (final parent in widget.categories) {
+        if (parent.id == option.parentId) {
+          return '${parent.label} › ${option.label}';
+        }
+      }
+      return option.label;
     }
     return id;
+  }
+
+  void _scheduleCategoryMatch(String title) {
+    _categoryTimer?.cancel();
+    if (!widget.usesRealSubmission || widget.categoriesLoading ||
+        widget.categoriesError != null) {
+      return;
+    }
+    _categoryTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted || _step != _ApprovedRequestStep.details) {
+        return;
+      }
+      _applyCategoryMatch(title);
+    });
+  }
+
+  bool _applyCategoryMatch(String title) {
+    final matchedId = _matchedCategoryId(title);
+    if (_categoryChosenManually &&
+        (matchedId == null || matchedId == _titleMatchAtManualChoice)) {
+      return false;
+    }
+    if (_categoryId == matchedId && !_categoryChosenManually) return false;
+    setState(() {
+      _categoryChosenManually = false;
+      _useCategory(matchedId);
+    });
+    return true;
+  }
+
+  String? _matchedCategoryId(String title) => matchRequestCategory(
+      title,
+      widget.categories,
+      product: _kind == ApprovedRequestKind.product,
+    )?.id;
+
+  void _useCategory(String? id) {
+    _categoryId = id;
+    _categoryAnswers = _answersByCategory[id] ?? const [];
+    _submitError = null;
+  }
+
+  void _onTitleChanged(String title) {
+    widget.onTitleChanged(title);
+    _scheduleCategoryMatch(title);
+  }
+
+  void _selectCategory(String id) {
+    _categoryTimer?.cancel();
+    setState(() {
+      _categoryChosenManually = true;
+      _titleMatchAtManualChoice = _matchedCategoryId(widget.requestTitle);
+      _useCategory(id);
+    });
+  }
+
+  Widget? get _matchedCategoryQuestions {
+    final id = _categoryId;
+    if (!widget.usesRealSubmission || id == null) return null;
+    return CategoryQuestionEditor(
+      key: _questionKey,
+      loader: widget.questionLoader,
+      categoryId: id,
+      answers: _categoryAnswers,
+      compactRequestFields: true,
+      onChanged: (answers) => setState(() {
+        _answersByCategory[id] = answers;
+        _categoryAnswers = answers;
+      }),
+    );
   }
 
   ValueChanged<String> _updateAddress(void Function(String value) assign) {
@@ -516,11 +619,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
       kind: isProduct ? RequestKind.product : RequestKind.service,
       title: widget.requestTitle.trim(),
       description: _descriptionController.text.trim(),
-      condition: isProduct
-          ? (_condition == 'New'
-                ? ProductCondition.newItem
-                : ProductCondition.used)
-          : null,
+      condition: isProduct ? _productCondition(_condition) : null,
       serviceType: isProduct
           ? null
           : (_serviceType == 'Single'
@@ -567,6 +666,12 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
   }
 
   void _continueToLocation() {
+    if (_categoryTimer?.isActive == true) {
+      _categoryTimer?.cancel();
+      if (_applyCategoryMatch(widget.requestTitle) && _categoryId != null) {
+        return;
+      }
+    }
     final error = widget.usesRealSubmission
         ? _detailsValidationMessage()
         : null;
@@ -883,10 +988,18 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
             if (!isLocation) ...[
               _ApprovedKindPicker(
                 selected: _kind,
-                onChanged: (value) => setState(() {
-                  if (_kind != value) { _categoryId = null; _categoryAnswers = const []; }
-                  _kind = value;
-                }),
+                onChanged: (value) {
+                  if (_kind == value) return;
+                  setState(() {
+                    _kind = value;
+                    _categoryId = null;
+                    _categoryChosenManually = false;
+                    _titleMatchAtManualChoice = null;
+                    _categoryAnswers = const [];
+                    _submitError = null;
+                  });
+                  _scheduleCategoryMatch(widget.requestTitle);
+                },
               ),
               SizedBox(height: _requestDimension(metrics, 21, floor: 18)),
             ],
@@ -983,7 +1096,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       minimum: _minimum,
                       maximum: _maximum,
                       acceptHigherOffers: _acceptHigherOffers,
-                      onTitleChanged: widget.onTitleChanged,
+                      onTitleChanged: _onTitleChanged,
                       onBudgetChanged: widget.onBudgetChanged,
                       onConditionChanged: (value) {
                         setState(() => _condition = value);
@@ -1010,25 +1123,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       categoriesError: widget.categoriesError,
                       onRefreshCategories: widget.onRefreshCategories,
                       onCategorySelected: widget.usesRealSubmission
-                          ? (value) {
-                              setState(() {
-                                _categoryId = value;
-                                _categoryAnswers = const [];
-                                _submitError = null;
-                              });
-                            }
+                          ? _selectCategory
                           : null,
-                      categoryQuestions:
-                          widget.usesRealSubmission && _categoryId != null
-                          ? CategoryQuestionEditor(
-                              key: _questionKey,
-                              loader: widget.questionLoader,
-                              categoryId: _categoryId!,
-                              answers: _categoryAnswers,
-                              onChanged: (answers) =>
-                                  setState(() => _categoryAnswers = answers),
-                            )
-                          : null,
+                      categoryQuestions: _matchedCategoryQuestions,
                       error: _submitError,
                     )
                   : ApprovedServiceRequestStep(
@@ -1038,7 +1135,7 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       minimum: _minimum,
                       maximum: _maximum,
                       acceptHigherOffers: _acceptHigherOffers,
-                      onTitleChanged: widget.onTitleChanged,
+                      onTitleChanged: _onTitleChanged,
                       onBudgetChanged: widget.onBudgetChanged,
                       onServiceTypeChanged: (value) {
                         setState(() => _serviceType = value);
@@ -1062,25 +1159,9 @@ class _ApprovedRequestFlowPageState extends State<ApprovedRequestFlowPage> {
                       categoriesError: widget.categoriesError,
                       onRefreshCategories: widget.onRefreshCategories,
                       onCategorySelected: widget.usesRealSubmission
-                          ? (value) {
-                              setState(() {
-                                _categoryId = value;
-                                _categoryAnswers = const [];
-                                _submitError = null;
-                              });
-                            }
+                          ? _selectCategory
                           : null,
-                      categoryQuestions:
-                          widget.usesRealSubmission && _categoryId != null
-                          ? CategoryQuestionEditor(
-                              key: _questionKey,
-                              loader: widget.questionLoader,
-                              categoryId: _categoryId!,
-                              answers: _categoryAnswers,
-                              onChanged: (answers) =>
-                                  setState(() => _categoryAnswers = answers),
-                            )
-                          : null,
+                      categoryQuestions: _matchedCategoryQuestions,
                       error: _submitError,
                     ),
             ),
@@ -1364,21 +1445,55 @@ class _ApprovedDetailsStep extends StatelessWidget {
               : 'e.g., House Cleaning, Car Detailing, Logo Design',
           onChanged: onTitleChanged,
         ),
+        if (onCategorySelected != null) ...[
+          SizedBox(height: metrics.geometry(7)),
+          _ApprovedCategoryPanel(
+            options: categories,
+            selectedId: categoryId,
+            selectedLabel: categoryLabel,
+            onSelected: onCategorySelected,
+            loading: categoriesLoading,
+            error: categoriesError,
+            onRetry: onRefreshCategories,
+            supportsProduct: isProduct,
+          ),
+          ?categoryQuestions,
+        ],
         SizedBox(height: metrics.geometry(10)),
         _ApprovedFieldCard(
-          title: isProduct ? 'Describe the product' : 'Describe the service',
-          helper:
-              'Include key details so sellers can give you accurate offers.',
+          title: onCategorySelected != null
+              ? 'Additional notes'
+              : (isProduct ? 'Describe the product' : 'Describe the service'),
+          helper: onCategorySelected != null
+              ? 'Optional. Add anything sellers should know.'
+              : 'Include key details so sellers can give you accurate offers.',
           iconAsset: _descriptionIcon,
-          hint: isProduct
+          hint: onCategorySelected != null
+              ? 'Add any other preferences or requirements.'
+              : isProduct
               ? 'Describe what you need, preferred brand, model, size, color, condition, features, etc.'
               : 'Describe what you need, preferred outcome, specific requirements, etc.',
           controller: descriptionController,
           maxLines: 3,
           counterText: '500',
         ),
-        const SizedBox.shrink(),
-        _ApprovedResponsiveGrid(
+        if (onCategorySelected != null) ...[
+          SizedBox(height: metrics.geometry(6)),
+          _RequestPostingPreferences(
+            product: isProduct,
+            selectedChoice: selectedChoice,
+            quantity: quantity,
+            minimum: minimum,
+            maximum: maximum,
+            higherOffers: acceptHigherOffers,
+            onChoiceChanged: onChoiceChanged,
+            onQuantityChanged: onQuantityChanged,
+            onMinimumChanged: onMinimumChanged,
+            onMaximumChanged: onMaximumChanged,
+            onBudgetChanged: onBudgetChanged,
+            onHigherOffersChanged: onAcceptHigherOffersChanged,
+          ),
+        ] else _ApprovedResponsiveGrid(
           preserveColumnsAtNormalScale: true,
           referenceSpacing: 4,
           referenceRunSpacing: 6,
@@ -1405,40 +1520,20 @@ class _ApprovedDetailsStep extends StatelessWidget {
               onMaximumChanged: onMaximumChanged,
               onBudgetChanged: onBudgetChanged,
             ),
-            isProduct
-                ? _ApprovedQuantityPanel(
+            if (isProduct)
+                _ApprovedQuantityPanel(
                     quantity: quantity,
                     onChanged: onQuantityChanged,
                   )
-                : _ApprovedCategoryPanel(
-                    options: categories,
-                    selectedId: categoryId,
-                    selectedLabel: categoryLabel,
-                    onSelected: onCategorySelected,
-                    loading: categoriesLoading,
-                    error: categoriesError,
-                    onRetry: onRefreshCategories,
-                    supportsProduct: false,
-                  ),
+            else
+              const _ApprovedCategoryPanel(supportsProduct: false),
             _ApprovedHigherOffersPanel(
               value: acceptHigherOffers,
               onChanged: onAcceptHigherOffersChanged,
             ),
           ],
         ),
-        if (isProduct && onCategorySelected != null)
-          _ApprovedCategoryPanel(
-            options: categories,
-            selectedId: categoryId,
-            selectedLabel: categoryLabel,
-            onSelected: onCategorySelected,
-            loading: categoriesLoading,
-            error: categoriesError,
-            onRetry: onRefreshCategories,
-            supportsProduct: true,
-          ),
-        ?categoryQuestions,
-        SizedBox(height: metrics.geometry(2)),
+        SizedBox(height: metrics.geometry(onCategorySelected == null ? 2 : 7)),
         if (error != null) ...[
           Text(
             error!,
@@ -1456,9 +1551,228 @@ class _ApprovedDetailsStep extends StatelessWidget {
           forwardLabel: 'Continue',
           onBack: onBack,
           onForward: onContinue,
+          plainForward: onCategorySelected != null,
         ),
       ],
     );
+  }
+}
+
+class _RequestPostingPreferences extends StatelessWidget {
+  const _RequestPostingPreferences({
+    required this.product,
+    required this.selectedChoice,
+    required this.quantity,
+    required this.minimum,
+    required this.maximum,
+    required this.higherOffers,
+    required this.onChoiceChanged,
+    required this.onQuantityChanged,
+    required this.onMinimumChanged,
+    required this.onMaximumChanged,
+    required this.onBudgetChanged,
+    required this.onHigherOffersChanged,
+  });
+
+  final bool product;
+  final String selectedChoice;
+  final int quantity;
+  final String minimum;
+  final String maximum;
+  final bool higherOffers;
+  final ValueChanged<String> onChoiceChanged;
+  final ValueChanged<int> onQuantityChanged;
+  final ValueChanged<String> onMinimumChanged;
+  final ValueChanged<String> onMaximumChanged;
+  final ValueChanged<String> onBudgetChanged;
+  final ValueChanged<bool> onHigherOffersChanged;
+
+  void _updateBudget(String min, String max) {
+    onBudgetChanged(
+      min.trim().isEmpty && max.trim().isEmpty
+          ? ''
+          : '\$${min.trim().isEmpty ? '0' : min.trim()} - '
+                '\$${max.trim().isEmpty ? '0' : max.trim()}',
+    );
+  }
+
+  Widget _pair(bool stack, Widget first, Widget second) => stack
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [first, const SizedBox(height: 8), second],
+        )
+      : Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 8),
+            Expanded(child: second),
+          ],
+        );
+
+  @override
+  Widget build(BuildContext context) {
+    final stack = MediaQuery.textScalerOf(context).scale(14) > 17;
+    Widget number({
+      required String label,
+      required String value,
+      required ValueChanged<String> onChanged,
+      bool whole = false,
+    }) => _RequestPreferenceField(
+      label: label,
+      child: TextFormField(
+        key: ValueKey(switch (label) {
+          'Minimum budget' => 'approved-request-budget-min',
+          'Maximum budget' => 'approved-request-budget-max',
+          _ => 'approved-request-quantity',
+        }),
+        initialValue: value,
+        keyboardType: TextInputType.numberWithOptions(decimal: !whole),
+        inputFormatters: whole
+            ? [
+                TextInputFormatter.withFunction(
+                  (oldValue, newValue) =>
+                      RegExp(r'^(?:[1-9][0-9]?)?$').hasMatch(newValue.text)
+                      ? newValue
+                      : oldValue,
+                ),
+              ]
+            : null,
+        onChanged: onChanged,
+        style: _requestInputStyle(context),
+        decoration: _inputDecoration(context).copyWith(
+          hintText: whole ? '1' : 'Optional',
+          semanticCounterText: '',
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 9,
+            vertical: 12,
+          ),
+          constraints: const BoxConstraints(minHeight: 44),
+        ),
+      ),
+    );
+
+    final condition = _RequestPreferenceSelect(
+      label: product ? 'Condition' : 'Service Type',
+      value: selectedChoice,
+      choices: product ? _requestConditions : const ['Single', 'Ongoing'],
+      onChanged: onChoiceChanged,
+    );
+    return _ApprovedSurface(
+      referenceVerticalPadding: 7,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (product)
+            _pair(
+              stack,
+              condition,
+              number(
+                label: 'Quantity',
+                value: '$quantity',
+                whole: true,
+                onChanged: (value) =>
+                    onQuantityChanged(int.tryParse(value) ?? 1),
+              ),
+            )
+          else
+            condition,
+          const SizedBox(height: 9),
+          _pair(
+            stack,
+            number(
+              label: 'Minimum budget',
+              value: minimum,
+              onChanged: (value) {
+                onMinimumChanged(value);
+                _updateBudget(value, maximum);
+              },
+            ),
+            number(
+              label: 'Maximum budget',
+              value: maximum,
+              onChanged: (value) {
+                onMaximumChanged(value);
+                _updateBudget(minimum, value);
+              },
+            ),
+          ),
+          const SizedBox(height: 9),
+          _RequestPreferenceSelect(
+            label: 'Open to higher offers?',
+            value: higherOffers ? 'Yes' : 'No',
+            choices: const ['No', 'Yes'],
+            onChanged: (value) => onHigherOffersChanged(value == 'Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestPreferenceField extends StatelessWidget {
+  const _RequestPreferenceField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        label,
+        style: _bodyStyle(context).copyWith(fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 5),
+      Semantics(label: label, child: child),
+    ],
+  );
+}
+
+class _RequestPreferenceSelect extends StatelessWidget {
+  const _RequestPreferenceSelect({
+    required this.label,
+    required this.value,
+    required this.choices,
+    required this.onChanged,
+    this.showLabel = true,
+  });
+
+  final String label;
+  final String value;
+  final List<String> choices;
+  final ValueChanged<String> onChanged;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final dropdown = InputDecorator(
+      decoration: _inputDecoration(
+        context,
+      ).copyWith(contentPadding: const EdgeInsets.symmetric(horizontal: 9)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          style: _requestInputStyle(context),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+          items: [
+            for (final choice in choices)
+              DropdownMenuItem(
+                value: choice,
+                child: Text(choice, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+        ),
+      ),
+    );
+    return showLabel
+        ? _RequestPreferenceField(label: label, child: dropdown)
+        : Semantics(label: label, child: dropdown);
   }
 }
 
@@ -1551,7 +1865,7 @@ class ApprovedLocationRequestStep extends StatelessWidget {
         ),
         SizedBox(height: metrics.geometry(6)),
         Text(
-          'Sellers will be able to only see your\nlocation once you close the deal.',
+          'Sellers can see your general area. Check which exact address will be shared before proposing or accepting a meetup.',
           textAlign: TextAlign.center,
           style: _bodyStyle(context).copyWith(
             color: HocalistPalette.text(context, _approvedMuted),
@@ -1974,6 +2288,7 @@ class _ApprovedBuyerRequestDetailsPageState
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   bool _isNew = true;
+  bool _anyCondition = false;
   ServiceType _serviceType = ServiceType.oneTime;
   bool _acceptHigherOffers = true;
   int _quantity = 1;
@@ -2014,6 +2329,7 @@ class _ApprovedBuyerRequestDetailsPageState
       _editedMaximum = draft.budget.maximum == null ? '' : _formatMinorUnits(draft.budget.maximum!.minorUnits);
       _categoryAnswers = draft.categoryAnswers;
       _isNew = draft.condition != ProductCondition.used;
+      _anyCondition = draft.condition == null;
       _serviceType = draft.serviceType ?? ServiceType.oneTime;
       _acceptHigherOffers = draft.acceptsHigherOffers;
       _quantity = draft.quantity;
@@ -2114,7 +2430,7 @@ class _ApprovedBuyerRequestDetailsPageState
     return current.copyWith(
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      condition: current.kind == RequestKind.product
+      condition: current.kind == RequestKind.product && !_anyCondition
           ? (_isNew ? ProductCondition.newItem : ProductCondition.used)
           : null,
       serviceType: current.kind == RequestKind.service ? _serviceType : null,
@@ -2483,9 +2799,22 @@ class _ApprovedBuyerRequestDetailsPageState
                   onEdit: () => _message(
                     widget.request?.draft.kind == RequestKind.service
                         ? 'Choose Single or Ongoing below.'
-                        : 'Choose New or Used below.',
+                        : 'Choose your preferred condition below.',
                   ),
-                  child: Row(
+                  child: widget.request?.draft.kind == RequestKind.product
+                      ? _RequestPreferenceSelect(
+                          label: 'Preferred condition',
+                          value: _anyCondition
+                              ? 'Any condition'
+                              : (_isNew ? 'New' : 'Used'),
+                          choices: _requestConditions,
+                          showLabel: false,
+                          onChanged: (value) => setState(() {
+                            _anyCondition = value == 'Any condition';
+                            _isNew = value == 'New';
+                          }),
+                        )
+                      : Row(
                     children: [
                       Expanded(
                         child: _ApprovedTextChoice(
@@ -3710,7 +4039,14 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
             optional: widget.onSelected == null,
           ),
           SizedBox(height: metrics.geometry(4)),
-          Text('This avoids mismatch.', style: _smallStyle(context)),
+          Text(
+            widget.onSelected == null
+                ? 'This avoids mismatch.'
+                : selected == null
+                    ? 'Type a title to find a category, or choose one.'
+                    : 'Tap to change the category.',
+            style: _smallStyle(context),
+          ),
           SizedBox(height: metrics.geometry(8)),
           InkWell(
             key: const Key('approved-request-category-select'),
@@ -3738,7 +4074,7 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
                   Expanded(
                     child: Text(
                       selected ?? 'Select a category',
-                      maxLines: 1,
+                      maxLines: widget.onSelected == null ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: selected == null
                           ? _requestHintStyle(context)
@@ -3799,7 +4135,7 @@ class _ApprovedCategoryPanelState extends State<_ApprovedCategoryPanel> {
 }
 
 /// Real-mode category picker sheet: active server categories by id.
-class _ApprovedCategorySheet extends StatelessWidget {
+class _ApprovedCategorySheet extends StatefulWidget {
   const _ApprovedCategorySheet({
     required this.options,
     required this.selectedId,
@@ -3813,53 +4149,111 @@ class _ApprovedCategorySheet extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  State<_ApprovedCategorySheet> createState() => _ApprovedCategorySheetState();
+}
+
+class _ApprovedCategorySheetState extends State<_ApprovedCategorySheet> {
+  final _search = TextEditingController();
+  CatalogueCategoryOption? _parent;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _showLevel(CatalogueCategoryOption? parent) {
+    _search.clear();
+    setState(() => _parent = parent);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final active = options.where((option) => option.isActive).toList();
+    final active = widget.options.where((option) => option.isActive).toList();
+    final ids = active.map((option) => option.id).toSet();
+    final parents = active.map((option) => option.parentId).toSet();
+    final parent = _parent;
+    final search = _search.text.trim().toLowerCase();
+    final choices = active.where((option) {
+      if (parent != null && option.parentId != parent.id) return false;
+      if (parent == null && search.isEmpty && ids.contains(option.parentId)) {
+        return false;
+      }
+      return requestCategoryMatchesSearch(option.label, search);
+    });
+
     return BuyerModalSheet(
-      title: 'Choose a category',
-      subtitle: 'Categories come from the Hocalist catalogue.',
+      title: parent == null ? 'Choose a category' : 'Choose a subcategory',
+      subtitle: parent?.label ?? 'Pick the closest match for your request.',
       icon: Icons.grid_view_outlined,
-      onClose: onClose,
+      onClose: widget.onClose,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (active.isEmpty)
+          if (parent != null)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => _showLevel(null),
+                icon: const Icon(Icons.arrow_back, size: 18),
+                label: const Text('Back to categories'),
+              ),
+            ),
+          if (active.isNotEmpty)
+            TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: parent == null
+                    ? 'Search categories'
+                    : 'Search subcategories',
+              ),
+            ),
+          if (choices.isEmpty)
             Padding(
               key: const Key('approvedRequestCategoryEmpty'),
               padding: const EdgeInsets.symmetric(vertical: 18),
               child: Text(
-                'No categories are available yet. An administrator must publish '
-                'the catalogue before categories can be chosen.',
+                active.isEmpty
+                    ? 'No categories are available yet. An administrator must publish '
+                        'the catalogue before categories can be chosen.'
+                    : 'No matching categories.',
                 textAlign: TextAlign.center,
                 style: _bodyStyle(context),
               ),
-            )
-          else
-            for (final option in active)
-              InkWell(
-                key: ValueKey('approvedRequestCategory-${option.id}'),
-                onTap: () => onSelected(option.id),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(option.label, style: _bodyStyle(context)),
+            ),
+          for (final option in choices)
+            InkWell(
+              key: ValueKey('approvedRequestCategory-${option.id}'),
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                if (parents.contains(option.id)) {
+                  _showLevel(option);
+                } else {
+                  widget.onSelected(option.id);
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(option.label, style: _bodyStyle(context)),
+                    ),
+                    if (parents.contains(option.id))
+                      const Icon(Icons.chevron_right, size: 18)
+                    else if (option.id == widget.selectedId)
+                      Icon(
+                        Icons.check,
+                        color: HocalistPalette.text(context, _approvedBlue),
+                        size: 18,
                       ),
-                      if (option.id == selectedId)
-                        Icon(
-                          Icons.check,
-                          color: HocalistPalette.text(context, _approvedBlue),
-                          size: 18,
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
+            ),
         ],
       ),
     );
@@ -4059,12 +4453,14 @@ class _ApprovedActionRow extends StatelessWidget {
     required this.forwardLabel,
     required this.onBack,
     required this.onForward,
+    this.plainForward = false,
   });
 
   final String backLabel;
   final String forwardLabel;
   final VoidCallback onBack;
   final VoidCallback onForward;
+  final bool plainForward;
 
   @override
   Widget build(BuildContext context) {
@@ -4104,6 +4500,7 @@ class _ApprovedActionRow extends StatelessWidget {
         final forward = _ApprovedPrimaryButton(
           label: forwardLabel,
           onPressed: onForward,
+          showIcon: !plainForward,
         );
         if (stacked) {
           return Column(
@@ -4132,12 +4529,14 @@ class _ApprovedPrimaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.busy = false,
+    this.showIcon = true,
     super.key,
   });
 
   final String label;
   final VoidCallback onPressed;
   final bool busy;
+  final bool showIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -4169,14 +4568,14 @@ class _ApprovedPrimaryButton extends StatelessWidget {
             ),
           ),
         ),
-        icon: BuyerGlyphIcon(
+        icon: showIcon ? BuyerGlyphIcon(
           icon: Icons.send_outlined,
           slotSize: _requestDimension(
             metrics,
             BuyerIconTokens.inline,
             floor: 16,
           ),
-        ),
+        ) : null,
         label: Text(
           busy ? 'Posting…' : label,
           maxLines: 1,

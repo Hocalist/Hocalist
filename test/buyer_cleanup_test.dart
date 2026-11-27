@@ -94,7 +94,7 @@ void main() {
         onLogout: () {},
       ),
     );
-    expect(find.text('Help & Support'), findsOneWidget);
+    expect(find.text('Help & feedback'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'More at 1.6x.');
   });
 

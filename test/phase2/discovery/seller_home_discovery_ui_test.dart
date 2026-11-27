@@ -242,6 +242,40 @@ void main() {
     expect(appealed?.id, 'restriction-1');
   });
 
+  testWidgets('an appealed restriction stays visible while the appeal is pending', (tester) async {
+    await pumpSellerHome(
+      tester,
+      health: const SellerAccountHealthView(
+        emailVerified: true,
+        phoneVerified: true,
+        reviewStatus: 'approved',
+        restrictions: [SellerHealthRestriction(
+          id: 'restriction-1', scope: 'seller', reason: 'A recorded restriction.',
+          appealId: 'appeal-1', appealStatus: 'submitted',
+        )],
+      ),
+      onAppeal: (_) => fail('A pending appeal must not be submitted twice.'),
+    );
+    expect(find.text('Restricted · Appeal pending'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('sellerAccountHealth')));
+    await tester.pumpAndSettle();
+    expect(find.text('A recorded restriction.'), findsOneWidget);
+    expect(find.text('Appeal this decision'), findsNothing);
+  });
+
+  testWidgets('account health shows recorded conduct and verification together', (tester) async {
+    await pumpSellerHome(tester, health: const SellerAccountHealthView(
+      emailVerified: true, phoneVerified: false, reviewStatus: 'not_submitted',
+      conductScore: 90, confirmedIncidents: 1,
+    ));
+    expect(find.text('Needs attention · 90/100'), findsOneWidget);
+    expect(find.text('1 of 4 verification steps complete · View steps'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('sellerAccountHealth')));
+    await tester.pumpAndSettle();
+    expect(find.text('Conduct score · 90/100'), findsOneWidget);
+    expect(find.textContaining('1 confirmed incident in the past six months'), findsOneWidget);
+  });
+
   testWidgets('configured review submits once and retries with the same key', (
     tester,
   ) async {

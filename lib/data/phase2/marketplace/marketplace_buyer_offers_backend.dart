@@ -128,6 +128,9 @@ class Phase2MarketplaceBuyerOffersBackend
   }
 
   String _message(RepositoryError? error) {
+    if (error is ConflictError && error.conflictCode == 'active_deal_pair_limit') {
+      return error.debugMessage;
+    }
     if (error == null) {
       return 'The offer could not be selected. Try again.';
     }

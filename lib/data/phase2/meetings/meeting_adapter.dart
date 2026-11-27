@@ -10,6 +10,20 @@ import '../marketplace/marketplace_session.dart';
 import '../marketplace/marketplace_transport.dart';
 import 'meeting_codecs.dart';
 
+enum BuyerMeetupAction { reschedule, cancel }
+
+class BuyerMeetupChange {
+  const BuyerMeetupChange({
+    required this.action,
+    required this.reason,
+    this.note,
+  });
+
+  final BuyerMeetupAction action;
+  final String reason;
+  final String? note;
+}
+
 /// One schedule proposal input shared by propose and reschedule.
 class MeetingScheduleInput {
   MeetingScheduleInput({
@@ -296,6 +310,31 @@ class MeetingDataAdapter {
           detail: error.detail,
         ),
       );
+    }
+  }
+
+  Future<RepositoryResult<MeetingView>> manageBuyerMeetup({
+    required String meetingId,
+    required int expectedRevision,
+    required String operationKey,
+    required BuyerMeetupChange change,
+    MeetingScheduleInput? input,
+  }) async {
+    const operation = 'meeting_buyer_manage';
+    final result = await _rpc(operation, {
+      'p_meeting': meetingId,
+      'p_expected_revision': expectedRevision,
+      'p_key': operationKey,
+      'p_action': change.action.name,
+      'p_reason': change.reason,
+      if (change.note != null) 'p_note': change.note,
+      if (input != null) 'p_input': input.toWire(),
+    });
+    if (result.isFailure) return _failure(result.errorOrNull!);
+    try {
+      return RepositorySuccess(decodeMeetingJson(result.valueOrNull!, operation));
+    } on MarketplaceDecodeException catch (error) {
+      return _failure(MalformedResponseError(operation: operation, detail: error.detail));
     }
   }
 }
