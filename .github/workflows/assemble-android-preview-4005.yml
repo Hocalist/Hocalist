@@ -1,0 +1,56 @@
+name: Assemble signed Android preview 4005
+
+on:
+  push:
+    branches: [jons-release/apk-4005-assembly]
+    paths: [.github/workflows/assemble-android-preview-4005.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    if: github.repository == 'Hocalist/Hocalist'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Verify and upload the signed APK to its draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_SHA: 2b891cae08bd968d71ca8d192eff90eeeb0677fb33339673ee2db59655baecc4
+          APK_SIZE: "107742017"
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_path="repos/Hocalist/Hocalist/releases/460274850"
+          release="$(gh api "$release_path")"
+          jq -e '.draft and .tag_name == "marketplace-preview-4005"' <<< "$release" >/dev/null
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          cd "$work"
+          apk="Hocalist-Android-Preview-4005.apk"
+          for index in 1 2 3; do
+            name="hocalist-preview-4005-apk-part-$index"
+            asset="$(jq -e --arg name "$name" '.assets[] | select(.name == $name and .state == "uploaded")' <<< "$release")"
+            id="$(jq -er '.id | numbers' <<< "$asset")"
+            digest="$(jq -er '.digest | select(test("^sha256:[a-f0-9]{64}$"))' <<< "$asset")"
+            gh api "repos/Hocalist/Hocalist/releases/assets/$id" -H 'Accept: application/octet-stream' > "$name"
+            printf '%s  %s\n' "${digest#sha256:}" "$name" | sha256sum -c -
+            cat "$name" >> "$apk"
+          done
+          test "$(stat -c '%s' "$apk")" = "$APK_SIZE"
+          printf '%s  %s\n' "$APK_SHA" "$apk" | sha256sum -c -
+          existing="$(jq -r --arg name "$apk" '.assets[] | select(.name == $name) | .id' <<< "$release")"
+          if [[ -z "$existing" ]]; then
+            curl --fail-with-body --silent --show-error --max-time 120 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Content-Type: application/vnd.android.package-archive' \
+              --data-binary "@$apk" \
+              "https://uploads.github.com/repos/Hocalist/Hocalist/releases/460274850/assets?name=$apk" \
+              > receipt.json
+          else
+            gh api "repos/Hocalist/Hocalist/releases/assets/$existing" > receipt.json
+          fi
+          jq -e --arg digest "sha256:$APK_SHA" --argjson size "$APK_SIZE" \
+            '.state == "uploaded" and .digest == $digest and .size == $size' receipt.json >/dev/null
+          echo 'The verified APK is attached. The release remains a draft.'
