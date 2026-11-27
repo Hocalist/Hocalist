@@ -3793,7 +3793,13 @@ class _HocalistPrototypeState extends State<HocalistPrototype>
           _confirmedMeetingIds?.contains(m.meetingId) != true),
       DateTime.now(),
     );
-    if (meeting == null) return null;
+    if (meeting == null) {
+      return LockedTodayMeetupCard(
+        seller: true,
+        loading: _marketplace.meetingsLoading,
+        unavailable: _marketplace.meetingsError != null,
+      );
+    }
     final thread = _marketplace.chatInbox
         .where((summary) => summary.conversation.id == meeting.conversationId)
         .firstOrNull;

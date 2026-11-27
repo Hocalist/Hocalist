@@ -20,6 +20,87 @@ final meeting=MeetingView(meetingId:'meeting',conversationId:'chat',requestId:'r
 
 void main(){
  setUpAll(loadHocalistTestFonts);
+ for (final seller in [false, true]) {
+   testWidgets('dashboard keeps a locked meetup until today is confirmed (seller=$seller)', (
+     tester,
+   ) async {
+     tester.view.devicePixelRatio = 1;
+     tester.view.physicalSize = const Size(320, 900);
+     addTearDown(tester.view.resetDevicePixelRatio);
+     addTearDown(tester.view.resetPhysicalSize);
+     var pinTaps = 0;
+     Future<void> showHome({required bool confirmed}) async {
+       await tester.pumpWidget(MaterialApp(
+         theme: seller ? HocalistTheme.dark : HocalistTheme.light,
+         home: MediaQuery(
+           data: MediaQueryData(
+             size: const Size(320, 900),
+             textScaler: TextScaler.linear(1.6),
+           ),
+           child: Scaffold(
+             body: seller
+                 ? ApprovedSellerHomePage(
+                     onLeads: () {},
+                     onBrowseRequests: () {},
+                     todayMeetup: confirmed
+                         ? TodayMeetupCard(
+                             meeting: meeting,
+                             seller: true,
+                             counterpartName: 'Buyer A',
+                             onPin: () => pinTaps++,
+                           )
+                         : const LockedTodayMeetupCard(seller: true),
+                   )
+                 : ApprovedBuyerHomePage(
+                     name: 'Buyer',
+                     requestTitle: '',
+                     requestPosted: false,
+                     onCreate: () {},
+                     onRequestDetails: () {},
+                     onOffers: () {},
+                     onRecentActivity: () {},
+                     onWallet: () {},
+                     realMeetings: confirmed ? [meeting] : const [],
+                     onShowTodayPurchasePin: (_) => pinTaps++,
+                   ),
+           ),
+         ),
+       ));
+       await tester.pumpAndSettle();
+     }
+
+     final role = seller ? 'seller' : 'buyer';
+     final locked = find.byKey(Key('$role-locked-meetup'));
+     final active = find.byKey(Key('$role-today-meetup'));
+     final pinLabel = seller ? 'Type buyer’s PIN' : 'Show purchase PIN';
+     await showHome(confirmed: false);
+     expect(locked, findsOneWidget);
+     expect(active, findsNothing);
+     expect(find.text('No meetup today'), findsOneWidget);
+     expect(find.descendant(of: locked, matching: find.byIcon(Icons.lock_outline)), findsOneWidget);
+     for (final label in [pinLabel, 'Manage']) {
+       final control = find.descendant(
+         of: locked,
+         matching: find.widgetWithText(TextButton, label),
+       );
+       expect(tester.widget<TextButton>(control).onPressed, isNull);
+     }
+     expect(tester.takeException(), isNull);
+
+     await showHome(confirmed: true);
+     expect(locked, findsNothing);
+     expect(active, findsOneWidget);
+     final pin = find.descendant(
+       of: active,
+       matching: find.widgetWithText(TextButton, pinLabel),
+     );
+     await tester.ensureVisible(pin);
+     await tester.tap(pin);
+     expect(pinTaps, 1);
+     expect(tester.takeException(), isNull);
+   });
+ }
+
  testWidgets('Seller Home uses the same meetup card with a buyer PIN action', (tester) async {
   var opened = false;
   await tester.pumpWidget(MaterialApp(

@@ -3113,6 +3113,8 @@ class ApprovedBuyerHomePage extends StatelessWidget {
           );
         }
         final today = todayConfirmedMeetup(realMeetings ?? const [], DateTime.now());
+        final todayPin =
+            onShowTodayPurchasePin ?? onOpenPinMeeting ?? onOpenMeeting;
         final todayOffer = today == null ? null : homeOffers.where((offer) =>
           offer.id == today.offerId && offer.requestId == today.requestId).firstOrNull;
         final requests = realRequests == null
@@ -3213,22 +3215,42 @@ class ApprovedBuyerHomePage extends StatelessWidget {
                           ),
                         SizedBox(height: metrics.geometry(10)),
                         _ApprovedPostRequest(onTap: onCreate),
-                        if (today != null && (onOpenMeeting != null || onShowTodayPurchasePin != null)) ...[
+                        if (realMeetings != null) ...[
                           SizedBox(height: metrics.geometry(8)),
-                          TodayMeetupCard(
-                            key: ValueKey(today.meetingId),
-                            meeting: today,
-                            requestTitle: requests?.where((r) => r.requestId == today.requestId).firstOrNull?.title,
-                            counterpartName: todayOffer?.sellerDisplayName ?? 'Your seller',
-                            counterpartProfileId: todayOffer?.sellerProfileId,
-                            loadCounterpart: loadDealSeller,
-                            onPin: () => (onShowTodayPurchasePin ?? onOpenPinMeeting ?? onOpenMeeting)?.call(today),
-                            onManage: onManageTodayMeetup == null ? null : (change) =>
-                              onManageTodayMeetup!(today, todayOffer?.sellerDisplayName ?? 'Your seller', change),
-                            onDirections: onMeetingDirections == null ? null : () => onMeetingDirections!(today),
-                            onCall: onMeetingCall == null ? null : () => onMeetingCall!(today),
-                            onChat: onMeetingMessage == null ? null : () => onMeetingMessage!(today),
-                          ),
+                          if (today != null && todayPin != null)
+                            TodayMeetupCard(
+                              key: ValueKey(today.meetingId),
+                              meeting: today,
+                              requestTitle: requests
+                                  ?.where((r) => r.requestId == today.requestId)
+                                  .firstOrNull?.title,
+                              counterpartName:
+                                  todayOffer?.sellerDisplayName ?? 'Your seller',
+                              counterpartProfileId: todayOffer?.sellerProfileId,
+                              loadCounterpart: loadDealSeller,
+                              onPin: () => todayPin(today),
+                              onManage: onManageTodayMeetup == null
+                                  ? null
+                                  : (change) => onManageTodayMeetup!(
+                                      today,
+                                      todayOffer?.sellerDisplayName ?? 'Your seller',
+                                      change,
+                                    ),
+                              onDirections: onMeetingDirections == null
+                                  ? null
+                                  : () => onMeetingDirections!(today),
+                              onCall: onMeetingCall == null
+                                  ? null
+                                  : () => onMeetingCall!(today),
+                              onChat: onMeetingMessage == null
+                                  ? null
+                                  : () => onMeetingMessage!(today),
+                            )
+                          else
+                            LockedTodayMeetupCard(
+                              loading: meetingsLoading,
+                              unavailable: meetingsError != null,
+                            ),
                         ],
                         if (requestPosted || usesRealRequests) ...[
                           SizedBox(height: metrics.geometry(10)),
@@ -10452,6 +10474,138 @@ class _ApprovedActiveRequestState extends State<_ApprovedActiveRequest> {
     );
   }
 }
+class LockedTodayMeetupCard extends StatelessWidget {
+  const LockedTodayMeetupCard({
+    this.seller = false,
+    this.loading = false,
+    this.unavailable = false,
+    super.key,
+  });
+
+  final bool seller;
+  final bool loading;
+  final bool unavailable;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = MarketplaceColors.of(
+      context,
+      surface: MarketplaceSurface.meetup,
+    );
+    final status = loading
+        ? 'Checking today’s meetups…'
+        : unavailable
+        ? 'Meetup status unavailable'
+        : 'No meetup today';
+    final counterpart = seller ? 'buyer' : 'seller';
+    final disabledFill = palette.dark
+        ? const Color(0xff413758)
+        : const Color(0xffe6dff6);
+    final pin = MarketplaceButton(
+      label: seller ? 'Type buyer’s PIN' : 'Show purchase PIN',
+      onPressed: null,
+      icon: Icons.key_outlined,
+      background: disabledFill,
+      foreground: palette.muted,
+      keepColorsWhenDisabled: true,
+      fontSize: 13,
+    );
+    final manage = MarketplaceButton(
+      label: 'Manage',
+      onPressed: null,
+      icon: Icons.tune,
+      background: Colors.transparent,
+      foreground: palette.muted,
+      keepColorsWhenDisabled: true,
+      border: BorderSide(color: palette.border),
+      fontSize: 13,
+    );
+
+    return Container(
+      key: Key(seller ? 'seller-locked-meetup' : 'buyer-locked-meetup'),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: palette.dark
+            ? const Color(0xff312946)
+            : const Color(0xffefebfa),
+        border: Border.all(color: palette.border),
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.event_outlined, size: 14, color: palette.muted),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            status,
+                            style: MarketplaceTypography.text(
+                              context, 12, palette.muted, weight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Your meetup',
+                      style: MarketplaceTypography.text(
+                        context, 20, palette.ink,
+                        weight: FontWeight.w700, height: 1.15,
+                      ).copyWith(letterSpacing: -.4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Semantics(
+                label: 'Meetup tools locked',
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: palette.paper,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Icon(Icons.lock_outline, size: 20, color: palette.brand),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'When a meetup for today is confirmed, you’ll find the $counterpart’s details and PIN tools here.',
+            style: MarketplaceTypography.text(context, 13, palette.muted),
+          ),
+          const SizedBox(height: 10),
+          if (MediaQuery.textScalerOf(context).scale(1) > 1.35) ...[
+            pin,
+            const SizedBox(height: 6),
+            manage,
+          ] else
+            Row(
+              children: [
+                Expanded(flex: 7, child: pin),
+                const SizedBox(width: 7),
+                Expanded(flex: 4, child: manage),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class TodayMeetupCard extends StatefulWidget {
   const TodayMeetupCard({
     required this.meeting,

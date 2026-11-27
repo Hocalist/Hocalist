@@ -47,12 +47,14 @@ abstract final class MarketplaceTypography {
 class MarketplaceButton extends StatelessWidget {
   const MarketplaceButton({super.key, required this.label, required this.onPressed,
     required this.background, required this.foreground, this.border,
+    this.keepColorsWhenDisabled = false,
     this.icon, this.fontSize = 12, this.lineHeight = 1.4,
     this.padding = const EdgeInsets.all(5)});
 
   final String label;
   final VoidCallback? onPressed;
   final Color background, foreground;
+  final bool keepColorsWhenDisabled;
   final BorderSide? border;
   final IconData? icon;
   final double fontSize, lineHeight;
@@ -68,6 +70,9 @@ class MarketplaceButton extends StatelessWidget {
       style: TextButton.styleFrom(
         foregroundColor: ink,
         backgroundColor: accessibility.backgroundOr(background),
+        disabledForegroundColor: keepColorsWhenDisabled ? ink : null,
+        disabledBackgroundColor: keepColorsWhenDisabled
+            ? accessibility.backgroundOr(background) : null,
         minimumSize: const Size(0, 44),
         padding: padding,
         visualDensity: VisualDensity.standard,
