@@ -9,6 +9,7 @@ import '../../theme/control_foundation.dart';
 import '../../theme/seller_ui_foundation.dart';
 import '../../components/hocalist_motion.dart';
 import 'photo_bytes.dart';
+import 'store_photo_crop.dart';
 
 class StorePhotoRemoveButton extends StatelessWidget {
   const StorePhotoRemoveButton({required this.onPressed, super.key});
@@ -87,7 +88,12 @@ class _PrivateImagePickerState extends State<PrivateImagePicker> {
         if (file == null) return;
         final bytes = await file.readAsBytes();
         if (!mounted) return;
-        pending = preparePrivatePhoto(bytes);
+        final prepared = preparePrivatePhoto(bytes);
+        final photo = widget.storePhotoControls
+            ? await cropStorePhoto(context, prepared)
+            : prepared;
+        if (!mounted || photo == null) return;
+        pending = photo;
         pendingKey = newMediaUploadKey();
       }
       if (!mounted) return;

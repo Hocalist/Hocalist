@@ -1,4 +1,5 @@
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'package:image/image.dart' as img;
 import 'package:hocalist/data/phase2/media/image_gateway.dart';
 import 'support/synthetic_image_picker.dart';
 // Store connection tests: user-visible acknowledgement, pending review and
@@ -210,7 +211,11 @@ void main() {
     tester,
   ) async {
     final previous = ImagePickerPlatform.instance;
-    final picker = SyntheticImagePicker();
+    final source = img.Image(width: 60, height: 30);
+    for (final pixel in source) {
+      pixel.setRgb(pixel.x < 30 ? 230 : 0, 0, pixel.x < 30 ? 0 : 230);
+    }
+    final picker = SyntheticImagePicker(sourceImage: source);
     ImagePickerPlatform.instance = picker;
     addTearDown(() => ImagePickerPlatform.instance = previous);
     final backend = _WidgetStoreBackend();
@@ -227,7 +232,16 @@ void main() {
       repository,
       imageUpload: (bytes, key) async {
         uploads++;
-        expect(bytes.take(2).toList(), [255, 216]);
+        final cropped = img.decodeJpg(bytes)!;
+        expect(cropped.width, cropped.height);
+        if (uploads == 1) {
+          expect(cropped.width, lessThan(30));
+          final pixel = cropped.getPixel(0, 0);
+          expect(pixel.b, greaterThan(180));
+          expect(pixel.r, lessThan(50));
+        } else {
+          expect(cropped.width, 30);
+        }
         return 'synthetic-image-id';
       },
     );
@@ -239,6 +253,20 @@ void main() {
         await _settle(tester);
         await tester.tap(find.text('Add photo'));
         await _settle(tester);
+        await tester.tap(find.text('Cancel').last);
+        await _settle(tester);
+        expect(uploads, 0);
+        await tester.tap(find.text('Add photo'));
+        await _settle(tester);
+        final slider = tester.getRect(find.byType(Slider));
+        await tester.tapAt(Offset(slider.left + slider.width * .8, slider.center.dy));
+        await _settle(tester);
+        final crop = find.byKey(const Key('storePhotoCropPreview'));
+        await tester.timedDrag(crop, const Offset(-140, 0), const Duration(milliseconds: 450));
+        await _settle(tester);
+        expect(uploads, 0);
+        await tester.tap(find.text('Use crop'));
+        await _settle(tester);
         final remove = find.byTooltip('Remove photo');
         await tester.ensureVisible(remove);
         await _settle(tester);
@@ -248,10 +276,12 @@ void main() {
         await tester.ensureVisible(find.text('Add photo'));
         await tester.tap(find.text('Add photo'));
         await _settle(tester);
+        await tester.tap(find.text('Use crop'));
+        await _settle(tester);
       },
     );
     await tapPublish(tester);
-    expect(picker.calls, 2);
+    expect(picker.calls, 3);
     expect(uploads, 2);
     expect(backend.listings.single.imageMediaIds, ['synthetic-image-id']);
     await repository.refreshStore();
