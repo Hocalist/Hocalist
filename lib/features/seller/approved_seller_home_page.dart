@@ -516,12 +516,12 @@ class _SellerHero extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: nameHeading,
               ),
-        SizedBox(height: metrics.geometry(8)),
+        SizedBox(height: metrics.geometry(3)),
         Text(
           'Account health',
           style: sellerText(metrics, 11.5, color: SellerUiColors.body),
         ),
-        SizedBox(height: metrics.geometry(5)),
+        SizedBox(height: metrics.geometry(2)),
         if (realName==null) const _AccountHealthBar()
         else _AccountHealthSlot(
           health:accountHealth,serviceAreaSaved:serviceAreaSaved,loading:accountHealthLoading,error:accountHealthError,
@@ -921,6 +921,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
     final value = health;
     final score = value?.conductScore;
     final completed = value == null || !value.loaded
@@ -944,9 +945,9 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
           key: const Key('sellerAccountHealth'),
           onTap: () => _showDetail(context),
           child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: ApprovedReplicaScope.of(context).spacing(8),
-              vertical: ApprovedReplicaScope.of(context).spacing(4),
+            padding: EdgeInsetsDirectional.only(
+              end: metrics.spacing(8),
+              bottom: metrics.spacing(8),
             ),
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -959,7 +960,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                 Text(value!.hasActiveRestriction ? 'Conduct score · $score/100'
                     : '${score == 100 ? 'Good standing' : 'Needs attention'} · $score/100',
                   style: sellerText(ApprovedReplicaScope.of(context), 11, weight: FontWeight.w800)),
-                const SizedBox(height: 5),
+                SizedBox(height: metrics.geometry(3)),
                 LinearProgressIndicator(
                   value: score / 100,
                   backgroundColor: HocalistPalette.surface(context, SellerUiColors.line),
