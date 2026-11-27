@@ -2550,7 +2550,6 @@ class _ApprovedSellerBillingPageState extends State<ApprovedSellerBillingPage> {
     if (widget.realContent != null) {
       final plans = <Widget>[
         _SellerSubpageSection(
-          title: 'Current plan',
           children: [SellerSubscriptionPanel(focusManagePlans: widget.focusUpgrade)],
         ),
         const _SellerSubpageSection(
@@ -3901,9 +3900,9 @@ class _SellerSubpageBlock extends StatelessWidget {
 }
 
 class _SellerSubpageSection extends StatelessWidget {
-  const _SellerSubpageSection({required this.title, required this.children});
+  const _SellerSubpageSection({this.title, required this.children});
 
-  final String title;
+  final String? title;
   final List<Widget> children;
 
   @override
@@ -3913,22 +3912,24 @@ class _SellerSubpageSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: EdgeInsets.only(left: metrics.spacing(2)),
-            child: Text(
-              title.toUpperCase(),
-              style: sellerText(
-                metrics,
-                11,
-                weight: FontWeight.w800,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Theme.of(context).colorScheme.onSurfaceVariant
-                    : SellerUiColors.muted,
-                letterSpacing: .8,
+          if (title case final label?) ...[
+            Padding(
+              padding: EdgeInsets.only(left: metrics.spacing(2)),
+              child: Text(
+                label.toUpperCase(),
+                style: sellerText(
+                  metrics,
+                  11,
+                  weight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : SellerUiColors.muted,
+                  letterSpacing: .8,
+                ),
               ),
             ),
-          ),
-          SizedBox(height: metrics.spacing(7)),
+            SizedBox(height: metrics.spacing(7)),
+          ],
           Material(
             color: HocalistPalette.surface(context, SellerUiColors.white),
             shape: RoundedRectangleBorder(
