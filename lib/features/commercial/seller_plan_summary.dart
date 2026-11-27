@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../components/hocalist_motion.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../../theme/adaptive_palette.dart';
 import '../../theme/seller_ui_foundation.dart';
@@ -8,7 +7,7 @@ import 'approved_billing_artwork.dart';
 import 'seller_fee_copy.dart';
 import 'seller_payment_panel.dart';
 
-class SellerPlanSummary extends StatefulWidget {
+class SellerPlanSummary extends StatelessWidget {
   const SellerPlanSummary({
     required this.value,
     this.focusManagePlans = false,
@@ -21,29 +20,10 @@ class SellerPlanSummary extends StatefulWidget {
   final Future<bool> Function(Uri)? openBilling;
 
   @override
-  State<SellerPlanSummary> createState() => _SellerPlanSummaryState();
-}
-
-class _SellerPlanSummaryState extends State<SellerPlanSummary> {
-  final _planAnchors = {for (final plan in PlanCode.values) plan: GlobalKey()};
-
-  void _showPlan(PlanCode plan) {
-    final anchor = _planAnchors[plan]?.currentContext;
-    if (anchor == null) return;
-    Scrollable.ensureVisible(
-      anchor,
-      alignment: 0.03,
-      duration: HocalistMotion.duration(context, 250),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final value = widget.value;
     final plans = {for (final limits in value.plans) limits.planCode: limits};
     return _RevealManagePlans(
-      reveal: widget.focusManagePlans,
+      reveal: focusManagePlans,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -60,116 +40,18 @@ class _SellerPlanSummaryState extends State<SellerPlanSummary> {
                 const Text(
                   'Compare seller benefits. Review subscription prices and billing options on Hocalist.',
                 ),
-                const SizedBox(height: 14),
-                _SellerPlanComparison(plans: plans, onShowPlan: _showPlan),
               ],
             ),
           ),
           for (final plan in PlanCode.values) ...[
-            KeyedSubtree(
-              key: _planAnchors[plan],
-              child: _SellerPlanCard(
-                key: ValueKey('sellerPlan-${plan.name}'),
-                plan: plan,
-                value: value,
-                limits: plans[plan],
-                openBilling: widget.openBilling,
-              ),
+            _SellerPlanCard(
+              key: ValueKey('sellerPlan-${plan.name}'),
+              plan: plan,
+              value: value,
+              limits: plans[plan],
+              openBilling: openBilling,
             ),
             const SizedBox(height: 12),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SellerPlanComparison extends StatelessWidget {
-  const _SellerPlanComparison({required this.plans, required this.onShowPlan});
-
-  final Map<PlanCode, PlanLimitView> plans;
-  final ValueChanged<PlanCode> onShowPlan;
-
-  @override
-  Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.labelMedium;
-    final headingStyle = labelStyle?.copyWith(fontWeight: FontWeight.w800);
-    final border = HocalistPalette.border(context, SellerUiColors.line);
-    return Material(
-      color: HocalistPalette.surface(context, SellerUiColors.lavender),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-            child: Row(
-              children: [
-                Expanded(child: Text('Plan', style: headingStyle)),
-                Expanded(
-                  child: Text('Unique buyers / week', style: headingStyle),
-                ),
-                Expanded(child: Text('Store listings', style: headingStyle)),
-                const SizedBox(width: 16),
-              ],
-            ),
-          ),
-          for (final (plan, limits) in PlanCode.values.map(
-            (plan) => (plan, plans[plan]),
-          )) ...[
-            Divider(height: 1, thickness: 1, color: border),
-            InkWell(
-              key: ValueKey('compareSellerPlan-${plan.name}'),
-              onTap: () => onShowPlan(plan),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          switch (plan) {
-                            PlanCode.free => 'Free',
-                            PlanCode.pro => 'Pro',
-                            PlanCode.elite => 'Elite',
-                          },
-                          style: headingStyle?.copyWith(
-                            color: HocalistPalette.text(
-                              context,
-                              SellerUiColors.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          limits?.weeklyTargetLimit.toString() ?? '—',
-                          semanticsLabel: limits == null
-                              ? 'Weekly buyer limit unavailable'
-                              : '${limits.weeklyTargetLimit} different buyers per week',
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          limits?.storeListingLimit.toString() ?? '—',
-                          semanticsLabel: limits == null
-                              ? 'Store listing limit unavailable'
-                              : '${limits.storeListingLimit} store listings',
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right_rounded, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ],
         ],
       ),

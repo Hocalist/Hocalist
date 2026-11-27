@@ -40,27 +40,6 @@ void main() {
       final panel = tester.getTopLeft(find.byType(SellerPlanSummary));
       expect(heading.dx - panel.dx, greaterThanOrEqualTo(16));
       expect(heading.dy - panel.dy, greaterThanOrEqualTo(16));
-      for (final (plan, buyers, listings) in [
-        ('free', '10', '3'),
-        ('pro', '50', '15'),
-        ('elite', '100', '50'),
-      ]) {
-        final row = find.byKey(ValueKey('compareSellerPlan-$plan'));
-        for (final count in [buyers, listings]) {
-          expect(
-            find.descendant(of: row, matching: find.text(count)),
-            findsOneWidget,
-          );
-        }
-        await tester.ensureVisible(row);
-        final card = find.byKey(ValueKey('sellerPlan-$plan'));
-        final before = tester.getTopLeft(card).dy;
-        await tester.tap(row);
-        await tester.pumpAndSettle();
-        final after = tester.getTopLeft(card).dy;
-        expect(after, lessThan(before), reason: '$plan card scrolls up');
-        expect(after, inInclusiveRange(0, 120), reason: '$plan header is visible');
-      }
       for (final limit in [10, 50, 100]) {
         expect(
           find.text('Target up to $limit different buyers per week'),
