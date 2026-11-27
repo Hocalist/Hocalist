@@ -4288,8 +4288,6 @@ class SellerProfilePhotoEditor extends StatelessWidget {
               _SellerProfileAvatar(
                 initial: initial,
                 metrics: metrics,
-                onChangePhoto: changePhoto,
-                actionKey: const Key('sellerEditProfilePhotoAction'),
                 avatarMediaId: avatarMediaId,
               ),
               SizedBox(width: metrics.spacing(12)),
@@ -4425,15 +4423,15 @@ class _SellerProfileAvatar extends StatelessWidget {
   const _SellerProfileAvatar({
     required this.initial,
     required this.metrics,
-    required this.onChangePhoto,
-    required this.actionKey,
+    this.onChangePhoto,
+    this.actionKey,
     this.avatarMediaId,
   });
 
   final String initial;
   final ApprovedReplicaMetrics metrics;
-  final VoidCallback onChangePhoto;
-  final Key actionKey;
+  final VoidCallback? onChangePhoto;
+  final Key? actionKey;
 
   /// Server-issued avatar media id. Null keeps the approved initial avatar.
   final String? avatarMediaId;
@@ -4471,34 +4469,35 @@ class _SellerProfileAvatar extends StatelessWidget {
                     ),
                   ),
           ),
-          Positioned(
-            right: -metrics.spacing(2),
-            bottom: -metrics.spacing(2),
-            child: Material(
-              color: HocalistPalette.surface(context, SellerUiColors.white),
-              shape: const CircleBorder(),
-              elevation: 1,
-              child: IconButton(
-                key: actionKey,
-                tooltip: 'Change profile picture',
-                onPressed: onChangePhoto,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.all(metrics.spacing(6)),
-                constraints: BoxConstraints.tightFor(
-                  width: metrics.artSize(32),
-                  height: metrics.artSize(32),
-                ),
-                icon: Icon(
-                  Icons.photo_camera_outlined,
-                  color: HocalistPalette.text(
-                    context,
-                    SellerUiColors.primaryBright,
+          if (onChangePhoto != null)
+            Positioned(
+              right: -metrics.spacing(2),
+              bottom: -metrics.spacing(2),
+              child: Material(
+                color: HocalistPalette.surface(context, SellerUiColors.white),
+                shape: const CircleBorder(),
+                elevation: 1,
+                child: IconButton(
+                  key: actionKey,
+                  tooltip: 'Change profile picture',
+                  onPressed: onChangePhoto,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.all(metrics.spacing(6)),
+                  constraints: BoxConstraints.tightFor(
+                    width: metrics.artSize(32),
+                    height: metrics.artSize(32),
                   ),
-                  size: metrics.artSize(17),
+                  icon: Icon(
+                    Icons.photo_camera_outlined,
+                    color: HocalistPalette.text(
+                      context,
+                      SellerUiColors.primaryBright,
+                    ),
+                    size: metrics.artSize(17),
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

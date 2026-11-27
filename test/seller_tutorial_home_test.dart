@@ -1249,7 +1249,8 @@ void main() {
       width: 360,
       height: 932,
     );
-    await tester.tap(find.byKey(const Key('sellerEditProfilePhotoAction')));
+    expect(find.byKey(const Key('sellerEditProfilePhotoAction')), findsNothing);
+    await tester.tap(find.byKey(const Key('sellerEditProfileChangePhoto')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('sellerPhotoTakePhoto')), findsOneWidget);
     expect(find.byKey(const Key('sellerPhotoChooseGallery')), findsOneWidget);

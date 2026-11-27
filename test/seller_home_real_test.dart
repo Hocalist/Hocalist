@@ -295,7 +295,7 @@ void main() {
     );
     expect(
       find.byKey(const Key('sellerEditProfilePhotoAction')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('N'), findsOneWidget);
     await tester.tap(find.byKey(const Key('sellerEditProfileChangePhoto')));
