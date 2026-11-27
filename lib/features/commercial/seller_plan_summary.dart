@@ -113,8 +113,7 @@ class _SellerPlanCard extends StatelessWidget {
       ],
       if (elite) ...[
         'Customer insights before sending an offer',
-        'View competing offers after buyer acceptance',
-        eliteNoPurchaseWaiver,
+        eliteNoPurchaseFeeBenefit,
       ],
     ];
     final billingLabel = switch (plan) {

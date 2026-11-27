@@ -57,8 +57,15 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('Viewing competing offers removes the waiver'),
+        find.text(
+          'If nobody confirms a purchase, eligible initial lead fees are waived.',
+        ),
         findsOneWidget,
+      );
+      expect(find.textContaining('View competing offers'), findsNothing);
+      expect(
+        find.textContaining('Viewing competing offers removes the waiver'),
+        findsNothing,
       );
       for (final (label, plan) in [
         ('Switch to Free', 'free'),

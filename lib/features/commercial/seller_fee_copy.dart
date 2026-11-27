@@ -1,5 +1,8 @@
+const eliteNoPurchaseFeeBenefit =
+    'If nobody confirms a purchase, eligible initial lead fees are waived.';
+
 const eliteNoPurchaseWaiver =
-    'If nobody confirms a purchase, eligible initial lead fees are waived. '
+    '$eliteNoPurchaseFeeBenefit '
     'Viewing competing offers removes the waiver for that request.';
 
 const eliteLeadFeeTiming =
