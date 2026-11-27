@@ -17,7 +17,7 @@ export function MarketplacePreview() {
           <DownloadLink href="/download/android-preview" platform="android">Download preview APK</DownloadLink>
         </div>
         <p className="store-availability">{(release.arm64.bytes / 1000000).toFixed(1)} MB · 32-bit and 64-bit ARM phones · Android 7 or later.</p>
-        <p className="store-availability">If you have a Hocalist preview from before build 4003, uninstall it before installing this build and then sign in again. This is an early-access test app. Optional analytics follow your in-app consent setting.</p>
+        <p className="store-availability">If your Hocalist preview uses the previous signing key (build 4002 or earlier), uninstall it before switching to this preview and then sign in again. This is an early-access test app. Optional analytics follow your in-app consent setting.</p>
       </div>
     </section>
   );

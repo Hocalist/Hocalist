@@ -1,8 +1,8 @@
 // Pinned preview assets; the regular Android download remains independent.
 const releaseAsset = {
-  assetUrl: 'https://github.com/Hocalist/Hocalist/releases/download/marketplace-preview-4003/Hocalist-Android-Preview-4003.apk',
-  bytes: 107449631,
-  sha256: '80369229457a8f9878386480a5c3c514fddeded1a48ffd74a6649daebe871f0f',
+  assetUrl: 'https://github.com/Hocalist/Hocalist/releases/download/marketplace-preview-4004/Hocalist-Android-Preview-4004.apk',
+  bytes: 107642663,
+  sha256: '69d01ff6eb3588d6baa2dd2617cdc2edd98a2b5e6a5b0dc8178a6ad71a6c9fa8',
 } as const;
 
 export const marketplacePreviewRelease = {
