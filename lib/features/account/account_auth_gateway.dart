@@ -162,7 +162,8 @@ abstract interface class AccountAuthGateway {
 
   /// Opens the external Google browser. Completion arrives through
   /// [identityChanges]; opening a browser is not a login.
-  Future<void> signInWithGoogle();
+  /// Returns true when an external browser callback is pending.
+  Future<bool> signInWithGoogle();
 
   Future<void> requestPhoneCode({required String phone, required bool signup});
 

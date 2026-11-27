@@ -126,6 +126,10 @@ String accountActionMessage(String code) {
     'server' => 'Something went wrong. Try again.',
     'https_preview_required' =>
       'Open the HTTPS test link before continuing with Google. Google cannot return to the Wi-Fi IP address.',
+    'google_account_unavailable' =>
+      'No Google account is available. Add one in Android settings or continue with email.',
+    'google_sign_in_unavailable' =>
+      'Google sign-in is unavailable. Try again or continue with email.',
     'authentication_failed' => 'Sign-in failed. Try again.',
     'not_found' => 'The requested account record was not found.',
     'unexpected' => 'Something went wrong. Try again.',
@@ -606,9 +610,8 @@ class HocalistAccountController extends ChangeNotifier {
 
   Future<void> signInWithGoogle() {
     return _runForm(() async {
-      await _auth.signInWithGoogle();
-      // The browser opened; completion arrives through identityChanges.
-      _awaitingProvider = true;
+      final awaitingCallback = await _auth.signInWithGoogle();
+      _awaitingProvider = awaitingCallback && !_auth.currentIdentity.isSignedIn;
       _notify();
     });
   }

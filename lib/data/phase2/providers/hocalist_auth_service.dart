@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' show launchUrl;
 
@@ -7,6 +9,9 @@ import 'provider_runtime.dart';
 /// The account adapter must authorize the chosen role before entering its UI.
 class HocalistAuthService {
   HocalistAuthService(this.client, {this.publishableKey});
+
+  static const _googleSignIn = MethodChannel('hocalist/google_sign_in');
+  static const _usbQa = bool.fromEnvironment('HOCALIST_USB_QA');
 
   final SupabaseClient client;
 
@@ -65,12 +70,39 @@ class HocalistAuthService {
     return 'authentication_failed';
   }
 
-  Future<void> google() => _run(() async {
+  /// Returns true when sign-in is waiting for an external browser callback.
+  Future<bool> google() => _run(() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && !_usbQa) {
+      final Map<String, String>? credential;
+      try {
+        credential = await _googleSignIn.invokeMapMethod<String, String>(
+          'requestIdToken',
+        );
+      } on PlatformException catch (error) {
+        throw ProviderOperationException(switch (error.code) {
+          'google_account_unavailable' => 'google_account_unavailable',
+          'google_sign_in_unavailable' => 'google_sign_in_unavailable',
+          _ => 'authentication_failed',
+        });
+      }
+      if (credential == null) return false;
+      final idToken = credential['idToken'];
+      final nonce = credential['nonce'];
+      if (idToken == null || nonce == null) {
+        throw const ProviderOperationException('authentication_failed');
+      }
+      await client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        nonce: nonce,
+      );
+      return false;
+    }
     if (hocalistLocalWebTest && !supportsHocalistOAuthReturn(Uri.base)) {
       final destination = hocalistSecurePreviewHandoff(Uri.base);
       if (destination != null) {
         final opened = await launchUrl(destination, webOnlyWindowName: '_self');
-        if (opened) return;
+        if (opened) return true;
       }
       throw const ProviderOperationException('https_preview_required');
     }
@@ -82,7 +114,7 @@ class HocalistAuthService {
           : LaunchMode.externalApplication,
     );
     if (!opened) throw const ProviderOperationException('browser_not_opened');
-    // Wait for onAuthStateChange in the composition; opening Google is not login.
+    return true;
   });
 
   Future<AuthResponse> emailLogin(String email, String password) =>

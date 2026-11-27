@@ -155,7 +155,7 @@ class SupabaseAccountAuthGateway implements AccountAuthGateway {
   }) => _translate(() => _auth.requestEmailLink(email: email, name: name));
 
   @override
-  Future<void> signInWithGoogle() => _translate(_auth.google);
+  Future<bool> signInWithGoogle() => _translate(_auth.google);
 
   @override
   Future<void> requestPhoneCode({

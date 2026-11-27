@@ -182,9 +182,10 @@ class FakeAuthGateway implements AccountAuthGateway {
   }
 
   @override
-  Future<void> signInWithGoogle() async {
+  Future<bool> signInWithGoogle() async {
     googleCalls += 1;
     if (googleError != null) throw googleError!;
+    return true;
   }
 
   @override

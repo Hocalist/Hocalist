@@ -4,14 +4,22 @@
 // (passwordRecovery -> tokenRefreshed -> userUpdated) and that password
 // confirmation cannot clobber or resurrect the signed-in session. No network
 // or credential is used.
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/phase2/providers/supabase_account_auth_gateway.dart';
 import 'package:hocalist/features/account/account_auth_gateway.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'support/supabase_http_backend.dart';
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  const googleChannel = MethodChannel('hocalist/google_sign_in');
   late SyntheticAccountBackend backend;
   late SupabaseClient client;
   late SupabaseAccountAuthGateway gateway;
@@ -27,6 +35,53 @@ void main() {
 
   tearDown(() async {
     await gateway.dispose();
+  });
+
+  void mockAndroidGoogle(Future<Object?> Function(MethodCall) handler) {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      googleChannel,
+      handler,
+    );
+    addTearDown(() {
+      binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        googleChannel,
+        null,
+      );
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+
+  test('native Google sign-in exchanges the ID token and raw nonce', () async {
+    mockAndroidGoogle((call) async {
+      expect(call.method, 'requestIdToken');
+      return {'idToken': 'synthetic-id-token', 'nonce': 'synthetic-nonce'};
+    });
+    final nativeClient = buildSyntheticSupabaseClient(
+      MockClient((request) async {
+        expect(request.url.queryParameters['grant_type'], 'id_token');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['provider'], 'google');
+        expect(body['id_token'], 'synthetic-id-token');
+        expect(body['nonce'], 'synthetic-nonce');
+        return http.Response(
+          jsonEncode(backend.issueSession(syntheticUserA)),
+          200,
+        );
+      }),
+    );
+    final nativeGateway = SupabaseAccountAuthGateway(nativeClient);
+    addTearDown(nativeGateway.dispose);
+
+    expect(await nativeGateway.signInWithGoogle(), isFalse);
+    expect(nativeGateway.currentIdentity.userId, syntheticUserA);
+  });
+
+  test('dismissing the Google chooser does not start a session', () async {
+    mockAndroidGoogle((_) async => null);
+
+    expect(await gateway.signInWithGoogle(), isFalse);
+    expect(client.auth.currentSession, isNull);
   });
 
   Uri recoveryLink(String userId) {
