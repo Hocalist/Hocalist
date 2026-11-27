@@ -497,13 +497,12 @@ class _SellerHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    final hour=DateTime.now().hour;
-    final salutation=hour<12 ? 'Good morning' : hour<18 ? 'Good afternoon' : 'Good evening';
-    final name=realName?.trim() ?? 'Alex';
+    final name = realName?.trim() ?? 'Alex';
     final portraitSize=realName==null ? metrics.artSize(62) : (metrics.availableWidth*0.155).clamp(48.0,62.0);
     final heroSize=realName==null ? metrics.artSize(104) : (metrics.availableWidth*0.20).clamp(62.0,90.0);
-    final greeting = Text(
-      realName==null ? 'Good morning, Alex! 👋' : name.isEmpty ? '$salutation!\u00a0👋' : '$salutation, $name!\u00a0👋',
+    final nameHeading = Text(
+      name.isEmpty ? 'Seller' : name,
+      key: const Key('sellerHomeName'),
       maxLines: realName!=null || metrics.accessibilityReflow ? null : 1,
       style: sellerText(metrics, 17, weight: FontWeight.w800),
     );
@@ -511,11 +510,11 @@ class _SellerHero extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         realName!=null || metrics.accessibilityReflow
-            ? greeting
+            ? nameHeading
             : FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: greeting,
+                child: nameHeading,
               ),
         SizedBox(height: metrics.geometry(8)),
         Text(

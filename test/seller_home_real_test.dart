@@ -126,15 +126,13 @@ void main() {
     });
   }
   for (final width in [320.0,390.0,528.0]) {
-    testWidgets('greeting keeps wave attached to the final name word at $width',(tester)async{
-      await pumpHome(tester,width:width,sellerName:'Po SellerTesting2');
-      final finder=find.textContaining('SellerTesting2!');
-      final paragraph=tester.renderObject<RenderParagraph>(finder);
-      final text=paragraph.text.toPlainText();
-      final start=text.indexOf('SellerTesting2!');
-      final boxes=paragraph.getBoxesForSelection(TextSelection(baseOffset:start,extentOffset:text.length));
-      expect(boxes,isNotEmpty);
-      expect(boxes.every((box)=>(box.top-boxes.first.top).abs()<1),isTrue);
+    testWidgets('seller home shows the display name at $width', (tester) async {
+      await pumpHome(tester, width: width, sellerName: ' Po SellerTesting2 ');
+      final heading = tester.widget<Text>(
+        find.byKey(const Key('sellerHomeName')),
+      );
+      expect(heading.data, 'Po SellerTesting2');
+      expect(tester.takeException(), isNull);
     });
   }
   testWidgets('missing recommendation details provide a Store setup route',(tester)async{
