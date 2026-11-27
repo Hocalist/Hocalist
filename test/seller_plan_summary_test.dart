@@ -36,6 +36,10 @@ void main() {
           ),
         ),
       );
+      final heading = tester.getTopLeft(find.text('Seller plans'));
+      final panel = tester.getTopLeft(find.byType(SellerPlanSummary));
+      expect(heading.dx - panel.dx, greaterThanOrEqualTo(16));
+      expect(heading.dy - panel.dy, greaterThanOrEqualTo(16));
       for (final limit in [10, 50, 100]) {
         expect(
           find.text('Target up to $limit different buyers per week'),

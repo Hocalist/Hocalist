@@ -27,12 +27,22 @@ class SellerPlanSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Seller plans', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 6),
-          const Text(
-            'Compare seller benefits. Review subscription prices and billing options on Hocalist.',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Seller plans',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Compare seller benefits. Review subscription prices and billing options on Hocalist.',
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
           for (final plan in PlanCode.values) ...[
             _SellerPlanCard(
               key: ValueKey('sellerPlan-${plan.name}'),
