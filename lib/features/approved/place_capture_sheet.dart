@@ -817,9 +817,7 @@ class _PlaceCaptureSheetState extends State<PlaceCaptureSheet> {
                           Text(
                             widget.subtitle ?? (widget.privateAddress
                                 ? 'Search for your address or use your current location. Your exact address stays private.'
-                                : 'Search for a public place or use your current '
-                                      'location. The exact address is only shared with '
-                                      'the other party after the deal is agreed.'),
+                                : 'Choose a public place or use your current location. Check the exact address before sharing it in the meetup details.'),
                             style: BuyerTypography.style(
                               context,
                               metrics,

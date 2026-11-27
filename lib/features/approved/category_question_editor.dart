@@ -25,12 +25,14 @@ class CategoryQuestionEditor extends StatefulWidget {
     required this.answers,
     required this.onChanged,
     this.loader = loadCategoryQuestions,
+    this.compactRequestFields = false,
     super.key,
   });
   final String categoryId;
   final List<CategoryAnswer> answers;
   final ValueChanged<List<CategoryAnswer>> onChanged;
   final CategoryQuestionLoader loader;
+  final bool compactRequestFields;
 
   @override
   State<CategoryQuestionEditor> createState() => CategoryQuestionEditorState();
@@ -141,43 +143,154 @@ class CategoryQuestionEditorState extends State<CategoryQuestionEditor> {
         ]),
       ]);
     }
+    if (_questions.isEmpty) return const SizedBox.shrink();
+    if (widget.compactRequestFields) {
+      final mandatory = _questions.any((question) => question.group.isRequired);
+      return Card(
+        margin: const EdgeInsets.only(top: 8),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Item preferences', style: theme.textTheme.titleMedium),
+              Text(
+                mandatory
+                    ? 'Required fields are marked with an asterisk.'
+                    : 'Choose what matters to you. All fields are optional.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              for (var i = 0; i < _questions.length; i += 2)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final question = _questions[i];
+                      final first = _questionField(question);
+                      if (i + 1 == _questions.length) return first;
+                      final second = _questionField(_questions[i + 1]);
+                      if (constraints.maxWidth < 300 ||
+                          MediaQuery.textScalerOf(context).scale(14) > 17) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [first, const SizedBox(height: 8), second],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: first),
+                          const SizedBox(width: 8),
+                          Expanded(child: second),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final question in _questions)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${question.group.label}${question.group.isRequired ? ' *' : ''}',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+            child: _questionField(question),
+          ),
+      ],
+    );
+  }
+
+  Widget _questionField(CategoryQuestion question) {
+    final group = question.group;
+    final selected = {
+      for (final answer in widget.answers)
+        if (answer.groupId == group.id) ...answer.optionIds,
+    };
+    final useDropdown = widget.compactRequestFields &&
+        group.selectionMode == CatalogueSelectionMode.single &&
+        question.options.isNotEmpty;
+    final single = question.options
+        .where((option) => selected.contains(option.id))
+        .firstOrNull?.id;
+    final label = '${group.label}${group.isRequired ? ' *' : ''}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 5),
+        if (useDropdown)
+          Semantics(
+            label: label,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: single ?? '',
+                  isExpanded: true,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  items: [
+                    DropdownMenuItem(
+                      value: '',
+                      child: Text(
+                        group.isRequired ? 'Select' : 'No preference',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     for (final option in question.options)
-                      FilterChip(
-                        label: Text(option.label),
-                        selected: widget.answers.any(
-                          (a) =>
-                              a.groupId == question.group.id &&
-                              a.optionIds.contains(option.id),
-                        ),
-                        onSelected: (_) => _select(question, option.id),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      DropdownMenuItem(
+                        value: option.id,
+                        child: Text(
+                          option.label,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                   ],
+                  onChanged: (id) {
+                    if (id == null || id == (single ?? '')) return;
+                    _select(question, id.isEmpty ? single! : id);
+                  },
                 ),
-              ],
+              ),
             ),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in question.options)
+                FilterChip(
+                  label: Text(option.label),
+                  selected: selected.contains(option.id),
+                  onSelected: (_) => _select(question, option.id),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+            ],
           ),
       ],
     );

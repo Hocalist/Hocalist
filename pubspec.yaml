@@ -125,6 +125,14 @@ flutter:
     - assets/fonts/licenses/
 
   fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/roboto/roboto-regular.ttf
+          weight: 400
+        - asset: assets/fonts/roboto/roboto-medium.ttf
+          weight: 500
+        - asset: assets/fonts/roboto/roboto-bold.ttf
+          weight: 700
     - family: Nunito
       fonts:
         - asset: assets/fonts/nunito/Nunito-Variable.ttf

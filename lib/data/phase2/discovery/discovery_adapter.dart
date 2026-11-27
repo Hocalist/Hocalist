@@ -45,6 +45,8 @@ class DiscoveryDataAdapter {
       _rpc('seller_customer_save', {'p_buyer': buyerId, 'p_saved': saved, 'p_note': note});
   Future<RepositoryResult<Map<String, Object?>>> sellerCustomerInsights(String buyerId) =>
       _rpc('seller_customer_insights', {'p_buyer': buyerId});
+  Future<RepositoryResult<Map<String, Object?>>> sellerLeadInsights(String requestId) =>
+      _rpc('seller_lead_insights', {'p_request': requestId});
 
   Future<RepositoryResult<Map<String, Object?>>> hocatrendsOfferPreference(
     String offerId, {bool? enabled}

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeReviewQueue,
+  canConfirmConduct,
   decodeWithdrawalQueue,
   mergeReviewSection,
   trustErrorMessage,
@@ -221,4 +222,23 @@ test("rejects an invalid withdrawal queue", () => {
     null,
   );
   assert.equal(decodeWithdrawalQueue({ items: [], processing_minor: -1 }), null);
+});
+
+ test("conduct priority and context survive decoding without changing legacy reports", () => {
+  const row = { ...validTrust.health_reviews.items[0], category: "fraud", seller_id: userId,
+    request_id: submissionId, reporting_buyers: 3, priority: 2 };
+  const queue = (changes: Record<string, unknown>) => ({ ...validTrust,
+    health_reviews: { items: [{ ...row, ...changes }], next_cursor: null } });
+  const decoded = decodeReviewQueue(queue({}))!.health_reviews.items[0];
+  assert.equal(decoded.priority, 2);
+  assert.equal(decoded.reporting_buyers, 3);
+  assert.equal(decoded.seller_id, userId);
+  assert.equal(decoded.request_id, submissionId);
+  assert.equal(canConfirmConduct(decoded), true);
+  assert.equal(canConfirmConduct({ category: "price_disagreement" }), false);
+  assert.equal(canConfirmConduct({ category: null }), false);
+  assert.equal(decodeReviewQueue(validTrust)!.health_reviews.items[0].priority, 0);
+  for (const invalid of [{ priority: 3 }, { reporting_buyers: -1 }, { seller_id: "bad" }, { category: 4 }]) {
+    assert.equal(decodeReviewQueue(queue(invalid)), null);
+  }
 });

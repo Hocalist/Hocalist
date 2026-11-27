@@ -71,7 +71,7 @@ void main() {
       final issues = product.validationIssues();
       expect(
         issues.map((issue) => issue.field),
-        containsAll(<String>['title', 'condition']),
+        orderedEquals(<String>['title']),
       );
 
       final service = RequestDraft(

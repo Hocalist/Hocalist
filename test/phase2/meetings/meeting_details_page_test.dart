@@ -98,6 +98,77 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets(
+    'buyer meetup uses the maps icon and preserves the original time during a change',
+    (tester) async {
+      var maps = 0;
+      await _pump(
+        tester,
+        ApprovedMeetingDetailsPage(
+          buyerMeetupLayout: true,
+          sellerDisplayName: 'Maya QA',
+          viewerUserId: 'user-a',
+          meeting: _meeting(
+            status: 'reschedule_proposed',
+            acceptedSchedule: _schedule(status: 'accepted'),
+          ),
+          onBack: () {},
+          onConfirm: () {},
+          onDirections: () => maps++,
+        ),
+      );
+      final badge = find.byKey(
+        const ValueKey('buyer-meetup-status-below-photo'),
+      );
+      final mapsButton = find.byKey(
+        const ValueKey('approved-meeting-directions'),
+      );
+      final address = find.text('123 Synthetic Ave');
+      expect(find.text('Maya QA · Seller'), findsOneWidget);
+      expect(
+        tester.getTopLeft(badge).dy,
+        greaterThan(tester.getBottomLeft(find.byType(CircleAvatar)).dy),
+      );
+      expect(
+        tester.getTopLeft(mapsButton).dx,
+        greaterThan(tester.getTopLeft(address).dx),
+      );
+      expect(find.textContaining('6:30 PM ET'), findsWidgets);
+      expect(
+        find.textContaining('Your original meetup is still scheduled'),
+        findsOneWidget,
+      );
+      await tester.tap(mapsButton);
+      expect(maps, 1);
+      expect(find.text('Meet safely'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'buyer confirmed purchase replaces the PIN controls with the completed state',
+    (tester) async {
+      await _pump(
+        tester,
+        ApprovedMeetingDetailsPage(
+          buyerMeetupLayout: true,
+          purchaseConfirmed: true,
+          focusPurchasePin: true,
+          meeting: _meeting(status: 'accepted', withPending: false),
+          saleConfirmation: const Text('Unconfirmed purchase PIN controls'),
+          onBack: () {},
+          onConfirm: () {},
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('buyer-meetup-purchase-complete')),
+        findsOneWidget,
+      );
+      expect(find.text('Purchase confirmed'), findsOneWidget);
+      expect(find.text('Unconfirmed purchase PIN controls'), findsNothing);
+      expect(find.text('Manage meeting'), findsNothing);
+    },
+  );
+
   for (final pinShortcut in [false, true]) {
     testWidgets('cancelled accepted meeting hides purchase controls, shortcut=$pinShortcut', (tester) async {
       await _pump(tester, ApprovedMeetingDetailsPage(

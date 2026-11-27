@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../components/pull_refresh.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +9,9 @@ import '../../components/hocalist_status_fact.dart';
 import '../../domain/phase2/discovery.dart';
 import '../../domain/phase2/requests.dart';
 import '../../domain/phase2/offers.dart';
+import '../../theme/marketplace_ui_foundation.dart';
 import '../../theme/seller_ui_foundation.dart';
+import '../../theme/accessibility_visuals.dart';
 import 'approved_seller_leads_page.dart';
 import '../../domain/phase2/commercial/commercial.dart';
 import '../media/private_remote_image.dart';
@@ -24,6 +28,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.sellerName,
     this.avatarMediaId,
     this.loadSummary,
+    this.loadPlan,
     this.realLeads,
     this.sellerOffers = const [],
     this.leadsLoading = false,
@@ -45,6 +50,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
     this.onRefreshAccountHealth,
     this.onOpenVerification,
     this.onAppealRestriction,
+    this.todayMeetup,
     super.key,
   });
 
@@ -57,6 +63,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   final String? sellerName;
   final String? avatarMediaId;
   final Future<SellerHomeSummaryView> Function()? loadSummary;
+  final Future<PlanCode?> Function()? loadPlan;
   final List<SellerLeadView>? realLeads;
   final List<Offer> sellerOffers;
   final Future<void> Function()? onRefresh;
@@ -88,6 +95,7 @@ class ApprovedSellerHomePage extends StatefulWidget {
   final VoidCallback? onRefreshAccountHealth;
   final VoidCallback? onOpenVerification;
   final ValueChanged<SellerHealthRestriction>? onAppealRestriction;
+  final Widget? todayMeetup;
 
   bool get usesRealLeads => realLeads != null;
 
@@ -95,7 +103,40 @@ class ApprovedSellerHomePage extends StatefulWidget {
   State<ApprovedSellerHomePage> createState() => _ApprovedSellerHomePageState();
 }
 
-class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
+class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage>
+    with WidgetsBindingObserver {
+  PlanCode? _plan;
+  Future<void>? _planRead;
+
+  Future<void> _loadPlan() async {
+    final load = widget.loadPlan;
+    if (load == null) return;
+    final pending = _planRead;
+    if (pending != null) {
+      await pending;
+      return;
+    }
+    final read = _readPlan(load);
+    _planRead = read;
+    try {
+      await read;
+    } finally {
+      if (_planRead == read) _planRead = null;
+    }
+  }
+
+  Future<void> _readPlan(Future<PlanCode?> Function() load) async {
+    PlanCode? plan;
+    try {
+      plan = await load();
+    } catch (_) {
+      // A plan badge requires a successful entitlement read.
+    }
+    if (mounted && widget.loadPlan == load && _plan != plan) {
+      setState(() => _plan = plan);
+    }
+  }
+
   SellerHomeSummaryView? _summary;
   bool _summaryLoading=false;
   bool _summaryFailed=false;
@@ -117,6 +158,8 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadPlan());
     if (widget.usesRealLeads) _loadSummary();
     final refresh = widget.onRefreshOffers;
     if (refresh != null) {
@@ -124,6 +167,27 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
         if (mounted) refresh();
       });
     }
+  }
+
+  @override
+  void didUpdateWidget(ApprovedSellerHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.loadPlan != widget.loadPlan) {
+      _plan = null;
+      _planRead = null;
+      unawaited(_loadPlan());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_loadPlan());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
@@ -146,6 +210,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
               _SellerHero(
                 realName: realLeads == null ? null : widget.sellerName ?? '',
                 avatarMediaId: widget.avatarMediaId,
+                plan: _plan,
                 accountHealth: widget.accountHealth,
                 serviceAreaSaved: widget.serviceAreaSaved,
                 accountHealthLoading: widget.accountHealthLoading,
@@ -197,6 +262,10 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
               ),
               SizedBox(height: metrics.spacing(13)),
               _FindBuyersBanner(onTap: widget.onBrowseRequests),
+              if (widget.todayMeetup != null) ...[
+                SizedBox(height: metrics.spacing(8)),
+                widget.todayMeetup!,
+              ],
               SizedBox(height: metrics.spacing(14)),
               if (realLeads == null) ...[
                 _SectionTitle(
@@ -209,8 +278,8 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 SizedBox(height: metrics.spacing(14)),
                 _SectionTitle(
                   title: 'Recommended leads for you',
-                  subtitle: 'Buyers looking for what you offer',
-                  action: 'View all',
+                  subtitle: 'Suggested requests based on your seller setup',
+                  action: 'Browse leads',
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -287,8 +356,9 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
                 SizedBox(height: metrics.spacing(14)),
                 _SectionTitle(
                   title: 'Recommended leads for you',
-                  subtitle: 'Buyer requests that match what you offer',
-                  action: 'View all',
+                  subtitle: 'Suggested requests based on your seller setup',
+                  benefit: SellerPlanBadge(label: 'Pro & Elite benefit', locked: widget.recommendationsLocked),
+                  action: 'Browse leads',
                   onAction: widget.onLeads,
                 ),
                 SizedBox(height: metrics.spacing(8)),
@@ -310,7 +380,7 @@ class _ApprovedSellerHomePageState extends State<ApprovedSellerHomePage> {
           ),
         );
         return Align(alignment:Alignment.topCenter,child:widget.onRefresh == null ? content : PullRefreshAction(onRefresh: () async {
-          await Future.wait([widget.onRefresh!(),_loadSummary()]);
+          await Future.wait([widget.onRefresh!(),_loadSummary(),_loadPlan()]);
         }, child: content));
       },
     );
@@ -465,6 +535,7 @@ class _SellerHero extends StatelessWidget {
   const _SellerHero({
     this.realName,
     this.avatarMediaId,
+    this.plan,
     this.accountHealth,
     this.serviceAreaSaved = false,
     this.accountHealthLoading = false,
@@ -476,6 +547,7 @@ class _SellerHero extends StatelessWidget {
 
   final String? realName;
   final String? avatarMediaId;
+  final PlanCode? plan;
   final SellerAccountHealthView? accountHealth;
   final bool serviceAreaSaved;
   final bool accountHealthLoading;
@@ -487,13 +559,12 @@ class _SellerHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
-    final hour=DateTime.now().hour;
-    final salutation=hour<12 ? 'Good morning' : hour<18 ? 'Good afternoon' : 'Good evening';
-    final name=realName?.trim() ?? 'Alex';
+    final name = realName?.trim() ?? 'Alex';
     final portraitSize=realName==null ? metrics.artSize(62) : (metrics.availableWidth*0.155).clamp(48.0,62.0);
     final heroSize=realName==null ? metrics.artSize(104) : (metrics.availableWidth*0.20).clamp(62.0,90.0);
-    final greeting = Text(
-      realName==null ? 'Good morning, Alex! 👋' : name.isEmpty ? '$salutation!\u00a0👋' : '$salutation, $name!\u00a0👋',
+    final nameHeading = Text(
+      name.isEmpty ? 'Seller' : name,
+      key: const Key('sellerHomeName'),
       maxLines: realName!=null || metrics.accessibilityReflow ? null : 1,
       style: sellerText(metrics, 17, weight: FontWeight.w800),
     );
@@ -501,18 +572,27 @@ class _SellerHero extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         realName!=null || metrics.accessibilityReflow
-            ? greeting
+            ? nameHeading
             : FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: greeting,
+                child: nameHeading,
               ),
-        SizedBox(height: metrics.geometry(8)),
-        Text(
-          'Account health',
-          style: sellerText(metrics, 11.5, color: SellerUiColors.body),
+        SizedBox(height: metrics.geometry(3)),
+        Wrap(
+          spacing: metrics.geometry(6),
+          runSpacing: metrics.geometry(2),
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Account health',
+              style: sellerText(metrics, 11.5, color: SellerUiColors.body),
+            ),
+            if (plan == PlanCode.pro || plan == PlanCode.elite)
+              _SellerHomePlanBadge(key: ValueKey(plan), elite: plan == PlanCode.elite),
+          ],
         ),
-        SizedBox(height: metrics.geometry(5)),
+        SizedBox(height: metrics.geometry(2)),
         if (realName==null) const _AccountHealthBar()
         else _AccountHealthSlot(
           health:accountHealth,serviceAreaSaved:serviceAreaSaved,loading:accountHealthLoading,error:accountHealthError,
@@ -570,6 +650,47 @@ class _SellerHero extends StatelessWidget {
   }
 }
 
+class _SellerHomePlanBadge extends StatelessWidget {
+  const _SellerHomePlanBadge({required this.elite, super.key});
+
+  final bool elite;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
+    final radius = metrics.geometry(20);
+    return _SellerShimmer(
+      key: const Key('sellerHomePlanShimmer'),
+      radius: radius,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          color: elite
+              ? const Color(0xfff3c451)
+              : MarketplaceColors.of(context, surface: MarketplaceSurface.meetup)
+                  .primary,
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: metrics.geometry(6),
+            vertical: metrics.geometry(2),
+          ),
+          child: Text(
+            elite ? 'Elite' : 'Pro',
+            semanticsLabel: elite ? 'Elite Seller' : 'Pro Seller',
+            style: sellerText(
+              metrics,
+              10,
+              weight: FontWeight.w800,
+              color: elite ? const Color(0xff362502) : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RealSellerHomeNotice extends StatelessWidget {
   const _RealSellerHomeNotice(this.message, {this.onRetry});
 
@@ -602,8 +723,8 @@ class _RealSellerHomeNotice extends StatelessWidget {
 
 /// Account health slot. When the trust projection is available it shows the
 /// manual review state and recorded restriction reasons with the appeal path;
-/// otherwise it keeps the approved honest placeholder. It never shows a
-/// computed numeric health score.
+/// otherwise it keeps the placeholder. Verification and conduct are shown
+/// together while each retains its own meaning.
 class _AccountHealthSlot extends StatefulWidget {
   const _AccountHealthSlot({
     this.health,
@@ -656,7 +777,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
     if (error != null) return 'Account health could not be loaded';
     final value = health;
     if (value == null) return 'Not available yet';
-    if (value.hasActiveRestriction) return 'Restricted · review required';
+    if (value.hasActiveRestriction) return _restrictionHeadline(value);
     return switch (value.reviewStatus) {
       'approved' => 'Identity review approved',
       'pending' => 'Review in progress',
@@ -664,6 +785,11 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
       _ => 'No review submitted',
     };
   }
+
+  String _restrictionHeadline(SellerAccountHealthView value) =>
+      value.restrictions.any((restriction) => restriction.appealStatus == 'submitted')
+          ? 'Restricted · Appeal pending'
+          : 'Restricted · review required';
 
   IconData get _icon {
     final value = health;
@@ -716,7 +842,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                         error ??
                         (loading
                             ? 'Your verification and review status will appear here.'
-                            : 'Account review is not connected in this build.'),
+                            : 'Account review is currently unavailable.'),
                     tone: error != null
                         ? SellerNoticeTone.error
                         : SellerNoticeTone.brand,
@@ -746,6 +872,16 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                         ? SellerNoticeTone.error
                         : SellerNoticeTone.brand,
                   ),
+                  if (value.conductScore case final score?) ...[
+                    const SizedBox(height: 10),
+                    SellerStateNotice(
+                      icon: Icons.fact_check_outlined,
+                      title: 'Conduct score · $score/100',
+                      body: value.confirmedIncidents == 0
+                          ? 'No confirmed conduct violations in the past six months.'
+                          : '${value.confirmedIncidents} confirmed ${value.confirmedIncidents == 1 ? 'incident' : 'incidents'} in the past six months. Only recorded findings affect this score.',
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   LayoutBuilder(
                     builder: (context, constraints) {
@@ -897,16 +1033,23 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
 
   @override
   Widget build(BuildContext context) {
+    final metrics = ApprovedReplicaScope.of(context);
     final value = health;
+    final score = value?.conductScore;
     final completed = value == null || !value.loaded
         ? null
         : (value.emailVerified ? 1 : 0) +
               (value.phoneVerified ? 1 : 0) +
               (value.reviewStatus == 'approved' ? 1 : 0) +
               (widget.serviceAreaSaved ? 1 : 0);
+    final unavailableLabel = loading
+        ? 'Checking account health…'
+        : error != null
+        ? 'Could not load · Tap to retry'
+        : 'Not available yet';
     return Semantics(
-      label: completed == null
-          ? 'Verification progress unavailable'
+      label: score != null ? 'Conduct score $score of 100. $completed of 4 verification steps complete.' : completed == null
+          ? unavailableLabel
           : '$completed of 4 verification steps complete',
       child: Material(
         color: HocalistPalette.surface(context, Colors.transparent),
@@ -914,16 +1057,29 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
           key: const Key('sellerAccountHealth'),
           onTap: () => _showDetail(context),
           child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: ApprovedReplicaScope.of(context).spacing(8),
-              vertical: ApprovedReplicaScope.of(context).spacing(4),
+            padding: EdgeInsetsDirectional.only(
+              end: metrics.spacing(8),
+              bottom: metrics.spacing(8),
             ),
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _AccountHealthBar(
-                steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
-              ),
+              if (score == null)
+                _AccountHealthBar(
+                  steps: [value?.emailVerified == true && value?.loaded == true, value?.phoneVerified == true && value?.loaded == true, value?.reviewStatus == 'approved' && value?.loaded == true, widget.serviceAreaSaved && value?.loaded == true],
+                )
+              else ...[
+                Text(value!.hasActiveRestriction ? 'Conduct score · $score/100'
+                    : '${score == 100 ? 'Good standing' : 'Needs attention'} · $score/100',
+                  style: sellerText(ApprovedReplicaScope.of(context), 11, weight: FontWeight.w800)),
+                SizedBox(height: metrics.geometry(3)),
+                LinearProgressIndicator(
+                  value: score / 100,
+                  backgroundColor: HocalistPalette.surface(context, SellerUiColors.line),
+                  color: value.hasActiveRestriction ? SellerUiColors.red : score == 100 ? SellerUiColors.green : SellerUiColors.amber,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ],
               if (completed != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -940,7 +1096,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'Restricted · review required',
+                    _restrictionHeadline(value!),
                     style: sellerText(
                       ApprovedReplicaScope.of(context),
                       11,
@@ -951,7 +1107,7 @@ class _AccountHealthSlotState extends State<_AccountHealthSlot> {
                 ),
               if (completed == null)
                 Text(
-                  'Not available yet',
+                  unavailableLabel,
                   style: sellerText(
                     ApprovedReplicaScope.of(context),
                     10,
@@ -1372,6 +1528,81 @@ class _SellerMetricCard extends StatelessWidget {
   }
 }
 
+class _SellerShimmer extends StatefulWidget {
+  const _SellerShimmer({required this.child, required this.radius, super.key});
+
+  final Widget child;
+  final double radius;
+
+  @override
+  State<_SellerShimmer> createState() => _SellerShimmerState();
+}
+
+class _SellerShimmerState extends State<_SellerShimmer>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final _shine = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 650),
+  );
+  Timer? _entrance;
+  Timer? _followUp;
+  bool _scheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (HocalistMotion.reduced(context)) {
+      _entrance?.cancel();
+      _followUp?.cancel();
+      _shine.reset();
+      _scheduled = false;
+    } else if (!_scheduled) {
+      _scheduled = true;
+      _entrance = Timer(const Duration(milliseconds: 350), _playShine);
+      _followUp = Timer(const Duration(seconds: 12), _playShine);
+    }
+  }
+
+  void _playShine() {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (mounted &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+        ModalRoute.isCurrentOf(context) != false &&
+        TickerMode.of(context) &&
+        !HocalistMotion.reduced(context)) {
+      _shine.forward(from: 0);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _shine.reset();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _entrance?.cancel();
+    _followUp?.cancel();
+    _shine.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: HocalistMotion.reduced(context)
+        ? null
+        : _SellerShimmerPainter(_shine, widget.radius),
+    child: widget.child,
+  );
+}
+
 class _FindBuyersBanner extends StatelessWidget {
   const _FindBuyersBanner({required this.onTap});
 
@@ -1383,6 +1614,7 @@ class _FindBuyersBanner extends StatelessWidget {
     return HocalistEntrance(
       child: HocalistPressFeedback(
         child: Container(
+          key: const Key('seller-find-buyers'),
           constraints: BoxConstraints(minHeight: metrics.geometry(84)),
           padding: EdgeInsets.fromLTRB(
             metrics.geometry(17),
@@ -1429,28 +1661,23 @@ class _FindBuyersBanner extends StatelessWidget {
                   ],
                 ),
               ),
+              SizedBox(width: metrics.geometry(8)),
               SizedBox(
                 width: metrics.artSize(112),
-                child: SellerPrimaryButton(
-                  label: 'Browse requests',
-                  onPressed: onTap,
-                  fontSize: 10,
-                  compact: true,
-                  trailing: Icon(
-                    Icons.chevron_right,
-                    size: metrics.geometry(12),
-                    color: HocalistPalette.text(context, SellerUiColors.white),
+                child: _SellerShimmer(
+                  radius: hocalistAccessibilityVisualsOf(context)
+                      .radiusOr(metrics.geometry(13)),
+                  child: SellerPrimaryButton(
+                    label: 'Browse requests',
+                    onPressed: onTap,
+                    fontSize: 10,
+                    compact: true,
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: metrics.geometry(12),
+                      color: HocalistPalette.text(context, SellerUiColors.white),
+                    ),
                   ),
-                ),
-              ),
-              SizedBox(width: metrics.geometry(5)),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(Theme.of(context).brightness == Brightness.dark ? 16 : 0),
-                child: Image.asset(
-                SellerAssets.homeFindBuyers,
-                width: metrics.artSize(76),
-                fit: BoxFit.contain,
-                excludeFromSemantics: true,
                 ),
               ),
             ],
@@ -1461,16 +1688,45 @@ class _FindBuyersBanner extends StatelessWidget {
   }
 }
 
+class _SellerShimmerPainter extends CustomPainter {
+  _SellerShimmerPainter(this.progress, this.radius) : super(repaint: progress);
+
+  final Animation<double> progress;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress.value <= 0 || progress.value >= 1) return;
+    final bounds = Offset.zero & size;
+    final band = size.width * .24;
+    final center = (size.width + 2 * band) * progress.value - band;
+    final paint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Colors.transparent, Color(0x42FFFFFF), Colors.transparent],
+      ).createShader(Rect.fromLTWH(center - band, 0, band * 2, size.height));
+    canvas.save();
+    canvas.clipRRect(RRect.fromRectAndRadius(bounds, Radius.circular(radius)));
+    canvas.drawRect(bounds, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SellerShimmerPainter oldDelegate) =>
+      oldDelegate.radius != radius || oldDelegate.progress != progress;
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({
     required this.title,
     required this.action,
     required this.onAction,
     this.subtitle,
+    this.benefit,
   });
 
   final String title;
   final String? subtitle;
+  final Widget? benefit;
   final String action;
   final VoidCallback onAction;
 
@@ -1493,6 +1749,10 @@ class _SectionTitle extends StatelessWidget {
                   subtitle!,
                   style: sellerText(metrics, 10.5, color: SellerUiColors.body),
                 ),
+              if (benefit != null) ...[
+                const SizedBox(height: 4),
+                benefit!,
+              ],
             ],
           ),
         ),

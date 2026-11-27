@@ -1,6 +1,7 @@
 import 'package:hocalist/theme/adaptive_palette.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../components/hocalist_motion.dart';
 import '../../components/pull_refresh.dart';
 import 'package:flutter/services.dart';
 import '../../data/phase2/outcomes/sale_confirmation.dart';
@@ -21,6 +22,8 @@ class SaleConfirmationPanel extends StatefulWidget {
     this.meetingAccepted = true,
     this.onPurchaseConfirmed,
     this.onRefreshMeeting,
+    this.revealPinOnOpen = false,
+    this.compactBuyer = false,
     super.key,
   });
   final SaleConfirmationAdapter adapter;
@@ -32,6 +35,8 @@ class SaleConfirmationPanel extends StatefulWidget {
   /// designation data and the legacy behavior is kept.
   final bool? purchaseSelected;
   final bool meetingAccepted;
+  final bool revealPinOnOpen;
+  final bool compactBuyer;
   final VoidCallback? onPurchaseConfirmed;
   final Future<void> Function()? onRefreshMeeting;
   @override
@@ -48,12 +53,14 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
   Timer? expiry;
   Timer? statusPoll;
   bool statusPolling = false;
+  bool animateConfirmation = false;
   bool get retryBlocked => result?.status == 'locked' || result?.status == 'support_required';
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    run('status');
+    run(widget.revealPinOnOpen && widget.isBuyer &&
+        widget.purchaseSelected == true && widget.meetingAccepted ? 'display' : 'status');
     statusPoll = Timer.periodic(
       const Duration(seconds: 8),
       (_) => _pollCompletion(),
@@ -91,6 +98,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
         input.clear();
         setState(() {
           result = value;
+          animateConfirmation = value.status == 'confirmed';
           error = null;
         });
         widget.onPurchaseConfirmed?.call();
@@ -157,7 +165,10 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
             (result?.status == 'support_required' || result?.retryAt == null ||
              result!.retryAt!.isAfter(DateTime.now().toUtc()));
         if (!keepLock) result = value;
-        if (value.status == 'confirmed') input.clear();
+        if (value.status == 'confirmed') {
+          animateConfirmation = action == 'verify';
+          input.clear();
+        }
       });
       if (value.status == 'confirmed' ||
           value.status == 'completed_elsewhere') {
@@ -192,7 +203,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     final message = switch (status) {
       'confirmed' =>
         'Purchase confirmed. Item payment remains between buyer and seller.',
-      'completed_elsewhere' => 'This request already has a confirmed purchase.',
+      'completed_elsewhere' => 'The purchase was confirmed with a different seller.',
       'meeting_not_accepted' =>
         'Accept a meeting schedule before confirming a purchase.',
       'expired' =>
@@ -216,7 +227,7 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
     };
     final tone = switch (status) {
       'confirmed' => _ConfirmationTone.success,
-      'completed_elsewhere' => _ConfirmationTone.success,
+      'completed_elsewhere' => _ConfirmationTone.brand,
       'incorrect' ||
       'invalid_format' ||
       'locked' ||
@@ -234,6 +245,112 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
           availableWidth: MediaQuery.sizeOf(context).width,
           textScaler: MediaQuery.textScalerOf(context),
         );
+    if (widget.isBuyer && widget.compactBuyer) {
+      final visiblePin = result?.pin;
+      final canReveal = !done && !awaitingChoice && widget.meetingAccepted;
+      final normalPin =
+          status == null || status == 'ready' || status == 'unconfirmed';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!canReveal || !normalPin)
+            _ConfirmationNotice(
+              isBuyer: true,
+              tone: tone,
+              title: switch (status) {
+                'confirmed' => 'Purchase confirmed',
+                'completed_elsewhere' => 'Purchased from another seller',
+                _ => 'Confirm purchase',
+              },
+              message: message,
+              animateConfirmation: animateConfirmation,
+            ),
+          if (canReveal)
+            Container(
+              key: const Key('saleConfirmationPinCard'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: HocalistPalette.surface(
+                  context,
+                  BuyerUiTokens.softSurface,
+                ),
+                border: Border.all(
+                  color: HocalistPalette.border(context, BuyerUiTokens.border),
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.vpn_key_outlined,
+                        size: 18,
+                        color: HocalistPalette.text(
+                          context,
+                          BuyerUiTokens.action,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          'Your purchase PIN',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Share this PIN only after you’ve inspected the item and paid the seller.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      visiblePin ?? '•••••',
+                      semanticsLabel: visiblePin == null ? 'PIN hidden' : null,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(letterSpacing: 5),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  BuyerPrimaryButton(
+                    key: const Key('saleConfirmationAction'),
+                    label: visiblePin == null
+                        ? 'Show my purchase PIN'
+                        : 'Hide purchase PIN',
+                    onPressed: busy
+                        ? null
+                        : visiblePin == null
+                        ? () => run('display')
+                        : () {
+                            generation++;
+                            expiry?.cancel();
+                            setState(() => result = null);
+                          },
+                  ),
+                ],
+              ),
+            ),
+          if (error != null)
+            _ConfirmationNotice(
+              isBuyer: true,
+              tone: _ConfirmationTone.error,
+              title: 'Confirmation was not completed',
+              message: error!,
+            ),
+          if (busy)
+            const BuyerProgressStrip(label: 'Checking purchase status…'),
+          PullRefreshAction(
+            key: const Key('saleConfirmationRefresh'),
+            onRefresh: busy ? null : () => run('status', refreshMeeting: true),
+          ),
+        ],
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(vertical: metrics.spacing(16)),
       child: Column(
@@ -242,8 +359,13 @@ class _SaleConfirmationPanelState extends State<SaleConfirmationPanel>
           _ConfirmationNotice(
             isBuyer: widget.isBuyer,
             tone: tone,
-            title: done ? 'Purchase confirmed' : 'Confirm purchase',
+            title: switch (status) {
+              'confirmed' => 'Purchase confirmed',
+              'completed_elsewhere' => 'Purchased from another seller',
+              _ => 'Confirm purchase',
+            },
             message: message,
+            animateConfirmation: animateConfirmation,
           ),
           if (result?.pin != null || (widget.isBuyer && !done)) ...[
             SizedBox(height: metrics.spacing(12)),
@@ -344,12 +466,14 @@ class _ConfirmationNotice extends StatelessWidget {
     required this.tone,
     required this.title,
     required this.message,
+    this.animateConfirmation = false,
   });
 
   final bool isBuyer;
   final _ConfirmationTone tone;
   final String title;
   final String message;
+  final bool animateConfirmation;
 
   @override
   Widget build(BuildContext context) {
@@ -359,9 +483,13 @@ class _ConfirmationNotice extends StatelessWidget {
       _ConfirmationTone.error => Icons.error_outline_rounded,
       _ConfirmationTone.success => Icons.check_circle_rounded,
     };
+    final check = tone == _ConfirmationTone.success && animateConfirmation
+        ? const _ConfirmedPurchaseCheck(key: Key('purchaseConfirmedCheck'))
+        : null;
     if (isBuyer) {
       return BuyerStateNotice(
         icon: icon,
+        iconOverride: check,
         title: title,
         body: message,
         tone: switch (tone) {
@@ -374,6 +502,7 @@ class _ConfirmationNotice extends StatelessWidget {
     }
     return SellerStateNotice(
       icon: icon,
+      iconOverride: check,
       title: title,
       body: message,
       tone: switch (tone) {
@@ -384,6 +513,67 @@ class _ConfirmationNotice extends StatelessWidget {
       },
     );
   }
+}
+
+class _ConfirmedPurchaseCheck extends StatelessWidget {
+  const _ConfirmedPurchaseCheck({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (HocalistMotion.reduced(context)) {
+      return const Icon(Icons.check_circle_rounded);
+    }
+    final theme = IconTheme.of(context);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, _) {
+        if (progress == 1) return const Icon(Icons.check_circle_rounded);
+        return CustomPaint(
+          size: Size.square(theme.size!),
+          painter: _ConfirmationCheckPainter(theme.color!, progress),
+        );
+      },
+    );
+  }
+}
+
+class _ConfirmationCheckPainter extends CustomPainter {
+  const _ConfirmationCheckPainter(this.color, this.progress);
+
+  final Color color;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final unit = size.width / 24;
+    final check = Path()
+      ..moveTo(7 * unit, 12 * unit)
+      ..lineTo(10 * unit, 15 * unit)
+      ..lineTo(17 * unit, 8 * unit);
+    final stroke = check.computeMetrics().first;
+    canvas.saveLayer(Offset.zero & size, Paint());
+    canvas.drawCircle(
+      size.center(Offset.zero),
+      10 * unit,
+      Paint()..color = color,
+    );
+    canvas.drawPath(
+      stroke.extractPath(0, stroke.length * progress),
+      Paint()
+        ..blendMode = BlendMode.clear
+        ..strokeWidth = 2 * unit
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ConfirmationCheckPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.progress != progress;
 }
 
 class PurchasePinCard extends StatelessWidget {

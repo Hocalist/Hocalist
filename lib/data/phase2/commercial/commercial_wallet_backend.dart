@@ -53,8 +53,13 @@ abstract interface class CommercialSellerHomeBackend {
   Future<SellerHomeSummaryView> loadSellerHomeSummary();
 }
 
+abstract interface class CommercialRequestRewardBackend {
+  Future<int> loadPotentialReward(String requestId);
+}
+
 class Phase2CommercialWalletBackend
-    implements CommercialWalletBackend, CommercialDealSummaryBackend, CommercialSellerHomeBackend {
+    implements CommercialWalletBackend, CommercialDealSummaryBackend,
+        CommercialSellerHomeBackend, CommercialRequestRewardBackend {
   Phase2CommercialWalletBackend({required this.rpc, required this.identity});
 
   static const String schema = 'hocalist';
@@ -62,11 +67,13 @@ class Phase2CommercialWalletBackend
   static const String rewardWalletFunction = 'commercial_reward_wallet';
   static const String saleHistoryFunction = 'commercial_sale_history';
   static const String saleDetailFunction = 'commercial_sale_detail';
+  static const String potentialRewardFunction = 'commercial_request_potential_reward';
   static const Set<String> allowedFunctions = {
     creditWalletFunction,
     rewardWalletFunction,
     saleHistoryFunction,
     saleDetailFunction,
+    potentialRewardFunction,
     'commercial_deal_summary',
     'seller_home_summary',
   };
@@ -100,6 +107,19 @@ class Phase2CommercialWalletBackend
     () async =>
         RewardWalletView.fromJson(await _call(rewardWalletFunction, const {})),
   );
+
+  @override
+  Future<int> loadPotentialReward(String requestId) async {
+    if (requestId.trim().isEmpty) {
+      throw const CommercialUnavailableException('Invalid request reference.');
+    }
+    final data = await _call(potentialRewardFunction, {'p_request': requestId});
+    final amount = data['estimated_minor'];
+    if (amount is! int || amount < 0) {
+      throw const CommercialUnavailableException('The reward estimate was invalid.');
+    }
+    return amount;
+  }
 
   @override
   Future<List<SaleHistoryEntryView>> loadSaleHistory({

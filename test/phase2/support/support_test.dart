@@ -110,6 +110,35 @@ void main() {
     });
     expect((await adapter.cases()).errorOrNull?.kind.name, 'malformedResponse');
   });
+  testWidgets('a buyer reports seller conduct with the selected offer reference', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    transport.handler = (call) => call.function == 'seller_conduct_report'
+        ? const MarketplaceTransportData({'id': caseId, 'status': 'open', 'revision': 1})
+        : const MarketplaceTransportData({'items': [], 'next_cursor': null});
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SupportCasesPage(
+      adapter: adapter, onBack: () {}, conversationId: 'old-text-reference', sellerOfferId: caseId,
+    ))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select report reason'));
+    await tester.pumpAndSettle();
+    expect(find.text('We could not agree on a price'), findsOneWidget);
+    final reason = find.text('Pressured me to bypass Hocalist’s purchase confirmation');
+    await tester.ensureVisible(reason);
+    await tester.tap(reason);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('supportBody')), 'Sample conduct concern.');
+    await tester.ensureVisible(find.text('Send report'));
+    await tester.tap(find.text('Send report'));
+    await tester.pumpAndSettle();
+    final call = transport.calls.singleWhere((call) => call.function == 'seller_conduct_report');
+    expect(call.params['p_offer'], caseId);
+    expect(call.params['p_category'], 'off_platform_evasion');
+    expect(call.params['p_body'], 'Sample conduct concern.');
+    expect(find.text('Report received'), findsOneWidget);
+  });
   test('feedback screenshots keep their case and retry identity', () async {
     transport.handler = (_) => const MarketplaceTransportData({'case_id': caseId});
     const media = '10000000-0000-4000-8000-000000000002';
@@ -120,6 +149,95 @@ void main() {
     expect(transport.calls[0].params, transport.calls[1].params);
     expect(transport.calls.first.function, 'report_evidence_attach');
     expect(transport.calls.first.params['p_input'], {'case_id': caseId, 'media_ids': [media]});
+  });
+  for (final seller in [false, true]) {
+    testWidgets('chat quick reports work without notes (seller: $seller)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      transport.handler = (call) => switch (call.function) {
+        'support_reasons' => const MarketplaceTransportData({
+          'items': [
+            {'code': 'safety', 'label': 'Unsafe interaction'},
+            {'code': 'deal', 'label': 'Deal concern'},
+          ],
+        }),
+        'support_command' || 'seller_conduct_report' => const MarketplaceTransportData({
+          'id': caseId, 'status': 'open', 'revision': 1,
+        }),
+        _ => const MarketplaceTransportData({'items': [], 'next_cursor': null}),
+      };
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: SupportCasesPage(
+        adapter: adapter, onBack: () {}, conversationId: caseId,
+        sellerOfferId: seller ? null : caseId, seller: seller, fromChat: true,
+      ))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose a reason'));
+      await tester.pumpAndSettle();
+      final label = seller
+          ? 'Buyer missed a confirmed meetup'
+          : 'Offered an illegal product or service';
+      expect(find.text(seller
+          ? 'Offered an illegal product or service'
+          : 'Buyer missed a confirmed meetup'), findsNothing);
+      await tester.ensureVisible(find.text(label));
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Send report'));
+      await tester.tap(find.text('Send report'));
+      await tester.pumpAndSettle();
+      final call = transport.calls.singleWhere((call) =>
+          call.function == (seller ? 'support_command' : 'seller_conduct_report'));
+      final body = 'Reported reason: $label\n\nConversation reference: $caseId';
+      if (seller) {
+        expect(call.params['p_input'], {'reason_code':'deal', 'body':body});
+      } else {
+        expect(call.params['p_offer'], caseId);
+        expect(call.params['p_category'], 'illegal_listing');
+        expect(call.params['p_body'], body);
+      }
+      expect(find.text('Report received'), findsOneWidget);
+    });
+  }
+
+  testWidgets('Something else preserves written chat reports', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    transport.handler = (call) => switch (call.function) {
+      'support_reasons' => const MarketplaceTransportData({
+        'items': [{'code': 'deal', 'label': 'Deal concern'}],
+      }),
+      'support_command' => const MarketplaceTransportData({'id':caseId, 'status':'open', 'revision':1}),
+      _ => const MarketplaceTransportData({'items': [], 'next_cursor': null}),
+    };
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SupportCasesPage(
+      adapter: adapter, onBack: () {}, conversationId: caseId, fromChat: true,
+    ))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose a reason'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Something else'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Send report'));
+    await tester.tap(find.text('Send report'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add at least 10 characters to explain what happened.'), findsOneWidget);
+    expect(transport.calls.where((call) => call.function == 'support_command'), isEmpty);
+    const notes = 'Please review what happened during this interaction.';
+    await tester.enterText(find.byKey(const Key('supportBody')), notes);
+    await tester.ensureVisible(find.text('Send report'));
+    await tester.tap(find.text('Send report'));
+    await tester.pumpAndSettle();
+    final call = transport.calls.singleWhere((call) => call.function == 'support_command');
+    expect(call.params['p_input'], {
+      'reason_code': 'deal',
+      'body': '$notes\n\nConversation reference: $caseId',
+    });
   });
   testWidgets(
     'validation keeps case state visible and does not claim a loading failure',
@@ -209,7 +327,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('supportAcknowledged')), findsNothing);
       expect(find.text('Retry report'), findsOneWidget);
-      expect(find.text('Report not confirmed'), findsOneWidget);
+      expect(find.text('Couldn’t verify your report'), findsOneWidget);
       expect(find.text('Support could not be loaded'), findsNothing);
       expect(find.text('No reports submitted yet.'), findsOneWidget);
       await tester.ensureVisible(find.text('Retry report'));
@@ -230,7 +348,7 @@ void main() {
         tester
             .widget<TextField>(find.byKey(const Key('supportBody')))
             .maxLength,
-        4000 - '\n\nConversation reference: $caseId'.length,
+        3700 - '\n\nConversation reference: $caseId'.length,
       );
       expect(tester.takeException(), isNull);
     },

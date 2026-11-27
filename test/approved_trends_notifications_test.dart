@@ -212,7 +212,7 @@ void main() {
     final saving = tester.widget<Text>(find.text('Saving'));
     expect(saving.style?.fontFamily, HocalistTheme.appFontFamily);
     expect(
-      find.text('Shop from seller Stores'),
+      find.text('Browse seller listings'),
       findsOneWidget,
     );
   });

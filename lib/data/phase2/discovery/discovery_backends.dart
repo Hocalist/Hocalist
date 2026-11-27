@@ -109,11 +109,33 @@ class Phase2DiscoveryBackend
     final result = await adapter.sellerCustomerInsights(buyerId);
     if (result.isFailure) throw _exception(result.errorOrNull!, 'seller_customer_insights');
     final row = result.valueOrNull!;
+    if (row['buyer_id'] != buyerId) {
+      throw const StoreBackendException('Could not verify purchase history.');
+    }
+    return _decodeCustomerHistory(row);
+  }
+
+  Future<CustomerHistory?> loadLeadInsights(String requestId) async {
+    final result = await adapter.sellerLeadInsights(requestId);
+    if (result.isFailure) throw _exception(result.errorOrNull!, 'seller_lead_insights');
+    final row = result.valueOrNull!;
+    if (row['request_id'] != requestId || !row.containsKey('history')) {
+      throw const StoreBackendException('Could not verify lead history.');
+    }
+    final history = row['history'];
+    if (history == null) return null;
+    if (history is! Map<String, Object?>) {
+      throw const StoreBackendException('Could not verify lead history.');
+    }
+    return _decodeCustomerHistory(history);
+  }
+
+  CustomerHistory _decodeCustomerHistory(Map<String, Object?> row) {
     final ended = row['concluded_requests'];
     final bought = row['confirmed_purchases'];
     final ongoing = row['ongoing_requests'];
     final percent = row['completion_percent'];
-    if (row['buyer_id'] != buyerId || ended is! int || bought is! int || ongoing is! int ||
+    if (ended is! int || bought is! int || ongoing is! int ||
         ended < 0 || bought < 0 || ongoing < 0 || bought > ended ||
         (ended == 0 ? percent != null : percent is! num || percent < 0 || percent > 100)) {
       throw const StoreBackendException('Could not verify purchase history.');

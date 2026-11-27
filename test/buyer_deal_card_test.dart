@@ -6,7 +6,11 @@ import 'package:flutter/rendering.dart';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/buyer_deal_card.dart';
+import 'package:hocalist/features/media/private_remote_image.dart';
+import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/theme/buyer_ui_foundation.dart';
+import 'package:hocalist/theme/accessibility_visuals.dart';
+import 'package:hocalist/theme/marketplace_ui_foundation.dart';
 import 'package:hocalist/main.dart' show HocalistTheme;
 import 'test_fonts.dart';
 import 'visual_proof_capture.dart';
@@ -23,23 +27,108 @@ void main() {
   Future<void> pump(WidgetTester t, double width, double scale, TargetPlatform platform,
       {VoidCallback? chat, VoidCallback? decline, VoidCallback? accept, VoidCallback? options,
       VisualDensity density = VisualDensity.standard, String message = 'Includes the original charger. Payment at the meeting.',
-      List<String> photos = const ['test-product']}) async {
+      List<String> photos = const ['test-product'], bool comparison = false,
+      PlanCode? plan, bool verified = true, ThemeData? theme,
+      Future<Uint8List> Function(String)? readPhoto}) async {
     t.view.devicePixelRatio = 1;
     t.view.physicalSize = Size(width, 1300);
-    await t.pumpWidget(MaterialApp(theme: HocalistTheme.light.copyWith(platform: platform, visualDensity: density),
+    await t.pumpWidget(MaterialApp(theme: theme ?? HocalistTheme.light.copyWith(platform: platform, visualDensity: density),
       home: MediaQuery(data: MediaQueryData(size: Size(width, 1300), textScaler: TextScaler.linear(scale)),
         child: Scaffold(body: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(12),
           child: RepaintBoundary(key: const Key('deal-proof'), child: BuyerDealCard(
-            sellerName: 'Jonathan Sanchez', sellerProfileId: 'seller', loadSeller: (_) => seller,
+            sellerName: 'Jonathan Sanchez', sellerProfileId: 'seller',
+            loadSeller: (_) => comparison
+                ? SynchronousFuture(BuyerDealSeller(verified: verified, plan: plan, sales: 42))
+                : seller,
             title: 'iPad Air 5th Gen (64GB)', price: r'$650',
             meeting: 'Mon, Nov 23 · 3:00 PM', place: 'Business address',
+            availability: 'Sun, Nov 22', comparison: comparison,
             message: message,
             photos: photos,
-            readImage: (_) => SynchronousFuture(File('assets/approved_offers_chat/chat-ipad.png').readAsBytesSync()),
+            readImage: readPhoto ?? (_) => SynchronousFuture(File('assets/approved_offers_chat/chat-ipad.png').readAsBytesSync()),
             onChat: chat ?? () {}, onDecline: decline ?? () {}, onAccept: accept, onOptions: options,
           ))))))));
     await t.pumpAndSettle();
   }
+  testWidgets('offer comparison shows separate terms and verified paid sellers', (t) async {
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    for (final plan in PlanCode.values) {
+      await pump(t, 320, 1.6, TargetPlatform.android, comparison: true, plan: plan);
+      expect(find.text('Mon, Nov 23 · 3:00 PM'), findsOneWidget);
+      expect(find.text('Business address'), findsOneWidget);
+      expect(find.text('Sun, Nov 22'), findsOneWidget);
+      expect(find.bySemanticsLabel('Open photo preview'), findsOneWidget);
+      expect(find.text('Verified seller'), plan == PlanCode.free ? findsNothing : findsOneWidget);
+      expect(find.text('42 confirmed sales'), plan == PlanCode.free ? findsNothing : findsOneWidget);
+      expect(t.takeException(), isNull);
+    }
+    await pump(t, 320, 1.6, TargetPlatform.android, comparison: true, plan: PlanCode.elite, verified: false);
+    expect(find.text('Elite'), findsOneWidget);
+    expect(find.text('Verified seller'), findsNothing);
+  });
+  testWidgets('comparison respects shared typography, contrast and mobile widths', (t) async {
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    final theme = HocalistTheme.light.copyWith(
+      textTheme: HocalistTheme.light.textTheme.apply(fontFamily: 'Lexend'),
+      extensions: [const HocalistAccessibilityVisuals(fontFamily: 'Lexend',
+        buttonRadius: 3, buttonBackground: Colors.black,
+        buttonForeground: Colors.white, buttonBorderWidth: 2)],
+    );
+    for (final width in [320.0, 360.0, 390.0, 430.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        await pump(t, width, scale, TargetPlatform.android,
+          comparison: true, plan: PlanCode.pro, photos: [], theme: theme);
+        expect(t.widget<Text>(find.text('Jonathan Sanchez')).style?.fontFamily, 'Lexend');
+        final button = find.descendant(of: find.byType(MarketplaceButton).first, matching: find.byType(TextButton));
+        final style = t.widget<TextButton>(button).style!;
+        expect(style.backgroundColor!.resolve({}), Colors.black);
+        expect(style.foregroundColor!.resolve({}), Colors.white);
+        expect(t.takeException(), isNull, reason: 'width=$width scale=$scale');
+      }
+    }
+  });
+  testWidgets('marketplace default preserves reviewed font, palette and action shape', (t) async {
+    addTearDown(t.view.resetPhysicalSize); addTearDown(t.view.resetDevicePixelRatio);
+    await pump(t,390,1,TargetPlatform.android,comparison:true,plan:PlanCode.pro);
+    expect(t.widget<Text>(find.text('Jonathan Sanchez')).style?.fontFamily,'Roboto');
+    expect(t.widget<Text>(find.text(r'$650')).style?.color,const Color(0xff3920ba));
+    final primary=find.descendant(of:find.byType(MarketplaceButton).first,matching:find.byType(TextButton));
+    final style=t.widget<TextButton>(primary).style!;
+    expect(style.backgroundColor!.resolve({}),const Color(0xff3220b9));
+    expect((style.shape!.resolve({})! as RoundedRectangleBorder).borderRadius,BorderRadius.circular(10));
+    expect(t.getSize(primary).height,44);
+  });
+  testWidgets('offer photos use the approved crop for wide and tall uploads', (t) async {
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    const message = 'This message stays with the conversation.';
+    await pump(t, 320, 1.0, TargetPlatform.android,
+      comparison: true, plan: PlanCode.pro, message: message,
+      photos: ['wide', 'tall'],
+      readPhoto: (id) => SynchronousFuture(File(id == 'wide'
+        ? 'assets/approved_offers_chat/offer-thumbnail.png'
+        : 'assets/approved_offers_chat/actual-view-offer-426.png').readAsBytesSync()),
+    );
+    expect(find.text(message), findsNothing);
+    final chat = find.text('Chat with seller');
+    final decline = find.text('Decline offer');
+    expect(t.getCenter(chat).dy, closeTo(t.getCenter(decline).dy, 0.5));
+    await t.tap(find.text('More photos'));
+    await t.pumpAndSettle();
+    for (final id in ['wide', 'tall']) {
+      final photo = find.byWidgetPredicate((widget) => widget is PrivateRemoteImage && widget.id == id);
+      expect(t.getSize(photo), const Size(76, 82));
+      final thumb = t.widget<Image>(find.descendant(of: photo, matching: find.byType(Image)));
+      expect(thumb.fit, BoxFit.cover);
+    }
+    await t.tap(find.bySemanticsLabel('Open photo preview').first);
+    await t.pumpAndSettle();
+    final original = find.byWidgetPredicate((widget) => widget is Image && widget.semanticLabel == 'Full photo');
+    expect(t.widget<Image>(original).fit, BoxFit.contain);
+    expect(t.takeException(), isNull);
+  });
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     for (final width in [320.0, 360.0, 390.0, 430.0]) {
       for (final scale in [1.0, 1.15, 1.3, 1.6]) {

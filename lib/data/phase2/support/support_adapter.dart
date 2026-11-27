@@ -28,6 +28,18 @@ class SupportReason {
   final String code, label;
 }
 
+const sellerConductReasons = [
+  SupportReason('price_disagreement', 'We could not agree on a price'),
+  SupportReason('changed_terms', 'Seller changed the agreed price or terms'),
+  SupportReason('missed_meetup', 'Seller missed a confirmed meetup'),
+  SupportReason('illegal_listing', 'Suspected illegal product or service'),
+  SupportReason('off_platform_evasion', 'Pressured me to bypass Hocalist’s purchase confirmation'),
+  SupportReason('fraud', 'Suspected scam or fraud'),
+  SupportReason('threats_or_harassment', 'Threats, harassment or abusive conduct'),
+  SupportReason('pin_abuse', 'Misuse of the purchase PIN'),
+  SupportReason('other_conduct', 'Other seller conduct'),
+];
+
 class SupportPageResult {
   const SupportPageResult(this.items, this.cursor);
   final List<SupportCase> items;
@@ -175,12 +187,18 @@ class SupportAdapter {
     required String reason,
     required String body,
     required String operationKey,
+    String? sellerOfferId,
   }) => _call(
-    'support_command',
-    {
+    sellerOfferId == null ? 'support_command' : 'seller_conduct_report',
+    sellerOfferId == null ? {
       'p_operation': 'create',
       'p_key': operationKey,
       'p_input': {'reason_code': reason, 'body': body},
+    } : {
+      'p_offer': sellerOfferId,
+      'p_category': reason,
+      'p_body': body,
+      'p_key': operationKey,
     },
     (m) {
       _status(m);

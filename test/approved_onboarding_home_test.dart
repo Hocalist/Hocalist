@@ -65,6 +65,32 @@ void main() {
     return 1;
   }
 
+  testWidgets('login accessibility action stays right aligned and usable', (tester) async {
+    for (final width in [320.0, 390.0, 430.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        var opened = false;
+        await pumpSurface(tester, ApprovedAccountCreationPage(
+          role: ApprovedAccountRole.buyer,
+          name: '',
+          onNameChanged: (_) {},
+          onRoleChanged: (_) {},
+          onClose: () {},
+          onSignup: () {},
+          onLogin: () {},
+          onAccessibility: () => opened = true,
+        ), width: width, textScale: scale);
+        final action = find.byKey(const ValueKey('welcome-accessibility-action'));
+        final bounds = tester.getRect(action);
+        expect(bounds.center.dx, greaterThan(width / 2));
+        expect(bounds.right, lessThanOrEqualTo(width));
+        expect(bounds.left, greaterThanOrEqualTo(0));
+        await tester.tap(action);
+        expect(opened, isTrue);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
   group('approved onboarding and home responsive layouts', () {
     for (final width in [360.0, 390.0, 426.0]) {
       testWidgets('$width account page fits at 1.6 text scale', (tester) async {
@@ -134,7 +160,11 @@ void main() {
           width: width,
         );
 
-        expect(find.textContaining('Good morning, Alex!'), findsOneWidget);
+        final name = find.byKey(const ValueKey('approved-buyer-home-name'));
+        final avatar = find.byKey(const ValueKey('approved-buyer-home-avatar'));
+        expect(tester.widget<Text>(name).data, 'Alex');
+        expect(find.textContaining('Good morning'), findsNothing);
+        expect(tester.getRect(avatar).right, lessThan(tester.getRect(name).left));
         expect(tester.takeException(), isNull);
       });
     }
@@ -592,7 +622,7 @@ void main() {
       );
 
       for (final label in [
-        'Buyers Earn Commissions From Sellers Targeting',
+        'Earn rewards on eligible purchases',
         'Businesses Don\'t Waste Money On Ads Just To Reach People',
         'A System designed to give both sides & Better Outcome',
         'Safe, private, and in your control',
@@ -793,9 +823,11 @@ void main() {
           tester.getBottomRight(find.textContaining('View all rewards')).dy,
       lessThan(16),
     );
+    final request = find.byKey(const ValueKey('approved-active-request-card'));
+    expect(find.text('View offers  ›'), findsNothing);
     expect(
-      tester.getCenter(find.text('View offers  ›')).dx,
-      greaterThan(tester.getCenter(find.text('iPad Air 5, 256GB').first).dx),
+      find.descendant(of: request, matching: find.byIcon(Icons.chevron_right)),
+      findsOneWidget,
     );
     await tester.ensureVisible(bannerFinder);
     await tester.pumpAndSettle();
@@ -805,7 +837,7 @@ void main() {
     );
     expect(banner.bottom, lessThanOrEqualTo(navigation.top));
     expect(
-      find.text('Keep earning more rewards').hitTestable(),
+      find.text('How rewards work').hitTestable(),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -870,7 +902,7 @@ void main() {
     );
     expect(pending.top, greaterThan(earned.bottom));
     expect(
-      find.text('Keep earning more rewards').hitTestable(),
+      find.text('How rewards work').hitTestable(),
       findsOneWidget,
     );
     final banner = tester.getRect(
@@ -937,7 +969,7 @@ void main() {
       expect(artwork.center.dy, closeTo(banner.center.dy, 1));
       expect(
         find.text(
-          'Refer friends, complete purchases, and unlock bigger rewards.',
+          'Eligible rewards follow PIN confirmation and seller fee collection.',
         ),
         findsOneWidget,
       );
@@ -1059,7 +1091,7 @@ void main() {
     );
     await tester.tap(
       find.bySemanticsLabel(
-        'I am buying. Get paid to buy and get the best offers. Post a request.',
+        'I am buying. Post a request and compare offers from sellers.',
       ),
     );
     expect(buyerCount, 1);

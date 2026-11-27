@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {setup,A,B,C,MB,acceptedDeal,schedule,propose,respond,callAs} from './fixture.mjs';
 test('private request PIN and one completed sale',async t=>{
  const db=await setup();
@@ -61,4 +62,53 @@ test('private request PIN and one completed sale',async t=>{
   await assert.rejects(db.query("UPDATE hocalist.meetings SET status='cancelled' WHERE id=$1",[m.id]),/sale_already_confirmed/);
  });
  }finally{await db.close();}
+});
+
+test('confirmed deals for the same buyer and seller reserve distinct PIN digits', async () => {
+ const db = await setup();
+ try {
+  await db.exec(await readFile(new URL('../../../supabase/migrations/20261126220427_reserve_unique_purchase_pins.sql', import.meta.url), 'utf8'));
+  const meetings = [];
+  for (const tag of ['first', 'second', 'third']) {
+   const deal = await acceptedDeal(db, tag);
+   const proposed = (await propose(db, A, deal.conversationId, schedule(), 'p-' + tag))[0].data;
+   const meeting = (await respond(db, B, proposed.id, true, proposed.revision, 'a-' + tag))[0].data;
+   await db.query("UPDATE hocalist.meetings SET meeting_expires_at=now()+interval '1 day' WHERE id=$1", [meeting.id]);
+   meetings.push(meeting);
+  }
+  const [first, second, third] = meetings;
+  const pin = async (user, meeting, action, value = null) =>
+   (await callAs(db, 'authenticated', user, 'SELECT hocalist.sale_pin($1,$2,$3) AS v',
+    [meeting.id, action, value]))[0].v;
+  const firstCode = (await pin(A, first, 'display')).pin;
+  await pin(A, second, 'display');
+  // Inject the same private candidate in this disposable database to prove
+  // collision handling without relying on random chance.
+  await db.query(`
+   UPDATE hocalist.request_pin_secrets AS target SET secret=source.secret
+   FROM hocalist.request_pin_secrets AS source
+   WHERE target.meeting_id=$1 AND source.meeting_id=$2
+  `, [second.id, first.id]);
+  const secondCode = (await pin(A, second, 'display')).pin;
+  assert.notEqual(secondCode, firstCode);
+  assert.equal((await pin(A, first, 'display')).pin, firstCode);
+  assert.equal((await pin(B, second, 'verify', firstCode)).status, 'incorrect');
+  assert.equal((await pin(B, first, 'status')).status, 'unconfirmed');
+  assert.equal((await pin(B, second, 'verify', secondCode)).status, 'confirmed');
+  assert.equal((await pin(B, first, 'status')).status, 'unconfirmed');
+  // Expired reservations can be released without deleting the attempt record.
+  await db.query('UPDATE hocalist.meetings SET meeting_expires_at=now() WHERE id=$1', [first.id]);
+  await db.query(`
+   INSERT INTO hocalist.request_pin_secrets(request_id,meeting_id,schedule_revision_id,secret)
+   SELECT meeting.request_id, meeting.id, meeting.accepted_revision_id, old.secret
+   FROM hocalist.meetings AS meeting CROSS JOIN hocalist.request_pin_secrets AS old
+   WHERE meeting.id=$1 AND old.meeting_id=$2
+  `, [third.id, first.id]);
+  assert.equal((await pin(A, third, 'display')).pin, firstCode);
+  await db.query("UPDATE hocalist.meetings SET meeting_expires_at=now()+interval '1 day' WHERE id=$1", [first.id]);
+  assert.equal((await pin(B, first, 'verify', firstCode)).status, 'buyer_must_open_pin');
+  assert.notEqual((await pin(A, first, 'display')).pin, firstCode);
+ } finally {
+  await db.close();
+ }
 });

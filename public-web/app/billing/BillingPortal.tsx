@@ -13,6 +13,7 @@ import PlanTargetingFees,{type PlanFeeRates} from './PlanTargetingFees';
 import SellerPlanIdentity from './SellerPlanIdentity';
 import PlanSelectionAction from './PlanSelectionAction';
 import { formatUsdMinor, parsePortalBody, safeReturnPath } from '../lib/website-rules';
+import { sellerPlanChoice } from '../lib/seller-plan-destination';
 import {
   intentMatches,
   readIntent,
@@ -99,6 +100,20 @@ export default function BillingPortal({
 }) {
   const returnTo = safeReturnPath(requestedReturnTo);
   const [view, setView] = useState<ViewState>({ kind: 'loading' });
+  const ready = view.kind === 'ready';
+  const focusedPlan = useRef(false);
+  useEffect(() => {
+    if (!ready || focusedPlan.current) return;
+    const plan = sellerPlanChoice(new URLSearchParams(window.location.search));
+    if (!plan) return;
+    const section = document.getElementById('seller-plans');
+    const card = document.getElementById(`seller-plan-${plan}`);
+    const target = card ?? section;
+    if (!target) return;
+    focusedPlan.current = true;
+    target.scrollIntoView({ block: 'start' });
+    target.focus({ preventScroll: true });
+  }, [ready]);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [billingInterval, setBillingInterval] = useState<'month'|'year'>('month');
   const [fundingOpen,setFundingOpen]=useState(false);
@@ -467,7 +482,7 @@ export default function BillingPortal({
             {action.message}
           </p>
         ) : null}
-      <div className="billing-card plan-selection-card" id="seller-plans">
+      <div className="billing-card plan-selection-card" id="seller-plans" tabIndex={-1}>
         <h2>Seller plans</h2>
         <p className="billing-note">
           Choose monthly or annual billing. Your plan provides seller tools and limits;
@@ -488,7 +503,7 @@ export default function BillingPortal({
           </div>
           {view.data.trial_days === 14 && !activePaid ? <p className="billing-note">Eligible new subscribers receive a 14-day trial. Your selected plan renews at the displayed price unless cancelled.</p> : null}
           <div className="billing-plan-grid">
-            <article className="billing-plan tier-free">
+            <article className="billing-plan tier-free" id="seller-plan-free" tabIndex={-1}>
               <SellerPlanIdentity plan="free" entitlement={view.data.entitlement} priceLabel="$0" current={!activePaid&&plan==='free'}/>
               <PlanTargetingFees rates={view.data.plan_fee_rates?.find(row=>row.plan_code==='free')}/>
               <div className="plan-choice-footer">{!activePaid&&<p className="billing-note plan-option-note">{plan==='pro'&&view.data.entitlement?.effective_source==='earned'?'Your account is Free with earned Pro benefits for this month.':'No monthly subscription payment.'}</p>}
@@ -500,7 +515,7 @@ export default function BillingPortal({
               const isCurrent = isCurrentPlan(activePaid,subscription?.plan??'',view.data.subscription_price?.billing_interval,entry.code,billingInterval);
               const price = `${formatUsdMinor(entry.amount_minor)} USD / ${billingInterval}`;
               return (
-                <article className={`billing-plan tier-${entry.code}`} key={entry.code}>
+                <article className={`billing-plan tier-${entry.code}`} id={`seller-plan-${entry.code}`} key={entry.code} tabIndex={-1}>
                   <SellerPlanIdentity plan={entry.code} entitlement={view.data.entitlement} priceLabel={price} current={isCurrent}/>
                   <PlanTargetingFees rates={view.data.plan_fee_rates?.find(row=>row.plan_code===entry.code)}/>
                   <PlanSelectionAction plan={entry.code}

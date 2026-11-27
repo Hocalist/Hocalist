@@ -367,8 +367,8 @@ class _WalletBody extends StatelessWidget {
             icon: Icons.track_changes_rounded,
             title: 'Weekly targeting capacity',
             body:
-                'This allowance is separate from your prepaid credits. '
-                'A winning adjustment never consumes another slot.',
+                'Your plan sets this limit. HocaCredits pay eligible offer fees. '
+                'Completing a sale doesn’t use another slot.',
             tone: SellerNoticeTone.neutral,
             trailing: Text(
               '${value.weekly.used} / ${value.weekly.limit}',
@@ -481,7 +481,7 @@ class _CurrentSellerFees extends StatelessWidget {
         if (quote.remainingWinningBid != null)
           Wrap(spacing: 24, runSpacing: 8, children: [
             SellerMetricTile(label: 'Initial fee', value: quote.initialBid),
-            SellerMetricTile(label: 'Winning total', value: quote.winningBid),
+            SellerMetricTile(label: 'Total fee if you win', value: quote.winningBid),
           ]),
         TextButton.icon(
           style: TextButton.styleFrom(
@@ -661,13 +661,13 @@ class _TargetActivityState extends State<_TargetActivity> {
                   ),
                   status: _targetLabel(target.status),
                   facts: {
-                    'Initial bid': _hc(target.initialMinor),
-                    'Winning total': _hc(target.winningMinor),
+                    'Initial lead fee': _hc(target.initialMinor),
+                    'Total fee if you win': _hc(target.winningMinor),
                     'Total charged': _hc(target.chargedMinor),
                     'Still reserved': _hc(target.reservedMinor),
                   },
                   note:
-                      'The winning total includes the initial bid. Your deposit’s saved rates apply.',
+                      'The total fee if you win includes the initial lead fee. Your deposit’s saved rates apply.',
                 ),
             ],
           ),
@@ -720,8 +720,8 @@ class _DepositBatchDetailsState extends State<_DepositBatchDetails> {
                         'Reserved': _hc(batch.reservedMinor),
                         'Remaining': _hc(batch.balanceMinor),
                         'Charged': _hc(batch.chargedMinor),
-                        'Initial bid': _hc(batch.initialFeeMinor),
-                        'Winning total': _hc(batch.winningTotalMinor),
+                        'Initial lead fee': _hc(batch.initialFeeMinor),
+                        'Total fee if you win': _hc(batch.winningTotalMinor),
                       },
                       note:
                           'These rates were saved with this deposit and stay attached to its credits.',
@@ -772,8 +772,8 @@ class _WalletFeeTable extends StatelessWidget {
             ),
             children: [
               cell('Wallet', heading: true),
-              cell('Initial bid', heading: true),
-              cell('Winning total', heading: true),
+              cell('Initial lead fee', heading: true),
+              cell('Total fee if you win', heading: true),
             ],
           ),
           for (final option in options)

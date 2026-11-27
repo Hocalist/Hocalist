@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/domain/phase2/common.dart';
+import 'package:hocalist/domain/phase2/catalogue.dart';
 import 'package:hocalist/domain/phase2/money.dart';
 import 'package:hocalist/domain/phase2/requests.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
@@ -109,6 +110,95 @@ Future<void> _postRequest(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'typing a different item updates preferences after answering a question',
+    (tester) async {
+      var title = '';
+      final stamp = RecordStamp(
+        revision: 1,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      );
+      final brand = CategoryQuestion(
+        CatalogueOptionGroup(
+          id: 'brand',
+          categoryId: 'tv',
+          label: 'Brand',
+          selectionMode: CatalogueSelectionMode.single,
+          status: CatalogueEntryStatus.active,
+          sortOrder: 0,
+          stamp: stamp,
+        ),
+        [
+          CatalogueOption(
+            id: 'samsung',
+            groupId: 'brand',
+            label: 'Samsung',
+            status: CatalogueEntryStatus.active,
+            sortOrder: 0,
+            stamp: stamp,
+          ),
+        ],
+      );
+      await _pump(
+        tester,
+        StatefulBuilder(
+          builder: (context, setTitle) {
+            return ApprovedRequestFlowPage(
+              accent: const Color(0xff1917ff),
+              requestTitle: title,
+              budget: '',
+              includeAppChrome: true,
+              onTitleChanged: (value) => setTitle(() => title = value),
+              onBudgetChanged: (_) {},
+              onBack: () {},
+              onNotifications: () {},
+              onSubmit: () {},
+              onSubmitDraft: (_, _) async =>
+                  throw StateError('No post expected'),
+              questionLoader: (id) async => id == 'tv' ? [brand] : [],
+              categories: const [
+                CatalogueCategoryOption(
+                  id: 'tv',
+                  label: 'TVs & audio',
+                  scope: 'product',
+                  status: 'active',
+                ),
+                CatalogueCategoryOption(
+                  id: 'couch',
+                  label: 'Sofas & chairs',
+                  scope: 'product',
+                  status: 'active',
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      Future<void> type(String value) async {
+        await tester.enterText(find.byType(TextFormField).first, value);
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+      }
+
+      await type('Samsung TV');
+      expect(find.text('TVs & audio'), findsOneWidget);
+      tester
+          .widget<DropdownButton<String>>(
+            find.byType(DropdownButton<String>).first,
+          )
+          .onChanged!('samsung');
+      await tester.pumpAndSettle();
+      expect(find.text('Samsung'), findsOneWidget);
+      await type('Gray sectional couch');
+      expect(find.text('Sofas & chairs'), findsOneWidget);
+      expect(find.text('Samsung'), findsNothing);
+      await type('Sony TV');
+      expect(find.text('TVs & audio'), findsOneWidget);
+      expect(find.text('Samsung'), findsOneWidget);
+    },
+  );
+
   testWidgets('location editor reopens the latest selected request address', (tester) async {
     final selected = RequestLocation.custom(address: const PostalAddress(
       line1: 'Test meeting place', city: 'Chicago', state: 'IL', country: 'US'));
@@ -407,15 +497,24 @@ void main() {
       ),
     );
 
+    final quantity = find.byKey(const Key('approved-request-quantity'));
+    await tester.ensureVisible(quantity);
+    await tester.enterText(quantity, '2');
+    final minimum = find.byKey(const Key('approved-request-budget-min'));
+    await tester.ensureVisible(minimum);
+    await tester.enterText(minimum, '350');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await _postRequest(tester);
 
     expect(drafts, hasLength(1));
     final draft = drafts.single;
     expect(draft.kind, RequestKind.product);
     expect(draft.title, 'iPad Air, 5th gen or newer');
-    expect(draft.condition, ProductCondition.newItem);
+    expect(draft.condition, isNull);
     expect(draft.serviceType, isNull);
-    expect(draft.quantity, 1);
+    expect(draft.quantity, 2);
+    expect(draft.budget.minimum?.minorUnits, 35000);
     expect(draft.acceptsHigherOffers, isTrue);
     expect(draft.location.useHomeAddress, isTrue);
     expect(draft.location.coordinates?.latitude, 43.07);
@@ -593,9 +692,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('approved-request-category-select')));
     await tester.pumpAndSettle();
-    expect(find.text('Cleaning'), findsOneWidget);
+    final cleaningOption = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('Cleaning'),
+    );
+    expect(cleaningOption, findsOneWidget);
     expect(find.text('Retired service'), findsNothing);
-    await tester.tap(find.text('Cleaning'));
+    await tester.tap(cleaningOption);
     await tester.pumpAndSettle();
 
     await _postRequest(tester);

@@ -61,6 +61,24 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('accessibility back action stays fully inside its header', (tester) async {
+    for (final width in [320.0, 390.0, 430.0]) {
+      for (final scale in [1.0, 1.15, 1.3, 1.6]) {
+        var returned = false;
+        useViewport(tester, Size(width, 920), textScale: scale);
+        await tester.pumpWidget(accessibilityHarness(onBack: () => returned = true));
+        await tester.pumpAndSettle();
+        final back = find.byKey(const Key('accessibility-back'));
+        final header = find.ancestor(of: back, matching: find.byType(Stack)).first;
+        expect(tester.getRect(back).left, greaterThanOrEqualTo(tester.getRect(header).left));
+        expect(tester.getRect(back).right, lessThanOrEqualTo(tester.getRect(header).right));
+        await tester.tap(back);
+        expect(returned, isTrue);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
   testWidgets('390 default replica fits every approved section before nav', (
     tester,
   ) async {

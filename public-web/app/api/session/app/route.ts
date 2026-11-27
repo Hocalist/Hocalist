@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { allowedAppOrigin, APP_RETURN_COOKIE } from '../../../lib/app-billing-return';
 import { callRpc, siteConfig, SESSION_COOKIE, REFRESH_COOKIE } from '../../../lib/website-session';
 import { sessionCookieOptions, refreshCookieOptions } from '../../../lib/website-rules';
+import { sellerBillingPath } from '../../../lib/seller-plan-destination';
 
 // A top-level POST from the explicitly configured app establishes a short-lived
 // website session. Tokens never enter URLs; no app refresh token is transferred
@@ -56,7 +57,8 @@ export async function POST(request: Request) {
   } catch { return deny(401); }
   const seller = await callRpc(config, token, 'website_purchase_status');
   if (!seller.ok) return deny(seller.status === 403 ? 403 : 503);
-  const response = new NextResponse(null, { status: 303, headers: { Location: '/billing' } });
+  const billingPath = sellerBillingPath(new URL(request.url).searchParams);
+  const response = new NextResponse(null, { status: 303, headers: { Location: billingPath } });
   const isProduction = process.env.NODE_ENV === 'production';
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('Referrer-Policy', 'no-referrer');

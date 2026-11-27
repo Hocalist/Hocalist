@@ -18,7 +18,7 @@ import 'money.dart';
 
 enum RequestKind { product, service }
 
-/// Product condition values shown as `New` / `Used`.
+/// An omitted product condition means the buyer is open to new or used items.
 enum ProductCondition { newItem, used }
 
 /// Service type values shown as `Single` / `Ongoing`.
@@ -302,15 +302,6 @@ class RequestDraft {
     }
     switch (kind) {
       case RequestKind.product:
-        if (condition == null) {
-          issues.add(
-            const ValidationIssue(
-              field: 'condition',
-              code: ValidationCodes.requiredField,
-              message: 'Choose whether the product is new or used.',
-            ),
-          );
-        }
         if (serviceType != null) {
           issues.add(
             const ValidationIssue(

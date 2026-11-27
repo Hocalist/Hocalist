@@ -532,12 +532,13 @@ class _AccessibilityHeader extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: metrics.size(-13),
+            left: 0,
             top: (height - metrics.size(44)) / 2,
             child: IconButton(
               key: const Key('accessibility-back'),
               tooltip: 'Back',
               onPressed: onBack,
+              padding: EdgeInsets.zero,
               constraints: BoxConstraints.tightFor(
                 width: metrics.size(44),
                 height: metrics.size(44),

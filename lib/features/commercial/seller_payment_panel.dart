@@ -4,12 +4,21 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/seller_ui_foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/phase2/providers/provider_runtime.dart';
+import '../../domain/phase2/commercial/commercial.dart';
 import 'billing_session_navigation.dart';
 import 'native_billing_navigation.dart';
 
 // Checkout returns to this hosted origin. Starting there as well preserves its
 // own authenticated website session, including from a localhost app preview.
-Uri sellerBillingWebsite() => Uri.parse('https://hocalist.com/billing');
+Uri sellerBillingWebsite({PlanCode? plan}) {
+  final billing = Uri.parse('https://hocalist.com/billing');
+  return plan == null
+      ? billing
+      : billing.replace(
+          queryParameters: {'plan': plan.name},
+          fragment: 'seller-plans',
+        );
+}
 
 /// Opens the existing authenticated website; never handles card data locally.
 class SellerPaymentPanel extends StatefulWidget {
@@ -19,6 +28,7 @@ class SellerPaymentPanel extends StatefulWidget {
     this.label,
     this.compact = false,
     this.preserveDraft = false,
+    this.plan,
     super.key,
   });
   final bool compact;
@@ -26,6 +36,7 @@ class SellerPaymentPanel extends StatefulWidget {
   final String? label;
   final Future<bool> Function(Uri)? open;
   final bool creditPurchase;
+  final PlanCode? plan;
   @override
   State<SellerPaymentPanel> createState() => _SellerPaymentPanelState();
 }
@@ -33,8 +44,15 @@ class SellerPaymentPanel extends StatefulWidget {
 class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
   bool _busy = false;
   bool _failed = false;
+  bool _checkoutPaused = false;
   Future<void> _open() async {
     if (_busy) return;
+    if (widget.plan != null &&
+        widget.open == null &&
+        const bool.fromEnvironment('HOCALIST_USB_QA')) {
+      setState(() => _checkoutPaused = true);
+      return;
+    }
     setState(() {
       _busy = true;
       _failed = false;
@@ -49,7 +67,10 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
           minimumValidity: const Duration(minutes: 30),
         );
         fence.check();
-        final destination = await nativeBillingDestination(token);
+        final destination = await nativeBillingDestination(
+          token,
+          plan: widget.plan,
+        );
         fence.check();
         // A token refresh can rebuild the account/plan surface. The explicit
         // native launch intent belongs to this authenticated user, not that
@@ -79,8 +100,12 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
           );
           fence.check();
           if (!mounted) return;
-          if (submitBillingSession(sellerBillingWebsite(), token, userId,
-              newWindow: widget.preserveDraft)) {
+          if (submitBillingSession(
+            sellerBillingWebsite(plan: widget.plan),
+            token,
+            userId,
+            newWindow: widget.preserveDraft,
+          )) {
             if (mounted) setState(() => _busy = false);
             return;
           }
@@ -93,8 +118,10 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
                 mode: kIsWeb
                     ? LaunchMode.platformDefault
                     : LaunchMode.externalApplication,
-                webOnlyWindowName: kIsWeb ? (widget.preserveDraft ? '_blank' : '_self') : null,
-              ))(sellerBillingWebsite());
+                webOnlyWindowName: kIsWeb
+                    ? (widget.preserveDraft ? '_blank' : '_self')
+                    : null,
+              ))(sellerBillingWebsite(plan: widget.plan));
       if (mounted) {
         setState(() {
           _busy = false;
@@ -130,6 +157,12 @@ class _SellerPaymentPanelState extends State<SellerPaymentPanel> {
               : 'Open your seller billing account to manage payment methods. Your card details stay securely with the payment provider.',
         ),
       if (!widget.compact) const SizedBox(height: 12),
+      if (_checkoutPaused)
+        const SellerStateNotice(
+          icon: Icons.lock_outline,
+          title: 'Checkout is disabled in this test build',
+          body: 'Plan selection uses Hocalist billing in the release app.',
+        ),
       if (_failed)
         const SellerStateNotice(
           icon: Icons.error_outline,

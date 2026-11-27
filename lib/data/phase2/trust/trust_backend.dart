@@ -85,6 +85,8 @@ class TrustStatusView {
     required this.reviewStatus,
     required this.items,
     required this.restrictions,
+    this.conductScore,
+    this.confirmedIncidents = 0,
   });
 
   final bool emailVerified;
@@ -92,6 +94,8 @@ class TrustStatusView {
   final String reviewStatus;
   final List<VerificationItemView> items;
   final List<AccountRestrictionView> restrictions;
+  final int? conductScore;
+  final int confirmedIncidents;
 }
 
 abstract interface class TrustBackend {
@@ -254,6 +258,9 @@ class Phase2TrustBackend implements TrustBackend {
     final emailPhone = verification['email_phone'];
     final items = verification['items'];
     final restrictions = health['restrictions'];
+    final conduct = health['conduct'];
+    final score = conduct is Map ? conduct['score'] : null;
+    final incidents = conduct is Map ? conduct['confirmed_incidents'] : null;
     if (emailPhone is! Map || items is! List || restrictions is! List) {
       throw const TrustUnavailableException(
         'The review status response was invalid.',
@@ -269,6 +276,8 @@ class Phase2TrustBackend implements TrustBackend {
       restrictions: List.unmodifiable(
         restrictions.map((row) => _decodeRestriction(row)),
       ),
+      conductScore: score is int && score >= 0 && score <= 100 ? score : null,
+      confirmedIncidents: incidents is int && incidents >= 0 ? incidents : 0,
     );
   }
 

@@ -22,6 +22,72 @@ abstract final class HocalistMotion {
   );
 }
 
+/// Plays once when a loaded value advances, with the first value as baseline.
+class HocalistEventFeedback<T> extends StatefulWidget {
+  const HocalistEventFeedback({
+    required this.value,
+    required this.isNewEvent,
+    required this.duration,
+    required this.builder,
+    required this.child,
+    super.key,
+  });
+
+  final T? value;
+  final bool Function(T previous, T current) isNewEvent;
+  final Duration duration;
+  final Widget Function(BuildContext context, double progress, Widget child)
+      builder;
+  final Widget child;
+
+  @override
+  State<HocalistEventFeedback<T>> createState() =>
+      _HocalistEventFeedbackState<T>();
+}
+
+class _HocalistEventFeedbackState<T> extends State<HocalistEventFeedback<T>>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+    value: 1,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (HocalistMotion.reduced(context)) _controller.value = 1;
+  }
+
+  @override
+  void didUpdateWidget(HocalistEventFeedback<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final previous = oldWidget.value;
+    final current = widget.value;
+    if (current == null) {
+      _controller.value = 1;
+    } else if (previous != null &&
+        widget.isNewEvent(previous, current) &&
+        !HocalistMotion.reduced(context)) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    child: widget.child,
+    builder: (context, child) =>
+        widget.builder(context, _controller.value, child!),
+  );
+}
+
 /// Restarts presentation for a new state without disposing retained forms or
 /// keeping outgoing actions alive. The child is always the current child.
 class HocalistStateTransition extends StatefulWidget {

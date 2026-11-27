@@ -98,7 +98,7 @@ void main() {
         ),
       ),
     );
-    await tap(t, find.text('Ask for help'));
+    await tap(t, find.text('Get help or send feedback'));
     expect(general, 1);
     expect(safety, 0);
     await tap(t, find.text('Report a safety concern'));
@@ -145,7 +145,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    expect(find.text('Help & support'), findsOneWidget);
+    expect(find.text('Help & feedback'), findsOneWidget);
     expect(find.text('General support'), findsOneWidget);
     await t.enterText(find.byType(TextField), 'A general account question.');
     await tap(t, find.text('Send question'));

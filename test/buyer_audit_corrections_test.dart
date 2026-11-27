@@ -32,7 +32,7 @@ void main() {
     await tap(
       t,
       find.bySemanticsLabel(
-        'I am buying. Get paid to buy and get the best offers. Post a request.',
+        'I am buying. Post a request and compare offers from sellers.',
       ),
     );
     expect(find.text('Maya Chen'), findsNothing);
@@ -80,7 +80,7 @@ void main() {
       await tap(
         t,
         find.bySemanticsLabel(
-          'I am buying. Get paid to buy and get the best offers. Post a request.',
+          'I am buying. Post a request and compare offers from sellers.',
         ),
       );
       await t.enterText(

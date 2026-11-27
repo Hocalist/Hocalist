@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/features/approved/request_flow_pages.dart';
 import 'package:hocalist/features/approved/onboarding_home_pages.dart';
+import 'package:hocalist/theme/buyer_ui_foundation.dart';
 import 'test_fonts.dart';
 
 void main() {
@@ -38,12 +39,8 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final logo = find.byWidgetPredicate(
-          (widget) =>
-              widget is Image &&
-              widget.semanticLabel == 'Hocalist Reverse Marketplace',
-        );
-        final mode = find.textContaining('Buyer').first;
+        final logo = find.byKey(BuyerTopLevelHeader.logoKey);
+        final mode = find.byKey(BuyerTopLevelHeader.modeKey);
         expect(
           tester.getSize(logo).width,
           lessThanOrEqualTo(88),
@@ -51,8 +48,8 @@ void main() {
               'Request logo keeps the same bounded slot as other buyer pages',
         );
         expect(
-          tester.getRect(logo).right,
-          lessThanOrEqualTo(tester.getRect(mode).left),
+          tester.getRect(logo).deflate(0.01).overlaps(tester.getRect(mode)),
+          isFalse,
           reason: '$width / $scale',
         );
         expect(

@@ -1,4 +1,5 @@
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'package:image/image.dart' as img;
 import 'package:hocalist/data/phase2/media/image_gateway.dart';
 import 'support/synthetic_image_picker.dart';
 // Store connection tests: user-visible acknowledgement, pending review and
@@ -6,22 +7,29 @@ import 'support/synthetic_image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
+import 'package:hocalist/domain/phase2/commercial/commercial.dart';
+import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
+import 'package:hocalist/features/media/private_remote_image.dart';
+import 'package:hocalist/features/media/private_image_picker.dart';
 import 'package:hocalist/features/seller/approved_seller_store_page.dart';
 import 'package:hocalist/features/seller/seller_app_shell.dart';
 import 'package:hocalist/features/seller/seller_bottom_navigation.dart';
 
 import 'test_fonts.dart';
+import 'phase2/commercial/support/commercial_payloads.dart';
 
 const String categoryId = '20000000-0000-4000-8000-000000000001';
 
 class _WidgetStoreBackend implements MarketplaceStoreBackend {
   List<LocalStoreListing> listings = <LocalStoreListing>[];
+  Future<List<LocalStoreListing>> Function()? onLoadListings;
   Future<StoreWriteResult> Function(LocalStoreListing listing, String key)?
   onSave;
   final List<String> saveKeys = <String>[];
 
   @override
-  Future<List<LocalStoreListing>> loadListings() async => listings;
+  Future<List<LocalStoreListing>> loadListings() async =>
+      onLoadListings == null ? listings : await onLoadListings!();
 
   @override
   Future<List<StoreCategoryOption>> loadCategories() async => const [
@@ -103,6 +111,10 @@ void main() {
     LocalMarketplaceRepository repository, {
     String? sellerName,
     ImageUpload? imageUpload,
+    Future<Map<String, dynamic>> Function()? loadPublicProfile,
+    Future<SellerEntitlementView?> Function()? loadEntitlement,
+    Future<List<SellerLeadView>> Function(LocalStoreListing listing)?
+        loadMatchingRequests,
   }) async {
     await repository.refreshStore();
     await tester.binding.setSurfaceSize(const Size(390, 900));
@@ -129,6 +141,10 @@ void main() {
                 repository: repository,
                 sellerName: sellerName,
                 imageUpload: imageUpload,
+                loadPublicProfile: loadPublicProfile,
+                loadEntitlement: loadEntitlement,
+                loadMatchingRequests: loadMatchingRequests,
+                onOpenMatchingRequest: (_) {},
                 onStoreSettings: () {},
               ),
             ),
@@ -136,6 +152,20 @@ void main() {
         ),
       ),
     );
+    await _settle(tester);
+  }
+
+  Future<void> applyStatusFilter(WidgetTester tester, String status) async {
+    final open = find.byKey(const Key('sellerStoreFilter'));
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    await _settle(tester);
+    final option = find.text(status).last;
+    await tester.ensureVisible(option);
+    await tester.tap(option);
+    final apply = find.text('Apply filters');
+    await tester.ensureVisible(apply);
+    await tester.tap(apply);
     await _settle(tester);
   }
 
@@ -184,7 +214,11 @@ void main() {
     tester,
   ) async {
     final previous = ImagePickerPlatform.instance;
-    final picker = SyntheticImagePicker();
+    final source = img.Image(width: 60, height: 30);
+    for (final pixel in source) {
+      pixel.setRgb(pixel.x < 30 ? 230 : 0, 0, pixel.x < 30 ? 0 : 230);
+    }
+    final picker = SyntheticImagePicker(sourceImage: source);
     ImagePickerPlatform.instance = picker;
     addTearDown(() => ImagePickerPlatform.instance = previous);
     final backend = _WidgetStoreBackend();
@@ -196,12 +230,26 @@ void main() {
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
     var uploads = 0;
+    var entitlementReads = 0;
     await pumpStore(
       tester,
       repository,
+      loadEntitlement: () async {
+        entitlementReads++;
+        return null;
+      },
       imageUpload: (bytes, key) async {
         uploads++;
-        expect(bytes.take(2).toList(), [255, 216]);
+        final cropped = img.decodeJpg(bytes)!;
+        expect(cropped.width, cropped.height);
+        if (uploads == 1) {
+          expect(cropped.width, lessThan(30));
+          final pixel = cropped.getPixel(0, 0);
+          expect(pixel.b, greaterThan(180));
+          expect(pixel.r, lessThan(50));
+        } else {
+          expect(cropped.width, 30);
+        }
         return 'synthetic-image-id';
       },
     );
@@ -213,6 +261,20 @@ void main() {
         await _settle(tester);
         await tester.tap(find.text('Add photo'));
         await _settle(tester);
+        await tester.tap(find.text('Cancel').last);
+        await _settle(tester);
+        expect(uploads, 0);
+        await tester.tap(find.text('Add photo'));
+        await _settle(tester);
+        final slider = tester.getRect(find.byType(Slider));
+        await tester.tapAt(Offset(slider.left + slider.width * .8, slider.center.dy));
+        await _settle(tester);
+        final crop = find.byKey(const Key('storePhotoCropPreview'));
+        await tester.timedDrag(crop, const Offset(-140, 0), const Duration(milliseconds: 450));
+        await _settle(tester);
+        expect(uploads, 0);
+        await tester.tap(find.text('Use crop'));
+        await _settle(tester);
         final remove = find.byTooltip('Remove photo');
         await tester.ensureVisible(remove);
         await _settle(tester);
@@ -222,10 +284,14 @@ void main() {
         await tester.ensureVisible(find.text('Add photo'));
         await tester.tap(find.text('Add photo'));
         await _settle(tester);
+        await tester.tap(find.text('Use crop'));
+        await _settle(tester);
       },
     );
     await tapPublish(tester);
-    expect(picker.calls, 2);
+    expect(entitlementReads, 2);
+    expect(find.text('Saving…'), findsNothing);
+    expect(picker.calls, 3);
     expect(uploads, 2);
     expect(backend.listings.single.imageMediaIds, ['synthetic-image-id']);
     await repository.refreshStore();
@@ -235,6 +301,21 @@ void main() {
     final titleAction = find.byKey(const Key('sellerStoreTitle-server-photo'));
     await tester.ensureVisible(titleAction);
     await _settle(tester);
+    final listingCard = find.byKey(const Key('sellerStoreListing-server-photo'));
+    final photo = find.descendant(
+      of: listingCard,
+      matching: find.byType(PrivateRemoteImage),
+    );
+    final photoRect = tester.getRect(photo);
+    expect(photoRect.height, closeTo(photoRect.width, 1));
+    final category = find.descendant(
+      of: listingCard,
+      matching: find.text('Product · Electronics'),
+    );
+    expect(
+      tester.getTopLeft(category).dy - tester.getBottomLeft(titleAction).dy,
+      closeTo(0, 1),
+    );
     await tester.tap(titleAction);
     await _settle(tester);
     expect(find.text('Edit listing'), findsOneWidget);
@@ -244,6 +325,46 @@ void main() {
     await _settle(tester);
     expect(find.text('Edit listing'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('feedback photos keep their full frame', (tester) async {
+    final previous = ImagePickerPlatform.instance;
+    ImagePickerPlatform.instance = SyntheticImagePicker(
+      sourceImage: img.Image(width: 60, height: 30),
+    );
+    addTearDown(() => ImagePickerPlatform.instance = previous);
+    var uploads = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PrivateImagePicker(
+          storePhotoControls: true,
+          addLabel: 'Attach screenshot (optional)',
+          upload: (bytes, _) async {
+            final photo = img.decodeJpg(bytes)!;
+            expect(photo.width, 60);
+            expect(photo.height, 30);
+            uploads++;
+            return 'feedback-photo';
+          },
+          onChanged: (_) {},
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Attach screenshot (optional)'));
+    await _settle(tester);
+    expect(uploads, 1);
+    expect(find.text('Crop listing photo'), findsNothing);
+  });
+
+  test('Store catalogue survives an initial listing read failure', () async {
+    final backend = _WidgetStoreBackend()
+      ..onLoadListings = () async => throw const StoreBackendException('Listings unavailable');
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    await repository.refreshStore();
+    expect(repository.storeError, 'Listings unavailable');
+    expect(repository.storeCatalogueLoaded, isTrue);
+    expect(repository.storeCategories.single.id, categoryId);
   });
 
   test('background Store refresh updates approval without loading flicker', () async {
@@ -362,7 +483,7 @@ void main() {
     addTearDown(repository.dispose);
     await pumpStore(tester, repository);
     expect(find.text('Archived item'), findsOneWidget);
-    expect(find.text('All (1)'), findsOneWidget);
+    expect(find.text('Your listings'), findsOneWidget);
     expect(repository.storeListings, isEmpty);
     expect(repository.archivedStoreListings, hasLength(1));
     await tester.tap(find.byTooltip('Store options'));
@@ -370,6 +491,7 @@ void main() {
     await tester.tap(find.text('Archived listings'));
     await _settle(tester);
     expect(find.text('Archived item'), findsOneWidget);
+    await tester.ensureVisible(find.text('Archived item'));
     await tester.tap(find.text('Archived item'));
     await _settle(tester);
     expect(find.text('Publish listing'), findsNothing);
@@ -382,7 +504,7 @@ void main() {
     expect(find.text('0 published'), findsOneWidget);
   });
 
-  testWidgets('status shortcuts show only matching listings and counts follow search', (tester) async {
+  testWidgets('the filter button narrows listings by status and search', (tester) async {
     const base = LocalStoreListing(
       id: 'active', kind: LocalListingKind.product, title: 'Active camera',
       priceLabel: '15', description: '', category: 'Electronics',
@@ -399,22 +521,23 @@ void main() {
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
     await pumpStore(tester, repository);
-    expect(find.text('All (6)'), findsOneWidget);
+    expect(find.text('Your listings'), findsOneWidget);
     for (final pair in {
-      'Active': 'Active camera', 'In review': 'Review camera', 'Not approved': 'Rejected tripod',
+      'Live': 'Active camera', 'In review': 'Review camera', 'Needs changes': 'Rejected tripod',
       'Draft': 'Draft lens', 'Paused': 'Paused lens', 'Archived': 'Archived lens',
     }.entries) {
-      final chip = find.text('${pair.key} (1)');
-      await tester.ensureVisible(chip);
-      await tester.tap(chip);
-      await _settle(tester);
+      await applyStatusFilter(tester, pair.key);
       expect(find.text(pair.value), findsOneWidget);
       expect(find.byTooltip('Manage listing'), findsOneWidget);
     }
-    await tester.enterText(find.byKey(const Key('sellerStoreSearch')), 'camera');
+    await applyStatusFilter(tester, 'All statuses');
+    final search = find.byKey(const Key('sellerStoreSearch'));
+    await tester.ensureVisible(search);
+    await tester.enterText(search, 'camera');
     await _settle(tester);
-    expect(find.text('All (2)'), findsOneWidget);
-    expect(find.text('Archived (0)'), findsOneWidget);
+    expect(find.text('Active camera'), findsOneWidget);
+    expect(find.text('Review camera'), findsOneWidget);
+    expect(find.text('Archived lens'), findsNothing);
   });
 
   testWidgets('pending review is not presented as published', (tester) async {
@@ -443,13 +566,10 @@ void main() {
     expect(find.text('In review'), findsOneWidget);
     expect(find.text('0 published'), findsOneWidget);
     expect(find.text('Awaiting review item'), findsOneWidget);
-    await tester.ensureVisible(find.text('Active (0)'));
-    await tester.tap(find.text('Active (0)'));
-    await _settle(tester);
+    await applyStatusFilter(tester, 'Live');
     expect(find.text('Awaiting review item'), findsNothing);
-    await tester.ensureVisible(find.text('In review (1)'));
-    await tester.tap(find.text('In review (1)'));
-    await _settle(tester);
+    await applyStatusFilter(tester, 'In review');
+    await tester.ensureVisible(find.text('Awaiting review item'));
     await tester.tap(find.text('Awaiting review item'));
     await _settle(tester);
     expect(find.text('Archive listing'), findsOneWidget);
@@ -467,15 +587,26 @@ void main() {
     expect(repository.storeListings, hasLength(1));
   });
 
-  testWidgets('backed preview uses the real seller name and no share claim', (
+  testWidgets('backed preview shows the company and only opted-in contact', (
     tester,
   ) async {
     final backend = _WidgetStoreBackend();
     final repository = LocalMarketplaceRepository(storeBackend: backend);
     addTearDown(repository.dispose);
-    await pumpStore(tester, repository, sellerName: 'Real Seller Co');
+    await pumpStore(
+      tester,
+      repository,
+      sellerName: 'Real Seller Co',
+      loadPublicProfile: () async => {
+        'available': true,
+        'display_name': 'Real Seller Co',
+        'area_label': 'Orlando, FL',
+        'phone': '(407) 555-0142',
+        'email': null,
+      },
+    );
 
-    expect(find.text('No listings yet'), findsWidgets);
+    expect(find.text('Add your first listing'), findsOneWidget);
     expect(find.text('Store active'), findsNothing);
 
     await tester.tap(find.byKey(const Key('sellerStoreMenu')));
@@ -485,10 +616,48 @@ void main() {
     await tester.tap(find.byKey(const Key('sellerStorePreviewAction')));
     await _settle(tester);
 
-    expect(find.text('Real Seller Co'), findsOneWidget);
+    expect(find.text('Real Seller Co'), findsWidgets);
+    expect(find.text('Orlando, FL'), findsWidgets);
+    expect(find.text('Contact this business'), findsOneWidget);
+    expect(find.text('Phone: (407) 555-0142'), findsOneWidget);
+    expect(find.textContaining('Email:'), findsNothing);
     expect(find.text('Northside Tech'), findsNothing);
     expect(find.textContaining('Verified seller'), findsNothing);
     expect(find.text('Public store preview'), findsWidgets);
+  });
+
+  testWidgets('paid Store uses server capacity and the selected listing for matches', (
+    tester,
+  ) async {
+    const listing = LocalStoreListing(
+      id: 'tv', kind: LocalListingKind.product, title: 'Smart TV',
+      priceLabel: r'$240', description: '', category: 'Electronics',
+      categoryId: categoryId, serviceArea: 'Orlando', availability: 'Today',
+      status: LocalListingStatus.active,
+    );
+    final backend = _WidgetStoreBackend()..listings = [listing];
+    final repository = LocalMarketplaceRepository(storeBackend: backend);
+    addTearDown(repository.dispose);
+    String? loadedCategory;
+    await pumpStore(
+      tester,
+      repository,
+      loadEntitlement: () async => SellerEntitlementView.fromJson(entitlementJson(
+        effectivePlan: 'pro', effectiveSource: 'billing', billingPlan: 'pro',
+        storeLimit: 15, activeListings: 1,
+      )),
+      loadMatchingRequests: (source) async {
+        loadedCategory = source.categoryId;
+        return [];
+      },
+    );
+    expect(find.text('1 of 15 listing slots used'), findsOneWidget);
+    final matches = find.text('Find matching requests');
+    await tester.ensureVisible(matches);
+    await tester.tap(matches);
+    await _settle(tester);
+    expect(loadedCategory, categoryId);
+    expect(find.text('No open buyer requests match this category right now.'), findsOneWidget);
   });
 
   testWidgets('backed store without active categories disables adding', (

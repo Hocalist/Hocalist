@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application
-        android:label="Hocalist"
+        android:label="${HOCALIST_APP_LABEL}"
         android:name="${applicationName}"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
@@ -59,14 +59,14 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.hocalist.app"
+                <data android:scheme="${HOCALIST_CALLBACK_SCHEME}"
                     android:host="login-callback" android:path="/" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.hocalist.app"
+                <data android:scheme="${HOCALIST_CALLBACK_SCHEME}"
                     android:host="billing-return" android:path="/" />
             </intent-filter>
         </activity>

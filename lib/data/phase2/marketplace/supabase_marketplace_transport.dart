@@ -30,6 +30,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'support_reasons',
     'support_list',
     'support_command',
+    'seller_conduct_report',
     'report_evidence_attach',
     'marketplace_catalogue',
     'marketplace_locations',
@@ -41,6 +42,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'meeting_accept_offer',
     'meeting_reschedule_propose',
     'meeting_cancel',
+    'meeting_buyer_manage',
     'notification_inbox',
     'notification_mark_read',
     'notification_mark_all_read',
@@ -53,6 +55,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'marketplace_my_offers',
     'marketplace_offer',
     'chat_deals',
+    'chat_deal_price',
     'marketplace_store_summary',
     'marketplace_my_store_listings',
     'marketplace_restore_store_listing',
@@ -96,6 +99,7 @@ class SupabaseMarketplaceTransport implements MarketplaceTransport {
     'seller_customers',
     'seller_customer_save',
     'seller_customer_insights',
+    'seller_lead_insights',
     'discovery_open_enquiry',
   };
 

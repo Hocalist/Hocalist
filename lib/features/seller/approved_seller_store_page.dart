@@ -2,6 +2,7 @@ import '../../domain/phase2/category_answers.dart';
 import '../approved/category_question_editor.dart';
 import 'package:hocalist/theme/adaptive_palette.dart';
 import '../../components/hocalist_motion.dart';
+import '../../components/pull_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,6 +15,8 @@ import '../media/private_remote_image.dart';
 import '../approved/place_capture_sheet.dart';
 import '../../data/phase2/maps/places_composition.dart';
 import '../../data/phase2/maps/device_location.dart';
+import '../../domain/phase2/commercial/commercial.dart';
+import 'approved_seller_leads_page.dart' show SellerLeadView;
 
 enum _StoreKindFilter { all, products, services }
 
@@ -37,6 +40,10 @@ class ApprovedSellerStorePage extends StatefulWidget {
     required this.onStoreSettings,
     this.sellerName,
     this.sellerProfileId,
+    this.loadPublicProfile,
+    this.loadEntitlement,
+    this.loadMatchingRequests,
+    this.onOpenMatchingRequest,
     this.imageUpload,
     this.hocatrendsControl,
     this.questionLoader = loadCategoryQuestions,
@@ -49,6 +56,11 @@ class ApprovedSellerStorePage extends StatefulWidget {
   /// Authoritative seller display name for the real public preview.
   final String? sellerName;
   final String? sellerProfileId;
+  final Future<Map<String, dynamic>> Function()? loadPublicProfile;
+  final Future<SellerEntitlementView?> Function()? loadEntitlement;
+  final Future<List<SellerLeadView>> Function(LocalStoreListing listing)?
+      loadMatchingRequests;
+  final ValueChanged<SellerLeadView>? onOpenMatchingRequest;
   final ImageUpload? imageUpload;
   final Widget Function(String listingId)? hocatrendsControl;
   final CategoryQuestionLoader questionLoader;
@@ -63,6 +75,33 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
   _StoreKindFilter _kindFilter = _StoreKindFilter.all;
   _StoreStatusFilter _statusFilter = _StoreStatusFilter.all;
   String _query = '';
+  Future<Map<String, dynamic>>? _publicProfile;
+  Future<SellerEntitlementView?>? _entitlement;
+
+  @override
+  void initState() {
+    super.initState();
+    _publicProfile = widget.loadPublicProfile?.call();
+    _entitlement = widget.loadEntitlement?.call();
+  }
+
+  void _refreshEntitlement() {
+    final load = widget.loadEntitlement;
+    if (load == null) return;
+    final entitlement = Future.sync(load);
+    setState(() {
+      _entitlement = entitlement;
+    });
+  }
+
+  Future<void> _refreshPresentation() async {
+    final load = widget.loadPublicProfile;
+    final profile = load == null ? null : Future.sync(load);
+    setState(() {
+      _publicProfile = profile;
+    });
+    _refreshEntitlement();
+  }
 
   @override
   void dispose() {
@@ -111,6 +150,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
               operationKey: operationKey,
             );
             if (!mounted) return const _StoreEditorOutcome();
+            _refreshEntitlement();
             final warning = widget.repository.storeError;
             _showMessage(
               warning ?? _savedMessage(result, isNew: listing == null),
@@ -204,14 +244,14 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
               subtitle:
                   widget.sellerProfileId != null &&
                       widget.repository.storeListings.any(
-                        (l) => l.isPubliclyVisible,
+                        (l) => l.isPubliclyVisible && !l.pendingSync,
                       )
                   ? 'Copy a link to your published Store. Drafts stay private.'
                   : 'Publish an approved listing before sharing your Store.',
               enabled:
                   widget.sellerProfileId != null &&
                   widget.repository.storeListings.any(
-                    (l) => l.isPubliclyVisible,
+                    (l) => l.isPubliclyVisible && !l.pendingSync,
                   ),
               onTap: () async {
                 final id = widget.sellerProfileId;
@@ -234,7 +274,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
 
   Future<void> _showPublicStorePreview() async {
     final active = widget.repository.storeListings
-        .where((listing) => listing.isPubliclyVisible)
+        .where((listing) => listing.isPubliclyVisible && !listing.pendingSync)
         .toList(growable: false);
     await showModalBottomSheet<void>(
       context: context,
@@ -249,18 +289,12 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (!widget.repository.isStoreBacked)
-              const _StoreIdentityCard()
-            else if ((widget.sellerName ?? '').trim().isNotEmpty)
-              _StoreIdentityCard(
-                name: widget.sellerName!.trim(),
-                realMode: true,
-              ),
+            _storeIdentity(publicPreview: true),
             const SizedBox(height: 12),
             if (active.isEmpty)
               const _StoreEmptyState(
-                title: 'Nothing published yet',
-                body: 'Publish a listing before sharing your public store.',
+                title: 'No live listings yet',
+                body: 'Approved, published listings will appear here.',
               )
             else
               for (final listing in active) ...[
@@ -273,8 +307,33 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
     );
   }
 
+  Widget _storeIdentity({bool publicPreview = false}) =>
+      FutureBuilder<Map<String, dynamic>>(
+        future: _publicProfile,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          return _StoreIdentityCard(
+            name: _publicText(data, 'display_name') ?? widget.sellerName,
+            avatarId: _publicText(data, 'avatar_media_id'),
+            area: _publicText(data, 'area_label'),
+            phone: publicPreview ? _publicText(data, 'phone') : null,
+            email: publicPreview ? _publicText(data, 'email') : null,
+            publicPreview: publicPreview,
+            onEdit: publicPreview ? null : widget.onStoreSettings,
+          );
+        },
+      );
+
+  String? _publicText(Map<String, dynamic>? data, String key) {
+    final value = data?[key];
+    if (data?['available'] != true || value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   Future<void> _showFilters() async {
-    var selected = _statusFilter;
+    var status = _statusFilter;
+    var kind = _kindFilter;
     await showModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: HocalistMotion.sheetStyle(context),
@@ -284,26 +343,42 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
         builder: (context, setSheetState) => SellerModalSheet(
           icon: Icons.filter_alt_outlined,
           title: 'Filter listings',
-          subtitle:
-              'Choose which listing status appears in your store manager.',
+          subtitle: 'Narrow your listings by type and status.',
           onClose: () => Navigator.of(sheetContext).pop(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const Text('Listing type'),
+              const SizedBox(height: 8),
+              for (final option in _StoreKindFilter.values)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _StoreRadioOption(
+                    label: _kindFilterLabel(option),
+                    selected: kind == option,
+                    onTap: () => setSheetState(() => kind = option),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              const Text('Status'),
+              const SizedBox(height: 8),
               for (final option in _StoreStatusFilter.values) ...[
                 _StoreRadioOption(
                   label: _statusLabel(option),
-                  selected: selected == option,
-                  onTap: () => setSheetState(() => selected = option),
+                  selected: status == option,
+                  onTap: () => setSheetState(() => status = option),
                 ),
                 if (option != _StoreStatusFilter.values.last)
                   const SizedBox(height: 8),
               ],
               const SizedBox(height: 14),
               SellerPrimaryButton(
-                label: 'Apply filter',
+                label: 'Apply filters',
                 onPressed: () {
-                  setState(() => _statusFilter = selected);
+                  setState(() {
+                    _statusFilter = status;
+                    _kindFilter = kind;
+                  });
                   Navigator.of(sheetContext).pop();
                 },
               ),
@@ -368,7 +443,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
             _StoreSheetAction(
               key: const Key('sellerStoreEditListing'),
               icon: Icons.edit_outlined,
-              title: 'Edit listing',
+              title: listing.rejected ? 'Edit and resubmit' : 'Edit listing',
               subtitle: 'Update details, images, pricing, or availability.',
               onTap: () {
                 Navigator.of(sheetContext).pop();
@@ -393,16 +468,19 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                   : Icons.publish_outlined,
               title: listing.status == LocalListingStatus.active
                   ? 'Pause listing'
-                  : 'Publish listing',
+                  : widget.repository.isStoreBacked && listing.pendingReview
+                  ? 'Submit for review' : 'Publish listing',
               subtitle: listing.rejected
                   ? 'Not approved. Update the listing before submitting it again.'
-                  : listing.pendingReview
+                  : listing.pendingReview && listing.status == LocalListingStatus.active
                   ? 'It is not visible to buyers while it awaits review.'
                   : listing.status == LocalListingStatus.active
                   ? 'Hide it from buyer discovery without deleting it.'
                   : widget.repository.isStoreBacked
                   ? 'Make it available for discovery after approval.'
                   : 'Make it visible to buyers in discovery.',
+              enabled: !listing.rejected &&
+                  !(listing.pendingReview && listing.status == LocalListingStatus.active),
               onTap: () async {
                 Navigator.of(sheetContext).pop();
                 final publishing = listing.status != LocalListingStatus.active;
@@ -415,6 +493,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                             : LocalListingStatus.paused,
                       );
                   if (!mounted) return;
+                  _refreshEntitlement();
                   _showMessage(
                     publishing
                         ? updated.pendingReview
@@ -472,6 +551,114 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
     );
   }
 
+  Future<void> _showMatchingRequests(LocalStoreListing listing) async {
+    final category = listing.categoryId;
+    final load = widget.loadMatchingRequests;
+    final open = widget.onOpenMatchingRequest;
+    if (category == null || load == null || open == null) return;
+    final results = load(listing);
+    await showModalBottomSheet<void>(
+      context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => SellerModalSheet(
+        icon: Icons.manage_search,
+        title: 'Matching requests',
+        subtitle: 'Requests in ${listing.category} for your ${_kindLabel(listing.kind).toLowerCase()} listing.',
+        onClose: () => Navigator.of(sheet).pop(),
+        child: FutureBuilder<List<SellerLeadView>>(
+          future: results,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const SellerProgressStrip(label: 'Finding matching requests…');
+            }
+            if (snapshot.hasError) {
+              return const Text('Matching requests could not be loaded. Close this panel and try again.');
+            }
+            final leads = snapshot.data ?? const [];
+            if (leads.isEmpty) return const Text('No open buyer requests match this category right now.');
+            return Column(
+              children: [
+                for (final lead in leads)
+                  _StoreSheetAction(
+                    icon: Icons.search,
+                    title: lead.request,
+                    subtitle: '${lead.city} · ${lead.budget}',
+                    onTap: () {
+                      Navigator.of(sheet).pop();
+                      open(lead);
+                    },
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showListingHocatrends(LocalStoreListing listing) {
+    final control = widget.hocatrendsControl;
+    if (control == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      sheetAnimationStyle: HocalistMotion.sheetStyle(context),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => SellerModalSheet(
+        icon: Icons.trending_up,
+        title: 'Hocatrends visibility',
+        subtitle: listing.title,
+        onClose: () => Navigator.of(sheet).pop(),
+        child: control(listing.id),
+      ),
+    );
+  }
+
+  Widget? _listingShortcuts(LocalStoreListing listing) {
+    if (listing.rejected && listing.status != LocalListingStatus.archived) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('This listing is private. Update its details before sending it back for review.'),
+          TextButton(
+            onPressed: () => _openListingEditor(listing),
+            child: const Text('Edit and resubmit'),
+          ),
+        ],
+      );
+    }
+    if (!listing.isPubliclyVisible || listing.pendingSync ||
+        (widget.loadMatchingRequests == null && widget.hocatrendsControl == null)) {
+      return null;
+    }
+    return FutureBuilder<SellerEntitlementView?>(
+      future: _entitlement,
+      builder: (context, snapshot) {
+        final plan = snapshot.data?.effectivePlan;
+        if (plan != PlanCode.pro && plan != PlanCode.elite) return const SizedBox.shrink();
+        return Wrap(
+          spacing: 8,
+          children: [
+            if (listing.categoryId != null &&
+                widget.loadMatchingRequests != null &&
+                widget.onOpenMatchingRequest != null)
+              TextButton(
+                onPressed: () => _showMatchingRequests(listing),
+                child: const Text('Find matching requests'),
+              ),
+            if (widget.hocatrendsControl != null)
+              TextButton(
+                onPressed: () => _showListingHocatrends(listing),
+                child: const Text('Show in Hocatrends'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _showListingPreview(LocalStoreListing listing) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -520,6 +707,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                 try {
                   await widget.repository.deleteStoreListing(listing.id);
                   if (!mounted) return;
+                  _refreshEntitlement();
                   _showMessage(
                     widget.repository.isStoreBacked
                         ? 'Listing archived.'
@@ -551,22 +739,24 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
 
   @override
   Widget build(BuildContext context) {
-    return SellerResponsivePage(
+    return PullRefreshAction(
+      onRefresh: _refreshPresentation,
+      child: _buildStorePage(),
+    );
+  }
+
+  Widget _buildStorePage() => SellerResponsivePage(
       builder: (context, metrics) => SizedBox.expand(
         child: AnimatedBuilder(
           animation: widget.repository,
           builder: (context, _) {
             final inventory = [...widget.repository.storeListings, ...widget.repository.archivedStoreListings];
             final matching = _matchingSearchAndKind(inventory);
-            final counts = <_StoreStatusFilter, int>{_StoreStatusFilter.all: matching.length};
-            for (final item in matching) {
-              counts.update(_listingGroup(item), (value) => value + 1, ifAbsent: () => 1);
-            }
             final listings = _statusFilter == _StoreStatusFilter.all
                 ? matching
                 : matching.where((item) => _listingGroup(item) == _statusFilter).toList();
             final activeCount = widget.repository.storeListings
-                .where((listing) => listing.isPubliclyVisible)
+                .where((listing) => listing.isPubliclyVisible && !listing.pendingSync)
                 .length;
             // Backed Store creation needs an admin-managed active category.
             // Prototype mode keeps the approved free-text category flow.
@@ -649,24 +839,38 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                     ),
                   ],
                   SizedBox(height: metrics.spacing(12)),
-                  _StoreSummaryCard(
-                    activeCount: activeCount,
-                    totalCount: inventory.length,
+                  _storeIdentity(),
+                  SizedBox(height: metrics.spacing(8)),
+                  SellerSecondaryButton(
+                    key: const Key('sellerStorePublicPreview'),
+                    label: 'Preview public store',
+                    onPressed: _showPublicStorePreview,
                   ),
+                  if (inventory.isNotEmpty) ...[
+                    SizedBox(height: metrics.spacing(12)),
+                    FutureBuilder<SellerEntitlementView?>(
+                      future: _entitlement,
+                      builder: (context, snapshot) => _StoreSummaryCard(
+                        activeCount: activeCount,
+                        totalCount: inventory.length,
+                        entitlement: snapshot.data,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: metrics.spacing(12)),
                   _AddListingCard(
                     onTap: _openListingEditor,
+                    firstListing: inventory.isEmpty,
                     enabled: catalogueReady,
-                    disabledNote:
-                        'Adding listings is unavailable until an administrator '
-                        'configures at least one active Store category.',
+                    disabledNote: widget.repository.storeCatalogueLoaded
+                        ? 'Adding listings is unavailable until an administrator '
+                            'configures at least one active Store category.'
+                        : widget.repository.storeLoading
+                        ? 'Loading Store categories…'
+                        : 'Store categories could not be loaded. Pull down to refresh.',
                   ),
+                  if (inventory.isNotEmpty || _statusFilter != _StoreStatusFilter.all) ...[
                   SizedBox(height: metrics.spacing(14)),
-                  _StoreKindFilters(
-                    selected: _kindFilter,
-                    onSelected: (value) => setState(() => _kindFilter = value),
-                  ),
-                  SizedBox(height: metrics.spacing(10)),
                   SizedBox(
                     height: 48 + (MediaQuery.textScalerOf(context).scale(16) - 16).clamp(0.0, double.infinity),
                     child: Row(
@@ -721,7 +925,8 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                           ),
                           child: Badge(
                             isLabelVisible:
-                                _statusFilter != _StoreStatusFilter.all,
+                              _statusFilter != _StoreStatusFilter.all ||
+                              _kindFilter != _StoreKindFilter.all,
                             smallSize: metrics.geometry(7),
                             child: Icon(
                               Icons.filter_alt_outlined,
@@ -734,22 +939,6 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                     ],
                   ),
                   ),
-                  SizedBox(height: metrics.spacing(8)),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(children: [
-                      for (final status in _StoreStatusFilter.values)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: _StoreFilterChip(
-                            label: '${_statusLabel(status)} (${counts[status] ?? 0})',
-                            inset: 10,
-                            selected: _statusFilter == status,
-                            onTap: () => setState(() => _statusFilter = status),
-                          ),
-                        ),
-                    ]),
-                  ),
                   SizedBox(height: metrics.spacing(13)),
                   Row(
                     children: [
@@ -758,7 +947,7 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                           switch (_statusFilter) {
                             _StoreStatusFilter.all => 'Your listings',
                             _StoreStatusFilter.inReview => 'Listings in review',
-                            _StoreStatusFilter.notApproved => 'Listings not approved',
+                            _StoreStatusFilter.notApproved => 'Listings needing changes',
                             _ => '${_statusLabel(_statusFilter)} listings',
                           },
                           style: sellerText(
@@ -782,13 +971,10 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                   SizedBox(height: metrics.spacing(8)),
                   if (listings.isEmpty)
                     _StoreEmptyState(
-                      title: _statusFilter == _StoreStatusFilter.archived ? 'No archived listings' : inventory.isEmpty
-                          ? 'No listings yet'
-                          : 'No listings found',
-                      body: _statusFilter == _StoreStatusFilter.archived ? 'Listings you archive will appear here.' : inventory.isEmpty
-                          ? 'Add your first product or service. It stays '
-                                'private until you publish it.'
-                          : _query.isEmpty
+                      title: _statusFilter == _StoreStatusFilter.archived
+                          ? 'No archived listings' : 'No listings found',
+                      body: _statusFilter == _StoreStatusFilter.archived
+                          ? 'Listings you archive will appear here.' : _query.isEmpty
                           ? 'Change the filter to see other listings.'
                           : 'Try another search term or clear your filters.',
                     )
@@ -797,31 +983,41 @@ class _ApprovedSellerStorePageState extends State<ApprovedSellerStorePage> {
                       _StoreListingCard(
                         listing: listing,
                         onTap: () => _showListingActions(listing),
+                        shortcuts: _listingShortcuts(listing),
                       ),
                       SizedBox(height: metrics.spacing(9)),
                     ],
+                  ],
                 ],
               ),
             );
           },
         ),
       ),
-    );
-  }
+  );
 }
 
 class _StoreSummaryCard extends StatelessWidget {
   const _StoreSummaryCard({
     required this.activeCount,
     required this.totalCount,
+    this.entitlement,
   });
 
   final int activeCount;
   final int totalCount;
+  final SellerEntitlementView? entitlement;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
+    final usage = entitlement?.storeListing;
+    final plan = switch (entitlement?.effectivePlan) {
+      PlanCode.free => 'Free',
+      PlanCode.pro => 'Pro Seller',
+      PlanCode.elite => 'Elite Seller',
+      null => null,
+    };
     final hasPublished = activeCount > 0;
     final (badgeLabel, badgeForeground, badgeBackground) = hasPublished
         ? ('Store active', SellerUiColors.green, SellerUiColors.greenSurface)
@@ -860,7 +1056,9 @@ class _StoreSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$activeCount published',
+                      usage == null
+                          ? '$activeCount published'
+                          : '${usage.active} of ${usage.limit} listing slots used',
                       style: sellerText(metrics, 12.5, weight: FontWeight.w800),
                     ),
                     SizedBox(height: metrics.spacing(2)),
@@ -877,10 +1075,12 @@ class _StoreSummaryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _StoreStatusBadge(
-                label: badgeLabel,
-                foreground: badgeForeground,
-                background: badgeBackground,
+              Flexible(
+                child: _StoreStatusBadge(
+                  label: plan ?? badgeLabel,
+                  foreground: badgeForeground,
+                  background: badgeBackground,
+                ),
               ),
             ],
           ),
@@ -894,11 +1094,13 @@ class _AddListingCard extends StatelessWidget {
   const _AddListingCard({
     required this.onTap,
     this.enabled = true,
+    this.firstListing = false,
     this.disabledNote,
   });
 
   final VoidCallback onTap;
   final bool enabled;
+  final bool firstListing;
   final String? disabledNote;
 
   @override
@@ -933,7 +1135,7 @@ class _AddListingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Add a product or service',
+                  firstListing ? 'Add your first listing' : 'Add listing',
                   style: sellerText(
                     metrics,
                     12.5,
@@ -946,7 +1148,9 @@ class _AddListingCard extends StatelessWidget {
                 SizedBox(height: metrics.spacing(2)),
                 Text(
                   enabled
-                      ? 'Create a listing buyers can discover.'
+                      ? firstListing
+                            ? 'Start with a product or service. You can save it as a private draft.'
+                            : 'Add a product or service to your Store.'
                       : (disabledNote ??
                             'Adding listings is unavailable until the catalogue '
                                 'is configured.'),
@@ -998,101 +1202,21 @@ class _AddListingCard extends StatelessWidget {
   }
 }
 
-class _StoreKindFilters extends StatelessWidget {
-  const _StoreKindFilters({required this.selected, required this.onSelected});
-
-  final _StoreKindFilter selected;
-  final ValueChanged<_StoreKindFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.of(context);
-    return Row(
-      children: [
-        for (final filter in _StoreKindFilter.values) ...[
-          Expanded(
-            child: _StoreFilterChip(
-              label: switch (filter) {
-                _StoreKindFilter.all => 'All',
-                _StoreKindFilter.products => 'Products',
-                _StoreKindFilter.services => 'Services',
-              },
-              selected: selected == filter,
-              onTap: () => onSelected(filter),
-            ),
-          ),
-          if (filter != _StoreKindFilter.values.last)
-            SizedBox(width: metrics.spacing(6)),
-        ],
-      ],
-    );
-  }
-}
-
-class _StoreFilterChip extends StatelessWidget {
-  final double inset;
-  const _StoreFilterChip({
-    this.inset = 0,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaScope.of(context);
-    return Material(
-      color: HocalistPalette.surface(
-        context,
-        selected ? SellerUiColors.primaryBright : SellerUiColors.white,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        side: BorderSide(
-          color: HocalistPalette.border(
-            context,
-            selected
-                ? SellerUiColors.primaryBright
-                : SellerUiColors.lavenderBorder,
-          ),
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(metrics.geometry(10)),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: metrics.geometry(inset), vertical: metrics.geometry(8)),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: sellerText(
-              metrics,
-              10.5,
-              weight: FontWeight.w800,
-              color: selected ? SellerUiColors.white : SellerUiColors.body,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StoreListingCard extends StatelessWidget {
-  const _StoreListingCard({required this.listing, required this.onTap});
+  const _StoreListingCard({
+    required this.listing,
+    required this.onTap,
+    this.shortcuts,
+  });
 
   final LocalStoreListing listing;
   final VoidCallback onTap;
+  final Widget? shortcuts;
 
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
+    final thumbnailWidth = metrics.artSize(72);
     return HocalistExpand(
       child: HocalistEntrance(
         child: HocalistPressFeedback(
@@ -1104,111 +1228,117 @@ class _StoreListingCard extends StatelessWidget {
                 color: HocalistPalette.border(context, SellerUiColors.line),
               ),
             ),
-            child: InkWell(
-              key: Key('sellerStoreListing-${listing.id}'),
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(metrics.geometry(13)),
-              child: Padding(
-                padding: EdgeInsets.all(metrics.geometry(10)),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ExcludeSemantics(
-                      child: IgnorePointer(
-                        child: _ListingImage(listing: listing, size: metrics.artSize(72)),
-                      ),
-                    ),
-                    SizedBox(width: metrics.spacing(10)),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InkWell(
+                  key: Key('sellerStoreListing-${listing.id}'),
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(metrics.geometry(13)),
+                  child: Padding(
+                    padding: EdgeInsets.all(metrics.geometry(10)),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ExcludeSemantics(
+                          child: IgnorePointer(
+                            child: _ListingImage(
+                              listing: listing,
+                              size: thumbnailWidth,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: metrics.spacing(10)),
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: TextButton(
-                                  key: Key('sellerStoreTitle-${listing.id}'),
-                                  onPressed: onTap,
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    alignment: Alignment.centerLeft,
-                                    minimumSize: const Size(0, 44),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              Text(
+                                listing.title,
+                                key: Key('sellerStoreTitle-${listing.id}'),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: sellerText(
+                                  metrics,
+                                  12.5,
+                                  weight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '${_kindLabel(listing.kind)} · ${listing.category}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: sellerText(
+                                  metrics,
+                                  9.75,
+                                  color: SellerUiColors.muted,
+                                ),
+                              ),
+                              SizedBox(height: metrics.spacing(4)),
+                              Wrap(
+                                spacing: metrics.spacing(6),
+                                runSpacing: metrics.spacing(4),
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    listing.priceLabel,
+                                    style: sellerText(
+                                      metrics,
+                                      13,
+                                      weight: FontWeight.w900,
+                                      color: SellerUiColors.primaryBright,
+                                    ),
                                   ),
-                                  child: Text(
-                                  listing.title,
-                                  maxLines: 2,
+                                  _listingStatusBadge(listing),
+                                ],
+                              ),
+                              if (listing.availability.trim().isNotEmpty) ...[
+                                SizedBox(height: metrics.spacing(3)),
+                                Text(
+                                  listing.availability,
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: sellerText(
                                     metrics,
-                                    12.5,
-                                    weight: FontWeight.w800,
-                                  ),
+                                    9.5,
+                                    color: SellerUiColors.body,
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: metrics.spacing(5)),
-                              IconButton(
-                                key: Key('sellerStoreManage-${listing.id}'),
-                                tooltip: 'Manage listing',
-                                onPressed: onTap,
-                                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                                padding: EdgeInsets.zero,
-                                icon: Icon(
-                                  Icons.more_vert_rounded,
-                                  size: metrics.artSize(19),
-                                  color: HocalistPalette.text(context, SellerUiColors.body),
-                                ),
-                              ),
+                              ],
                             ],
                           ),
-                          SizedBox(height: metrics.spacing(3)),
-                          Text(
-                            '${_kindLabel(listing.kind)} · ${listing.category}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: sellerText(
-                              metrics,
-                              9.75,
-                              color: SellerUiColors.muted,
+                        ),
+                        SizedBox(width: metrics.spacing(5)),
+                        IconButton(
+                          key: Key('sellerStoreManage-${listing.id}'),
+                          tooltip: 'Manage listing',
+                          onPressed: onTap,
+                          constraints: const BoxConstraints(
+                            minWidth: 44,
+                            minHeight: 44,
+                          ),
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.more_vert_rounded,
+                            size: metrics.artSize(19),
+                            color: HocalistPalette.text(
+                              context,
+                              SellerUiColors.body,
                             ),
                           ),
-                          SizedBox(height: metrics.spacing(6)),
-                          Wrap(
-                            spacing: metrics.spacing(6),
-                            runSpacing: metrics.spacing(4),
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                listing.priceLabel,
-                                style: sellerText(
-                                  metrics,
-                                  13,
-                                  weight: FontWeight.w900,
-                                  color: SellerUiColors.primaryBright,
-                                ),
-                              ),
-                              _listingStatusBadge(listing),
-                            ],
-                          ),
-                          SizedBox(height: metrics.spacing(5)),
-                          Text(
-                            listing.availability,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: sellerText(
-                              metrics,
-                              9.5,
-                              color: SellerUiColors.body,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                if (shortcuts != null)
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.spacing(10),
+                    ),
+                    child: shortcuts!,
+                  ),
+              ],
             ),
           ),
         ),
@@ -1228,7 +1358,6 @@ class _ListingImage extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(size * .16),
@@ -1237,14 +1366,16 @@ class _ListingImage extends StatelessWidget {
       child: listing.imageMediaIds.isNotEmpty
           ? PrivateRemoteImage(id: listing.imageMediaIds.first, size: size)
           : listing.imageAsset == null
-          ? Icon(
-              listing.kind == LocalListingKind.product
-                  ? Icons.inventory_2_outlined
-                  : Icons.design_services_outlined,
-              size: size * .38,
-              color: HocalistPalette.text(
-                context,
-                SellerUiColors.primaryBright,
+          ? Center(
+              child: Icon(
+                listing.kind == LocalListingKind.product
+                    ? Icons.inventory_2_outlined
+                    : Icons.design_services_outlined,
+                size: size * .38,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
             )
           : Image.asset(
@@ -1252,12 +1383,14 @@ class _ListingImage extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Icon(
-                Icons.image_outlined,
-                size: size * .38,
-                color: HocalistPalette.text(
-                  context,
-                  SellerUiColors.primaryBright,
+              errorBuilder: (_, _, _) => Center(
+                child: Icon(
+                  Icons.image_outlined,
+                  size: size * .38,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                 ),
               ),
             ),
@@ -1317,91 +1450,98 @@ class _StoreEmptyState extends StatelessWidget {
 }
 
 class _StoreIdentityCard extends StatelessWidget {
-  const _StoreIdentityCard({this.name, this.realMode = false});
+  const _StoreIdentityCard({
+    this.name,
+    this.avatarId,
+    this.area,
+    this.phone,
+    this.email,
+    this.publicPreview = false,
+    this.onEdit,
+  });
 
-  final String? name;
-  final bool realMode;
+  final String? name, avatarId, area, phone, email;
+  final bool publicPreview;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
-    final metrics = ApprovedReplicaMetrics.resolve(
-      brightness: Theme.of(context).brightness,
-      availableWidth: MediaQuery.sizeOf(context).width,
-      textScaler: MediaQuery.textScalerOf(context),
-    );
-    final displayName = realMode
-        ? (name == null || name!.trim().isEmpty ? 'Your store' : name!.trim())
-        : 'Northside Tech';
-    final initials = displayName
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .take(2)
-        .map((part) => part[0].toUpperCase())
-        .join();
-    return HocalistEntrance(
-      child: HocalistPressFeedback(
-        child: Container(
-          padding: EdgeInsets.all(metrics.geometry(12)),
-          decoration: BoxDecoration(
-            color: HocalistPalette.surface(context, SellerUiColors.lavender),
-            borderRadius: BorderRadius.circular(metrics.geometry(13)),
-          ),
-          child: Row(
-            children: [
-              if (realMode)
-                Container(
-                  width: metrics.artSize(44),
-                  height: metrics.artSize(44),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: HocalistPalette.surface(
-                      context,
-                      SellerUiColors.white,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    initials.isEmpty ? '?' : initials,
-                    style: sellerText(
-                      metrics,
-                      14,
-                      weight: FontWeight.w800,
-                      color: SellerUiColors.primaryBright,
-                    ),
-                  ),
-                )
-              else
-                CircleAvatar(
-                  radius: metrics.artSize(22),
-                  backgroundImage: const AssetImage(SellerAssets.homeAvatar),
-                ),
-              SizedBox(width: metrics.spacing(10)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: sellerText(metrics, 13, weight: FontWeight.w900),
-                    ),
-                    SizedBox(height: metrics.spacing(2)),
-                    Text(
-                      realMode
-                          ? 'Public store preview'
-                          : 'Verified seller · Yonkers, NY',
-                      style: sellerText(
-                        metrics,
-                        10,
-                        color: SellerUiColors.muted,
+    final metrics = ApprovedReplicaScope.maybeOf(context) ??
+        ApprovedReplicaMetrics.resolve(
+          brightness: Theme.of(context).brightness,
+          availableWidth: MediaQuery.sizeOf(context).width,
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+    final displayName = name?.trim().isNotEmpty == true ? name!.trim() : 'Seller store';
+    final size = metrics.artSize(publicPreview ? 58 : 40);
+    final initials = displayName.split(RegExp(r'\s+')).take(2)
+        .map((part) => part.characters.first.toUpperCase()).join();
+    final header = Container(
+      padding: EdgeInsets.all(metrics.spacing(10)),
+      decoration: BoxDecoration(
+        color: HocalistPalette.surface(context, SellerUiColors.lavender),
+        borderRadius: BorderRadius.circular(metrics.geometry(13)),
+      ),
+      child: Row(
+        children: [
+          SizedBox.square(
+            dimension: size,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(metrics.geometry(12)),
+              child: avatarId != null
+                  ? PrivateRemoteImage(id: avatarId!, size: size)
+                  : ColoredBox(
+                      color: HocalistPalette.surface(context, SellerUiColors.white),
+                      child: Center(
+                        child: Text(initials, style: sellerText(
+                          metrics, publicPreview ? 19 : 13,
+                          color: SellerUiColors.primaryBright, weight: FontWeight.w800,
+                        )),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          SizedBox(width: metrics.spacing(9)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(displayName, style: sellerText(
+                  metrics, publicPreview ? 17 : 13, weight: FontWeight.w900,
+                )),
+                if (area != null || !publicPreview)
+                  Text(area ?? 'Store profile', style: sellerText(
+                    metrics, 11, color: SellerUiColors.muted,
+                  )),
+              ],
+            ),
+          ),
+          if (onEdit != null)
+            TextButton(
+              key: const Key('sellerStoreEditProfile'),
+              onPressed: onEdit,
+              child: const Text('Edit profile'),
+            ),
+        ],
       ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        header,
+        if (phone != null || email != null) ...[
+          SizedBox(height: metrics.spacing(12)),
+          Text('Contact this business', style: sellerText(
+            metrics, 13, weight: FontWeight.w800,
+          )),
+          for (final (label, detail) in [('Phone', phone), ('Email', email)])
+            if (detail != null)
+              Padding(
+                padding: EdgeInsets.only(top: metrics.spacing(5)),
+                child: SelectableText('$label: $detail'),
+              ),
+        ],
+      ],
     );
   }
 }
@@ -1691,9 +1831,23 @@ class _AddStoreListingSheet extends StatefulWidget {
 
 enum _ListingEditorStage { chooseType, details, preview }
 
+enum _ListingPricing {
+  fixed('Fixed price'),
+  startingAt('Starting at'),
+  hourly('Hourly'),
+  quote('Request a quote'),
+  custom('Custom price');
+
+  const _ListingPricing(this.label);
+  final String label;
+}
+
 class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
+  static const _conditions = ['New', 'Like new', 'Good', 'Fair', 'For parts'];
   late _ListingEditorStage _stage;
   LocalListingKind? _kind;
+  String? _condition;
+  _ListingPricing _pricing = _ListingPricing.fixed;
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _categoryController;
@@ -1719,10 +1873,12 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
           source: PlaceCaptureSource.manual,
         )),
       );
-      if (mounted && result != null) setState(() {
-        _selectedArea = result;
-        _areaController.text = result.address;
-      });
+      if (mounted && result != null) {
+        setState(() {
+          _selectedArea = result;
+          _areaController.text = result.address;
+        });
+      }
     } finally { _choosingArea = false; }
   }
   late final TextEditingController _availabilityController;
@@ -1749,9 +1905,29 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
         : _ListingEditorStage.details;
     _kind = initial?.kind;
     _titleController = TextEditingController(text: initial?.title);
-    _descriptionController = TextEditingController(text: initial?.description);
+    var description = initial?.description ?? '';
+    if (_kind == LocalListingKind.product) {
+      final lines = description.split('\n');
+      for (final option in _conditions) {
+        if (lines.first == 'Condition: $option') {
+          _condition = option;
+          description = lines.skip(1).join('\n').trimLeft();
+          break;
+        }
+      }
+    }
+    _descriptionController = TextEditingController(text: description);
     _categoryController = TextEditingController(text: initial?.category);
-    _priceController = TextEditingController(text: initial?.priceLabel);
+    final price = initial?.priceLabel.trim() ?? '';
+    _pricing = _priceMode(price);
+    _priceController = TextEditingController(
+      text: switch (_pricing) {
+        _ListingPricing.startingAt => price.substring(5).trim(),
+        _ListingPricing.hourly => price.substring(0, price.length - 5).trim(),
+        _ListingPricing.quote => '',
+        _ => price,
+      },
+    );
     _areaController = TextEditingController(text: initial?.serviceArea);
     _availabilityController = TextEditingController(
       text: initial?.availability,
@@ -1760,6 +1936,36 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
     _existingImageIds.addAll(initial?.imageMediaIds ?? const []);
     _categoryId = initial?.categoryId;
     _categoryAnswers = initial?.categoryAnswers ?? const [];
+  }
+
+  _ListingPricing _priceMode(String value) {
+    if (value.isEmpty || _isAmount(value)) return _ListingPricing.fixed;
+    if (value.startsWith('From ') && _isAmount(value.substring(5))) {
+      return _ListingPricing.startingAt;
+    }
+    if (_kind == LocalListingKind.service) {
+      if (value == 'Quote required') return _ListingPricing.quote;
+      if (value.endsWith('/hour') &&
+          _isAmount(value.substring(0, value.length - 5))) {
+        return _ListingPricing.hourly;
+      }
+    }
+    return _ListingPricing.custom;
+  }
+
+  bool _isAmount(String value) =>
+      RegExp(r'^\$?\s*\d+(?:\.\d{1,2})?$').hasMatch(value.trim());
+
+  String get _priceLabel {
+    final raw = _priceController.text.trim();
+    final amount = raw.startsWith(r'$') ? raw.substring(1).trim() : raw;
+    return switch (_pricing) {
+      _ListingPricing.fixed => '\$$amount',
+      _ListingPricing.startingAt => 'From \$$amount',
+      _ListingPricing.hourly => '\$$amount/hour',
+      _ListingPricing.quote => 'Quote required',
+      _ListingPricing.custom => raw,
+    };
   }
 
   @override
@@ -1779,8 +1985,13 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
       id: initial?.id ?? '',
       kind: _kind!,
       title: _titleController.text.trim(),
-      priceLabel: _priceController.text.trim(),
-      description: _descriptionController.text.trim(),
+      priceLabel: _priceLabel,
+      description: [
+        if (_kind == LocalListingKind.product && _condition != null)
+          'Condition: $_condition',
+        if (_descriptionController.text.trim().isNotEmpty)
+          _descriptionController.text.trim(),
+      ].join('\n\n'),
       category: _categoryLabel ?? _categoryController.text.trim(),
       categoryId: _categoryId,
       categoryAnswers: _categoryAnswers,
@@ -1830,12 +2041,17 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
     final categoryMissing = widget.storeBacked
         ? _categoryId == null || !active.any((entry) => entry.id == _categoryId)
         : _categoryController.text.trim().isEmpty;
+    final validPrice = switch (_pricing) {
+      _ListingPricing.quote => true,
+      _ListingPricing.custom => _priceController.text.trim().isNotEmpty,
+      _ => _isAmount(_priceController.text),
+    };
     if (_titleController.text.trim().isEmpty ||
-        _priceController.text.trim().isEmpty ||
+        !validPrice ||
         categoryMissing) {
       setState(() {
         _error = widget.storeBacked
-            ? 'Add a title and price, and choose an active category.'
+            ? 'Add a title, enter a valid price or choose a quote, and pick an active category.'
             : 'Add a title, category, and price before continuing.';
       });
       return false;
@@ -2043,6 +2259,7 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
       availableWidth: MediaQuery.sizeOf(context).width,
       textScaler: MediaQuery.textScalerOf(context),
     );
+    final product = _kind == LocalListingKind.product;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2056,8 +2273,10 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
         ),
         SizedBox(height: metrics.spacing(10)),
         _StoreFormField(
-          label: 'Description',
-          hintText: 'Share the important details buyers should know.',
+          label: product ? 'Description' : 'What’s included?',
+          hintText: product
+              ? 'Mention the model, what’s included, and any wear.'
+              : 'Describe the work you’ll do and what the price includes.',
           controller: _descriptionController,
           minLines: 3,
           maxLines: 5,
@@ -2093,19 +2312,57 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
             answers: _categoryAnswers,
             onChanged: (answers) => setState(() => _categoryAnswers = answers),
           ),
-        _StoreFormField(
-          fieldKey: const Key('sellerStorePriceField'),
-          label: 'Pricing',
-          prefixText: r'$',
-          hintText: r'Example: $650, From $50, or Quote required',
-          controller: _priceController,
+        if (product) ...[
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _condition,
+            decoration: _storeInputDecoration(
+              context, metrics, hintText: 'Condition (optional)',
+            ).copyWith(labelText: 'Condition'),
+            items: [
+              for (final condition in _conditions)
+                DropdownMenuItem(value: condition, child: Text(condition)),
+            ],
+            onChanged: _saving || _ambiguous
+                ? null : (value) => setState(() => _condition = value),
+          ),
+          SizedBox(height: metrics.spacing(10)),
+        ],
+        DropdownButtonFormField<_ListingPricing>(
+          key: const Key('sellerStorePricingType'),
+          isExpanded: true,
+          initialValue: _pricing,
+          decoration: _storeInputDecoration(
+            context, metrics, hintText: 'Choose how to price this listing',
+          ).copyWith(labelText: 'Pricing'),
+          items: [
+            for (final option in _ListingPricing.values)
+              if (option == _ListingPricing.fixed ||
+                  option == _ListingPricing.startingAt ||
+                  (!product && (option == _ListingPricing.hourly || option == _ListingPricing.quote)) ||
+                  (_pricing == _ListingPricing.custom && option == _ListingPricing.custom))
+                DropdownMenuItem(value: option, child: Text(option.label)),
+          ],
+          onChanged: _saving || _ambiguous ? null : (value) {
+            if (value != null) setState(() => _pricing = value);
+          },
         ),
+        if (_pricing != _ListingPricing.quote) ...[
+          SizedBox(height: metrics.spacing(10)),
+          _StoreFormField(
+            fieldKey: const Key('sellerStorePriceField'),
+            label: _pricing == _ListingPricing.hourly ? 'Hourly rate' : 'Price',
+            prefixText: _pricing == _ListingPricing.custom ? null : r'$',
+            hintText: _pricing == _ListingPricing.custom ? 'Enter your price' : '0.00',
+            controller: _priceController,
+            keyboardType: _pricing == _ListingPricing.custom
+                ? null : const TextInputType.numberWithOptions(decimal: true),
+          ),
+        ],
         SizedBox(height: metrics.spacing(10)),
         _StoreFormField(
-          label: _kind == LocalListingKind.product
-              ? 'Pickup or service area'
-              : 'Service area',
-          hintText: 'Where is this available?',
+          label: product ? 'Pickup area' : 'Service area',
+          hintText: product ? 'Where can a buyer pick it up?' : 'Where do you work?',
           controller: _areaController,
           fieldKey: const Key('sellerStoreLocationField'),
           onTap: _chooseArea,
@@ -2113,7 +2370,7 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
         SizedBox(height: metrics.spacing(10)),
         _StoreFormField(
           label: 'Availability',
-          hintText: 'Example: Available today or Weekdays',
+          hintText: product ? 'Example: Available this weekend' : 'Example: Weekday mornings',
           controller: _availabilityController,
         ),
         SizedBox(height: metrics.spacing(10)),
@@ -2141,6 +2398,7 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
               upload: upload,
               existingImageCount: _existingImageIds.length,
               storePhotoControls: true,
+              cropToSquare: true,
               onPendingChanged: (value) =>
                   setState(() => _imagePending = value),
               enabled: !_saving && !_ambiguous,
@@ -2285,9 +2543,9 @@ class _AddStoreListingSheetState extends State<_AddStoreListingSheet> {
               ? 'Saving…'
               : _ambiguous
               ? 'Retry save'
-              : widget.initialListing == null
-              ? 'Publish listing'
-              : 'Save changes',
+              : widget.storeBacked && listing.status == LocalListingStatus.active
+              ? (widget.initialListing?.rejected == true ? 'Resubmit for review' : 'Submit for review')
+              : widget.initialListing == null ? 'Publish listing' : 'Save changes',
           onPressed: _saving || _imagePending
               ? null
               : () => _submit(listing.status),
@@ -2416,6 +2674,7 @@ class _StoreFormField extends StatelessWidget {
     this.fieldKey,
     this.prefixText,
     this.onTap,
+    this.keyboardType,
   });
 
   final String label;
@@ -2426,6 +2685,7 @@ class _StoreFormField extends StatelessWidget {
   final Key? fieldKey;
   final String? prefixText;
   final VoidCallback? onTap;
+  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -2451,6 +2711,7 @@ class _StoreFormField extends StatelessWidget {
         TextField(
           key: fieldKey,
           controller: controller,
+          keyboardType: keyboardType,
           readOnly: onTap != null,
           onTap: onTap,
           minLines: minLines,
@@ -2520,7 +2781,7 @@ _StoreStatusBadge _listingStatusBadge(LocalStoreListing listing) {
   }
   if (listing.rejected && listing.status != LocalListingStatus.archived) {
     return const _StoreStatusBadge(
-      label: 'Not approved',
+      label: 'Needs changes',
       foreground: SellerUiColors.amber,
       background: SellerUiColors.amberSurface,
     );
@@ -2534,7 +2795,7 @@ _StoreStatusBadge _listingStatusBadge(LocalStoreListing listing) {
   }
   return switch (listing.status) {
     LocalListingStatus.active => const _StoreStatusBadge(
-      label: 'Active',
+      label: 'Live',
       foreground: SellerUiColors.green,
       background: SellerUiColors.greenSurface,
     ),
@@ -2600,12 +2861,18 @@ String _kindLabel(LocalListingKind kind) => switch (kind) {
   LocalListingKind.service => 'Service',
 };
 
+String _kindFilterLabel(_StoreKindFilter kind) => switch (kind) {
+  _StoreKindFilter.all => 'All types',
+  _StoreKindFilter.products => 'Products',
+  _StoreKindFilter.services => 'Services',
+};
+
 String _statusLabel(_StoreStatusFilter status) => switch (status) {
-  _StoreStatusFilter.all => 'All',
-  _StoreStatusFilter.active => 'Active',
+  _StoreStatusFilter.all => 'All statuses',
+  _StoreStatusFilter.active => 'Live',
   _StoreStatusFilter.draft => 'Draft',
   _StoreStatusFilter.inReview => 'In review',
-  _StoreStatusFilter.notApproved => 'Not approved',
+  _StoreStatusFilter.notApproved => 'Needs changes',
   _StoreStatusFilter.paused => 'Paused',
   _StoreStatusFilter.archived => 'Archived',
 };

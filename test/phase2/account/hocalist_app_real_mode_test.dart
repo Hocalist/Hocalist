@@ -256,7 +256,7 @@ void main() {
 
     expect(find.byType(HocalistPrototype), findsOneWidget);
     expect(find.byType(MaterialApp), findsOneWidget);
-    expect(find.textContaining('Good morning'), findsOneWidget);
+    expect(find.text('Synthetic Buyer'), findsOneWidget);
   });
 
   testWidgets('unconfigured real entry keeps the prototype mode', (

@@ -5,8 +5,9 @@ import '../../theme/buyer_ui_foundation.dart';
 /// Neutral placeholder using the existing Store image-fallback treatment.
 /// It never substitutes a photograph of an item the seller has not uploaded.
 class ListingImagePlaceholder extends StatelessWidget {
-  const ListingImagePlaceholder({required this.size, super.key});
+  const ListingImagePlaceholder({required this.size, this.height, super.key});
   final double size;
+  final double? height;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -14,7 +15,7 @@ class ListingImagePlaceholder extends StatelessWidget {
     image: true,
     child: Container(
       width: size,
-      height: size,
+      height: height ?? size,
       decoration: BoxDecoration(
         color: HocalistPalette.surface(context, BuyerUiTokens.softSurface),
         borderRadius: BorderRadius.circular(10),

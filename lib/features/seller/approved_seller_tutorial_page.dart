@@ -75,14 +75,14 @@ class _ApprovedSellerTutorialPageState
           asset: SellerAssets.tutorialTarget,
           title: 'Receive real buying opportunities',
           body:
-              'Every request comes from someone actively looking to purchase.',
+              'Browse requests buyers have posted for products or services.',
         ),
         SizedBox(height: metrics.spacing(9)),
         const _TutorialBenefit(
           asset: SellerAssets.tutorialBuyer,
           title: 'Choose which buyers to pursue',
           body:
-              'Only pay for the opportunities you believe have the highest chance of becoming a sale.',
+              'Choose the requests you want to respond to. Your plan determines when an offer fee applies.',
         ),
         SizedBox(height: metrics.spacing(9)),
         const _TutorialBenefit(
@@ -94,9 +94,9 @@ class _ApprovedSellerTutorialPageState
         SizedBox(height: metrics.spacing(9)),
         const _TutorialBenefit(
           asset: SellerAssets.tutorialValue,
-          title: 'Pay for buyers, not views',
+          title: 'Know when you pay a lead fee',
           body:
-              'Stop wasting money on impressions. Invest in customers, not advertising.',
+              'A buyer reply can trigger a lead fee. A PIN-confirmed purchase can trigger a winning fee.',
         ),
         SizedBox(height: metrics.spacing(10)),
         const _TutorialFairnessBanner(),

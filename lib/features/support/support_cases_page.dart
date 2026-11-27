@@ -14,24 +14,28 @@ import '../../data/local_marketplace_repository.dart';
 import '../../data/phase2/support/support_adapter.dart';
 import '../../theme/buyer_ui_foundation.dart';
 import '../approved/approved_replica_metrics.dart';
+import 'chat_report_reasons.dart';
 
 class SupportCasesPage extends StatefulWidget {
   const SupportCasesPage({
     required this.adapter,
     required this.onBack,
     this.conversationId,
+    this.sellerOfferId,
     this.initialReasonCode,
     this.generalHelp = false,
     this.seller = false,
+    this.fromChat = false,
     super.key,
   });
   final SupportAdapter adapter;
   final String? initialReasonCode;
-  final bool generalHelp, seller;
+  final bool generalHelp, seller, fromChat;
   final VoidCallback onBack;
 
   /// A user-visible reference, not a grant to read the conversation or its messages.
   final String? conversationId;
+  final String? sellerOfferId;
   @override
   State<SupportCasesPage> createState() => _SupportCasesPageState();
 }
@@ -41,6 +45,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
   List<SupportReason> _reasons = [];
   List<SupportCase> _cases = [];
   String? _reason, _cursor, _error, _ack;
+  ChatReportReason? _chatReason;
   String? _formError;
   bool _retryDiscarded = false;
   bool _loading = true, _sending = false;
@@ -49,10 +54,16 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
   List<String> _screenshots = [];
   int _pickerVersion = 0;
   int _generation = 0;
-  ({String reason, String body, String key})? _intent;
-  String get _reference => widget.conversationId == null
+  ({String reason, String body, String key, String? sellerOfferId})? _intent;
+  String get _reference => widget.conversationId == null || (widget.sellerOfferId != null && !widget.fromChat)
       ? ''
       : '\n\nConversation reference: ${widget.conversationId}';
+  String _chatCode(ChatReportReason reason) =>
+      widget.sellerOfferId == null ? reason.supportCode : reason.category;
+  Iterable<ChatReportReason> get _availableChatReasons =>
+      chatReportReasons(seller: widget.seller).where(
+        (reason) => _reasons.any((available) => available.code == _chatCode(reason)),
+      );
   @override
   void initState() {
     super.initState();
@@ -82,7 +93,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         _error = 'Support could not be loaded. Try again.';
         return;
       }
-      _reasons = reasons.valueOrNull!;
+      _reasons = widget.sellerOfferId == null ? reasons.valueOrNull! : sellerConductReasons;
+      if (_chatReason != null && !_availableChatReasons.contains(_chatReason)) {
+        _chatReason = null;
+      }
       if (_reason == null &&
           _reasons.any((r) => r.code == widget.initialReasonCode)) {
         _reason = widget.initialReasonCode;
@@ -108,18 +122,33 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
   Future<void> _submit() async {
     if (_sending) return;
     if (_intent == null) {
-      if ((_reason == null && !_feedback) || _body.text.trim().length < 10) {
+      final notes = _body.text.trim();
+      final chatReason = _chatReason;
+      final String? validationError;
+      if (widget.fromChat) {
+        validationError = chatReason == null
+            ? 'Choose a reason for your report.'
+            : chatReason.requiresDetails && notes.length < 10
+            ? 'Add at least 10 characters to explain what happened.'
+            : null;
+      } else {
+        validationError = (_reason == null && !_feedback) || notes.length < 10
+            ? 'Choose a reason and add at least 10 characters.'
+            : null;
+      }
+      if (validationError != null) {
         setState(() {
-          _formError = 'Choose a reason and add at least 10 characters.';
+          _formError = validationError;
           _retryDiscarded = false;
         });
         return;
       }
       _intent = (
-        reason: _feedback ? 'general' : _reason!,
-        body: '${_feedback ? 'Feedback: $_feedbackType\n' : ''}${_body.text.trim()}$_reference'
+        reason: widget.fromChat ? _chatCode(chatReason!) : _feedback ? 'general' : _reason!,
+        body: '${_feedback ? 'Feedback: $_feedbackType\n' : ''}${widget.fromChat ? chatReason!.reportBody(notes) : notes}$_reference'
           '${_feedback && _includeDevice ? '\n\nApp context: ${kIsWeb ? 'Web' : defaultTargetPlatform.name}; ${widget.seller ? 'seller' : 'buyer'} mode.' : ''}',
         key: LocalMarketplaceRepository.newStoreOperationKey('support'),
+        sellerOfferId: _feedback ? null : widget.sellerOfferId,
       );
     }
     final intent = _intent!;
@@ -133,6 +162,7 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
       reason: intent.reason,
       body: intent.body,
       operationKey: intent.key,
+      sellerOfferId: intent.sellerOfferId,
     );
     if (!mounted) return;
     if (result.isSuccess && _screenshots.isNotEmpty) {
@@ -150,12 +180,11 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
     setState(() {
       _sending = false;
       if (result.isFailure) {
-        _formError = widget.generalHelp
-            ? 'The question was not confirmed. Retry sends the same question safely.'
-            : 'The report was not confirmed. Retry sends the same report safely.';
+        _formError = 'We couldn’t verify whether it was sent. Retry to check the same submission.';
       } else {
         _ack = result.valueOrNull;
         _intent = null;
+        _chatReason = null;
         _body.clear();
         _screenshots = [];
         _pickerVersion++;
@@ -179,8 +208,10 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           BuyerNestedHeader(
-            title: widget.generalHelp ? 'Help & feedback' : 'Safety report',
-            subtitle: widget.generalHelp
+            title: widget.fromChat ? (widget.seller ? 'Report buyer' : 'Report seller')
+                : widget.generalHelp ? 'Help & feedback' : 'Safety report',
+            subtitle: widget.fromChat ? 'Choose a reason and add details if you wish.'
+                : widget.generalHelp
                 ? 'Ask for help or share an idea.'
                 : 'Report an unsafe interaction and track the response.',
             onBack: widget.onBack,
@@ -247,8 +278,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                   ),
                   SizedBox(height: metrics.spacing(4)),
                   Text(
-                    'The reference is included with your report. Messages and '
-                    'photos are not attached automatically.',
+                    'We include the conversation reference. For a safety concern, '
+                    'tell us what happened and which message to review. Chat '
+                    'messages and photos aren’t attached.',
                     style: BuyerTypography.style(
                       context,
                       metrics,
@@ -301,8 +333,8 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
                   ? 'Retry discarded'
                   : _intent != null
                   ? (widget.generalHelp
-                        ? 'Question not confirmed'
-                        : 'Report not confirmed')
+                        ? 'Couldn’t verify your message'
+                        : 'Couldn’t verify your report')
                   : (widget.generalHelp
                         ? 'Check your question'
                         : 'Check your report'),
@@ -310,7 +342,25 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
             ),
             SizedBox(height: metrics.spacing(12)),
           ],
-          if (!_feedback) BuyerSecondaryButton(
+          if (widget.fromChat)
+            AccountSecondaryButton(
+              seller: widget.seller,
+              label: _chatReason?.label ?? 'Choose a reason',
+              onPressed: _sending || _intent != null || _availableChatReasons.isEmpty
+                  ? null
+                  : () async {
+                      final selected = await pickChatReportReason(
+                        context,
+                        seller: widget.seller,
+                        reasons: _availableChatReasons,
+                        selected: _chatReason,
+                      );
+                      if (mounted && selected != null) {
+                        setState(() { _chatReason = selected; _formError = null; });
+                      }
+                    },
+            )
+          else if (!_feedback) BuyerSecondaryButton(
             label:
                 _reasons.where((r) => r.code == _reason).firstOrNull?.label ??
                 (widget.generalHelp
@@ -352,7 +402,9 @@ class _SupportCasesPageState extends State<SupportCasesPage> {
           HocalistAccountField(
             fieldKey: const Key('supportBody'),
             seller: widget.seller,
-            label: _feedback ? 'Your feedback' : 'Your message',
+            label: widget.fromChat
+                ? (_chatReason?.requiresDetails == true ? 'What happened?' : 'Add details (optional)')
+                : _feedback ? 'Your feedback' : 'Your message',
             controller: _body,
             readOnly: _sending || _intent != null,
             maxLength: 3700 - _reference.length,
