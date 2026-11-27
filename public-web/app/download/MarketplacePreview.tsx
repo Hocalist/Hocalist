@@ -12,13 +12,12 @@ export function MarketplacePreview() {
       </div>
       <div className="marketplace-preview-install">
         <h3>Download the preview</h3>
-        <p>For most Android phones, choose the 64-bit APK. Open the downloaded file on your phone to install it.</p>
+        <p>Open the downloaded file on your phone to install it.</p>
         <div className="marketplace-preview-actions">
           <DownloadLink href="/download/android-preview" platform="android">Download preview APK</DownloadLink>
-          <DownloadLink href="/download/android-preview?architecture=arm32" platform="android" variant="secondary">Older phone? Get 32-bit</DownloadLink>
         </div>
-        <p className="store-availability">64-bit: {(release.arm64.bytes / 1000000).toFixed(1)} MB · 32-bit: {(release.arm32.bytes / 1000000).toFixed(1)} MB · Android 7 or later.</p>
-        <p className="store-availability">This updates an existing Hocalist installation. It is a test app, not a Google Play release. Optional analytics follow your in-app consent setting.</p>
+        <p className="store-availability">{(release.arm64.bytes / 1000000).toFixed(1)} MB · 32-bit and 64-bit ARM phones · Android 7 or later.</p>
+        <p className="store-availability">If you have a Hocalist preview from before build 4003, uninstall it before installing this build and then sign in again. This is an early-access test app. Optional analytics follow your in-app consent setting.</p>
       </div>
     </section>
   );
