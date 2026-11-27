@@ -1206,6 +1206,7 @@ class _StoreListingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metrics = ApprovedReplicaScope.of(context);
+    final thumbnailWidth = metrics.artSize(72);
     return HocalistExpand(
       child: HocalistEntrance(
         child: HocalistPressFeedback(
@@ -1221,114 +1222,144 @@ class _StoreListingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 InkWell(
-              key: Key('sellerStoreListing-${listing.id}'),
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(metrics.geometry(13)),
-              child: Padding(
-                padding: EdgeInsets.all(metrics.geometry(10)),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ExcludeSemantics(
-                      child: IgnorePointer(
-                        child: _ListingImage(listing: listing, size: metrics.artSize(72)),
-                      ),
-                    ),
-                    SizedBox(width: metrics.spacing(10)),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: TextButton(
-                                  key: Key('sellerStoreTitle-${listing.id}'),
-                                  onPressed: onTap,
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    alignment: Alignment.centerLeft,
-                                    minimumSize: const Size(0, 44),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(
-                                  listing.title,
-                                  maxLines: 2,
+                  key: Key('sellerStoreListing-${listing.id}'),
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(metrics.geometry(13)),
+                  child: Padding(
+                    padding: EdgeInsets.all(metrics.geometry(10)),
+                    child: Stack(
+                      children: [
+                        PositionedDirectional(
+                          start: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: thumbnailWidth,
+                          child: ExcludeSemantics(
+                            child: IgnorePointer(
+                              child: _ListingImage(
+                                listing: listing,
+                                size: thumbnailWidth,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsetsDirectional.only(
+                            start: thumbnailWidth + metrics.spacing(10),
+                          ),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: thumbnailWidth,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: TextButton(
+                                        key: Key(
+                                          'sellerStoreTitle-${listing.id}',
+                                        ),
+                                        onPressed: onTap,
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          alignment: Alignment.centerLeft,
+                                          minimumSize: const Size(0, 44),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: Text(
+                                          listing.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: sellerText(
+                                            metrics,
+                                            12.5,
+                                            weight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: metrics.spacing(5)),
+                                    IconButton(
+                                      key: Key(
+                                        'sellerStoreManage-${listing.id}',
+                                      ),
+                                      tooltip: 'Manage listing',
+                                      onPressed: onTap,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 44,
+                                        minHeight: 44,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      icon: Icon(
+                                        Icons.more_vert_rounded,
+                                        size: metrics.artSize(19),
+                                        color: HocalistPalette.text(
+                                          context,
+                                          SellerUiColors.body,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: metrics.spacing(1)),
+                                Text(
+                                  '${_kindLabel(listing.kind)} · ${listing.category}',
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: sellerText(
                                     metrics,
-                                    12.5,
-                                    weight: FontWeight.w800,
-                                  ),
+                                    9.75,
+                                    color: SellerUiColors.muted,
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: metrics.spacing(5)),
-                              IconButton(
-                                key: Key('sellerStoreManage-${listing.id}'),
-                                tooltip: 'Manage listing',
-                                onPressed: onTap,
-                                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                                padding: EdgeInsets.zero,
-                                icon: Icon(
-                                  Icons.more_vert_rounded,
-                                  size: metrics.artSize(19),
-                                  color: HocalistPalette.text(context, SellerUiColors.body),
+                                SizedBox(height: metrics.spacing(4)),
+                                Wrap(
+                                  spacing: metrics.spacing(6),
+                                  runSpacing: metrics.spacing(4),
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      listing.priceLabel,
+                                      style: sellerText(
+                                        metrics,
+                                        13,
+                                        weight: FontWeight.w900,
+                                        color: SellerUiColors.primaryBright,
+                                      ),
+                                    ),
+                                    _listingStatusBadge(listing),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: metrics.spacing(3)),
-                          Text(
-                            '${_kindLabel(listing.kind)} · ${listing.category}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: sellerText(
-                              metrics,
-                              9.75,
-                              color: SellerUiColors.muted,
+                                if (listing.availability.trim().isNotEmpty) ...[
+                                  SizedBox(height: metrics.spacing(3)),
+                                  Text(
+                                    listing.availability,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: sellerText(
+                                      metrics,
+                                      9.5,
+                                      color: SellerUiColors.body,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          SizedBox(height: metrics.spacing(6)),
-                          Wrap(
-                            spacing: metrics.spacing(6),
-                            runSpacing: metrics.spacing(4),
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                listing.priceLabel,
-                                style: sellerText(
-                                  metrics,
-                                  13,
-                                  weight: FontWeight.w900,
-                                  color: SellerUiColors.primaryBright,
-                                ),
-                              ),
-                              _listingStatusBadge(listing),
-                            ],
-                          ),
-                          SizedBox(height: metrics.spacing(5)),
-                          Text(
-                            listing.availability,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: sellerText(
-                              metrics,
-                              9.5,
-                              color: SellerUiColors.body,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
                 ),
                 if (shortcuts != null)
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: metrics.spacing(10)),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.spacing(10),
+                    ),
                     child: shortcuts!,
                   ),
               ],
@@ -1351,7 +1382,6 @@ class _ListingImage extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: HocalistPalette.surface(context, SellerUiColors.lavender),
         borderRadius: BorderRadius.circular(size * .16),
@@ -1360,14 +1390,16 @@ class _ListingImage extends StatelessWidget {
       child: listing.imageMediaIds.isNotEmpty
           ? PrivateRemoteImage(id: listing.imageMediaIds.first, size: size)
           : listing.imageAsset == null
-          ? Icon(
-              listing.kind == LocalListingKind.product
-                  ? Icons.inventory_2_outlined
-                  : Icons.design_services_outlined,
-              size: size * .38,
-              color: HocalistPalette.text(
-                context,
-                SellerUiColors.primaryBright,
+          ? Center(
+              child: Icon(
+                listing.kind == LocalListingKind.product
+                    ? Icons.inventory_2_outlined
+                    : Icons.design_services_outlined,
+                size: size * .38,
+                color: HocalistPalette.text(
+                  context,
+                  SellerUiColors.primaryBright,
+                ),
               ),
             )
           : Image.asset(
@@ -1375,12 +1407,14 @@ class _ListingImage extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Icon(
-                Icons.image_outlined,
-                size: size * .38,
-                color: HocalistPalette.text(
-                  context,
-                  SellerUiColors.primaryBright,
+              errorBuilder: (_, _, _) => Center(
+                child: Icon(
+                  Icons.image_outlined,
+                  size: size * .38,
+                  color: HocalistPalette.text(
+                    context,
+                    SellerUiColors.primaryBright,
+                  ),
                 ),
               ),
             ),

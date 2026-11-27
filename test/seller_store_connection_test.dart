@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hocalist/data/local_marketplace_repository.dart';
 import 'package:hocalist/domain/phase2/commercial/commercial.dart';
 import 'package:hocalist/features/seller/approved_seller_leads_page.dart';
+import 'package:hocalist/features/media/private_remote_image.dart';
 import 'package:hocalist/features/seller/approved_seller_store_page.dart';
 import 'package:hocalist/features/seller/seller_app_shell.dart';
 import 'package:hocalist/features/seller/seller_bottom_navigation.dart';
@@ -260,6 +261,14 @@ void main() {
     final titleAction = find.byKey(const Key('sellerStoreTitle-server-photo'));
     await tester.ensureVisible(titleAction);
     await _settle(tester);
+    final listingCard = find.byKey(const Key('sellerStoreListing-server-photo'));
+    final photo = find.descendant(
+      of: listingCard,
+      matching: find.byType(PrivateRemoteImage),
+    );
+    final cardRect = tester.getRect(listingCard);
+    final photoRect = tester.getRect(photo);
+    expect(cardRect.bottom - photoRect.bottom, closeTo(photoRect.top - cardRect.top, 1));
     await tester.tap(titleAction);
     await _settle(tester);
     expect(find.text('Edit listing'), findsOneWidget);
