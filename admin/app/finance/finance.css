@@ -1,0 +1,37 @@
+.finance-report { display: grid; gap: 20px; }
+.finance-report > .section, .finance-report > .stats { margin: 0; }
+.finance-period { margin: 0; }
+.finance-chart > p, .finance-inputs > p, .finance-breakdown p { margin-top: 0; }
+.finance-bars { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.finance-bars button {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  padding: 12px;
+  min-width: 0;
+  border: 1px solid #dedff0;
+  border-radius: 10px;
+  background: #fff;
+}
+.finance-bars button[aria-pressed="true"] { border-color: #4937ae; background: #f2efff; }
+.finance-bars button:hover { border-color: #4937ae; }
+.finance-track, .finance-track > span { display: block; height: 7px; border-radius: 999px; }
+.finance-track { background: #e5e4f2; overflow: hidden; }
+.finance-track > span { background: #5942c5; }
+.finance-track > span[data-state="negative"] { background: #ba3b52; }
+.finance-track > span[data-state="unknown"] { background: #dedff0; }
+.finance-breakdown { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 30px; }
+.finance-breakdown dl { margin: 0 0 12px; }
+.finance-breakdown dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #edeaf4; }
+.finance-breakdown dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.finance-breakdown aside { background: #f6f4fb; border-radius: 12px; padding: 16px; align-self: start; }
+.finance-inputs summary { cursor: pointer; font-weight: 700; }
+.finance-inputs[open] summary { margin-bottom: 14px; }
+.finance-inputs form { display: grid; gap: 12px; }
+.finance-inputs label { display: grid; gap: 4px; }
+.finance-inputs button { justify-self: start; }
+.finance-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 740px) {
+  .finance-bars, .finance-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .finance-breakdown { grid-template-columns: minmax(0, 1fr); }
+}

@@ -80,6 +80,8 @@ export const config = {
     "/trust",
     "/billing",
     "/billing/config",
+    "/finance",
+    "/rewards-impact",
     "/withdrawals",
     "/delivery",
     "/settings",
